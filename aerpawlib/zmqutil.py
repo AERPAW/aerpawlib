@@ -1,23 +1,25 @@
-import asyncio
-import zmq
+"""
+ZMQ utilities module for aerpawlib.
 
-ZMQ_PROXY_IN_PORT = "5570"
-ZMQ_PROXY_OUT_PORT = "5571"
+This module has been moved to version-specific directories:
+- aerpawlib.legacy.zmqutil: Original implementation
+- aerpawlib.v1.zmqutil: V1 API compatible implementation
+- aerpawlib.v2.zmqutil: Modernized async-first implementation
 
-ZMQ_TYPE_TRANSITION = "state_transition"
-ZMQ_TYPE_FIELD_REQUEST = "field_request"
-ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
+This file provides backward compatibility by re-exporting from v1.
+For new code, consider using aerpawlib.v2.zmqutil for async support.
+"""
 
-def run_zmq_proxy():
-    # TODO make use asynico. for now must be separate process
-    zmq_context = zmq.Context()
-    
-    p_sub = zmq_context.socket(zmq.XSUB)
-    p_pub = zmq_context.socket(zmq.XPUB)
+import warnings
 
-    p_sub.bind(f"tcp://*:{ZMQ_PROXY_IN_PORT}")
-    p_pub.bind(f"tcp://*:{ZMQ_PROXY_OUT_PORT}")
+# Issue a deprecation warning for direct imports
+warnings.warn(
+    "Importing from aerpawlib.zmqutil is deprecated. "
+    "Use 'from aerpawlib.v1.zmqutil import ...' or "
+    "'from aerpawlib.v2.zmqutil import ...' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
-    print("[aerpawlib] launching zmq proxy")
-    zmq.proxy(p_sub, p_pub)
-
+# Re-export everything from v1 for backward compatibility
+from aerpawlib.v1.zmqutil import *

@@ -1,0 +1,144 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aerpawlib"
+version = "0.5.0"
+description = "Tools and frameworks for writing AERPAW scripts"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "John Kesler", email = "jckesle2@ncsu.edu"}
+]
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["aerpaw", "drone", "uav", "mavsdk", "vehicle", "control"]
+
+dependencies = [
+    "mavsdk>=1.4.0",
+    "pyzmq",
+    "pyyaml",
+    "pykml",
+    "requests",
+]
+
+[project.optional-dependencies]
+legacy = [
+    "dronekit",
+    "pymavlink",
+    "pyserial",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio",
+    "pytest-cov",
+    "black",
+    "isort",
+    "mypy",
+    "ruff",
+]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
+    "myst-parser",
+]
+all = [
+    "aerpawlib[legacy,dev,docs]",
+]
+
+[project.urls]
+Homepage = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control"
+Repository = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control"
+Documentation = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control#readme"
+"Bug Tracker" = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control/issues"
+
+[project.scripts]
+aerpawlib = "aerpawlib.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["aerpawlib*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.kml", "*.plan"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_first_party = ["aerpawlib"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["aerpawlib/test"]
+python_files = ["*_test.py", "test_*.py"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["aerpawlib"]
+omit = ["*/test/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+

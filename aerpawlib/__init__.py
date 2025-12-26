@@ -2,10 +2,12 @@
 .. include:: ./documentation.md
 """
 
-__version__ = "0.3.1"
+__version__ = "2.0.0"
 __author__ = "John Kesler"
 
-from .runner import *
-from .vehicle import *
-from .util import *
-from .external import *
+
+# Default to v1 API (MAVSDK-based, API compatible with legacy)
+from .v1 import *
+
+
+

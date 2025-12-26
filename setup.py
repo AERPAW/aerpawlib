@@ -1,17 +1,17 @@
+"""
+DEPRECATED: This file is kept for backward compatibility with older pip versions.
+Please use pyproject.toml for all package configuration.
+"""
+import warnings
 from setuptools import setup
 
-setup(
-        name="aerpawlib",
-        version="0.3.1",
-        description="Tools and frameworks for writing AERPAW scripts",
-        author="John Kesler",
-        author_email="jckesle2@ncsu.edu",
-        packages=["aerpawlib"],
-        install_requires=[
-            "dronekit",
-            "pymavlink",
-            "pyserial",
-            "pyzmq",
-            "pyyaml"
-            ]
-        )
+warnings.warn(
+    "setup.py is deprecated. Package configuration has moved to pyproject.toml. "
+    "Consider upgrading pip: pip install --upgrade pip",
+    DeprecationWarning,
+)
+
+# Minimal setup.py for backward compatibility
+# All configuration is now in pyproject.toml
+setup(install_requires=['pykml'])
+
