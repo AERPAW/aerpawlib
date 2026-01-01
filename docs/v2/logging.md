@@ -1,6 +1,6 @@
 # aerpawlib v2 Logging System
 
-The aerpawlib v2 API includes a comprehensive, modularized logging system designed specifically for drone and vehicle control applications. This document covers all features and usage patterns.
+The aerpawlib v2 API has significant changes to logging when compared to v1/legacy.
 
 ## Quick Start
 
@@ -89,9 +89,11 @@ JSON output includes:
 - Exception traceback (if any)
 - Extra context fields
 
-### 4. Rotating File Logs
 
-File logs automatically rotate to prevent disk space issues:
+
+# Note that the features below are very tenative and WILL be changed significantly
+
+### 4. Rotating File Logs
 
 ```python
 configure_logging(
@@ -102,8 +104,6 @@ configure_logging(
 ```
 
 ### 5. Component-Specific Log Levels
-
-Set different log levels for different components:
 
 ```python
 from aerpawlib.v2 import set_level, LogLevel, LogComponent
@@ -126,8 +126,6 @@ configure_logging(
 
 ### 6. Logging Context
 
-Add contextual information to all log messages:
-
 ```python
 from aerpawlib.v2 import get_manager
 
@@ -145,8 +143,6 @@ manager.clear_context()
 ```
 
 ### 7. Logger Adapter with Extended Methods
-
-The `LoggerAdapter` provides additional convenience methods:
 
 ```python
 from aerpawlib.v2 import get_logger, LogComponent
@@ -171,8 +167,6 @@ logger.telemetry(
 ```
 
 ## Flight Data Recording
-
-The logging system includes a specialized flight data recorder for telemetry:
 
 ```python
 from aerpawlib.v2 import get_flight_recorder, FlightDataRecorder

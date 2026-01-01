@@ -6,7 +6,25 @@ complex missions with multiple states and background tasks.
 """
 import asyncio
 
-from aerpawlib.v2 import (Coordinate, Drone, StateMachine, at_init, background, sleep, state, timed_state)
+from aerpawlib.v2 import (
+    Coordinate,
+    Drone,
+    StateMachine,
+    at_init,
+    background,
+    sleep,
+    state,
+    timed_state,
+    # Logging
+    configure_logging,
+    get_logger,
+    LogLevel,
+    LogComponent,
+)
+
+# Configure logging
+configure_logging(level=LogLevel.INFO)
+logger = get_logger(LogComponent.USER)
 
 
 class SurveyMission(StateMachine):
@@ -45,12 +63,12 @@ class SurveyMission(StateMachine):
             Coordinate(35.7280, -78.6955, self.survey_altitude, "Point C"),
             Coordinate(35.7275, -78.6955, self.survey_altitude, "Point D"),
         ]
-        print(f"Loaded {len(self.waypoints)} survey waypoints")
+        logger.info(f"Loaded {len(self.waypoints)} survey waypoints")
 
     @background
     async def log_telemetry(self, drone: Drone):
         """Log telemetry data periodically."""
-        print(f"[Telemetry] Alt: {drone.altitude:.1f}m, "
+        logger.debug(f"[Telemetry] Alt: {drone.altitude:.1f}m, "
               f"Speed: {drone.state.groundspeed:.1f}m/s, "
               f"Heading: {drone.heading:.0f}°, "
               f"Battery: {drone.battery.percentage:.0f}%")
@@ -60,63 +78,63 @@ class SurveyMission(StateMachine):
     async def battery_monitor(self, drone: Drone):
         """Monitor battery and trigger RTL if low."""
         if drone.battery.percentage < self.min_battery:
-            print(f"[WARNING] Battery low ({drone.battery.percentage:.0f}%)! Triggering RTL...")
+            logger.warning(f"Battery low ({drone.battery.percentage:.0f}%)! Triggering RTL...")
             self.transition_to("emergency_rtl")
         await sleep(5)
 
     @state("preflight", first=True)
     async def preflight_check(self, drone: Drone):
         """Perform pre-flight checks."""
-        print("\n=== Pre-flight Checks ===")
+        logger.info("=== Pre-flight Checks ===")
 
         # Check GPS
         if not drone.gps.has_fix:
-            print("  [WAITING] GPS fix...")
+            logger.info("  [WAITING] GPS fix...")
             await sleep(1)
             return "preflight"  # Stay in this state
-        print(f"  [OK] GPS: {drone.gps.quality} ({drone.gps.satellites} sats)")
+        logger.info(f"  [OK] GPS: {drone.gps.quality} ({drone.gps.satellites} sats)")
 
         # Check battery
         if drone.battery.percentage < 30:
-            print(f"  [FAIL] Battery too low: {drone.battery.percentage:.0f}%")
+            logger.error(f"  [FAIL] Battery too low: {drone.battery.percentage:.0f}%")
             return None  # Stop the mission
-        print(f"  [OK] Battery: {drone.battery.percentage:.0f}%")
+        logger.info(f"  [OK] Battery: {drone.battery.percentage:.0f}%")
 
         # Check if armable
         if not drone.is_armable:
-            print("  [WAITING] Vehicle not armable...")
+            logger.info("  [WAITING] Vehicle not armable...")
             await sleep(1)
             return "preflight"
-        print("  [OK] Vehicle is armable")
+        logger.info("  [OK] Vehicle is armable")
 
-        print("Pre-flight checks passed!")
+        logger.info("Pre-flight checks passed!")
         return "takeoff"
 
     @state("takeoff")
     async def takeoff_state(self, drone: Drone):
         """Arm and takeoff."""
-        print(f"\n=== Taking Off to {self.survey_altitude}m ===")
+        logger.info(f"=== Taking Off to {self.survey_altitude}m ===")
 
         await drone.arm()
         await drone.takeoff(altitude=self.survey_altitude)
 
-        print(f"Takeoff complete! Altitude: {drone.altitude:.1f}m")
+        logger.info(f"Takeoff complete! Altitude: {drone.altitude:.1f}m")
         return "survey"
 
     @state("survey")
     async def survey_state(self, drone: Drone):
         """Visit each survey waypoint."""
         if self.current_waypoint >= len(self.waypoints):
-            print("\n=== Survey Complete ===")
+            logger.info("=== Survey Complete ===")
             return "rtl"
 
         waypoint = self.waypoints[self.current_waypoint]
-        print(f"\n=== Flying to {waypoint.name} ({self.current_waypoint + 1}/{len(self.waypoints)}) ===")
+        logger.info(f"=== Flying to {waypoint.name} ({self.current_waypoint + 1}/{len(self.waypoints)}) ===")
 
         await drone.goto(coordinates=waypoint, tolerance=2.0)
 
         # Simulate data collection
-        print(f"  Collecting data at {waypoint.name}...")
+        logger.info(f"  Collecting data at {waypoint.name}...")
         await sleep(2)
 
         self.current_waypoint += 1
@@ -125,17 +143,17 @@ class SurveyMission(StateMachine):
     @state("rtl")
     async def return_to_launch(self, drone: Drone):
         """Return to launch position."""
-        print("\n=== Returning to Launch ===")
+        logger.info("=== Returning to Launch ===")
         await drone.rtl()
-        print("Mission complete! Landed safely.")
+        logger.info("Mission complete! Landed safely.")
         return None  # Stop the state machine
 
     @state("emergency_rtl")
     async def emergency_return(self, drone: Drone):
         """Emergency return due to low battery."""
-        print("\n=== EMERGENCY RTL ===")
+        logger.warning("=== EMERGENCY RTL ===")
         await drone.rtl()
-        print("Emergency landing complete.")
+        logger.info("Emergency landing complete.")
         return None
 
 

@@ -1,2 +1,7 @@
 __pycache__/
 *egg-info/
+
+# ArduPilot SITL (installed by install_ardupilot.sh)
+/ardupilot/
+/ardupilot-venv/
+/activate-ardupilot.sh

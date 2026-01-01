@@ -1,6 +1,11 @@
 # CommandHandle Guide
+*(name may be changed)*
 
-CommandHandle is a powerful feature in the v2 API that enables non-blocking command execution with progress tracking, cancellation support, and detailed result inspection.
+CommandHandle is a powerful feature in the v2 API that enables:
+- non-blocking command execution with progress tracking
+- cancellation support
+- detailed result inspection.
+
 
 ## Overview
 
@@ -20,15 +25,15 @@ await handle  # Wait for completion when ready
 
 The following commands support `CommandHandle`:
 
-| Command | `wait` Parameter | Progress Fields |
-|---------|------------------|-----------------|
-| `goto()` | `wait=False` | `distance`, `target`, `tolerance` |
-| `takeoff()` | `wait=False` | `current_altitude`, `target_altitude`, `altitude_remaining` |
-| `land()` | `wait=False` | `current_altitude`, `landed_state`, `armed` |
-| `rtl()` | `wait=False` | `distance_to_home`, `current_altitude`, `landed_state` |
-| `set_heading()` | `blocking=False` | `current_heading`, `target_heading`, `heading_diff` |
-| `set_velocity()` | `wait=False` (with `duration`) | `elapsed`, `duration`, `time_remaining` |
-| `orbit()` | `wait=False` | `revolutions_completed`, `progress_percent`, `time_remaining` |
+| Command          | `wait` Parameter                                       | Progress Fields (will tweak this to dataclasses instead of dictionaries) |
+|------------------|--------------------------------------------------------|--------------------------------------------------------------------------|
+| `goto()`         | `wait=False`                                           | `distance`, `target`, `tolerance`                                        |
+| `takeoff()`      | `wait=False`                                           | `current_altitude`, `target_altitude`, `altitude_remaining`              |
+| `land()`         | `wait=False`                                           | `current_altitude`, `landed_state`, `armed`                              |
+| `rtl()`          | `wait=False`                                           | `distance_to_home`, `current_altitude`, `landed_state`                   |
+| `set_heading()`  | `blocking=False` (TODO: update function)               | `current_heading`, `target_heading`, `heading_diff`                      |
+| `set_velocity()` | `wait=False` (with `duration`) (TODO: update function) | `elapsed`, `duration`, `time_remaining`                                  |
+| `orbit()`        | `wait=False`                                           | `revolutions_completed`, `progress_percent`, `time_remaining`            |
 
 ## Creating Handles
 
@@ -345,74 +350,3 @@ async def orbit_then_land(drone, center):
     
     print("Landed!")
 ```
-
-## Best Practices
-
-### 1. Always Handle Errors
-
-```python
-try:
-    handle = await drone.goto(coordinates=target, wait=False)
-    await handle
-except CommandCancelledError:
-    # Handle cancellation
-    pass
-except TimeoutError:
-    # Handle timeout
-    await drone.hold()
-```
-
-### 2. Check Running Before Progress
-
-```python
-while handle.is_running:
-    progress = handle.progress  # Safe - command is running
-    print(progress)
-    await asyncio.sleep(1)
-```
-
-### 3. Use Timeouts Appropriately
-
-```python
-# Set realistic timeouts based on distance/operation
-distance = drone.position.distance_to(target)
-timeout = distance / expected_speed * 1.5  # 50% buffer
-
-handle = await drone.goto(coordinates=target, timeout=timeout, wait=False)
-```
-
-### 4. Clean Up on Errors
-
-```python
-handle = await drone.goto(coordinates=target, wait=False)
-
-try:
-    await handle
-except Exception:
-    # Ensure drone is in safe state
-    await drone.hold()
-    raise
-```
-
-### 5. Prefer Non-blocking for Long Operations
-
-For operations that take significant time, non-blocking allows:
-- Progress monitoring
-- Battery/safety checks
-- Telemetry logging
-- User interruption
-
-```python
-# Good: can monitor and react
-handle = await drone.goto(coordinates=far_target, wait=False)
-while handle.is_running:
-    if drone.battery.is_low:
-        await handle.cancel()
-        await drone.rtl()
-        break
-    await asyncio.sleep(1)
-
-# Less flexible: blocks until complete
-await drone.goto(coordinates=far_target)  # Can't check battery
-```
-

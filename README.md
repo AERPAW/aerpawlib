@@ -1,4 +1,4 @@
-# aerpawlib
+# aerpawlib (TODO UPDATE README)
 
 This is a python3.7+ package that can be used to write scripts compatible with
 our dedicated script runner and environment. By using this library, you're

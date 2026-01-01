@@ -6,49 +6,30 @@ Welcome to the aerpawlib documentation. aerpawlib is a Python library for autono
 
 aerpawlib offers three API versions to accommodate different needs:
 
-| Version | Backend | Status | Recommended For |
+| Version | Backend | Recommended For |
 |---------|---------|--------|-----------------|
-| [**v2**](v2/README.md) | MAVSDK | ✅ **Recommended** | New projects |
-| [v1](v1/README.md) | MAVSDK | ✅ Stable | Legacy code migration |
-| [legacy](legacy/README.md) | DroneKit | ⚠️ Deprecated | Reference only |
+| [v2](v2/README.md) | MAVSDK | Nothing currently as it is very buggy :D |
+| [v1](v1/README.md) | MAVSDK | No API changes. Still has major bugs. |
+| [legacy](legacy/README.md) | DroneKit | Still use for most projects. |
 
 ## Quick Comparison
 
-| Feature | Legacy | v1 | v2 |
-|---------|--------|-----|-----|
-| Backend | DroneKit | MAVSDK | MAVSDK |
-| Python | 3.7+ | 3.8+ | 3.8+ |
-| Async | Basic | Basic | Native |
-| Context managers | ❌ | ❌ | ✅ |
-| CommandHandle | ❌ | ❌ | ✅ |
-| Progress tracking | ❌ | ❌ | ✅ |
-| Structured exceptions | ❌ | ❌ | ✅ |
-| Event callbacks | Limited | Limited | ✅ |
-| Flight recording | ❌ | ❌ | ✅ |
-| Property-based state | ❌ | ❌ | ✅ |
-| Pre-flight checks | ❌ | ❌ | ✅ |
-| Battery failsafe | ❌ | ❌ | ✅ |
-| Parameter validation | ❌ | ❌ | ✅ |
-| Geofence validation | ✅ | ✅ | ✅ |
+| Feature               | Legacy          | v1              | v2             |
+|-----------------------|-----------------|-----------------|----------------|
+| Backend               | DroneKit        | MAVSDK          | MAVSDK         |
+| Python                | 3.7+            | 3.8+            | 3.8+           |
+| Async Support         | Some components | Some components | All components |
+
 
 ## Installation
 
 ```bash
-pip install aerpawlib
-
-# For v1/v2 (MAVSDK backend)
-pip install mavsdk
-
-# For safety checker (all versions)
-pip install pyzmq pyyaml
-
-# For legacy (DroneKit backend)
-pip install dronekit pymavlink
+pip install -e .
 ```
 
 ## Quick Start
 
-### v2 API (Recommended)
+### v2 API
 
 ```python
 from aerpawlib.v2 import Drone, Coordinate, BasicRunner, entrypoint
@@ -63,7 +44,7 @@ class MyMission(BasicRunner):
         await drone.land()
 ```
 
-### v1 API
+### legacy/v1 API
 
 ```python
 from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
@@ -75,38 +56,6 @@ class MyMission(BasicRunner):
         await drone.goto_coordinates(Coordinate(35.7, -78.6, 10))
         await drone.land()
 ```
-
-## Documentation Index
-
-### v2 API
-- [README](v2/README.md) - Full API reference
-- [Safety Features](v2/safety.md) - Pre-flight checks, battery failsafe, geofences
-- [CommandHandle Guide](v2/command_handle.md) - Non-blocking operations
-- [Migration Guide](v2/migration.md) - Migrating from legacy/v1
-
-### v1 API
-- [README](v1/README.md) - API reference, runners, utility types
-- [Safety Checker](v1/safety_checker.md) - Geofence validation guide
-
-### Legacy API
-- [README](legacy/README.md) - API reference, runners, utility types
-- [Safety Checker](legacy/safety_checker.md) - Geofence validation guide
-
-## Safety Features Comparison
-
-| Feature | Legacy | v1 | v2 |
-|---------|--------|-----|-----|
-| Geofence server | ✅ | ✅ | ✅ |
-| Pre-flight checks | ❌ | ❌ | ✅ |
-| Battery failsafe | ❌ | ❌ | ✅ |
-| Speed limits | ❌ | ❌ | ✅ |
-| Parameter validation | ❌ | ❌ | ✅ |
-| Safety monitor | ❌ | ❌ | ✅ |
-| Auto-clamp values | ❌ | ❌ | ✅ |
-| Configurable limits | ❌ | ❌ | ✅ |
-
-For comprehensive safety features, use the [v2 API](v2/README.md). See the [Safety Features Guide](v2/safety.md) for details.
-
 ## Examples
 
 See the [`examples/`](../examples/) directory for working examples:
@@ -134,14 +83,8 @@ All versions use similar connection strings:
 
 ## Vehicle Types
 
-| Type | Description | Available In |
-|------|-------------|--------------|
-| `Drone` | Multicopter (takeoff, land, 3D movement) | All versions |
-| `Rover` | Ground vehicle (2D movement) | All versions |
-| `DummyVehicle` | For scripts without vehicles | All versions |
-
-## Support
-
-- Check the relevant API documentation
-- Review the examples
-- Open an issue on GitHub
+| Type           | Description                              | Available In |
+|----------------|------------------------------------------|--------------|
+| `Drone`        | Multicopter (takeoff, land, 3D movement) | All versions |
+| `Rover`        | Ground vehicle (2D movement)             | All versions |
+| `DummyVehicle` | For scripts without vehicles             | All versions |

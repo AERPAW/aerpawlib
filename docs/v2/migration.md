@@ -6,16 +6,16 @@ This guide helps you migrate from the legacy or v1 API to the modern v2 API.
 
 The v2 API offers significant improvements:
 
-| Feature | Legacy/v1 | v2 |
-|---------|-----------|-----|
-| Backend | DroneKit/MAVSDK | MAVSDK native |
-| State access | Method calls | Properties (`drone.altitude`) |
-| Non-blocking ops | Not supported | CommandHandle |
-| Error handling | Generic exceptions | Structured hierarchy |
-| Resource cleanup | Manual | Context managers |
-| Progress tracking | Not available | Built-in |
-| Event callbacks | Limited | Comprehensive |
-| Flight recording | Manual | Built-in |
+| Feature           | Legacy/v1          | v2                            |
+|-------------------|--------------------|-------------------------------|
+| Backend           | DroneKit/MAVSDK    | MAVSDK native                 |
+| State access      | Method calls       | Properties (`drone.altitude`) |
+| Non-blocking ops  | Not supported      | CommandHandle                 |
+| Error handling    | Generic exceptions | Structured hierarchy          |
+| Resource cleanup  | Manual             | Context managers              |
+| Progress tracking | Not available      | Built-in                      |
+| Event callbacks   | Limited            | Comprehensive                 |
+| Flight recording  | Manual             | Built-in                      |
 
 ---
 
@@ -320,63 +320,3 @@ except NavigationError as e:
 except AbortError:
     print("Mission aborted")
 ```
-
----
-
-## Best Practices for v2
-
-### 1. Use Context Managers
-
-```python
-async with Drone("udp://:14540") as drone:
-    # Automatic connect/disconnect
-    await drone.arm()
-    # ...
-```
-
-### 2. Prefer Non-blocking for Long Operations
-
-```python
-# For operations that take time, consider non-blocking
-handle = await drone.goto(coordinates=far_target, wait=False)
-
-# Can do other things while waiting
-while handle.is_running:
-    log_telemetry()
-    await asyncio.sleep(1)
-```
-
-### 3. Use Structured Exceptions
-
-```python
-from aerpawlib.v2 import GotoTimeoutError, NavigationError
-
-try:
-    await drone.goto(coordinates=target, timeout=60)
-except GotoTimeoutError:
-    await drone.rtl()  # Return home on timeout
-```
-
-### 4. Register Event Callbacks
-
-```python
-drone.on("on_low_battery", handle_low_battery)
-drone.on("on_critical_battery", emergency_land)
-```
-
-### 5. Enable Flight Recording for Debugging
-
-```python
-drone.start_recording(interval=0.1)
-# ... mission ...
-drone.save_flight_log("mission.json")
-```
-
----
-
-## Getting Help
-
-- Check the [v2 API Reference](README.md) for detailed documentation
-- Review [examples/v2/](../../examples/v2/) for working examples
-- Open an issue for migration problems
-

@@ -9,7 +9,22 @@ Usage:
 """
 import asyncio
 
-from aerpawlib.v2 import (BasicRunner, Coordinate, Drone, entrypoint, sleep)
+from aerpawlib.v2 import (
+    BasicRunner,
+    Coordinate,
+    Drone,
+    entrypoint,
+    sleep,
+    # Logging
+    configure_logging,
+    get_logger,
+    LogLevel,
+    LogComponent,
+)
+
+# Configure logging
+configure_logging(level=LogLevel.INFO)
+logger = get_logger(LogComponent.USER)
 
 
 class SimpleSquareMission(BasicRunner):
@@ -27,27 +42,27 @@ class SimpleSquareMission(BasicRunner):
     @entrypoint
     async def fly_square(self, drone: Drone):
         # Connect to the drone
-        print("Connecting to drone...")
+        logger.info("Connecting to drone...")
         await drone.connect()
-        print(f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)")
+        logger.info(f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)")
 
         # Wait for GPS lock
         while not drone.gps.has_fix:
-            print("Waiting for GPS fix...")
+            logger.info("Waiting for GPS fix...")
             await sleep(1)
 
         # Arm and takeoff
-        print("Arming...")
+        logger.info("Arming...")
         await drone.arm()
-        print(f"Armed: {drone.armed}")
+        logger.info(f"Armed: {drone.armed}")
 
-        print("Taking off to 10m...")
+        logger.info("Taking off to 10m...")
         await drone.takeoff(altitude=10)
-        print(f"Current altitude: {drone.state.altitude:.1f}m")
+        logger.info(f"Current altitude: {drone.state.altitude:.1f}m")
 
         # Get current position as starting point
         start = drone.position
-        print(f"Starting position: {start}")
+        logger.info(f"Starting position: {start}")
 
         # Define square corners (30m sides)
         corners = [
@@ -60,16 +75,16 @@ class SimpleSquareMission(BasicRunner):
 
         # Fly the square
         for i, corner in enumerate(corners):
-            print(f"Flying to corner {i+1}: {corner}")
+            logger.info(f"Flying to corner {i+1}: {corner}")
             await drone.goto(coordinates=corner)
-            print(f"  Arrived! Heading: {drone.state.heading:.0f}°, "
+            logger.info(f"  Arrived! Heading: {drone.state.heading:.0f}°, "
                   f"Speed: {drone.state.groundspeed:.1f}m/s, "
                   f"Battery: {drone.battery.percentage:.0f}%")
 
         # Land
-        print("Landing...")
+        logger.info("Landing...")
         await drone.land()
-        print("Mission complete!")
+        logger.info("Mission complete!")
 
 
 class TelemetryDemo(BasicRunner):
@@ -81,53 +96,53 @@ class TelemetryDemo(BasicRunner):
     async def show_telemetry(self, drone: Drone):
         await drone.connect()
 
-        print("\n=== Drone Telemetry Demo ===\n")
+        logger.info("=== Drone Telemetry Demo ===")
 
         # GPS information
-        print("GPS Status:")
-        print(f"  Satellites: {drone.gps.satellites}")
-        print(f"  Quality: {drone.gps.quality}")
-        print(f"  Has Fix: {drone.gps.has_fix}")
+        logger.info("GPS Status:")
+        logger.info(f"  Satellites: {drone.gps.satellites}")
+        logger.info(f"  Quality: {drone.gps.quality}")
+        logger.info(f"  Has Fix: {drone.gps.has_fix}")
 
         # State information
-        print("\nState:")
-        print(f"  Position: {drone.state.position}")
-        print(f"  Heading: {drone.state.heading:.1f}°")
-        print(f"  Altitude: {drone.state.altitude:.1f}m (MSL)")
-        print(f"  Relative Altitude: {drone.state.relative_altitude:.1f}m (AGL)")
-        print(f"  Ground Speed: {drone.state.groundspeed:.1f}m/s")
-        print(f"  Flight Mode: {drone.state.flight_mode.name}")
-        print(f"  Landed State: {drone.state.landed_state.name}")
+        logger.info("State:")
+        logger.info(f"  Position: {drone.state.position}")
+        logger.info(f"  Heading: {drone.state.heading:.1f}°")
+        logger.info(f"  Altitude: {drone.state.altitude:.1f}m (MSL)")
+        logger.info(f"  Relative Altitude: {drone.state.relative_altitude:.1f}m (AGL)")
+        logger.info(f"  Ground Speed: {drone.state.groundspeed:.1f}m/s")
+        logger.info(f"  Flight Mode: {drone.state.flight_mode.name}")
+        logger.info(f"  Landed State: {drone.state.landed_state.name}")
 
         # Attitude
-        print("\nAttitude:")
-        print(f"  Roll: {drone.state.attitude.roll_degrees:.1f}°")
-        print(f"  Pitch: {drone.state.attitude.pitch_degrees:.1f}°")
-        print(f"  Yaw: {drone.state.attitude.yaw_degrees:.1f}°")
+        logger.info("Attitude:")
+        logger.info(f"  Roll: {drone.state.attitude.roll_degrees:.1f}°")
+        logger.info(f"  Pitch: {drone.state.attitude.pitch_degrees:.1f}°")
+        logger.info(f"  Yaw: {drone.state.attitude.yaw_degrees:.1f}°")
 
         # Battery
-        print("\nBattery:")
-        print(f"  Voltage: {drone.battery.voltage:.1f}V")
-        print(f"  Charge: {drone.battery.percentage:.0f}%")
-        print(f"  Current: {drone.battery.current:.1f}A")
+        logger.info("Battery:")
+        logger.info(f"  Voltage: {drone.battery.voltage:.1f}V")
+        logger.info(f"  Charge: {drone.battery.percentage:.0f}%")
+        logger.info(f"  Current: {drone.battery.current:.1f}A")
 
         # Vehicle info
-        print("\nVehicle Info:")
-        print(f"  Hardware UUID: {drone.info.hardware_uuid}")
-        print(f"  Version: {drone.info.version}")
-        print(f"  Vendor: {drone.info.vendor_name}")
-        print(f"  Product: {drone.info.product_name}")
+        logger.info("Vehicle Info:")
+        logger.info(f"  Hardware UUID: {drone.info.hardware_uuid}")
+        logger.info(f"  Version: {drone.info.version}")
+        logger.info(f"  Vendor: {drone.info.vendor_name}")
+        logger.info(f"  Product: {drone.info.product_name}")
 
         # Convenience properties
-        print("\nConvenience Properties:")
-        print(f"  drone.armed: {drone.armed}")
-        print(f"  drone.connected: {drone.connected}")
-        print(f"  drone.is_armable: {drone.is_armable}")
-        print(f"  drone.position: {drone.position}")
-        print(f"  drone.heading: {drone.heading}")
-        print(f"  drone.altitude: {drone.altitude}")
-        print(f"  drone.velocity: {drone.velocity}")
-        print(f"  drone.home: {drone.home}")
+        logger.info("Convenience Properties:")
+        logger.info(f"  drone.armed: {drone.armed}")
+        logger.info(f"  drone.connected: {drone.connected}")
+        logger.info(f"  drone.is_armable: {drone.is_armable}")
+        logger.info(f"  drone.position: {drone.position}")
+        logger.info(f"  drone.heading: {drone.heading}")
+        logger.info(f"  drone.altitude: {drone.altitude}")
+        logger.info(f"  drone.velocity: {drone.velocity}")
+        logger.info(f"  drone.home: {drone.home}")
 
 
 async def main():

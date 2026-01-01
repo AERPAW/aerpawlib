@@ -16,7 +16,22 @@ This is useful for complex missions where you want to:
 """
 import asyncio
 
-from aerpawlib.v2 import (CommandCancelledError, Coordinate, Drone, GotoTimeoutError, VectorNED)
+from aerpawlib.v2 import (
+    CommandCancelledError,
+    Coordinate,
+    Drone,
+    GotoTimeoutError,
+    VectorNED,
+    # Logging
+    configure_logging,
+    get_logger,
+    LogLevel,
+    LogComponent,
+)
+
+# Configure logging
+configure_logging(level=LogLevel.INFO)
+logger = get_logger(LogComponent.USER)
 
 
 async def basic_non_blocking_example():
@@ -32,21 +47,21 @@ async def basic_non_blocking_example():
         # Monitor progress while moving
         while handle.is_running:
             progress = handle.progress
-            print(f"Distance to target: {progress.get('distance', '?'):.1f}m")
-            print(f"Elapsed time: {handle.elapsed_time:.1f}s")
+            logger.debug(f"Distance to target: {progress.get('distance', '?'):.1f}m")
+            logger.debug(f"Elapsed time: {handle.elapsed_time:.1f}s")
             if handle.time_remaining:
-                print(f"Time remaining: {handle.time_remaining:.1f}s")
+                logger.debug(f"Time remaining: {handle.time_remaining:.1f}s")
             await asyncio.sleep(1)
 
         # Check result
         if handle.succeeded:
-            print("✓ Arrived at destination!")
+            logger.info("✓ Arrived at destination!")
         elif handle.was_cancelled:
-            print("✗ Goto was cancelled")
+            logger.warning("✗ Goto was cancelled")
         elif handle.timed_out:
-            print(f"✗ Goto timed out after {handle.elapsed_time:.1f}s")
+            logger.warning(f"✗ Goto timed out after {handle.elapsed_time:.1f}s")
         else:
-            print(f"✗ Goto failed: {handle.error}")
+            logger.error(f"✗ Goto failed: {handle.error}")
 
         await drone.land()
 
@@ -61,16 +76,16 @@ async def cancellation_example():
         far_target = Coordinate(35.8, -78.7, 10, "Far Target")
         handle = await drone.goto(coordinates=far_target, timeout=600, wait=False)
 
-        print("Starting goto to far target...")
+        logger.info("Starting goto to far target...")
 
         # Cancel after 10 seconds
         await asyncio.sleep(10)
-        print("Cancelling goto...")
+        logger.info("Cancelling goto...")
         await handle.cancel()
 
         # The drone should now be holding position
-        print(f"Command status: {handle.status.name}")
-        print(f"Total flight time: {handle.elapsed_time:.1f}s")
+        logger.info(f"Command status: {handle.status.name}")
+        logger.info(f"Total flight time: {handle.elapsed_time:.1f}s")
 
         await drone.land()
 
@@ -98,7 +113,7 @@ async def parallel_operations_example():
             })
             await asyncio.sleep(0.5)
 
-        print(f"Logged {len(log)} telemetry points")
+        logger.info(f"Logged {len(log)} telemetry points")
 
         # Wait for any remaining completion
         try:
@@ -126,15 +141,15 @@ async def orbit_with_progress_example():
             wait=False
         )
 
-        print("Starting orbit...")
+        logger.info("Starting orbit...")
         while handle.is_running:
             progress = handle.progress
-            print(f"Orbit: {progress.get('revolutions_completed', 0):.2f} / "
+            logger.debug(f"Orbit: {progress.get('revolutions_completed', 0):.2f} / "
                   f"{progress.get('target_revolutions', 0):.1f} revolutions "
                   f"({progress.get('progress_percent', 0):.1f}%)")
             await asyncio.sleep(2)
 
-        print(f"Orbit complete! Total time: {handle.elapsed_time:.1f}s")
+        logger.info(f"Orbit complete! Total time: {handle.elapsed_time:.1f}s")
         await drone.land()
 
 
@@ -147,16 +162,16 @@ async def await_handle_later_example():
         takeoff_handle = await drone.takeoff(altitude=20, wait=False)
 
         # Do something else while taking off
-        print("Takeoff initiated, doing other setup...")
+        logger.info("Takeoff initiated, doing other setup...")
         await asyncio.sleep(2)
-        print(f"Current altitude: {drone.altitude:.1f}m (target: 20m)")
+        logger.info(f"Current altitude: {drone.altitude:.1f}m (target: 20m)")
 
         # Now wait for takeoff to complete
         try:
             await takeoff_handle  # Same as: await takeoff_handle.wait()
-            print("Takeoff complete!")
+            logger.info("Takeoff complete!")
         except Exception as e:
-            print(f"Takeoff failed: {e}")
+            logger.error(f"Takeoff failed: {e}")
             return
 
         # Continue with mission
@@ -181,14 +196,14 @@ async def command_result_example():
 
         # Get detailed result
         result = handle.result()
-        print(f"Command: {result.command}")
-        print(f"Status: {result.status.name}")
-        print(f"Duration: {result.duration:.2f}s")
-        print(f"Succeeded: {result.succeeded}")
-        print(f"Details: {result.details}")
+        logger.info(f"Command: {result.command}")
+        logger.info(f"Status: {result.status.name}")
+        logger.info(f"Duration: {result.duration:.2f}s")
+        logger.info(f"Succeeded: {result.succeeded}")
+        logger.info(f"Details: {result.details}")
 
         if result.error:
-            print(f"Error: {result.error}")
+            logger.error(f"Error: {result.error}")
 
         await drone.land()
 
@@ -203,19 +218,19 @@ async def velocity_with_duration_example():
         velocity = VectorNED(5, 0, 0)  # 5 m/s north
         handle = await drone.set_velocity(velocity, duration=10, wait=False)
 
-        print("Moving north for 10 seconds...")
+        logger.info("Moving north for 10 seconds...")
         while handle.is_running:
             progress = handle.progress
-            print(f"Time remaining: {progress.get('time_remaining', 0):.1f}s")
+            logger.debug(f"Time remaining: {progress.get('time_remaining', 0):.1f}s")
             await asyncio.sleep(1)
 
-        print("Velocity command complete!")
+        logger.info("Velocity command complete!")
         await drone.hold()
         await drone.land()
 
 
 if __name__ == "__main__":
     # Run one of the examples
-    print("Running basic non-blocking example...")
+    logger.info("Running basic non-blocking example...")
     asyncio.run(basic_non_blocking_example())
 

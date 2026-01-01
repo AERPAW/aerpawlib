@@ -1,15 +1,11 @@
-[build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "aerpawlib"
-version = "0.5.0"
+version = "1.0.0beta.7"
 description = "Tools and frameworks for writing AERPAW scripts"
 readme = "README.md"
-license = {text = "MIT"}
 authors = [
-    {name = "John Kesler", email = "jckesle2@ncsu.edu"}
+    {name = "John Kesler", email = "jckesle2@ncsu.edu"},
+    {name = "Julian Reder", email = "jjreder@ncsu.edu"}
 ]
 requires-python = ">=3.9"
 classifiers = [
@@ -29,42 +25,35 @@ classifiers = [
 keywords = ["aerpaw", "drone", "uav", "mavsdk", "vehicle", "control"]
 
 dependencies = [
-    "mavsdk>=1.4.0",
-    "pyzmq",
-    "pyyaml",
-    "pykml",
-    "requests",
+    # Core dependencies (used by all versions)
+    "pyzmq>=25.0.0",
+    "pykml>=0.2.0",
+    # V2 dependencies (MAVSDK-based, default)
+    "mavsdk>=2.0.0",
+    "aiohttp>=3.12.14",
 ]
 
 [project.optional-dependencies]
+# Legacy/V1 dependencies (DroneKit-based)
 legacy = [
-    "dronekit",
-    "pymavlink",
-    "pyserial",
+    "dronekit>=2.9.2",
+    "pymavlink>=2.4.0",
+    "pyserial>=3.5",
+    "requests>=2.32.4",
 ]
+
 dev = [
-    "pytest>=7.0",
-    "pytest-asyncio",
-    "pytest-cov",
-    "black",
-    "isort",
-    "mypy",
-    "ruff",
-]
-docs = [
-    "sphinx",
-    "sphinx-rtd-theme",
-    "myst-parser",
+    "mavproxy>=1.8.0",
 ]
 all = [
-    "aerpawlib[legacy,dev,docs]",
+    "aerpawlib[legacy,v2,dev,docs]",
 ]
 
 [project.urls]
-Homepage = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control"
-Repository = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control"
-Documentation = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control#readme"
-"Bug Tracker" = "https://github.com/AERPAW-Platform-Control/aerpawlib-vehicle-control/issues"
+Homepage = "https://github.com/quantumbagel/aerpawlib"
+Repository = "https://github.com/quantumbagel/aerpawlib"
+Documentation = "https://github.com/quantumbagel/aerpawlib#readme"
+"Bug Tracker" = "https://github.com/quantumbagel/aerpawlib/issues"
 
 [project.scripts]
 aerpawlib = "aerpawlib.__main__:main"
@@ -93,36 +82,6 @@ exclude = '''
   | dist
 )/
 '''
-
-[tool.isort]
-profile = "black"
-line_length = 100
-known_first_party = ["aerpawlib"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py39"
-
-[tool.ruff.lint]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # Pyflakes
-    "I",   # isort
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-]
-ignore = [
-    "E501",  # line too long (handled by black)
-    "B008",  # do not perform function calls in argument defaults
-]
-
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -246,8 +246,9 @@ class AERPAWPlatform:
         await self.disconnect()
         return False
 
-    def _log_stdout(self, msg: str):
-        """Print message to stdout if not suppressed."""
+    def _log_stdout(self, msg: str, level: int = logging.INFO):
+        """Log message and optionally print to stdout if not suppressed."""
+        logger.log(level, msg)
         if not self.config.suppress_stdout:
             print(msg)
 
@@ -587,13 +588,16 @@ class AERPAW:
         severity: str = "INFO"
     ):
         sev = MessageSeverity(severity)
-        # Print locally first
+        # Log locally first
+        log_level = getattr(logging, severity.upper(), logging.INFO)
+        logger.log(log_level, msg)
         if not self._no_stdout:
             print(msg)
         if self._connected:
             try:
                 self._run_async(self._platform.log_to_oeo(msg, sev))
             except Exception:
+                logger.warning("Unable to send previous message to OEO.")
                 if not self._no_stdout:
                     print("unable to send previous message to OEO.")
 

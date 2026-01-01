@@ -2,14 +2,6 @@
 
 The v1 API provides backward compatibility with the legacy aerpawlib API while using **MAVSDK** as the backend instead of DroneKit. This allows existing scripts to work with modern autopilot firmware without code changes.
 
-## Key Features
-
-- **Drop-in replacement** for legacy API
-- **MAVSDK backend** for better compatibility with modern autopilots
-- **Same API** as legacy - all existing code works unchanged
-- **Improved reliability** through MAVSDK's async architecture
-- **Safety checker support** for geofence validation
-
 ## Requirements
 
 - Python 3.8+
@@ -113,11 +105,11 @@ await drone.land()
 #### `await goto_coordinates(coordinates: Coordinate, tolerance: float = 2, target_heading: float = None)`
 Navigate to specific coordinates.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `coordinates` | `Coordinate` | Target position |
-| `tolerance` | `float` | Acceptance radius in meters (default: 2) |
-| `target_heading` | `float` | Optional heading to maintain (degrees) |
+| Parameter        | Type         | Description                              |
+|------------------|--------------|------------------------------------------|
+| `coordinates`    | `Coordinate` | Target position                          |
+| `tolerance`      | `float`      | Acceptance radius in meters (default: 2) |
+| `target_heading` | `float`      | Optional heading to maintain (degrees)   |
 
 ```python
 target = Coordinate(35.7275, -78.6960, 15)
@@ -127,11 +119,11 @@ await drone.goto_coordinates(target, tolerance=3)
 #### `await set_heading(heading: float, blocking: bool = True, lock_in: bool = True)`
 Set the vehicle heading.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `heading` | `float` | Target heading in degrees (0 = North) |
-| `blocking` | `bool` | Wait for current command to complete first |
-| `lock_in` | `bool` | Use this heading for subsequent commands |
+| Parameter  | Type    | Description                                |
+|------------|---------|--------------------------------------------|
+| `heading`  | `float` | Target heading in degrees (0 = North)      |
+| `blocking` | `bool`  | Wait for current command to complete first |
+| `lock_in`  | `bool`  | Use this heading for subsequent commands   |
 
 ```python
 await drone.set_heading(90)  # Face east
@@ -140,11 +132,11 @@ await drone.set_heading(90)  # Face east
 #### `await set_velocity(velocity_vector: VectorNED, global_relative: bool = True, duration: float = None)`
 Set the vehicle velocity.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `velocity_vector` | `VectorNED` | Velocity in m/s |
-| `global_relative` | `bool` | If True, velocity is world-relative |
-| `duration` | `float` | Optional duration in seconds |
+| Parameter         | Type        | Description                         |
+|-------------------|-------------|-------------------------------------|
+| `velocity_vector` | `VectorNED` | Velocity in m/s                     |
+| `global_relative` | `bool`      | If True, velocity is world-relative |
+| `duration`        | `float`     | Optional duration in seconds        |
 
 ```python
 # Move north at 5 m/s for 10 seconds
