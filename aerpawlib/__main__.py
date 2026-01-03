@@ -21,6 +21,7 @@ import importlib
 import inspect
 import logging
 import os
+import signal
 import sys
 import time
 from argparse import ArgumentParser
@@ -184,6 +185,16 @@ def main():
     parser.add_argument("--log-file", help="write logs to file in addition to console",
             default=None, dest="log_file")
 
+    # Connection handling arguments
+    parser.add_argument("--conn-timeout", help="connection timeout in seconds (default: 30)",
+            type=float, default=30.0, dest="conn_timeout")
+    parser.add_argument("--conn-retries", help="number of connection retry attempts (default: 3)",
+            type=int, default=3, dest="conn_retries")
+    parser.add_argument("--conn-retry-delay", help="delay between connection retries in seconds (default: 5)",
+            type=float, default=5.0, dest="conn_retry_delay")
+    parser.add_argument("--heartbeat-timeout", help="max seconds without heartbeat before considered disconnected (default: 5)",
+            type=float, default=5.0, dest="heartbeat_timeout")
+
 
     args, unknown_args = parser.parse_known_args() # we'll pass other args to the script
 
@@ -294,14 +305,95 @@ def main():
         logger.error(f"Invalid vehicle type: {args.vehicle}")
         raise Exception("Please specify a valid vehicle type")
 
-    logger.info(f"Creating {args.vehicle} vehicle...")
-    logger.debug(f"Connection string: {args.conn}")
-    try:
-        vehicle = vehicle_type(args.conn)
-        logger.info(f"Vehicle created successfully")
-    except Exception as e:
-        logger.error(f"Failed to create vehicle: {e}")
-        raise
+    # Connection with retry logic
+    vehicle = None
+    last_error = None
+
+    for attempt in range(1, args.conn_retries + 1):
+        logger.info(f"Connecting to vehicle (attempt {attempt}/{args.conn_retries})...")
+        logger.debug(f"Connection string: {args.conn}")
+        logger.debug(f"Timeout: {args.conn_timeout}s")
+
+        try:
+            # Create vehicle with timeout
+            async def create_vehicle_with_timeout():
+                v = vehicle_type(args.conn)
+                # Wait for connection to be established
+                if hasattr(v, '_connected'):
+                    start = time.time()
+                    while not v._connected and (time.time() - start) < args.conn_timeout:
+                        await asyncio.sleep(0.1)
+                    if not v._connected:
+                        raise TimeoutError(f"Connection timeout after {args.conn_timeout}s")
+                return v
+
+            vehicle = asyncio.run(
+                asyncio.wait_for(
+                    create_vehicle_with_timeout(),
+                    timeout=args.conn_timeout
+                )
+            )
+            logger.info(f"Vehicle connected successfully")
+            break
+
+        except asyncio.TimeoutError:
+            last_error = TimeoutError(f"Connection timed out after {args.conn_timeout}s")
+            logger.warning(f"Connection attempt {attempt} timed out")
+        except ConnectionRefusedError as e:
+            last_error = e
+            logger.warning(f"Connection attempt {attempt} refused: {e}")
+        except OSError as e:
+            last_error = e
+            logger.warning(f"Connection attempt {attempt} failed (OS error): {e}")
+        except Exception as e:
+            last_error = e
+            logger.warning(f"Connection attempt {attempt} failed: {e}")
+
+        if attempt < args.conn_retries:
+            logger.info(f"Retrying in {args.conn_retry_delay}s...")
+            time.sleep(args.conn_retry_delay)
+
+    if vehicle is None:
+        logger.error(f"Failed to connect after {args.conn_retries} attempts")
+        logger.error(f"Last error: {last_error}")
+        raise ConnectionError(f"Could not connect to vehicle: {last_error}")
+
+    # Set up graceful shutdown handlers
+    shutdown_requested = False
+
+    def handle_shutdown_signal(signum, frame):
+        nonlocal shutdown_requested
+        sig_name = signal.Signals(signum).name
+
+        if shutdown_requested:
+            logger.warning(f"Received {sig_name} again, forcing exit...")
+            sys.exit(1)
+
+        shutdown_requested = True
+        logger.warning(f"Received {sig_name}, initiating graceful shutdown...")
+
+        # Try to land if vehicle is armed
+        if vehicle and hasattr(vehicle, 'armed') and vehicle.armed:
+            logger.warning("Vehicle is armed, attempting emergency landing...")
+            try:
+                if hasattr(vehicle, 'land'):
+                    asyncio.run(vehicle.land())
+                    logger.info("Emergency landing completed")
+            except Exception as e:
+                logger.error(f"Emergency landing failed: {e}")
+
+        # Close vehicle connection
+        if vehicle:
+            try:
+                vehicle.close()
+                logger.debug("Vehicle connection closed")
+            except Exception as e:
+                logger.error(f"Error closing vehicle: {e}")
+
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
 
     if args.debug_dump and hasattr(vehicle, "_verbose_logging"):
         vehicle._verbose_logging = True
@@ -330,39 +422,92 @@ def main():
     logger.info("=" * 50)
 
     start_time = time.time()
+    experiment_success = False
+    connection_lost = False
+
     try:
         asyncio.run(runner.run(vehicle))
+        experiment_success = True
         logger.info("Experiment completed successfully")
     except KeyboardInterrupt:
         logger.warning("Experiment interrupted by user")
+    except ConnectionResetError as e:
+        connection_lost = True
+        logger.error(f"Connection to vehicle was reset: {e}")
+        logger.error("Vehicle connection lost during experiment!")
+    except BrokenPipeError as e:
+        connection_lost = True
+        logger.error(f"Connection to vehicle broken: {e}")
+        logger.error("Vehicle connection lost during experiment!")
+    except TimeoutError as e:
+        connection_lost = True
+        logger.error(f"Connection timed out: {e}")
+        logger.error("Vehicle stopped responding!")
+    except OSError as e:
+        if e.errno in (104, 111, 32):  # Connection reset, refused, broken pipe
+            connection_lost = True
+            logger.error(f"Connection error: {e}")
+            logger.error("Vehicle connection lost during experiment!")
+        else:
+            logger.error(f"OS error during experiment: {e}")
+            logger.debug("Exception details:", exc_info=True)
     except Exception as e:
         logger.error(f"Experiment failed with error: {e}")
         logger.debug("Exception details:", exc_info=True)
 
-    # rtl / land if not already done
+    # Handle connection loss
+    if connection_lost:
+        logger.warning("=" * 50)
+        logger.warning("CONNECTION LOST - Cannot communicate with vehicle!")
+        logger.warning("If vehicle is airborne, it should RTL automatically (failsafe)")
+        logger.warning("=" * 50)
+
+    # rtl / land if not already done (only if connection is still alive)
     async def _rtl_cleanup(vehicle):
-        await vehicle.goto_coordinates(vehicle._home_location)
-        if vehicle_type in [Drone]:
-            await vehicle.land()
+        try:
+            await vehicle.goto_coordinates(vehicle._home_location)
+            if vehicle_type in [Drone]:
+                await vehicle.land()
+        except Exception as e:
+            logger.error(f"RTL cleanup failed: {e}")
+            raise
 
-    if vehicle_type in [Drone, Rover]:
-        if vehicle.armed and args.rtl_at_end:
-            logger.warning("Vehicle still armed after experiment! RTLing and LANDing automatically.")
-            AERPAW_Platform.log_to_oeo("[aerpawlib] Vehicle still armed after experiment! RTLing and LANDing automatically.")
-            asyncio.run(_rtl_cleanup(vehicle))
+    if vehicle_type in [Drone, Rover] and not connection_lost:
+        try:
+            if vehicle.armed and args.rtl_at_end:
+                logger.warning("Vehicle still armed after experiment! RTLing and LANDing automatically.")
+                AERPAW_Platform.log_to_oeo("[aerpawlib] Vehicle still armed after experiment! RTLing and LANDing automatically.")
+                asyncio.run(_rtl_cleanup(vehicle))
+        except Exception as e:
+            logger.error(f"Post-experiment RTL failed: {e}")
 
-        stop_time = time.time()
-        seconds_to_complete = int(stop_time - vehicle._mission_start_time)
-        time_to_complete = f"{(seconds_to_complete // 60):02d}:{(seconds_to_complete % 60):02d}"
-        logger.info(f"Mission duration: {time_to_complete} (mm:ss)")
-        AERPAW_Platform.log_to_oeo(f"[aerpawlib] Mission took {time_to_complete} mm:ss")
+        try:
+            stop_time = time.time()
+            if hasattr(vehicle, '_mission_start_time') and vehicle._mission_start_time:
+                seconds_to_complete = int(stop_time - vehicle._mission_start_time)
+                time_to_complete = f"{(seconds_to_complete // 60):02d}:{(seconds_to_complete % 60):02d}"
+                logger.info(f"Mission duration: {time_to_complete} (mm:ss)")
+                AERPAW_Platform.log_to_oeo(f"[aerpawlib] Mission took {time_to_complete} mm:ss")
+        except Exception as e:
+            logger.debug(f"Could not calculate mission duration: {e}")
 
     # clean up
     logger.debug("Closing vehicle connection...")
-    vehicle.close()
-    logger.debug("Vehicle connection closed")
+    try:
+        vehicle.close()
+        logger.debug("Vehicle connection closed")
+    except Exception as e:
+        logger.debug(f"Error closing vehicle connection: {e}")
 
-    logger.info("aerpawlib shutdown complete")
+    if connection_lost:
+        logger.info("aerpawlib shutdown complete (connection was lost)")
+        sys.exit(1)
+    elif experiment_success:
+        logger.info("aerpawlib shutdown complete")
+        sys.exit(0)
+    else:
+        logger.info("aerpawlib shutdown complete (experiment had errors)")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
