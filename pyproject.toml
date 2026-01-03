@@ -28,6 +28,7 @@ dependencies = [
     # Core dependencies (used by all versions)
     "pyzmq>=25.0.0",
     "pykml>=0.2.0",
+    "shapely>=2.0.0",
     # V2 dependencies (MAVSDK-based, default)
     "mavsdk>=2.0.0",
     "aiohttp>=3.12.14",

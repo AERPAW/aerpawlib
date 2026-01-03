@@ -3,39 +3,24 @@ Geofence utilities for aerpawlib v2 API.
 
 This module provides geofence-related functions for reading KML files,
 checking if points are inside polygons, and detecting line segment intersections.
+
+Uses the Shapely library for reliable geometric operations.
 """
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Sequence, Union, Protocol, runtime_checkable
+from typing import List, Sequence, Union, Optional
 
 from pykml import parser
+from shapely.geometry import Point, Polygon as ShapelyPolygon, LineString
+from shapely.ops import nearest_points
 
 from .types import Coordinate
 
 # Use modular logging system
 from .logging import get_logger, LogComponent
 logger = get_logger(LogComponent.GEOFENCE)
-
-# Tolerance for floating point comparisons
-_FLOAT_TOLERANCE = 1e-10
-
-
-@runtime_checkable
-class GeoPoint(Protocol):
-    """Protocol for any object that has longitude and latitude properties."""
-
-    @property
-    def longitude(self) -> float:
-        """Longitude in degrees."""
-        ...
-
-    @property
-    def latitude(self) -> float:
-        """Latitude in degrees."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +60,10 @@ class GeofencePoint:
             altitude=altitude
         )
 
+    def to_shapely(self) -> Point:
+        """Convert to a Shapely Point."""
+        return Point(self.longitude, self.latitude)
+
     def __repr__(self) -> str:
         return f"GeofencePoint(lon={self.longitude:.6f}, lat={self.latitude:.6f})"
 
@@ -99,23 +88,23 @@ class InvalidPolygonError(GeofenceError):
     pass
 
 
-def _extract_coords(point: PointLike) -> tuple[float, float]:
-    """
-    Extract longitude and latitude from a point-like object.
-
-    Args:
-        point: A Coordinate, GeofencePoint, or any object with lon/lat properties
-
-    Returns:
-        Tuple of (longitude, latitude)
-    """
-    # Try lon/lat first (both Coordinate and GeofencePoint have these)
+def _to_shapely_point(point: PointLike) -> Point:
+    """Convert a PointLike to a Shapely Point."""
     if hasattr(point, 'lon') and hasattr(point, 'lat'):
-        return point.lon, point.lat
-    # Fall back to full names
+        return Point(point.lon, point.lat)
     if hasattr(point, 'longitude') and hasattr(point, 'latitude'):
-        return point.longitude, point.latitude
-    raise TypeError(f"Cannot extract coordinates from {type(point).__name__}")
+        return Point(point.longitude, point.latitude)
+    raise TypeError(f"Cannot convert {type(point).__name__} to Shapely Point")
+
+
+def _to_shapely_polygon(polygon: Polygon) -> ShapelyPolygon:
+    """Convert a sequence of GeofencePoints to a Shapely Polygon."""
+    if len(polygon) < 3:
+        raise InvalidPolygonError(
+            f"Polygon must have at least 3 vertices, got {len(polygon)}"
+        )
+    coords = [(p.longitude, p.latitude) for p in polygon]
+    return ShapelyPolygon(coords)
 
 
 def read_geofence(file_path: str | Path) -> List[GeofencePoint]:
@@ -205,12 +194,19 @@ def validate_polygon(polygon: Polygon) -> None:
             f"Polygon must have at least 3 vertices, got {len(polygon)}"
         )
 
+    # Also validate with Shapely
+    shapely_poly = _to_shapely_polygon(polygon)
+    if not shapely_poly.is_valid:
+        raise InvalidPolygonError(
+            f"Polygon is geometrically invalid: {shapely_poly.is_valid}"
+        )
+
 
 def is_inside_polygon(point: PointLike, polygon: Polygon) -> bool:
     """
-    Check if a point is inside a polygon using ray-casting algorithm.
+    Check if a point is inside a polygon.
 
-    Based on https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
+    Uses Shapely's robust point-in-polygon algorithm.
 
     Args:
         point: The point to check (Coordinate or GeofencePoint)
@@ -228,78 +224,28 @@ def is_inside_polygon(point: PointLike, polygon: Polygon) -> bool:
         >>> if is_inside_polygon(point, geofence):
         ...     print("Point is inside geofence")
     """
-    validate_polygon(polygon)
+    shapely_point = _to_shapely_point(point)
+    shapely_poly = _to_shapely_polygon(polygon)
 
-    lon, lat = _extract_coords(point)
-
-    inside = False
-    n = len(polygon)
-    j = n - 1
-
-    for i in range(n):
-        lon_i = polygon[i].longitude
-        lat_i = polygon[i].latitude
-        lon_j = polygon[j].longitude
-        lat_j = polygon[j].latitude
-
-        # Avoid division by zero
-        if abs(lat_j - lat_i) < _FLOAT_TOLERANCE:
-            j = i
-            continue
-
-        intersect = ((lat_i > lat) != (lat_j > lat)) and (
-            lon < (lon_j - lon_i) * (lat - lat_i) / (lat_j - lat_i) + lon_i
-        )
-        if intersect:
-            inside = not inside
-        j = i
-
-    return inside
+    # contains() returns True if point is strictly inside
+    # We also check touches() for points on the boundary
+    return shapely_poly.contains(shapely_point) or shapely_poly.touches(shapely_point)
 
 
-def _lies_on_segment(
-    seg_start_x: float, seg_start_y: float,
-    point_x: float, point_y: float,
-    seg_end_x: float, seg_end_y: float
-) -> bool:
+def is_on_polygon_boundary(point: PointLike, polygon: Polygon) -> bool:
     """
-    Check if a point lies on a line segment.
+    Check if a point is on the boundary of a polygon.
 
     Args:
-        seg_start_x, seg_start_y: Start point of the segment
-        point_x, point_y: The point to check
-        seg_end_x, seg_end_y: End point of the segment
+        point: The point to check
+        polygon: A sequence of GeofencePoint defining the polygon
 
     Returns:
-        True if the point lies on the segment (within tolerance)
+        True if the point is on the polygon boundary, False otherwise.
     """
-    return (
-        (point_x <= max(seg_start_x, seg_end_x) + _FLOAT_TOLERANCE) and
-        (point_x >= min(seg_start_x, seg_end_x) - _FLOAT_TOLERANCE) and
-        (point_y <= max(seg_start_y, seg_end_y) + _FLOAT_TOLERANCE) and
-        (point_y >= min(seg_start_y, seg_end_y) - _FLOAT_TOLERANCE)
-    )
-
-
-def _orientation(
-    px: float, py: float,
-    qx: float, qy: float,
-    rx: float, ry: float
-) -> int:
-    """
-    Find the orientation of an ordered triplet (p, q, r).
-
-    Returns:
-        0: Collinear points
-        1: Clockwise
-        2: Counterclockwise
-    """
-    val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
-
-    # Use tolerance for collinearity check
-    if abs(val) < _FLOAT_TOLERANCE:
-        return 0  # Collinear
-    return 1 if val > 0 else 2
+    shapely_point = _to_shapely_point(point)
+    shapely_poly = _to_shapely_polygon(polygon)
+    return shapely_poly.boundary.contains(shapely_point)
 
 
 def segments_intersect(
@@ -310,6 +256,8 @@ def segments_intersect(
 ) -> bool:
     """
     Check if line segment p1-q1 intersects with segment p2-q2.
+
+    Uses Shapely's robust intersection algorithm.
 
     Args:
         p1: First endpoint of segment 1
@@ -328,32 +276,16 @@ def segments_intersect(
         >>> if segments_intersect(start, end, edge_start, edge_end):
         ...     print("Path crosses geofence!")
     """
-    # Extract coordinates
-    px, py = _extract_coords(p1)
-    qx, qy = _extract_coords(q1)
-    rx, ry = _extract_coords(p2)
-    sx, sy = _extract_coords(q2)
+    line1 = LineString([
+        (_to_shapely_point(p1).x, _to_shapely_point(p1).y),
+        (_to_shapely_point(q1).x, _to_shapely_point(q1).y)
+    ])
+    line2 = LineString([
+        (_to_shapely_point(p2).x, _to_shapely_point(p2).y),
+        (_to_shapely_point(q2).x, _to_shapely_point(q2).y)
+    ])
 
-    o1 = _orientation(px, py, qx, qy, rx, ry)
-    o2 = _orientation(px, py, qx, qy, sx, sy)
-    o3 = _orientation(rx, ry, sx, sy, px, py)
-    o4 = _orientation(rx, ry, sx, sy, qx, qy)
-
-    # General case
-    if (o1 != o2) and (o3 != o4):
-        return True
-
-    # Special cases (collinear points)
-    if o1 == 0 and _lies_on_segment(px, py, rx, ry, qx, qy):
-        return True
-    if o2 == 0 and _lies_on_segment(px, py, sx, sy, qx, qy):
-        return True
-    if o3 == 0 and _lies_on_segment(rx, ry, px, py, sx, sy):
-        return True
-    if o4 == 0 and _lies_on_segment(rx, ry, qx, qy, sx, sy):
-        return True
-
-    return False
+    return line1.intersects(line2)
 
 
 def path_crosses_polygon(
@@ -366,11 +298,13 @@ def path_crosses_polygon(
     """
     Check if a path from start to end crosses any edge of a polygon.
 
+    Uses Shapely's robust intersection algorithm.
+
     Args:
         start: Starting coordinate of the path
         end: Ending coordinate of the path
         polygon: A sequence of GeofencePoint defining the polygon
-        closed: If True, also check the edge from last point to first point
+        closed: If True, treats polygon as closed (ignored, Shapely always closes)
 
     Returns:
         True if the path crosses any polygon edge, False otherwise.
@@ -385,19 +319,14 @@ def path_crosses_polygon(
         >>> if path_crosses_polygon(start, target, geofence):
         ...     print("Path would cross geofence boundary!")
     """
-    validate_polygon(polygon)
+    path = LineString([
+        (_to_shapely_point(start).x, _to_shapely_point(start).y),
+        (_to_shapely_point(end).x, _to_shapely_point(end).y)
+    ])
+    shapely_poly = _to_shapely_polygon(polygon)
 
-    n = len(polygon)
-
-    # Check all edges including the closing edge if closed=True
-    edges_to_check = n if closed else n - 1
-
-    for i in range(edges_to_check):
-        j = (i + 1) % n  # Wraps around for closing edge
-        if segments_intersect(start, end, polygon[i], polygon[j]):
-            return True
-
-    return False
+    # Check if path crosses the polygon boundary
+    return path.crosses(shapely_poly.boundary) or path.intersects(shapely_poly.boundary)
 
 
 def is_path_valid(
@@ -424,25 +353,40 @@ def is_path_valid(
     Returns:
         True if the path is valid, False otherwise.
     """
+    # Create path as LineString
+    path = LineString([
+        (_to_shapely_point(start).x, _to_shapely_point(start).y),
+        (_to_shapely_point(end).x, _to_shapely_point(end).y)
+    ])
+
+    # Create include polygon
+    include_poly = _to_shapely_polygon(include_fence)
+
     # Check start and end are inside include fence
-    if not is_inside_polygon(start, include_fence):
+    start_point = _to_shapely_point(start)
+    end_point = _to_shapely_point(end)
+
+    if not include_poly.contains(start_point):
         return False
-    if not is_inside_polygon(end, include_fence):
+    if not include_poly.contains(end_point):
         return False
 
-    # Check path doesn't cross include fence
-    if path_crosses_polygon(start, end, include_fence):
+    # Check entire path stays within include fence
+    if not include_poly.contains(path):
         return False
 
     # Check path doesn't enter any exclude fence
     for fence in exclude_fences:
+        exclude_poly = _to_shapely_polygon(fence)
+
         # Path is invalid if start or end is in an exclude zone
-        if is_inside_polygon(start, fence):
+        if exclude_poly.contains(start_point):
             return False
-        if is_inside_polygon(end, fence):
+        if exclude_poly.contains(end_point):
             return False
-        # Path is invalid if it crosses into an exclude zone
-        if path_crosses_polygon(start, end, fence):
+
+        # Path is invalid if it intersects an exclude zone
+        if path.intersects(exclude_poly):
             return False
 
     return True
@@ -450,11 +394,10 @@ def is_path_valid(
 
 def polygon_area(polygon: Polygon) -> float:
     """
-    Calculate the area of a polygon using the Shoelace formula.
+    Calculate the area of a polygon.
 
-    Note: This returns the area in square degrees, which is only useful for
-    relative comparisons. For actual area in square meters, you need to
-    account for the Earth's curvature.
+    Note: This returns the area in square degrees. For actual area in
+    square meters, use polygon_area_meters() or convert using geopy.
 
     Args:
         polygon: A sequence of GeofencePoint defining the polygon
@@ -465,22 +408,15 @@ def polygon_area(polygon: Polygon) -> float:
     Raises:
         InvalidPolygonError: If the polygon has fewer than 3 vertices.
     """
-    validate_polygon(polygon)
-
-    n = len(polygon)
-    area = 0.0
-
-    for i in range(n):
-        j = (i + 1) % n
-        area += polygon[i].longitude * polygon[j].latitude
-        area -= polygon[j].longitude * polygon[i].latitude
-
-    return abs(area) / 2.0
+    shapely_poly = _to_shapely_polygon(polygon)
+    return abs(shapely_poly.area)
 
 
 def polygon_centroid(polygon: Polygon) -> GeofencePoint:
     """
     Calculate the centroid (center of mass) of a polygon.
+
+    Uses Shapely's robust centroid calculation.
 
     Args:
         polygon: A sequence of GeofencePoint defining the polygon
@@ -491,113 +427,62 @@ def polygon_centroid(polygon: Polygon) -> GeofencePoint:
     Raises:
         InvalidPolygonError: If the polygon has fewer than 3 vertices.
     """
-    validate_polygon(polygon)
-
-    n = len(polygon)
-    cx = 0.0
-    cy = 0.0
-    signed_area = 0.0
-
-    for i in range(n):
-        j = (i + 1) % n
-        cross = (polygon[i].longitude * polygon[j].latitude -
-                 polygon[j].longitude * polygon[i].latitude)
-        signed_area += cross
-        cx += (polygon[i].longitude + polygon[j].longitude) * cross
-        cy += (polygon[i].latitude + polygon[j].latitude) * cross
-
-    signed_area *= 0.5
-
-    if abs(signed_area) < _FLOAT_TOLERANCE:
-        # Degenerate polygon, return average of vertices
-        avg_lon = sum(p.longitude for p in polygon) / n
-        avg_lat = sum(p.latitude for p in polygon) / n
-        return GeofencePoint(longitude=avg_lon, latitude=avg_lat)
-
-    cx /= (6.0 * signed_area)
-    cy /= (6.0 * signed_area)
-
-    return GeofencePoint(longitude=cx, latitude=cy)
+    shapely_poly = _to_shapely_polygon(polygon)
+    centroid = shapely_poly.centroid
+    return GeofencePoint(longitude=centroid.x, latitude=centroid.y)
 
 
-def closest_point_on_segment(
+def closest_point_on_polygon(
     point: PointLike,
-    seg_start: PointLike,
-    seg_end: PointLike
-) -> tuple[float, float]:
+    polygon: Polygon
+) -> GeofencePoint:
     """
-    Find the closest point on a line segment to a given point.
+    Find the closest point on a polygon boundary to a given point.
 
     Args:
-        point: The point to find the closest segment point to
-        seg_start: Start of the line segment
-        seg_end: End of the line segment
+        point: The point to find the closest boundary point to
+        polygon: A sequence of GeofencePoint defining the polygon
 
     Returns:
-        Tuple of (longitude, latitude) of the closest point on the segment.
+        The closest point on the polygon boundary as a GeofencePoint.
     """
-    px, py = _extract_coords(point)
-    ax, ay = _extract_coords(seg_start)
-    bx, by = _extract_coords(seg_end)
+    shapely_point = _to_shapely_point(point)
+    shapely_poly = _to_shapely_polygon(polygon)
 
-    # Vector from a to b
-    abx = bx - ax
-    aby = by - ay
+    # Get the nearest point on the polygon boundary
+    _, nearest = nearest_points(shapely_point, shapely_poly.boundary)
 
-    # Vector from a to p
-    apx = px - ax
-    apy = py - ay
-
-    # Project ap onto ab
-    ab_squared = abx * abx + aby * aby
-
-    if ab_squared < _FLOAT_TOLERANCE:
-        # Segment is essentially a point
-        return ax, ay
-
-    t = (apx * abx + apy * aby) / ab_squared
-
-    # Clamp t to [0, 1] to stay on segment
-    t = max(0.0, min(1.0, t))
-
-    return ax + t * abx, ay + t * aby
+    return GeofencePoint(longitude=nearest.x, latitude=nearest.y)
 
 
 def distance_to_polygon_edge(point: PointLike, polygon: Polygon) -> float:
     """
-    Calculate the minimum distance from a point to any edge of a polygon.
+    Calculate the minimum distance from a point to the polygon boundary.
 
     Note: This returns distance in degrees. For actual distance in meters,
-    you need to convert using an appropriate Earth model.
+    use distance_to_polygon_edge_meters() or convert using geopy.
 
     Args:
         point: The point to measure from
         polygon: A sequence of GeofencePoint defining the polygon
 
     Returns:
-        The minimum distance in degrees to any polygon edge.
+        The minimum distance in degrees to the polygon boundary.
 
     Raises:
         InvalidPolygonError: If the polygon has fewer than 3 vertices.
     """
-    validate_polygon(polygon)
+    shapely_point = _to_shapely_point(point)
+    shapely_poly = _to_shapely_polygon(polygon)
 
-    px, py = _extract_coords(point)
-    min_dist_sq = float('inf')
-    n = len(polygon)
-
-    for i in range(n):
-        j = (i + 1) % n
-        cx, cy = closest_point_on_segment(point, polygon[i], polygon[j])
-        dist_sq = (px - cx) ** 2 + (py - cy) ** 2
-        min_dist_sq = min(min_dist_sq, dist_sq)
-
-    return min_dist_sq ** 0.5
+    return shapely_point.distance(shapely_poly.boundary)
 
 
 def is_polygon_clockwise(polygon: Polygon) -> bool:
     """
     Determine if a polygon's vertices are ordered clockwise.
+
+    Uses Shapely's signed area calculation.
 
     Args:
         polygon: A sequence of GeofencePoint defining the polygon
@@ -608,18 +493,110 @@ def is_polygon_clockwise(polygon: Polygon) -> bool:
     Raises:
         InvalidPolygonError: If the polygon has fewer than 3 vertices.
     """
-    validate_polygon(polygon)
+    shapely_poly = _to_shapely_polygon(polygon)
 
-    # Use the signed area formula - negative = clockwise
-    n = len(polygon)
-    signed_area = 0.0
+    # Shapely returns positive area for counter-clockwise polygons
+    # We use the exterior ring to check orientation
+    return not shapely_poly.exterior.is_ccw
 
-    for i in range(n):
-        j = (i + 1) % n
-        signed_area += polygon[i].longitude * polygon[j].latitude
-        signed_area -= polygon[j].longitude * polygon[i].latitude
 
-    return signed_area < 0
+def buffer_polygon(polygon: Polygon, distance: float) -> List[GeofencePoint]:
+    """
+    Create a buffered (expanded or shrunk) version of a polygon.
+
+    Args:
+        polygon: The original polygon
+        distance: Buffer distance in degrees (positive = expand, negative = shrink)
+
+    Returns:
+        A new polygon representing the buffered shape.
+    """
+    shapely_poly = _to_shapely_polygon(polygon)
+    buffered = shapely_poly.buffer(distance)
+
+    # Extract coordinates from the buffered polygon
+    if buffered.is_empty:
+        return []
+
+    coords = list(buffered.exterior.coords)
+    return [GeofencePoint(longitude=x, latitude=y) for x, y in coords[:-1]]  # Exclude closing point
+
+
+def simplify_polygon(polygon: Polygon, tolerance: float = 0.0001) -> List[GeofencePoint]:
+    """
+    Simplify a polygon by removing vertices while preserving shape.
+
+    Uses the Douglas-Peucker algorithm via Shapely.
+
+    Args:
+        polygon: The polygon to simplify
+        tolerance: Maximum deviation from original shape in degrees
+
+    Returns:
+        A simplified polygon.
+    """
+    shapely_poly = _to_shapely_polygon(polygon)
+    simplified = shapely_poly.simplify(tolerance, preserve_topology=True)
+
+    coords = list(simplified.exterior.coords)
+    return [GeofencePoint(longitude=x, latitude=y) for x, y in coords[:-1]]
+
+
+def polygon_bounds(polygon: Polygon) -> tuple[float, float, float, float]:
+    """
+    Get the bounding box of a polygon.
+
+    Args:
+        polygon: The polygon to get bounds for
+
+    Returns:
+        Tuple of (min_lon, min_lat, max_lon, max_lat)
+    """
+    shapely_poly = _to_shapely_polygon(polygon)
+    return shapely_poly.bounds
+
+
+def polygons_overlap(polygon1: Polygon, polygon2: Polygon) -> bool:
+    """
+    Check if two polygons overlap.
+
+    Args:
+        polygon1: First polygon
+        polygon2: Second polygon
+
+    Returns:
+        True if the polygons overlap, False otherwise.
+    """
+    poly1 = _to_shapely_polygon(polygon1)
+    poly2 = _to_shapely_polygon(polygon2)
+    return poly1.intersects(poly2)
+
+
+def polygon_intersection(polygon1: Polygon, polygon2: Polygon) -> Optional[List[GeofencePoint]]:
+    """
+    Calculate the intersection of two polygons.
+
+    Args:
+        polygon1: First polygon
+        polygon2: Second polygon
+
+    Returns:
+        The intersection polygon, or None if polygons don't intersect.
+    """
+    poly1 = _to_shapely_polygon(polygon1)
+    poly2 = _to_shapely_polygon(polygon2)
+
+    intersection = poly1.intersection(poly2)
+
+    if intersection.is_empty:
+        return None
+
+    if intersection.geom_type != 'Polygon':
+        # Could be MultiPolygon, LineString, etc.
+        return None
+
+    coords = list(intersection.exterior.coords)
+    return [GeofencePoint(longitude=x, latitude=y) for x, y in coords[:-1]]
 
 
 # Backward compatibility aliases with deprecation warnings
@@ -657,9 +634,6 @@ def doIntersect(
 ) -> bool:
     """
     Deprecated: Use segments_intersect instead.
-
-    Check if segment (p1_lon,p1_lat)-(q1_lon,q1_lat) intersects with
-    segment (p2_lon,p2_lat)-(q2_lon,q2_lat).
     """
     import warnings
     warnings.warn(
@@ -679,7 +653,6 @@ __all__ = [
     "GeofencePoint",
     "Polygon",
     "PointLike",
-    "GeoPoint",
     # Exceptions
     "GeofenceError",
     "GeofenceReadError",
@@ -688,15 +661,21 @@ __all__ = [
     "read_geofence",
     "validate_polygon",
     "is_inside_polygon",
+    "is_on_polygon_boundary",
     "segments_intersect",
     "path_crosses_polygon",
     "is_path_valid",
     # Utility functions
     "polygon_area",
     "polygon_centroid",
-    "closest_point_on_segment",
+    "closest_point_on_polygon",
     "distance_to_polygon_edge",
     "is_polygon_clockwise",
+    "buffer_polygon",
+    "simplify_polygon",
+    "polygon_bounds",
+    "polygons_overlap",
+    "polygon_intersection",
     # Backward compatibility (deprecated)
     "readGeofence",
     "inside",
