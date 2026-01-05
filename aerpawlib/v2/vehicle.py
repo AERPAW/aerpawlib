@@ -2878,7 +2878,6 @@ class Rover(Vehicle):
         self._waypoints.clear()
 
 
-# For backwards compatibility and convenience
 __all__ = [
     "Vehicle",
     "Drone",

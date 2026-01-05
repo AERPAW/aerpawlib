@@ -99,8 +99,6 @@ class VectorNED:
             return math.hypot(self.north, self.east)
         return math.sqrt(self.north ** 2 + self.east ** 2 + self.down ** 2)
 
-    # Alias for backwards compatibility
-    hypot = magnitude
 
     def normalize(self) -> VectorNED:
         """
@@ -112,8 +110,6 @@ class VectorNED:
             return VectorNED(0, 0, 0)
         return VectorNED(self.north / mag, self.east / mag, self.down / mag)
 
-    # Alias for backwards compatibility
-    norm = normalize
 
     def heading(self) -> float:
         """Get the compass heading of this vector in degrees (0-360, north=0)."""

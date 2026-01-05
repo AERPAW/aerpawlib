@@ -44,6 +44,15 @@ class AERPAW:
             return False
         return True
 
+    def _is_aerpaw_environment(self) -> bool:
+        """
+        Check if we're running in the AERPAW platform environment.
+
+        Returns:
+            True if connected to AERPAW platform, False otherwise (standalone/SITL)
+        """
+        return self._connected
+
     def _display_connection_warning(self):
         if self._connection_warning_displayed:
             return

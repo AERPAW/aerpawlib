@@ -74,16 +74,6 @@ from .safety import (
     ParameterValidationError,
     SpeedLimitExceededError,
     GeofenceViolationError,
-    # Backward compatibility
-    SERVER_STATUS_REQ,
-    VALIDATE_WAYPOINT_REQ,
-    VALIDATE_CHANGE_SPEED_REQ,
-    VALIDATE_TAKEOFF_REQ,
-    VALIDATE_LANDING_REQ,
-    serialize_request,
-    serialize_response,
-    serialize_msg,
-    deserialize_msg,
 )
 
 from .runner import (
@@ -105,8 +95,6 @@ from .runner import (
 from .aerpaw import (
     # Main classes
     AERPAWPlatform,
-    AERPAW,
-    AERPAW_Platform,
     # Config
     AERPAWConfig,
     # Enums
@@ -114,11 +102,6 @@ from .aerpaw import (
     # Exceptions
     AERPAWConnectionError,
     AERPAWCheckpointError,
-    # Constants (backward compatibility)
-    OEO_MSG_SEV_INFO,
-    OEO_MSG_SEV_WARN,
-    OEO_MSG_SEV_ERR,
-    OEO_MSG_SEV_CRIT,
 )
 
 from .zmqutil import (
@@ -131,15 +114,9 @@ from .zmqutil import (
     MessageType,
     # Functions
     run_zmq_proxy,
-    # Constants (backward compatibility)
-    ZMQ_PROXY_IN_PORT,
-    ZMQ_PROXY_OUT_PORT,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_FIELD_CALLBACK,
 )
 
-# Note: safety_checker.py now re-exports from safety.py for backward compatibility
+# Note: safety_checker.py has been removed (was just a backward compatibility re-export wrapper)
 # All safety features are consolidated in safety.py
 
 from .geofence import (
@@ -151,10 +128,6 @@ from .geofence import (
     is_inside_polygon,
     segments_intersect,
     path_crosses_polygon,
-    # Backward compatibility aliases
-    readGeofence,
-    inside,
-    doIntersect,
 )
 
 from .exceptions import (
@@ -317,8 +290,6 @@ __all__ = [
     "read_waypoints_from_plan",
     # AERPAW Platform
     "AERPAWPlatform",
-    "AERPAW",
-    "AERPAW_Platform",
     "AERPAWConfig",
     "MessageSeverity",
     "AERPAWConnectionError",

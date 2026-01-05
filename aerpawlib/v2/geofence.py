@@ -599,55 +599,6 @@ def polygon_intersection(polygon1: Polygon, polygon2: Polygon) -> Optional[List[
     return [GeofencePoint(longitude=x, latitude=y) for x, y in coords[:-1]]
 
 
-# Backward compatibility aliases with deprecation warnings
-def readGeofence(file_path: str | Path) -> List[GeofencePoint]:
-    """
-    Deprecated: Use read_geofence instead.
-    """
-    import warnings
-    warnings.warn(
-        "readGeofence is deprecated, use read_geofence instead",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return read_geofence(file_path)
-
-
-def inside(point: PointLike, polygon: Polygon) -> bool:
-    """
-    Deprecated: Use is_inside_polygon instead.
-    """
-    import warnings
-    warnings.warn(
-        "inside is deprecated, use is_inside_polygon instead",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    return is_inside_polygon(point, polygon)
-
-
-def doIntersect(
-    p1_lon: float, p1_lat: float,
-    q1_lon: float, q1_lat: float,
-    p2_lon: float, p2_lat: float,
-    q2_lon: float, q2_lat: float
-) -> bool:
-    """
-    Deprecated: Use segments_intersect instead.
-    """
-    import warnings
-    warnings.warn(
-        "doIntersect is deprecated, use segments_intersect instead",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    p1 = GeofencePoint(longitude=p1_lon, latitude=p1_lat)
-    q1 = GeofencePoint(longitude=q1_lon, latitude=q1_lat)
-    p2 = GeofencePoint(longitude=p2_lon, latitude=p2_lat)
-    q2 = GeofencePoint(longitude=q2_lon, latitude=q2_lat)
-    return segments_intersect(p1, q1, p2, q2)
-
-
 __all__ = [
     # Types
     "GeofencePoint",
@@ -676,9 +627,5 @@ __all__ = [
     "polygon_bounds",
     "polygons_overlap",
     "polygon_intersection",
-    # Backward compatibility (deprecated)
-    "readGeofence",
-    "inside",
-    "doIntersect",
 ]
 

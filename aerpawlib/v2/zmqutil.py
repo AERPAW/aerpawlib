@@ -43,11 +43,6 @@ class MessageType(Enum):
     CUSTOM = "custom"
 
 
-# Backward compatibility aliases
-ZMQ_TYPE_TRANSITION = MessageType.STATE_TRANSITION.value
-ZMQ_TYPE_FIELD_REQUEST = MessageType.FIELD_REQUEST.value
-ZMQ_TYPE_FIELD_CALLBACK = MessageType.FIELD_CALLBACK.value
-
 
 @dataclass
 class ZMQProxyConfig:

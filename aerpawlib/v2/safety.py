@@ -990,20 +990,6 @@ class SafetyCheckerServer:
         """Stop the server."""
         self._running = False
 
-    def start_server(self, port: Optional[int] = None):
-        """
-        Start the server synchronously (blocking).
-
-        For backward compatibility. For new code, prefer using serve() with asyncio.
-
-        Args:
-            port: Port to listen on (overrides constructor port)
-        """
-        if port is not None:
-            self._port = port
-
-        asyncio.run(self.serve())
-
 
 # ============================================================================
 # Safety Monitor - Continuous monitoring during flight
@@ -1665,42 +1651,7 @@ async def validate_takeoff_with_checker(
 
 
 
-# ============================================================================
-# Backward Compatibility Exports
-# ============================================================================
 
-SERVER_STATUS_REQ = RequestType.SERVER_STATUS.value
-VALIDATE_WAYPOINT_REQ = RequestType.VALIDATE_WAYPOINT.value
-VALIDATE_CHANGE_SPEED_REQ = RequestType.VALIDATE_SPEED.value
-VALIDATE_TAKEOFF_REQ = RequestType.VALIDATE_TAKEOFF.value
-VALIDATE_LANDING_REQ = RequestType.VALIDATE_LANDING.value
-
-
-def serialize_request(request_function: str, params: list) -> bytes:
-    """Serialize a safety checker request (backward compatibility)."""
-    return _serialize_message({
-        "request_function": request_function,
-        "params": params,
-    })
-
-
-def serialize_response(request_function: str, result: bool, message: str = "") -> bytes:
-    """Serialize a safety checker response (backward compatibility)."""
-    return _serialize_message({
-        "request_function": request_function,
-        "result": result,
-        "message": message
-    })
-
-
-def serialize_msg(raw_json: str) -> bytes:
-    """Compress JSON message using zlib (backward compatibility)."""
-    return zlib.compress(raw_json.encode("utf-8"))
-
-
-def deserialize_msg(compressed_msg: bytes) -> dict:
-    """Decompress JSON message using zlib (backward compatibility)."""
-    return _deserialize_message(compressed_msg)
 
 
 # ============================================================================
@@ -1746,14 +1697,4 @@ __all__ = [
     "ParameterValidationError",
     "SpeedLimitExceededError",
     "GeofenceViolationError",
-    # Backward compatibility
-    "SERVER_STATUS_REQ",
-    "VALIDATE_WAYPOINT_REQ",
-    "VALIDATE_CHANGE_SPEED_REQ",
-    "VALIDATE_TAKEOFF_REQ",
-    "VALIDATE_LANDING_REQ",
-    "serialize_request",
-    "serialize_response",
-    "serialize_msg",
-    "deserialize_msg",
 ]

@@ -477,37 +477,83 @@ class Vehicle:
             raise Exception(f"Arm/disarm failed: {e}")
 
     def _initialize_prearm(self, should_postarm_init):
+        logger.debug(f"_initialize_prearm(should_postarm_init={should_postarm_init}) called")
         start = time.time()
+        last_log = 0
         while not self._is_armable_state:
             if time.time() - start > 60:
+                logger.warning("Timeout waiting for armable state (60s)")
                 break
+            # Log status every 5 seconds
+            if time.time() - last_log > 5:
+                logger.debug(
+                    f"Waiting for armable state... "
+                    f"(GPS fix={self._gps.fix_type}, sats={self._gps.satellites_visible})"
+                )
+                last_log = time.time()
             time.sleep(_POLLING_DELAY)
+
+        if self._is_armable_state:
+            logger.debug("Vehicle is armable")
+        else:
+            logger.warning("Vehicle may not be fully ready to arm")
+
         self._should_postarm_init = should_postarm_init
 
     async def _initialize_postarm(self):
         """
         Generic pre-mission manipulation of the vehicle into a state that is
         acceptable. MUST be called before anything else.
+
+        In AERPAW environment: waits for safety pilot to arm
+        In standalone/SITL: auto-arms the vehicle
         """
         if not self._should_postarm_init:
+            logger.debug("Skipping postarm init (disabled)")
             return
 
-        AERPAW_Platform.log_to_oeo("[aerpawlib] Guided command attempted. Waiting for safety pilot to arm")
+        logger.debug("_initialize_postarm() called")
 
-        while not self._is_armable_state:
-            await asyncio.sleep(_POLLING_DELAY)
-        while not self.armed:
-            await asyncio.sleep(_POLLING_DELAY)
+        # Check if we're in AERPAW environment
+        is_aerpaw = AERPAW_Platform._is_aerpaw_environment()
 
-        await asyncio.sleep(_ARMING_SEQUENCE_DELAY)
+        if is_aerpaw:
+            # In AERPAW environment, wait for safety pilot to arm
+            AERPAW_Platform.log_to_oeo("[aerpawlib] Guided command attempted. Waiting for safety pilot to arm")
+            logger.info("Waiting for safety pilot to arm vehicle...")
 
-        # Set to offboard/guided mode - MAVSDK handles this differently
-        # We'll use action commands which implicitly set the right mode
+            while not self._is_armable_state:
+                await asyncio.sleep(_POLLING_DELAY)
+            while not self.armed:
+                await asyncio.sleep(_POLLING_DELAY)
+        else:
+            # In standalone/SITL, auto-arm the vehicle
+            logger.info("Standalone mode: auto-arming vehicle...")
+
+            # Wait for armable state with timeout
+            timeout = 30
+            start = time.time()
+            while not self._is_armable_state:
+                if time.time() - start > timeout:
+                    logger.error("Timeout waiting for vehicle to be armable")
+                    raise Exception("Vehicle not armable after 30s - check GPS and pre-flight conditions")
+                await asyncio.sleep(_POLLING_DELAY)
+
+            logger.debug("Vehicle is armable, sending arm command...")
+
+            # Arm the vehicle
+            try:
+                await self.set_armed(True)
+                logger.info("Vehicle armed successfully")
+            except Exception as e:
+                logger.error(f"Failed to arm vehicle: {e}")
+                raise
 
         await asyncio.sleep(_ARMING_SEQUENCE_DELAY)
 
         self._abortable = True
         self._home_location = self.position
+        logger.debug(f"Home location set to: {self._home_location}")
 
     async def goto_coordinates(
         self,
