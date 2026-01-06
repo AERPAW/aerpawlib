@@ -5,6 +5,8 @@ import json
 import math
 from typing import List, Tuple
 
+import collections
+collections.MutableMapping = collections.abc.MutableMapping
 import dronekit
 from pykml import parser
 

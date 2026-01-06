@@ -288,8 +288,6 @@ class StateMachine(Runner):
 
         await self._start_background_tasks(vehicle)
 
-        await asyncio.sleep(1) # wait for background tasks to start :p
-
         while self._running:
             if self._current_state not in self._states:
                 print(self._current_state)

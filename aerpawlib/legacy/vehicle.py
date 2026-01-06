@@ -8,6 +8,8 @@ import threading
 import time
 from typing import Callable
 
+import collections
+collections.MutableMapping = collections.abc.MutableMapping
 import dronekit
 from pymavlink import mavutil
 
