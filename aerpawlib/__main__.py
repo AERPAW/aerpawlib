@@ -376,9 +376,18 @@ def main():
         if vehicle and hasattr(vehicle, 'armed') and vehicle.armed:
             logger.warning("Vehicle is armed, attempting emergency landing...")
             try:
-                if hasattr(vehicle, 'land'):
-                    asyncio.run(vehicle.land())
-                    logger.info("Emergency landing completed")
+                if hasattr(vehicle, 'land') and hasattr(vehicle, '_mavsdk_loop') and vehicle._mavsdk_loop:
+                    # Run land on the MAVSDK loop (thread-safe)
+                    import concurrent.futures
+                    future = asyncio.run_coroutine_threadsafe(
+                        vehicle._system.action.land(),
+                        vehicle._mavsdk_loop
+                    )
+                    try:
+                        future.result(timeout=10)  # Wait up to 10 seconds
+                        logger.info("Emergency landing command sent")
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("Emergency landing command timed out")
             except Exception as e:
                 logger.error(f"Emergency landing failed: {e}")
 
@@ -465,9 +474,15 @@ def main():
     # rtl / land if not already done (only if connection is still alive)
     async def _rtl_cleanup(vehicle):
         try:
-            await vehicle.goto_coordinates(vehicle._home_location)
             if vehicle_type in [Drone]:
-                await vehicle.land()
+                # Use built-in RTL which returns to MAVLink home and lands automatically
+                await vehicle.return_to_launch()
+            elif vehicle_type in [Rover]:
+                # Rovers don't have RTL in the same way, navigate to home if available
+                if vehicle.home_coords is not None:
+                    await vehicle.goto_coordinates(vehicle.home_coords)
+                else:
+                    logger.warning("No home location available for rover")
         except Exception as e:
             logger.error(f"RTL cleanup failed: {e}")
             raise

@@ -170,6 +170,7 @@ class Vehicle:
         self._position_alt = 0.0
         self._heading_deg = 0.0
         self._velocity_ned = [0.0, 0.0, 0.0]
+        self._home_position = None  # MAVLink home position from telemetry
 
         # Compatibility objects
         self._battery = _BatteryCompat()
@@ -182,12 +183,16 @@ class Vehicle:
         self._telemetry_tasks: List[asyncio.Task] = []
         self._running = True
 
+        # Event loop for MAVSDK operations (runs in background thread)
+        self._mavsdk_loop: Optional[asyncio.AbstractEventLoop] = None
+
         # Connect synchronously (blocking)
         self._connect_sync()
 
     def _connect_sync(self):
         """Synchronous connection for compatibility with original API."""
         loop = asyncio.new_event_loop()
+        self._mavsdk_loop = loop  # Store reference for thread-safe calls
 
         def _run_connection():
             asyncio.set_event_loop(loop)
@@ -210,6 +215,20 @@ class Vehicle:
         # Start internal update loop
         update_thread = threading.Thread(target=self._internal_update_loop, daemon=True)
         update_thread.start()
+
+    async def _run_on_mavsdk_loop(self, coro):
+        """
+        Run a coroutine on the MAVSDK event loop from any other loop.
+        This is necessary because gRPC futures are bound to the loop they were created on.
+        """
+        if self._mavsdk_loop is None:
+            raise RuntimeError("MAVSDK loop not initialized")
+
+        future = asyncio.run_coroutine_threadsafe(coro, self._mavsdk_loop)
+        # Wait for result without blocking the current event loop
+        while not future.done():
+            await asyncio.sleep(_POLLING_DELAY)
+        return future.result()
 
     async def _connect_async(self):
         """Async connection and telemetry setup."""
@@ -278,6 +297,14 @@ class Vehicle:
                     health.is_armable
                 )
 
+        async def _home_update():
+            async for home in self._system.telemetry.home():
+                self._home_position = util.Coordinate(
+                    home.latitude_deg,
+                    home.longitude_deg,
+                    home.relative_altitude_m
+                )
+
         # Start all telemetry tasks
         telemetry_coros = [
             _position_update(),
@@ -288,6 +315,7 @@ class Vehicle:
             _flight_mode_update(),
             _armed_update(),
             _health_update(),
+            _home_update(),
         ]
 
         for coro in telemetry_coros:
@@ -341,6 +369,12 @@ class Vehicle:
 
     @property
     def home_coords(self) -> util.Coordinate:
+        """
+        Get the home location from MAVLink telemetry.
+        Returns the autopilot's home position, or falls back to _home_location if not available.
+        """
+        if self._home_position is not None:
+            return self._home_position
         return self._home_location
 
     @property
@@ -463,10 +497,10 @@ class Vehicle:
         try:
             if value:
                 logger.debug("Sending arm command...")
-                await self._system.action.arm()
+                await self._run_on_mavsdk_loop(self._system.action.arm())
             else:
                 logger.debug("Sending disarm command...")
-                await self._system.action.disarm()
+                await self._run_on_mavsdk_loop(self._system.action.disarm())
 
             # Wait for arm state to match
             while self._armed_state != value:
@@ -583,7 +617,7 @@ class Vehicle:
         """
         logger.debug(f"set_groundspeed({velocity}) called")
         try:
-            await self._system.action.set_maximum_speed(velocity)
+            await self._run_on_mavsdk_loop(self._system.action.set_maximum_speed(velocity))
             logger.debug(f"Maximum speed set to {velocity} m/s")
         except ActionError:
             logger.debug("set_maximum_speed not supported by autopilot")
@@ -635,11 +669,11 @@ class Drone(Vehicle):
         # Use offboard mode to control yaw
         # noinspection PyUnusedLocal
         try:
-            await self._system.offboard.set_position_ned(
+            await self._run_on_mavsdk_loop(self._system.offboard.set_position_ned(
                 PositionNedYaw(0, 0, -self._position_alt, heading)
-            )
+            ))
             try:
-                await self._system.offboard.start()
+                await self._run_on_mavsdk_loop(self._system.offboard.start())
             except OffboardError:
                 pass  # Already in offboard mode
 
@@ -653,7 +687,7 @@ class Drone(Vehicle):
             while not _pointed_at_heading(self):
                 await asyncio.sleep(_POLLING_DELAY)
 
-            await self._system.offboard.stop()
+            await self._run_on_mavsdk_loop(self._system.offboard.stop())
         except (OffboardError, ActionError) as e:
             # Fallback - just update internal heading
             pass
@@ -674,9 +708,9 @@ class Drone(Vehicle):
 
         try:
             logger.debug(f"Setting takeoff altitude to {target_alt}m")
-            await self._system.action.set_takeoff_altitude(target_alt)
+            await self._run_on_mavsdk_loop(self._system.action.set_takeoff_altitude(target_alt))
             logger.debug("Sending takeoff command...")
-            await self._system.action.takeoff()
+            await self._run_on_mavsdk_loop(self._system.action.takeoff())
 
             taken_off = lambda self: self.position.alt >= target_alt * min_alt_tolerance
             self._ready_to_move = taken_off
@@ -704,7 +738,7 @@ class Drone(Vehicle):
 
         try:
             logger.debug("Sending land command...")
-            await self._system.action.land()
+            await self._run_on_mavsdk_loop(self._system.action.land())
 
             self._ready_to_move = lambda _: False
 
@@ -715,6 +749,31 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Land failed: {e}")
             raise Exception(f"Land failed: {e}")
+
+    async def return_to_launch(self):
+        """
+        Command the drone to return to launch (home) position using the
+        autopilot's built-in RTL mode. This will fly back to the MAVLink
+        home position and land automatically.
+        """
+        logger.debug("return_to_launch() called")
+        await self.await_ready_to_move()
+
+        self._abortable = False
+
+        try:
+            logger.debug("Sending RTL command...")
+            await self._run_on_mavsdk_loop(self._system.action.return_to_launch())
+
+            self._ready_to_move = lambda _: False
+
+            logger.debug("Waiting for vehicle to complete RTL and disarm...")
+            while self.armed:
+                await asyncio.sleep(_POLLING_DELAY)
+            logger.debug("RTL complete, vehicle disarmed")
+        except ActionError as e:
+            logger.error(f"RTL failed: {e}")
+            raise Exception(f"RTL failed: {e}")
 
     async def goto_coordinates(
         self,
@@ -734,7 +793,6 @@ class Drone(Vehicle):
 
         self._ready_to_move = lambda self: False
 
-        float('nan')
         if self._current_heading is not None:
             heading = self._current_heading
         else:
@@ -745,12 +803,12 @@ class Drone(Vehicle):
             # Use goto_location action
             target_alt = coordinates.alt + (self._home_location.alt if self._home_location else 0)
             logger.debug(f"Navigating to: lat={coordinates.lat}, lon={coordinates.lon}, alt={target_alt}, heading={heading}")
-            await self._system.action.goto_location(
+            await self._run_on_mavsdk_loop(self._system.action.goto_location(
                 coordinates.lat,
                 coordinates.lon,
                 target_alt,
                 heading if not math.isnan(heading) else 0
-            )
+            ))
 
             at_coords = lambda self: coordinates.distance(self.position) <= tolerance
             self._ready_to_move = at_coords
@@ -786,17 +844,17 @@ class Drone(Vehicle):
 
         try:
             logger.debug(f"Setting velocity NED: N={velocity_vector.north}, E={velocity_vector.east}, D={velocity_vector.down}, yaw={yaw}")
-            await self._system.offboard.set_velocity_ned(
+            await self._run_on_mavsdk_loop(self._system.offboard.set_velocity_ned(
                 VelocityNedYaw(
                     velocity_vector.north,
                     velocity_vector.east,
                     velocity_vector.down,
                     yaw
                 )
-            )
+            ))
 
             try:
-                await self._system.offboard.start()
+                await self._run_on_mavsdk_loop(self._system.offboard.start())
             except OffboardError:
                 pass  # Already in offboard mode
 
@@ -807,7 +865,7 @@ class Drone(Vehicle):
                 while self._velocity_loop_active:
                     if target_end is not None and time.time() > target_end:
                         self._velocity_loop_active = False
-                        await self._system.offboard.stop()
+                        await self._run_on_mavsdk_loop(self._system.offboard.stop())
                     await asyncio.sleep(0.1)
 
             self._velocity_loop_active = True
@@ -848,12 +906,12 @@ class Rover(Vehicle):
             self._mission_start_time = time.time()
 
         try:
-            await self._system.action.goto_location(
+            await self._run_on_mavsdk_loop(self._system.action.goto_location(
                 coordinates.lat,
                 coordinates.lon,
                 0,  # Rovers ignore altitude
                 0   # Heading
-            )
+            ))
 
             at_coords = lambda self: coordinates.ground_distance(self.position) <= tolerance
             self._ready_to_move = at_coords
