@@ -2,16 +2,16 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
+
 
 A Python library for controlling vehicles within the AERPAW platform. This library provides a unified interface for interacting with various vehicle types, managing telemetry, and executing control commands.
 
 ## Features
 
 - Unified vehicle control interface
-- Support for multiple vehicle backends (MAVLink, etc.)
 - Telemetry logging and streaming
 - scriptable mission execution
+- Designed to work with ArduPilot
 
 ## Installation
 
@@ -29,6 +29,12 @@ git clone https://github.com/quantumbagel/aerpawlib.git
 cd aerpawlib
 pip install -e .
 ```
+
+Then you can run
+```bash
+aerpawlib --help
+```
+or any other commands.
 
 ## License
 
