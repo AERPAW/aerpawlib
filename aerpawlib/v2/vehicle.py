@@ -434,7 +434,9 @@ class Vehicle:
                 start_time = time.time()
                 async for conn_state in self._system.core.connection_state():
                     if conn_state.is_connected:
-                        self._connected, self._last_heartbeat, self._reconnect_attempts = True, time.time(), 0
+                        self._connected = True
+                        self._last_heartbeat = time.time()
+                        self._reconnect_attempts = 0
                         logger.info("Connected to vehicle")
                         break
                     if time.time() - start_time > timeout:
@@ -497,7 +499,9 @@ class Vehicle:
             start_time = time.time()
             async for conn_state in self._system.core.connection_state():
                 if conn_state.is_connected:
-                    self._connected, self._last_heartbeat, self._reconnect_attempts = True, time.time(), 0
+                    self._connected = True
+                    self._last_heartbeat = time.time()
+                    self._reconnect_attempts = 0
                     logger.info("Reconnected to vehicle")
                     break
                 if time.time() - start_time > 10:
@@ -594,14 +598,14 @@ class Vehicle:
         try:
             info = await self._system.info.get_identification()
             self.info.hardware_uuid, self.info.legacy_uuid = info.hardware_uid, getattr(info, 'legacy_uid', '')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch vehicle identification: {e}")
         try:
             v = await self._system.info.get_version()
             self.info.version = f"{v.flight_sw_major}.{v.flight_sw_minor}.{v.flight_sw_patch}"
             self.info.vendor_name, self.info.product_name = getattr(v, 'vendor_name', ''), getattr(v, 'product_name', '')
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to fetch vehicle version: {e}")
 
     async def disconnect(self):
         self._running = False
@@ -1196,4 +1200,3 @@ class Rover(Vehicle):
 
 
 __all__ = ["Vehicle", "Drone", "Rover", "CommandHandle", "CommandStatus", "CommandResult", "VehicleEvent", "StateContainer", "GPSContainer", "BatteryContainer", "InfoContainer"]
-

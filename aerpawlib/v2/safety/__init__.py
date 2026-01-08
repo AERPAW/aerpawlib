@@ -39,29 +39,15 @@ from .validation import (
 # Monitor - always available
 from .monitor import SafetyMonitor
 
-# Checker requires ZMQ - imported separately so the rest of safety works without it
-try:
-    from .checker import (
-        SafetyCheckerClient,
-        SafetyCheckerServer,
-        validate_waypoint_with_checker,
-        validate_speed_with_checker,
-        validate_takeoff_with_checker,
-    )
-    _CHECKER_AVAILABLE = True
-except ImportError:
-    _CHECKER_AVAILABLE = False
-    SafetyCheckerClient = None  # type: ignore
-    SafetyCheckerServer = None  # type: ignore
+# Checker requires ZMQ
+from .checker import (
+    SafetyCheckerClient,
+    SafetyCheckerServer,
+    validate_waypoint_with_checker,
+    validate_speed_with_checker,
+    validate_takeoff_with_checker,
+)
 
-    def validate_waypoint_with_checker(*args, **kwargs):
-        raise ImportError("ZMQ required for safety checker. Install with: pip install pyzmq")
-
-    def validate_speed_with_checker(*args, **kwargs):
-        raise ImportError("ZMQ required for safety checker. Install with: pip install pyzmq")
-
-    def validate_takeoff_with_checker(*args, **kwargs):
-        raise ImportError("ZMQ required for safety checker. Install with: pip install pyzmq")
 
 # Re-export exceptions for convenience (from the main exceptions module)
 from ..exceptions import (

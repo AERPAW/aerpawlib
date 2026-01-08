@@ -266,7 +266,9 @@ def main():
     Runner = globals()['Runner']
     StateMachine = globals()['StateMachine']
     BasicRunner = globals()['BasicRunner']
-    ZmqStateMachine = globals()['ZmqStateMachine']
+
+    # ZmqStateMachine only exists in v1/legacy, not v2. This means that we don't NEED it if it doesn't exist
+    ZmqStateMachine = globals().get('ZmqStateMachine', None)
 
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
@@ -276,7 +278,7 @@ def main():
             continue
         if val in [StateMachine, BasicRunner, ZmqStateMachine]:
             continue
-        if issubclass(val, ZmqStateMachine):
+        if ZmqStateMachine and issubclass(val, ZmqStateMachine):
             flag_zmq_runner = True
             logger.debug(f"Found ZmqStateMachine: {name}")
         if runner:
@@ -292,8 +294,17 @@ def main():
     Vehicle = globals()['Vehicle']
     Drone = globals()['Drone']
     Rover = globals()['Rover']
-    DummyVehicle = globals()['DummyVehicle']
-    AERPAW_Platform = globals()['AERPAW_Platform']
+
+    # Handle API differences between v1 and v2
+    if api_version == "v2":
+        # v2 uses MockDrone instead of DummyVehicle
+        DummyVehicle = globals().get('MockDrone', None)
+        # v2 uses AERPAWPlatform class, not a singleton instance
+        AERPAW_Platform = globals().get('AERPAWPlatform', None)
+    else:
+        # v1 and legacy use DummyVehicle and AERPAW_Platform
+        DummyVehicle = globals().get('DummyVehicle', None)
+        AERPAW_Platform = globals().get('AERPAW_Platform', None)
 
     vehicle_type = {
             "generic": Vehicle,
@@ -309,8 +320,11 @@ def main():
     vehicle = None
     last_error = None
 
-    for attempt in range(1, args.conn_retries + 1):
-        logger.info(f"Connecting to vehicle (attempt {attempt}/{args.conn_retries})...")
+    # v2 handles retries internally in connect(), so only try once
+    retry_attempts = 1 if api_version == "v2" else args.conn_retries
+
+    for attempt in range(1, retry_attempts + 1):
+        logger.info(f"Connecting to vehicle (attempt {attempt}/{retry_attempts})...")
         logger.debug(f"Connection string: {args.conn}")
         logger.debug(f"Timeout: {args.conn_timeout}s")
 
@@ -318,19 +332,28 @@ def main():
             # Create vehicle with timeout
             async def create_vehicle_with_timeout():
                 v = vehicle_type(args.conn)
-                # Wait for connection to be established
-                if hasattr(v, '_connected'):
-                    start = time.time()
-                    while not v._connected and (time.time() - start) < args.conn_timeout:
-                        await asyncio.sleep(0.1)
-                    if not v._connected:
-                        raise TimeoutError(f"Connection timeout after {args.conn_timeout}s")
+
+                # v2 API requires explicit connect() call
+                if api_version == "v2":
+                    await v.connect(
+                        timeout=args.conn_timeout,
+                        retry_count=args.conn_retries,
+                        retry_delay=args.conn_retry_delay
+                    )
+                else:
+                    # v1/legacy: Wait for connection to be established automatically
+                    if hasattr(v, '_connected'):
+                        start = time.time()
+                        while not v._connected and (time.time() - start) < args.conn_timeout:
+                            await asyncio.sleep(0.1)
+                        if not v._connected:
+                            raise TimeoutError(f"Connection timeout after {args.conn_timeout}s")
                 return v
 
             vehicle = asyncio.run(
                 asyncio.wait_for(
                     create_vehicle_with_timeout(),
-                    timeout=args.conn_timeout
+                    timeout=args.conn_timeout * args.conn_retries if api_version == "v2" else args.conn_timeout
                 )
             )
             logger.info(f"Vehicle connected successfully")
@@ -349,7 +372,7 @@ def main():
             last_error = e
             logger.warning(f"Connection attempt {attempt} failed: {e}")
 
-        if attempt < args.conn_retries:
+        if attempt < retry_attempts:
             logger.info(f"Retrying in {args.conn_retry_delay}s...")
             time.sleep(args.conn_retry_delay)
 
@@ -408,14 +431,28 @@ def main():
         vehicle._verbose_logging = True
         logger.debug("Verbose vehicle logging enabled")
 
-    AERPAW_Platform._no_stdout = args.no_stdout
+    # Handle AERPAW platform initialization differences between v1 and v2
+    if api_version == "v2":
+        # v2: AERPAWPlatform is a class, create singleton instance
+        if AERPAW_Platform is not None:
+            aerpaw_platform = AERPAW_Platform(suppress_stdout=args.no_stdout)
+        else:
+            aerpaw_platform = None
+    else:
+        # v1/legacy: AERPAW_Platform is already a singleton instance
+        if AERPAW_Platform is not None:
+            AERPAW_Platform._no_stdout = args.no_stdout
+            aerpaw_platform = AERPAW_Platform
+        else:
+            aerpaw_platform = None
 
     # everything after this point is user script dependent. avoid adding extra logic below here
 
     logger.debug("Initializing runner arguments...")
     runner.initialize_args(unknown_args)
     
-    if vehicle_type in [Drone, Rover] and args.initialize:
+    # _initialize_prearm only exists in v1 and legacy versions, so we don't need to run this
+    if vehicle_type in [Drone, Rover] and args.initialize and api_version != "v2":
         logger.debug("Running pre-arm initialization...")
         vehicle._initialize_prearm(args.initialize)
 
@@ -491,7 +528,14 @@ def main():
         try:
             if vehicle.armed and args.rtl_at_end:
                 logger.warning("Vehicle still armed after experiment! RTLing and LANDing automatically.")
-                AERPAW_Platform.log_to_oeo("[aerpawlib] Vehicle still armed after experiment! RTLing and LANDing automatically.")
+                if aerpaw_platform:
+                    try:
+                        if api_version == "v2":
+                            asyncio.run(aerpaw_platform.log_to_oeo("[aerpawlib] Vehicle still armed after experiment! RTLing and LANDing automatically."))
+                        else:
+                            aerpaw_platform.log_to_oeo("[aerpawlib] Vehicle still armed after experiment! RTLing and LANDing automatically.")
+                    except Exception:
+                        pass  # Ignore AERPAW logging errors
                 asyncio.run(_rtl_cleanup(vehicle))
         except Exception as e:
             logger.error(f"Post-experiment RTL failed: {e}")
@@ -502,7 +546,14 @@ def main():
                 seconds_to_complete = int(stop_time - vehicle._mission_start_time)
                 time_to_complete = f"{(seconds_to_complete // 60):02d}:{(seconds_to_complete % 60):02d}"
                 logger.info(f"Mission duration: {time_to_complete} (mm:ss)")
-                AERPAW_Platform.log_to_oeo(f"[aerpawlib] Mission took {time_to_complete} mm:ss")
+                if aerpaw_platform:
+                    try:
+                        if api_version == "v2":
+                            asyncio.run(aerpaw_platform.log_to_oeo(f"[aerpawlib] Mission took {time_to_complete} mm:ss"))
+                        else:
+                            aerpaw_platform.log_to_oeo(f"[aerpawlib] Mission took {time_to_complete} mm:ss")
+                    except Exception:
+                        pass  # Ignore AERPAW logging errors
         except Exception as e:
             logger.debug(f"Could not calculate mission duration: {e}")
 

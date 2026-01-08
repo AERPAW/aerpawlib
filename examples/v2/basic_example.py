@@ -87,64 +87,6 @@ class SimpleSquareMission(BasicRunner):
         logger.info("Mission complete!")
 
 
-class TelemetryDemo(BasicRunner):
-    """
-    Demonstrates accessing drone telemetry through the new API.
-    """
-
-    @entrypoint
-    async def show_telemetry(self, drone: Drone):
-        await drone.connect()
-
-        logger.info("=== Drone Telemetry Demo ===")
-
-        # GPS information
-        logger.info("GPS Status:")
-        logger.info(f"  Satellites: {drone.gps.satellites}")
-        logger.info(f"  Quality: {drone.gps.quality}")
-        logger.info(f"  Has Fix: {drone.gps.has_fix}")
-
-        # State information
-        logger.info("State:")
-        logger.info(f"  Position: {drone.state.position}")
-        logger.info(f"  Heading: {drone.state.heading:.1f}°")
-        logger.info(f"  Altitude: {drone.state.altitude:.1f}m (MSL)")
-        logger.info(f"  Relative Altitude: {drone.state.relative_altitude:.1f}m (AGL)")
-        logger.info(f"  Ground Speed: {drone.state.groundspeed:.1f}m/s")
-        logger.info(f"  Flight Mode: {drone.state.flight_mode.name}")
-        logger.info(f"  Landed State: {drone.state.landed_state.name}")
-
-        # Attitude
-        logger.info("Attitude:")
-        logger.info(f"  Roll: {drone.state.attitude.roll_degrees:.1f}°")
-        logger.info(f"  Pitch: {drone.state.attitude.pitch_degrees:.1f}°")
-        logger.info(f"  Yaw: {drone.state.attitude.yaw_degrees:.1f}°")
-
-        # Battery
-        logger.info("Battery:")
-        logger.info(f"  Voltage: {drone.battery.voltage:.1f}V")
-        logger.info(f"  Charge: {drone.battery.percentage:.0f}%")
-        logger.info(f"  Current: {drone.battery.current:.1f}A")
-
-        # Vehicle info
-        logger.info("Vehicle Info:")
-        logger.info(f"  Hardware UUID: {drone.info.hardware_uuid}")
-        logger.info(f"  Version: {drone.info.version}")
-        logger.info(f"  Vendor: {drone.info.vendor_name}")
-        logger.info(f"  Product: {drone.info.product_name}")
-
-        # Convenience properties
-        logger.info("Convenience Properties:")
-        logger.info(f"  drone.armed: {drone.armed}")
-        logger.info(f"  drone.connected: {drone.connected}")
-        logger.info(f"  drone.is_armable: {drone.is_armable}")
-        logger.info(f"  drone.position: {drone.position}")
-        logger.info(f"  drone.heading: {drone.heading}")
-        logger.info(f"  drone.altitude: {drone.altitude}")
-        logger.info(f"  drone.velocity: {drone.velocity}")
-        logger.info(f"  drone.home: {drone.home}")
-
-
 async def main():
     """Run the example mission."""
     # For simulation, use UDP

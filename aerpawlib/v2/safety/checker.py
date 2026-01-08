@@ -7,7 +7,6 @@ ZMQ is a hard requirement for this module - it will fail fast if not available.
 from __future__ import annotations
 
 import json
-import logging
 import zlib
 from pathlib import Path
 from typing import Any, Optional, Tuple, TYPE_CHECKING
@@ -29,7 +28,9 @@ if TYPE_CHECKING:
     from ..types import Coordinate
     from ..geofence import Polygon
 
-logger = logging.getLogger("aerpawlib.safety")
+from ..logging import get_logger, LogComponent
+
+logger = get_logger(LogComponent.SAFETY)
 
 
 def _serialize_message(data: dict) -> bytes:

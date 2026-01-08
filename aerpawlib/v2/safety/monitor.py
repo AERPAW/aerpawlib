@@ -91,6 +91,11 @@ class SafetyMonitor:
         """Check battery levels and trigger RTL if critical."""
         battery_pct = self._vehicle.battery.percentage
 
+        # Skip battery checks if battery data hasn't been received yet (0.0% or very low voltage)
+        # SITL and real vehicles should report valid battery data once connected
+        if battery_pct == 0.0 and self._vehicle.battery.voltage < 1.0:
+            return
+
         if battery_pct <= self._limits.critical_battery_percent:
             if not self._battery_rtl_triggered:
                 self._battery_rtl_triggered = True
