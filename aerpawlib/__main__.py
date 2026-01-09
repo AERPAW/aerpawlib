@@ -156,44 +156,47 @@ def main():
     proxy_mode = "--run-proxy" in sys.argv
 
     parser = ArgumentParser(description="aerpawlib - wrap and run aerpaw scripts")
-    parser.add_argument("--script", help="experimenter script", required=not proxy_mode)
-    parser.add_argument("--conn", help="connection string",
-                        required=not proxy_mode)
-    parser.add_argument("--vehicle", help="vehicle type [generic, drone, rover, none]", required=not proxy_mode)
-    parser.add_argument("--api-version", help="which API version to use (v1 or v2)",
-                        choices=["v1", "v2"], default="v1")
-    parser.add_argument("--skip-init", help="skip initialization", required=False,
-            const=False, default=True, action="store_const", dest="initialize")
-    parser.add_argument("--run-proxy", help="run zmq proxy", required=False,
-            const=True, default=False, action="store_const", dest="run_zmq_proxy")
-    parser.add_argument("--zmq-identifier", help="zmq identifier", required=False, dest="zmq_identifier")
-    parser.add_argument("--zmq-proxy-server", help="zmq proxy server addr", required=False, dest="zmq_server_addr")
-    parser.add_argument("--skip-rtl", help="don't rtl and land at the end of an experiment automatically",
-            const=False, default=True, action="store_const", dest="rtl_at_end")
-    parser.add_argument("--debug-dump", help="run aerpawlib's internal debug dump on vehicle object", required=False,
-            const=True, default=False, action="store_const", dest="debug_dump")
-    parser.add_argument("--no-aerpawlib-stdout", help="prevent aerpawlib from printing to stdout", required=False,
-            const=True, default=False, action="store_const", dest="no_stdout")
 
-    # Logging arguments
-    parser.add_argument("-v", "--verbose", help="enable verbose logging (INFO level)",
-            action="store_true", default=False)
-    parser.add_argument("--debug", help="enable debug logging (DEBUG level, very verbose)",
-            action="store_true", default=False)
-    parser.add_argument("-q", "--quiet", help="suppress most output (WARNING level only)",
-            action="store_true", default=False)
-    parser.add_argument("--log-file", help="write logs to file in addition to console",
-            default=None, dest="log_file")
+    # Core Arguments
+    core_grp = parser.add_argument_group("Core Arguments")
+    core_grp.add_argument("--script", help="experimenter script", required=not proxy_mode)
+    core_grp.add_argument("--conn", help="connection string", required=not proxy_mode)
+    core_grp.add_argument("--vehicle", help="vehicle type", choices=["generic", "drone", "rover", "none"], required=not proxy_mode)
+    core_grp.add_argument("--api-version", help="which API version to use (v1 or v2)", choices=["v1", "v2"], default="v1")
 
-    # Connection handling arguments
-    parser.add_argument("--conn-timeout", help="connection timeout in seconds (default: 30)",
-            type=float, default=30.0, dest="conn_timeout")
-    parser.add_argument("--conn-retries", help="number of connection retry attempts (default: 3)",
-            type=int, default=3, dest="conn_retries")
-    parser.add_argument("--conn-retry-delay", help="delay between connection retries in seconds (default: 5)",
-            type=float, default=5.0, dest="conn_retry_delay")
-    parser.add_argument("--heartbeat-timeout", help="max seconds without heartbeat before considered disconnected (default: 5)",
-            type=float, default=5.0, dest="heartbeat_timeout")
+    # Execution Flags
+    exec_grp = parser.add_argument_group("Execution Flags")
+    exec_grp.add_argument("--skip-init", help="skip initialization", action="store_false", dest="initialize")
+    exec_grp.add_argument("--skip-rtl", help="don't rtl and land at the end of an experiment automatically",
+                         action="store_false", dest="rtl_at_end")
+    exec_grp.add_argument("--debug-dump", help="run aerpawlib's internal debug dump on vehicle object",
+                         action="store_true", dest="debug_dump")
+    exec_grp.add_argument("--no-aerpawlib-stdout", help="prevent aerpawlib from printing to stdout",
+                         action="store_true", dest="no_stdout")
+
+    # ZMQ Proxy Arguments
+    zmq_grp = parser.add_argument_group("ZMQ Proxy")
+    zmq_grp.add_argument("--run-proxy", help="run zmq proxy", action="store_true", dest="run_zmq_proxy")
+    zmq_grp.add_argument("--zmq-identifier", help="zmq identifier", dest="zmq_identifier")
+    zmq_grp.add_argument("--zmq-proxy-server", help="zmq proxy server addr", dest="zmq_server_addr")
+
+    # Logging Arguments
+    log_grp = parser.add_argument_group("Logging")
+    log_grp.add_argument("-v", "--verbose", help="enable verbose logging (INFO level)", action="store_true")
+    log_grp.add_argument("--debug", help="enable debug logging (DEBUG level, very verbose)", action="store_true")
+    log_grp.add_argument("-q", "--quiet", help="suppress most output (WARNING level only)", action="store_true")
+    log_grp.add_argument("--log-file", help="write logs to file in addition to console", dest="log_file")
+
+    # Connection Handling Arguments
+    conn_grp = parser.add_argument_group("Connection Tuning")
+    conn_grp.add_argument("--conn-timeout", help="connection timeout in seconds (default: 30)",
+                         type=float, default=30.0, dest="conn_timeout")
+    conn_grp.add_argument("--conn-retries", help="number of connection retry attempts (default: 3)",
+                         type=int, default=3, dest="conn_retries")
+    conn_grp.add_argument("--conn-retry-delay", help="delay between connection retries in seconds (default: 5)",
+                         type=float, default=5.0, dest="conn_retry_delay")
+    conn_grp.add_argument("--heartbeat-timeout", help="max seconds without heartbeat before considered disconnected (default: 5)",
+                         type=float, default=5.0, dest="heartbeat_timeout")
 
 
     args, unknown_args = parser.parse_known_args() # we'll pass other args to the script
@@ -208,9 +211,8 @@ def main():
     )
 
     # Log startup information
-    logger.info("=" * 50)
     logger.info("aerpawlib - AERPAW Vehicle Control Library")
-    logger.info("=" * 50)
+    logger.info("By John Kesler and Julian Reder")
     logger.debug(f"Python version: {sys.version}")
     logger.debug(f"Working directory: {os.getcwd()}")
     logger.debug(f"API version: {args.api_version}")
@@ -455,6 +457,8 @@ def main():
     if vehicle_type in [Drone, Rover] and args.initialize and api_version != "v2":
         logger.debug("Running pre-arm initialization...")
         vehicle._initialize_prearm(args.initialize)
+    elif args.initialize and api_version == "v2":
+        logger.warning("API v2 does not support pre-arm initialization, skipping...")
 
     if flag_zmq_runner:
         if None in [args.zmq_identifier, args.zmq_server_addr]:
@@ -503,10 +507,8 @@ def main():
 
     # Handle connection loss
     if connection_lost:
-        logger.warning("=" * 50)
         logger.warning("CONNECTION LOST - Cannot communicate with vehicle!")
         logger.warning("If vehicle is airborne, it should RTL automatically (failsafe)")
-        logger.warning("=" * 50)
 
     # rtl / land if not already done (only if connection is still alive)
     async def _rtl_cleanup(vehicle):
