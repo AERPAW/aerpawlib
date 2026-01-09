@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import time
 from enum import Enum
 from functools import wraps
 from typing import Any, Callable, Optional, TypeVar, Union
@@ -51,7 +52,7 @@ class LogComponent(Enum):
 
 
 class ColoredFormatter(logging.Formatter):
-    """Colored console formatter for better readability."""
+    """Colored console formatter matching aerpawlib's standard format."""
 
     COLORS = {
         logging.DEBUG: "\033[36m",     # Cyan
@@ -68,17 +69,42 @@ class ColoredFormatter(logging.Formatter):
         self.use_colors = use_colors and sys.stdout.isatty()
 
     def format(self, record: logging.LogRecord) -> str:
-        if self.use_colors:
-            color = self.COLORS.get(record.levelno, "")
-            record.levelname = f"{color}{self.BOLD}{record.levelname}{self.RESET}"
-            if record.levelno >= logging.WARNING:
-                record.msg = f"{color}{record.msg}{self.RESET}"
-        return super().format(record)
+        # Determine color
+        color = self.COLORS.get(record.levelno, "") if self.use_colors else ""
+        reset = self.RESET if self.use_colors else ""
+        bold = self.BOLD if self.use_colors else ""
+
+        # Simplify logger name
+        name = record.name
+        if name == "root":
+            name = "aerpawlib"
+        elif name.startswith("aerpawlib."):
+            # Shorten aerpawlib.vehicle -> vehicle
+            name = name[10:]
+
+        # Format timestamp
+        timestamp = time.strftime('%H:%M:%S', time.localtime(record.created))
+
+        # Single letter level indicator
+        level_letter = record.levelname[0]
+
+        # Format message based on level
+        if record.levelno >= logging.WARNING:
+            prefix = f"{color}{bold}[{name} {level_letter}]{reset}"
+        else:
+            prefix = f"{color}[{name}]{reset}"
+
+        # Include timestamp for debug level
+        if record.levelno == logging.DEBUG:
+            return f"{prefix} {color}{timestamp}{reset} {record.getMessage()}"
+        else:
+            return f"{prefix} {record.getMessage()}"
 
 
 # Global state
 _configured = False
-_default_format = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+# Default format is not used directly anymore, but kept for compatibility
+_default_format = "[%(name)s] %(message)s"
 
 
 def configure_logging(
@@ -109,6 +135,8 @@ def configure_logging(
     root_logger = logging.getLogger("aerpawlib")
     root_logger.setLevel(level_value)
     root_logger.handlers.clear()
+    # Prevent propagation to root logger to avoid duplicate messages
+    root_logger.propagate = False
 
     # Console handler
     console = logging.StreamHandler(sys.stdout)
@@ -127,11 +155,13 @@ def configure_logging(
 
 
 def get_logger(component: Union[LogComponent, str] = LogComponent.ROOT) -> logging.Logger:
-    """Get a logger for the specified component."""
-    global _configured
-    if not _configured:
-        configure_logging()
+    """
+    Get a logger for the specified component.
 
+    Logging is configured by __main__.py when running through the CLI.
+    If called directly (not through CLI), the logger will still work
+    with Python's default configuration.
+    """
     name = component.value if isinstance(component, LogComponent) else component
     return logging.getLogger(name)
 
@@ -169,7 +199,6 @@ def log_call(level: LogLevel = LogLevel.DEBUG) -> Callable[[F], F]:
 
 def log_timing(level: LogLevel = LogLevel.DEBUG) -> Callable[[F], F]:
     """Decorator to log function execution time."""
-    import time
 
     def decorator(func: F) -> F:
         @wraps(func)

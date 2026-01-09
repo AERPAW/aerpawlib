@@ -23,14 +23,11 @@ from aerpawlib.v2 import (
     GotoTimeoutError,
     VectorNED,
     # Logging
-    configure_logging,
     get_logger,
-    LogLevel,
     LogComponent,
 )
 
-# Configure logging
-configure_logging(level=LogLevel.INFO)
+# Get logger for user scripts (logging is configured by __main__.py)
 logger = get_logger(LogComponent.USER)
 
 
