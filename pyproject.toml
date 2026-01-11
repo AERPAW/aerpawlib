@@ -1,6 +1,6 @@
 [project]
 name = "aerpawlib"
-version = "1.0.0beta.7"
+version = "1.0.0beta.8"
 description = "Tools and frameworks for writing AERPAW scripts"
 readme = "README.md"
 authors = [
@@ -32,6 +32,12 @@ dependencies = [
     # V2 dependencies (MAVSDK-based, default)
     "mavsdk>=2.0.0",
     "aiohttp>=3.12.14",
+    "dronekit>=2.9.2",
+    "pymavlink>=2.4.0",
+    "pyserial>=3.5",
+    "requests>=2.32.4",
+    "pyyaml"
+
 ]
 
 [project.optional-dependencies]
