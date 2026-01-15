@@ -3,6 +3,7 @@ Unit tests for utility functions.
 
 Tests geofence, waypoint reading, plan file parsing, etc.
 """
+
 import pytest
 import json
 import tempfile
@@ -35,28 +36,30 @@ class TestPlanFileReading:
                     {
                         "command": _PLAN_CMD_TAKEOFF,
                         "params": [0, 0, 0, 0, 35.7274, -78.6960, 10],
-                        "doJumpId": 1
+                        "doJumpId": 1,
                     },
                     {
                         "command": _PLAN_CMD_WAYPOINT,
                         "params": [0, 0, 0, 0, 35.7284, -78.6960, 20],
-                        "doJumpId": 2
+                        "doJumpId": 2,
                     },
                     {
                         "command": _PLAN_CMD_WAYPOINT,
                         "params": [0, 0, 0, 0, 35.7284, -78.6950, 20],
-                        "doJumpId": 3
+                        "doJumpId": 3,
                     },
                     {
                         "command": _PLAN_CMD_RTL,
                         "params": [0, 0, 0, 0, 0, 0, 0],
-                        "doJumpId": 4
-                    }
+                        "doJumpId": 4,
+                    },
                 ]
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.plan', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".plan", delete=False
+        ) as f:
             json.dump(plan_data, f)
             temp_path = f.name
 
@@ -86,7 +89,9 @@ class TestPlanFileReading:
         """Test reading non-plan file raises exception."""
         bad_data = {"fileType": "NotAPlan", "mission": {"items": []}}
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as f:
             json.dump(bad_data, f)
             temp_path = f.name
 
@@ -120,33 +125,35 @@ class TestPlanFileWithSpeed:
                     {
                         "command": _PLAN_CMD_TAKEOFF,
                         "params": [0, 0, 0, 0, 35.7274, -78.6960, 10],
-                        "doJumpId": 1
+                        "doJumpId": 1,
                     },
                     {
                         "command": 178,  # Speed command
                         "params": [0, 5.0, 0, 0, 0, 0, 0],  # 5 m/s
-                        "doJumpId": 2
+                        "doJumpId": 2,
                     },
                     {
                         "command": _PLAN_CMD_WAYPOINT,
                         "params": [0, 0, 0, 0, 35.7284, -78.6960, 20],
-                        "doJumpId": 3
+                        "doJumpId": 3,
                     },
                     {
                         "command": 178,  # Speed command
                         "params": [0, 10.0, 0, 0, 0, 0, 0],  # 10 m/s
-                        "doJumpId": 4
+                        "doJumpId": 4,
                     },
                     {
                         "command": _PLAN_CMD_WAYPOINT,
                         "params": [0, 0, 0, 0, 35.7294, -78.6960, 20],
-                        "doJumpId": 5
-                    }
+                        "doJumpId": 5,
+                    },
                 ]
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.plan', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".plan", delete=False
+        ) as f:
             json.dump(plan_data, f)
             temp_path = f.name
 
@@ -179,19 +186,37 @@ class TestReadFromPlanComplete:
                 "items": [
                     {
                         "command": _PLAN_CMD_WAYPOINT,
-                        "params": [5.0, 0, 0, 0, 35.7274, -78.6960, 10],  # 5s delay
-                        "doJumpId": 1
+                        "params": [
+                            5.0,
+                            0,
+                            0,
+                            0,
+                            35.7274,
+                            -78.6960,
+                            10,
+                        ],  # 5s delay
+                        "doJumpId": 1,
                     },
                     {
                         "command": _PLAN_CMD_WAYPOINT,
-                        "params": [0, 0, 0, 0, 35.7284, -78.6960, 20],  # no delay
-                        "doJumpId": 2
-                    }
+                        "params": [
+                            0,
+                            0,
+                            0,
+                            0,
+                            35.7284,
+                            -78.6960,
+                            20,
+                        ],  # no delay
+                        "doJumpId": 2,
+                    },
                 ]
-            }
+            },
         }
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.plan', delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".plan", delete=False
+        ) as f:
             json.dump(plan_data, f)
             temp_path = f.name
 
@@ -318,4 +343,3 @@ class TestLineIntersection:
         # Point (3,3) is outside segment from (0,0) to (2,2)
         result = liesOnSegment(0, 0, 3, 3, 2, 2)
         assert result is False
-

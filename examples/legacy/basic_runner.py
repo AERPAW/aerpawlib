@@ -7,6 +7,7 @@ from aerpawlib.runner import BasicRunner, entrypoint
 from aerpawlib.util import VectorNED
 from aerpawlib.vehicle import Drone
 
+
 class MyScript(BasicRunner):
     @entrypoint
     async def do_stuff(self, drone: Drone):

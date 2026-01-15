@@ -3,6 +3,7 @@ Unit tests for Coordinate class.
 
 Tests coordinate operations including distance, bearing, arithmetic with vectors, etc.
 """
+
 import pytest
 from aerpawlib.v1.util import Coordinate, VectorNED
 
@@ -243,6 +244,7 @@ class TestCoordinateJson:
     def test_to_json(self):
         """Test toJson returns valid JSON string."""
         import json
+
         c = Coordinate(35.7274, -78.6960, 100)
         json_str = c.toJson()
         parsed = json.loads(json_str)
@@ -279,4 +281,3 @@ class TestCoordinateRealWorldDistances:
         c2 = c1 + v
         distance = c1.distance(c2)
         assert 98 < distance < 102
-

@@ -35,8 +35,22 @@ import random
 from argparse import ArgumentParser
 from typing import List, TextIO
 
-from aerpawlib.runner import (StateMachine, at_init, background, in_background, sleep, state, timed_state)
-from aerpawlib.util import Coordinate, Waypoint, inside, readGeofence, read_from_plan_complete
+from aerpawlib.runner import (
+    StateMachine,
+    at_init,
+    background,
+    in_background,
+    sleep,
+    state,
+    timed_state,
+)
+from aerpawlib.util import (
+    Coordinate,
+    Waypoint,
+    inside,
+    readGeofence,
+    read_from_plan_complete,
+)
 from aerpawlib.vehicle import Drone, Rover, Vehicle
 
 from aerpawlib.external import ExternalProcess
@@ -61,20 +75,28 @@ class HideRover(StateMachine):
 
     def initialize_args(self, extra_args: List[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
-        )
+        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
 
         parser = ArgumentParser()
-        parser.add_argument("--file", help="Mission plan file path.", required=True)
         parser.add_argument(
-            "--skipoutput", help="don't dump gps data to a file", action="store_false"
+            "--file", help="Mission plan file path.", required=True
         )
         parser.add_argument(
-            "--output", help="log output file", required=False, default=default_file
+            "--skipoutput",
+            help="don't dump gps data to a file",
+            action="store_false",
         )
         parser.add_argument(
-            "--samplerate", help="log sampling rate (Hz)", required=False, default=1
+            "--output",
+            help="log output file",
+            required=False,
+            default=default_file,
+        )
+        parser.add_argument(
+            "--samplerate",
+            help="log sampling rate (Hz)",
+            required=False,
+            default=1,
         )
         parser.add_argument(
             "--default-speed",
@@ -150,7 +172,18 @@ class HideRover(StateMachine):
             + ")"
         )
         writer.writerow(
-            [line_num, lon, lat, alt, attitude_str, vel, volt, timestamp, fix, num_sat]
+            [
+                line_num,
+                lon,
+                lat,
+                alt,
+                attitude_str,
+                vel,
+                volt,
+                timestamp,
+                fix,
+                num_sat,
+            ]
         )
 
     @background
@@ -172,16 +205,25 @@ class HideRover(StateMachine):
 
         # creates a maximum square that completely covers the geofence,
         # then generates random coordinates within this square until a coordinate that is within the geofence is generated
-        min_lat, max_lat, min_lon, max_lon = geofence[0]['lat'], geofence[0]['lat'], geofence[0]['lon'], geofence[0]['lon']
+        min_lat, max_lat, min_lon, max_lon = (
+            geofence[0]["lat"],
+            geofence[0]["lat"],
+            geofence[0]["lon"],
+            geofence[0]["lon"],
+        )
         for coord in geofence:
-            min_lat = min(min_lat, coord['lat'])
-            max_lat = max(max_lat, coord['lat'])
-            min_lon = min(min_lon, coord['lon'])
-            max_lon = max(max_lon, coord['lon'])
+            min_lat = min(min_lat, coord["lat"])
+            max_lat = max(max_lat, coord["lat"])
+            min_lon = min(min_lon, coord["lon"])
+            max_lon = max(max_lon, coord["lon"])
 
-        random_lat, random_lon = random.uniform(min_lat, max_lat), random.uniform(min_lon, max_lon)
+        random_lat, random_lon = random.uniform(
+            min_lat, max_lat
+        ), random.uniform(min_lon, max_lon)
         while not inside(random_lon, random_lat, geofence):
-            random_lat, random_lon = random.uniform(min_lat, max_lat), random.uniform(min_lon, max_lon)
+            random_lat, random_lon = random.uniform(
+                min_lat, max_lat
+            ), random.uniform(min_lon, max_lon)
 
         return Coordinate(random_lat, random_lon)
 
@@ -192,15 +234,27 @@ class HideRover(StateMachine):
         if self._default_leg_speed != None:
             default_speed = self._default_leg_speed
 
-        self._waypoints = read_from_plan_complete(self._waypoint_fname, default_speed)
+        self._waypoints = read_from_plan_complete(
+            self._waypoint_fname, default_speed
+        )
 
         # check if hide_latitude and hide_longitude are inside geofence if specified via arguments
-        if self._hide_latitude != None and self._hide_longitude != None and not inside(self._hide_longitude, self._hide_latitude, self._hide_geofence):
-            print("WARNING: Specified latitude, longitude not inside provided geofence.")
+        if (
+            self._hide_latitude != None
+            and self._hide_longitude != None
+            and not inside(
+                self._hide_longitude, self._hide_latitude, self._hide_geofence
+            )
+        ):
+            print(
+                "WARNING: Specified latitude, longitude not inside provided geofence."
+            )
 
         # checks if only one coordinate was specified via arguments (this is invalid, so the script will stop)
         if (self._hide_latitude == None) ^ (self._hide_longitude == None):
-            print("Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script")
+            print(
+                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script"
+            )
             return None
 
         # generate random hide coords if not specified
@@ -229,7 +283,9 @@ class HideRover(StateMachine):
         target_speed = waypoint["speed"]
         await vehicle.set_groundspeed(target_speed)
         in_background(
-            vehicle.goto_coordinates(coords, target_heading=self._default_heading)
+            vehicle.goto_coordinates(
+                coords, target_heading=self._default_heading
+            )
         )
         return "in_transit"
 
@@ -253,7 +309,9 @@ class HideRover(StateMachine):
     async def hide_rover(self, vehicle: Vehicle):
         # head to hiding location and stop the script
         print("Hiding")
-        hide_coords = Coordinate(self._hide_latitude, self._hide_longitude, vehicle.position.alt)
+        hide_coords = Coordinate(
+            self._hide_latitude, self._hide_longitude, vehicle.position.alt
+        )
         await vehicle.goto_coordinates(
             hide_coords, target_heading=self._default_heading
         )

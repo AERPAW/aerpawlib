@@ -3,6 +3,7 @@ SITL Integration tests for complete mission scenarios.
 
 These tests run full mission scripts similar to real experiments.
 """
+
 import pytest
 import asyncio
 import time
@@ -11,20 +12,6 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
 ]
-
-
-def check_sitl_available():
-    """Check if SITL is available."""
-    try:
-        from aerpawlib.sitl import SITLManager
-        manager = SITLManager()
-        return manager._find_sim_vehicle() is not None
-    except Exception:
-        return False
-
-
-if not check_sitl_available():
-    pytest.skip("SITL not available", allow_module_level=True)
 
 
 class TestSquareMission:
@@ -47,10 +34,10 @@ class TestSquareMission:
 
         # Define square waypoints
         waypoints = [
-            VectorNED(square_size, 0, 0),           # North
-            VectorNED(square_size, square_size, 0), # NE
-            VectorNED(0, square_size, 0),           # East
-            VectorNED(0, 0, 0),                     # Back to start
+            VectorNED(square_size, 0, 0),  # North
+            VectorNED(square_size, square_size, 0),  # NE
+            VectorNED(0, square_size, 0),  # East
+            VectorNED(0, 0, 0),  # Back to start
         ]
 
         positions_visited = []
@@ -116,12 +103,12 @@ class TestWaypointMission:
 
         # Create waypoint list
         waypoints = [
-            start + VectorNED(30, 0, 0),    # 30m north
-            start + VectorNED(30, 30, 0),   # 30m north, 30m east
-            start + VectorNED(0, 30, 0),    # 30m east
+            start + VectorNED(30, 0, 0),  # 30m north
+            start + VectorNED(30, 30, 0),  # 30m north, 30m east
+            start + VectorNED(0, 30, 0),  # 30m east
             start + VectorNED(-30, 30, 0),  # 30m south, 30m east
-            start + VectorNED(-30, 0, 0),   # 30m south
-            start,                           # Home
+            start + VectorNED(-30, 0, 0),  # 30m south
+            start,  # Home
         ]
 
         for i, wp in enumerate(waypoints):
@@ -207,10 +194,10 @@ class TestLongDurationMission:
 
         # Perform multiple flight segments
         segments = [
-            (VectorNED(20, 0, 0), 0),     # North, face north
-            (VectorNED(20, 20, 0), 90),   # NE, face east
-            (VectorNED(0, 20, 0), 180),   # E, face south
-            (VectorNED(0, 0, 0), 270),    # Home, face west
+            (VectorNED(20, 0, 0), 0),  # North, face north
+            (VectorNED(20, 20, 0), 90),  # NE, face east
+            (VectorNED(0, 20, 0), 180),  # E, face south
+            (VectorNED(0, 0, 0), 270),  # Home, face west
         ]
 
         for offset, heading in segments:
@@ -228,4 +215,3 @@ class TestLongDurationMission:
 
         # Land
         await connected_drone.land()
-

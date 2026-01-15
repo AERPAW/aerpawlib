@@ -35,10 +35,24 @@ from argparse import ArgumentParser
 from typing import List, TextIO
 
 import collections
+
 collections.MutableMapping = collections.abc.MutableMapping
 import dronekit as dk
-from aerpawlib.runner import (StateMachine, at_init, background, in_background, sleep, state, timed_state)
-from aerpawlib.util import Coordinate, VectorNED, Waypoint, read_from_plan_complete
+from aerpawlib.runner import (
+    StateMachine,
+    at_init,
+    background,
+    in_background,
+    sleep,
+    state,
+    timed_state,
+)
+from aerpawlib.util import (
+    Coordinate,
+    VectorNED,
+    Waypoint,
+    read_from_plan_complete,
+)
 from aerpawlib.vehicle import Drone, Rover, Vehicle
 from pymavlink import mavutil
 
@@ -62,18 +76,25 @@ class PreplannedTrajectory(StateMachine):
 
     def initialize_args(self, extra_args: List[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
-        )
+        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
 
         parser = ArgumentParser()
-        parser.add_argument("--file", help="Mission plan file path.", required=True)
-        parser.add_argument("--ping", help="call ping coroutine", action="store_false")
         parser.add_argument(
-            "--skipoutput", help="don't dump gps data to a file", action="store_false"
+            "--file", help="Mission plan file path.", required=True
         )
         parser.add_argument(
-            "--output", help="log output file", required=False, default=default_file
+            "--ping", help="call ping coroutine", action="store_false"
+        )
+        parser.add_argument(
+            "--skipoutput",
+            help="don't dump gps data to a file",
+            action="store_false",
+        )
+        parser.add_argument(
+            "--output",
+            help="log output file",
+            required=False,
+            default=default_file,
         )
         parser.add_argument(
             "--samplerate",
@@ -101,7 +122,9 @@ class PreplannedTrajectory(StateMachine):
             type=float,
         )
         parser.add_argument(
-            "--noupload", help="don't upload the .plan file to the drone for GCS visualization", action="store_true"
+            "--noupload",
+            help="don't upload the .plan file to the drone for GCS visualization",
+            action="store_true",
         )
         args = parser.parse_args(args=extra_args)
 
@@ -121,7 +144,9 @@ class PreplannedTrajectory(StateMachine):
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
-    _ping_regex = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms")
+    _ping_regex = re.compile(
+        r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms"
+    )
 
     async def _ping_latency(self, address: str, count: int):
         """
@@ -154,7 +179,9 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
     def _dump_to_csv(self, vehicle: Vehicle, line_num: int, writer):
         """
@@ -182,7 +209,18 @@ class PreplannedTrajectory(StateMachine):
         # to keep them in sync
 
         writer.writerow(
-            [line_num, lon, lat, alt, attitude_str, vel, volt, timestamp, fix, num_sat]
+            [
+                line_num,
+                lon,
+                lat,
+                alt,
+                attitude_str,
+                vel,
+                volt,
+                timestamp,
+                fix,
+                num_sat,
+            ]
         )
 
     @background
@@ -199,7 +237,6 @@ class PreplannedTrajectory(StateMachine):
         if self._sampling:
             self._log_file.close()
 
-
     @at_init
     async def initialize_flight(self, vehicle: Vehicle):
         default_speed = 5 if isinstance(vehicle, Drone) else 1
@@ -207,7 +244,9 @@ class PreplannedTrajectory(StateMachine):
             default_speed = self._default_leg_speed
 
         AERPAW_Platform.log_to_oeo(f"Reading .plan file...")
-        self._waypoints = read_from_plan_complete(self._waypoint_fname, default_speed)
+        self._waypoints = read_from_plan_complete(
+            self._waypoint_fname, default_speed
+        )
 
         if self._no_plan_upload:
             return
@@ -215,26 +254,36 @@ class PreplannedTrajectory(StateMachine):
         # Upload the plan file to the drone
         AERPAW_Platform.log_to_oeo(f"Building CommandSequence...")
         current_commands = vehicle._vehicle.commands
-        
+
         # Wait for the vehicle to be ready (so we can grab the commands)
         vehicle._vehicle.wait_ready(True, raise_exception=False)
 
         # Clear out initial home location value and any builtin commands
         current_commands._vehicle._wploader.clear()
-        current_commands.clear()        
+        current_commands.clear()
 
         # Loop over waypoint list (ignore first 0,0,alt waypoint)
         for waypoint in self._waypoints[1:]:
 
             # AERPAW_Platform.log_to_oeo(str(waypoint["pos"]))
             wp_coord = Coordinate(*waypoint["pos"])
-            
-            # Make a new waypoint command with the coordinates            
+
+            # Make a new waypoint command with the coordinates
             new_cmd = dk.Command(
-                0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,  
+                0,
+                0,
+                0,
+                mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
                 mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
-                0, 0, 0, 0, 0, 0,
-                wp_coord.lat, wp_coord.lon, wp_coord.alt
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                wp_coord.lat,
+                wp_coord.lon,
+                wp_coord.alt,
             )
 
             # Add the new waypoint to our command list
@@ -245,7 +294,6 @@ class PreplannedTrajectory(StateMachine):
         current_commands.upload()
 
         AERPAW_Platform.log_to_oeo(f".plan file uploaded!")
-        
 
     @state(name="take_off", first=True)
     async def take_off(self, vehicle: Vehicle):
@@ -271,7 +319,9 @@ class PreplannedTrajectory(StateMachine):
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
         in_background(
-            vehicle.goto_coordinates(coords, target_heading=self._default_heading)
+            vehicle.goto_coordinates(
+                coords, target_heading=self._default_heading
+            )
         )
         await asyncio.sleep(
             0.5
@@ -288,7 +338,9 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
         await vehicle.await_ready_to_move()
         return "at_waypoint"
@@ -309,7 +361,9 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
         return "next_waypoint"
 
@@ -317,7 +371,9 @@ class PreplannedTrajectory(StateMachine):
     async def rtl(self, vehicle: Vehicle):
         # return to the take off location and stop the script
         home_coords = Coordinate(
-            vehicle.home_coords.lat, vehicle.home_coords.lon, vehicle.position.alt
+            vehicle.home_coords.lat,
+            vehicle.home_coords.lon,
+            vehicle.position.alt,
         )
         await vehicle.goto_coordinates(
             home_coords, target_heading=self._default_heading

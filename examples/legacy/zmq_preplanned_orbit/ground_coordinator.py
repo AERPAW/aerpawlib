@@ -16,8 +16,16 @@ import asyncio
 from argparse import ArgumentParser
 from typing import List
 
-from aerpawlib.runner import ZmqStateMachine, at_init, background, expose_field_zmq, in_background, sleep, state, \
-    timed_state
+from aerpawlib.runner import (
+    ZmqStateMachine,
+    at_init,
+    background,
+    expose_field_zmq,
+    in_background,
+    sleep,
+    state,
+    timed_state,
+)
 from aerpawlib.util import Coordinate, Waypoint, read_from_plan_complete
 from aerpawlib.vehicle import Drone
 
@@ -27,12 +35,14 @@ from consts import *
 
 class GroundCoordinatorRunner(ZmqStateMachine):
     _waypoints = []
-    _current_waypoint: int=0
+    _current_waypoint: int = 0
 
     def initialize_args(self, extra_args: List[str]):
         # use an extra argument parser to read in custom script arguments
         parser = ArgumentParser()
-        parser.add_argument("--file", help="Mission plan file path.", required=True)
+        parser.add_argument(
+            "--file", help="Mission plan file path.", required=True
+        )
         args = parser.parse_args(args=extra_args)
         self._waypoints = read_from_plan_complete(args.file)
 
@@ -50,7 +60,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         print("tracer armed and ready")
         self._tracer_ready = True
         return "await_ready"
-    
+
     @state(name="callback_orbiter_ready")
     async def callback_orbiter_ready(self, _):
         print("orbiter armed and ready")
@@ -81,16 +91,15 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     async def callback_tracer_taken_off(self, _):
         self._tracer_taken_off = True
         return "await_taken_off"
-    
+
     @state(name="callback_orbiter_taken_off")
     async def callback_orbiter_taken_off(self, _):
         self._orbiter_taken_off = True
         return "await_taken_off"
 
-
     _tracer_at_waypoint = False
     _orbiter_at_waypoint = False
-    
+
     @state(name="next_waypoint")
     async def state_next_waypoint(self, _):
         # send the tracer to a specific point, make the orbiter follow the same *vector* (i.e. they take two parallel paths)
@@ -98,17 +107,17 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         if self._current_waypoint >= len(self._waypoints):
             return "rtl"
         print(f"Waypoint {self._current_waypoint}")
-        
+
         waypoint = self._waypoints[self._current_waypoint]
-        if waypoint["command"] == 20:       # RTL encountered, finish routine
+        if waypoint["command"] == 20:  # RTL encountered, finish routine
             return "rtl"
-        
+
         await self.transition_runner(ZMQ_TRACER, "next_waypoint"),
         await self.transition_runner(ZMQ_ORBITER, "next_waypoint"),
 
         self._tracer_at_waypoint = False
         self._orbiter_at_waypoint = False
-        
+
         return "await_in_transit"
 
     # funcs to calculate where each drone should go
@@ -117,7 +126,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         waypoint = self._waypoints[self._current_waypoint]
         coords = Coordinate(*waypoint["pos"])
         return coords
-    
+
     @expose_field_zmq(name="orbiter_next_waypoint")
     async def get_orbiter_next_waypoint(self, _):
         # orbiter travels in a path parallel to tracer
@@ -128,7 +137,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         orbiter_pos = await self.query_field(ZMQ_ORBITER, "position")
         orbiter_next_pos = orbiter_pos + tracer_delta
         return orbiter_next_pos
-    
+
     @state(name="await_in_transit")
     async def state_await_in_transit(self, _):
         # wait for both drones to finish moving
@@ -141,13 +150,12 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     async def callback_tracer_at_waypoint(self, _):
         self._tracer_at_waypoint = True
         return "await_in_transit"
-    
+
     @state(name="callback_orbiter_at_waypoint")
     async def callback_orbiter_at_waypoint(self, _):
         self._orbiter_at_waypoint = True
         return "await_in_transit"
-    
-    
+
     _orbiter_orbit_done = False
 
     @state(name="orbiter_start_orbit")
@@ -166,7 +174,6 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     async def callback_orbiter_orbit_done(self, _):
         self._orbiter_orbit_done = True
         return "await_orbiter_orbiting"
-    
 
     _tracer_rtl_done = False
     _orbiter_rtl_done = False
@@ -178,18 +185,18 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         self._tracer_rtl_done = False
         self._orbiter_rtl_done = False
         return "await_rtl_done"
-    
+
     @state(name="await_rtl_done")
     async def state_await_rtl_done(self, _):
         if not (self._tracer_rtl_done and self._orbiter_rtl_done):
             return "await_rtl_done"
         return "land"
-    
+
     @state(name="callback_tracer_rtl_done")
     async def callback_tracer_rtl_done(self, _):
         self._tracer_rtl_done = True
         return "await_rtl_done"
-    
+
     @state(name="callback_orbiter_rtl_done")
     async def callback_orbiter_rtl_done(self, _):
         self._orbiter_rtl_done = True

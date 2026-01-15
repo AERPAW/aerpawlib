@@ -7,6 +7,7 @@ To run this example, you need MAVSDK and a simulator (like PX4 SITL) running.
 Usage:
     python -m examples.v2.basic_example
 """
+
 import asyncio
 
 from aerpawlib.v2 import (
@@ -41,7 +42,9 @@ class SimpleSquareMission(BasicRunner):
         # Connect to the drone
         logger.info("Connecting to drone...")
         await drone.connect()
-        logger.info(f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)")
+        logger.info(
+            f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)"
+        )
 
         # Wait for GPS lock
         while not drone.gps.has_fix:
@@ -64,9 +67,15 @@ class SimpleSquareMission(BasicRunner):
         # Define square corners (30m sides)
         corners = [
             start,  # Start
-            Coordinate(start.latitude + 0.00027, start.longitude, 10),  # ~30m north
-            Coordinate(start.latitude + 0.00027, start.longitude + 0.00036, 10),  # ~30m east
-            Coordinate(start.latitude, start.longitude + 0.00036, 10),  # Back south
+            Coordinate(
+                start.latitude + 0.00027, start.longitude, 10
+            ),  # ~30m north
+            Coordinate(
+                start.latitude + 0.00027, start.longitude + 0.00036, 10
+            ),  # ~30m east
+            Coordinate(
+                start.latitude, start.longitude + 0.00036, 10
+            ),  # Back south
             start,  # Return to start
         ]
 
@@ -74,9 +83,11 @@ class SimpleSquareMission(BasicRunner):
         for i, corner in enumerate(corners):
             logger.info(f"Flying to corner {i+1}: {corner}")
             await drone.goto(coordinates=corner)
-            logger.info(f"  Arrived! Heading: {drone.state.heading:.0f}°, "
-                  f"Speed: {drone.state.groundspeed:.1f}m/s, "
-                  f"Battery: {drone.battery.percentage:.0f}%")
+            logger.info(
+                f"  Arrived! Heading: {drone.state.heading:.0f}°, "
+                f"Speed: {drone.state.groundspeed:.1f}m/s, "
+                f"Battery: {drone.battery.percentage:.0f}%"
+            )
 
         # Land
         logger.info("Landing...")
@@ -97,4 +108,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

@@ -10,6 +10,7 @@ This example shows:
 Usage:
     python -m examples.v2.enhanced_example
 """
+
 from aerpawlib.v2 import (
     AbortError,
     AerpawlibError,
@@ -49,14 +50,14 @@ class EnhancedMission(BasicRunner):
         # Connection with automatic retry
         logger.info("Connecting to drone with retry support...")
         try:
-            await drone.connect(
-                timeout=30.0,
-                retry_count=3,
-                retry_delay=2.0
+            await drone.connect(timeout=30.0, retry_count=3, retry_delay=2.0)
+            logger.info(
+                f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)"
             )
-            logger.info(f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)")
         except ConnectionTimeoutError as e:
-            logger.error(f"Connection failed after {e.max_attempts} attempts: {e}")
+            logger.error(
+                f"Connection failed after {e.max_attempts} attempts: {e}"
+            )
             return
 
         # Wait for GPS with error handling
@@ -85,7 +86,9 @@ class EnhancedMission(BasicRunner):
             try:
                 await drone.takeoff(altitude=15)
             except TakeoffTimeoutError as e:
-                logger.error(f"Takeoff timed out at {e.current_altitude:.1f}m (target: {e.target_altitude}m)")
+                logger.error(
+                    f"Takeoff timed out at {e.current_altitude:.1f}m (target: {e.target_altitude}m)"
+                )
                 await drone.land()
                 return
             except TakeoffError as e:
@@ -97,29 +100,43 @@ class EnhancedMission(BasicRunner):
             logger.info(f"Home position: {home}")
 
             # Create waypoints using from_relative
-            wp1 = Coordinate.from_relative(home, VectorNED(50, 0, 0), "North 50m")
-            wp2 = Coordinate.from_relative(home, VectorNED(50, 50, 0), "Northeast")
-            wp3 = Coordinate.from_relative(home, VectorNED(0, 50, 0), "East 50m")
+            wp1 = Coordinate.from_relative(
+                home, VectorNED(50, 0, 0), "North 50m"
+            )
+            wp2 = Coordinate.from_relative(
+                home, VectorNED(50, 50, 0), "Northeast"
+            )
+            wp3 = Coordinate.from_relative(
+                home, VectorNED(0, 50, 0), "East 50m"
+            )
 
             # Generate a path back home with intermediate points
-            return_path = wp3.path_to(home, num_points=3, include_endpoints=True)
+            return_path = wp3.path_to(
+                home, num_points=3, include_endpoints=True
+            )
             logger.info(f"Return path has {len(return_path)} waypoints")
 
             # Fly to waypoints with structured error handling
             waypoints = [wp1, wp2, wp3] + return_path[1:]  # Skip wp3 duplicate
 
             for i, wp in enumerate(waypoints):
-                logger.info(f"Flying to waypoint {i+1}/{len(waypoints)}: {wp.name or 'unnamed'}")
+                logger.info(
+                    f"Flying to waypoint {i+1}/{len(waypoints)}: {wp.name or 'unnamed'}"
+                )
 
                 # Calculate distance
                 distance = drone.position.distance_to(wp)
                 logger.info(f"  Distance: {distance:.1f}m")
 
                 try:
-                    await drone.goto(coordinates=wp, tolerance=2.0, timeout=60.0)
+                    await drone.goto(
+                        coordinates=wp, tolerance=2.0, timeout=60.0
+                    )
                     logger.info(f"  Arrived! Heading: {drone.heading:.0f}°")
                 except GotoTimeoutError as e:
-                    logger.warning(f"  Timeout! {e.distance_remaining:.1f}m remaining")
+                    logger.warning(
+                        f"  Timeout! {e.distance_remaining:.1f}m remaining"
+                    )
                     # Continue to next waypoint
                 except NavigationError as e:
                     logger.error(f"  Navigation failed: {e.reason}")
@@ -145,7 +162,9 @@ class EnhancedMission(BasicRunner):
         finally:
             # Stop recording and save
             point_count = drone.stop_recording()
-            logger.info(f"Stopped recording. Captured {point_count} data points")
+            logger.info(
+                f"Stopped recording. Captured {point_count} data points"
+            )
 
             # Save flight log
             drone.save_flight_log("flight_log.json", format="json")
@@ -172,13 +191,19 @@ class CoordinateDemo(BasicRunner):
         logger.info(f"Base: {base}")
 
         # from_relative - create coordinate from offset
-        north_50m = Coordinate.from_relative(base, VectorNED(50, 0, 0), "North 50m")
-        east_30m = Coordinate.from_relative(base, VectorNED(0, 30, -10), "East 30m, Up 10m")
+        north_50m = Coordinate.from_relative(
+            base, VectorNED(50, 0, 0), "North 50m"
+        )
+        east_30m = Coordinate.from_relative(
+            base, VectorNED(0, 30, -10), "East 30m, Up 10m"
+        )
         logger.info(f"North 50m: {north_50m}")
         logger.info(f"East 30m, Up 10m: {east_30m}")
 
         # Distance and bearing
-        logger.info(f"Distance to north_50m: {base.distance_to(north_50m):.1f}m")
+        logger.info(
+            f"Distance to north_50m: {base.distance_to(north_50m):.1f}m"
+        )
         logger.info(f"Bearing to east_30m: {base.bearing_to(east_30m):.1f}°")
 
         # midpoint_to
@@ -199,7 +224,9 @@ class CoordinateDemo(BasicRunner):
             logger.info(f"  Point {i+1}: {dist:.1f}m from base")
 
         # path_to without endpoints
-        path_no_endpoints = base.path_to(north_50m, num_points=3, include_endpoints=False)
+        path_no_endpoints = base.path_to(
+            north_50m, num_points=3, include_endpoints=False
+        )
         logger.info("Path with 3 interior points (no endpoints):")
         for i, point in enumerate(path_no_endpoints):
             dist = base.distance_to(point)

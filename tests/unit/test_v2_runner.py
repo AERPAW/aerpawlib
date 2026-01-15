@@ -3,6 +3,7 @@ Unit tests for v2 Runner classes.
 
 Tests BasicRunner, StateMachine, state decorators, etc.
 """
+
 import pytest
 import asyncio
 from aerpawlib.v2.runner import (
@@ -42,7 +43,7 @@ class TestBasicRunner:
 
         runner = TestRunner()
         # The descriptor should be accessible
-        assert hasattr(TestRunner, '_aerpaw_descriptors')
+        assert hasattr(TestRunner, "_aerpaw_descriptors")
 
     @pytest.mark.asyncio
     async def test_basic_runner_executes_entrypoint(self):
@@ -89,15 +90,18 @@ class TestStateMachine:
                 return None
 
         # Check descriptor was registered
-        assert hasattr(TestRunner, '_aerpaw_descriptors')
+        assert hasattr(TestRunner, "_aerpaw_descriptors")
         descriptors = TestRunner._aerpaw_descriptors
-        state_desc = [d for d in descriptors if d.decorator_type == DecoratorType.STATE][0]
+        state_desc = [
+            d for d in descriptors if d.decorator_type == DecoratorType.STATE
+        ][0]
         assert state_desc.state_config.name == "start"
         assert state_desc.state_config.is_initial is True
 
     def test_state_decorator_empty_name_raises(self):
         """Test @state with empty name raises ValueError."""
         with pytest.raises(ValueError, match="cannot be empty"):
+
             @state("")
             async def bad_state(self, vehicle):
                 return None
@@ -178,7 +182,9 @@ class TestTimedState:
                 return None
 
         descriptors = TestRunner._aerpaw_descriptors
-        state_desc = [d for d in descriptors if d.decorator_type == DecoratorType.STATE][0]
+        state_desc = [
+            d for d in descriptors if d.decorator_type == DecoratorType.STATE
+        ][0]
         assert state_desc.state_config.name == "wait"
         assert state_desc.state_config.duration == 5.0
         assert state_desc.state_config.state_type == StateType.TIMED
@@ -186,6 +192,7 @@ class TestTimedState:
     def test_timed_state_invalid_duration_raises(self):
         """Test @timed_state with invalid duration raises ValueError."""
         with pytest.raises(ValueError, match="must be positive"):
+
             @timed_state("test", duration=0)
             async def bad_state(self, vehicle):
                 return None
@@ -227,7 +234,11 @@ class TestBackgroundDecorator:
                 return None
 
         descriptors = TestRunner._aerpaw_descriptors
-        bg_descs = [d for d in descriptors if d.decorator_type == DecoratorType.BACKGROUND]
+        bg_descs = [
+            d
+            for d in descriptors
+            if d.decorator_type == DecoratorType.BACKGROUND
+        ]
         assert len(bg_descs) == 1
 
 
@@ -247,7 +258,9 @@ class TestAtInitDecorator:
                 return None
 
         descriptors = TestRunner._aerpaw_descriptors
-        init_descs = [d for d in descriptors if d.decorator_type == DecoratorType.INIT]
+        init_descs = [
+            d for d in descriptors if d.decorator_type == DecoratorType.INIT
+        ]
         assert len(init_descs) == 1
 
 
@@ -291,4 +304,3 @@ class TestRunnerCleanup:
         runner.cleanup()
 
         assert cleaned_up == ["cleaned"]
-

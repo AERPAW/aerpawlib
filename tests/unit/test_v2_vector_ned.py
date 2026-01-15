@@ -3,6 +3,7 @@ Unit tests for v2 VectorNED class.
 
 Tests all vector operations including arithmetic, rotation, normalization, etc.
 """
+
 import pytest
 import math
 from aerpawlib.v2.types import VectorNED
@@ -248,4 +249,3 @@ class TestVectorNEDRepr:
         assert "1.5" in s
         assert "2.5" in s
         assert "3.5" in s
-

@@ -47,7 +47,9 @@ from aerpawlib.vehicle import Drone, Rover, Vehicle
 
 FLIGHT_ALT = 5  # m
 SQUARE_SIZE = 10  # m
-LOCATION_TOLERANCE = 2  # m -- ~2 is safe in general, use 3 for the rover in SITL
+LOCATION_TOLERANCE = (
+    2  # m -- ~2 is safe in general, use 3 for the rover in SITL
+)
 WAIT_TIME = 5  # s
 LEG_VELOCITY = 5  # m/s
 
@@ -64,10 +66,23 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
     vel = vehicle.velocity
     attitude = vehicle.attitude
     attitude_str = (
-        "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
+        "("
+        + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll]))
+        + ")"
     )
     writer.writerow(
-        [line_num, lon, lat, alt, attitude_str, vel, volt, timestamp, fix, num_sat]
+        [
+            line_num,
+            lon,
+            lat,
+            alt,
+            attitude_str,
+            vel,
+            volt,
+            timestamp,
+            fix,
+            num_sat,
+        ]
     )
 
 
@@ -81,16 +96,21 @@ class SquareOff(StateMachine):
     def initialize_args(self, extra_args: List[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
-        default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
-        )
+        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
 
         parser = ArgumentParser()
         parser.add_argument(
-            "--output", help="log output file", required=False, default=default_file
+            "--output",
+            help="log output file",
+            required=False,
+            default=default_file,
         )
         parser.add_argument(
-            "--samplerate", help="log sampling rate (Hz)", required=False, default=1, type=float
+            "--samplerate",
+            help="log sampling rate (Hz)",
+            required=False,
+            default=1,
+            type=float,
         )
         args = parser.parse_args(args=extra_args)
 
@@ -151,7 +171,8 @@ class SquareOff(StateMachine):
     async def command_leg(self, vehicle: Vehicle, dNorth: float, dEast: float):
         # helper function to send a drone or rover to a specific position
         await vehicle.goto_coordinates(
-            vehicle.position + VectorNED(dNorth, dEast), tolerance=LOCATION_TOLERANCE
+            vehicle.position + VectorNED(dNorth, dEast),
+            tolerance=LOCATION_TOLERANCE,
         )
 
     @state(name="leg_north")

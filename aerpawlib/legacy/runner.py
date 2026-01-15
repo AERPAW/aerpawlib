@@ -7,12 +7,19 @@ frameworks *must* extend it to be executable.
 import asyncio
 import inspect
 from enum import Enum, auto
-from typing import Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List
 
 import zmq
 import zmq.asyncio
 
 from .vehicle import Vehicle
+from .zmqutil import (
+    ZMQ_PROXY_IN_PORT,
+    ZMQ_PROXY_OUT_PORT,
+    ZMQ_TYPE_TRANSITION,
+    ZMQ_TYPE_FIELD_REQUEST,
+    ZMQ_TYPE_FIELD_CALLBACK,
+)
 
 
 class Runner:
@@ -54,7 +61,7 @@ class Runner:
         pass
 
 
-_Runnable = Callable[[Runner, Vehicle], str]
+_Runnable = Callable[[Vehicle], Awaitable[str]]
 
 
 def entrypoint(func):
@@ -82,13 +89,14 @@ class BasicRunner(Runner):
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
-            if hasattr(method, "_entrypoint"):
-                self._entry = method
+            m: Any = method
+            if hasattr(m, "_entrypoint"):
+                self._entry = m
 
     async def run(self, vehicle: Vehicle):
         self._build()
         if hasattr(self, "_entry"):
-            await self._entry.__func__(self, vehicle)
+            await self._entry(vehicle)
         else:
             raise Exception("No @entrypoint declared")
 
@@ -107,24 +115,25 @@ class _State:
         self._func = func
 
     async def run(self, runner: Runner, vehicle: Vehicle) -> str:
-        if self._func._state_type == _StateType.STANDARD:
-            return await self._func.__func__(runner, vehicle)
-        elif self._func._state_type == _StateType.TIMED:
+        f: Any = self._func
+        if getattr(f, "_state_type", None) == _StateType.STANDARD:
+            return await f(vehicle)
+        elif getattr(f, "_state_type", None) == _StateType.TIMED:
             running = True
 
             async def _bg():
                 nonlocal running
                 last_state = ""
                 while running:
-                    last_state = await self._func.__func__(runner, vehicle)
-                    if not self._func._state_loop:
+                    last_state = await f(vehicle)
+                    if not getattr(f, "_state_loop", False):
                         running = False
                     await asyncio.sleep(_STATE_DELAY)
                 return last_state
 
             r = asyncio.ensure_future(_bg())
             # order here is important and stops a race condition
-            await asyncio.sleep(self._func._state_duration)
+            await asyncio.sleep(getattr(f, "_state_duration", 0))
             running = False
             next_state = await r
             return next_state
@@ -278,27 +287,28 @@ class StateMachine(Runner):
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
-            if hasattr(method, "_is_state"):
-                self._states[method._state_name] = _State(
-                    method, method._state_name
+            m: Any = method
+            if hasattr(m, "_is_state"):
+                self._states[m._state_name] = _State(
+                    m, m._state_name
                 )
-                if method._state_first and not hasattr(self, "_entrypoint"):
-                    self._entrypoint = method._state_name
-                elif method._state_first and hasattr(self, "_entrypoint"):
+                if m._state_first and not hasattr(self, "_entrypoint"):
+                    self._entrypoint = m._state_name
+                elif m._state_first and hasattr(self, "_entrypoint"):
                     raise Exception("There may only be one initial state")
-            if hasattr(method, "_is_background"):
-                self._background_tasks.append(method)
-            if hasattr(method, "_run_at_init"):
-                self._initialization_tasks.append(method)
+            if hasattr(m, "_is_background"):
+                self._background_tasks.append(m)
+            if hasattr(m, "_run_at_init"):
+                self._initialization_tasks.append(m)
         if not self._entrypoint:
             raise Exception("There is no initial state")
 
     async def _start_background_tasks(self, vehicle: Vehicle):
         for task in self._background_tasks:
 
-            async def _task_runner(t=task):
+            async def _task_runner(t: Any = task):
                 while self._running:
-                    await t.__func__(self, vehicle)
+                    await t(vehicle)
 
             asyncio.ensure_future(_task_runner())
 
@@ -311,10 +321,8 @@ class StateMachine(Runner):
         self._next_state_overr = ""
         self._running = True
 
-        if len(self._initialization_tasks) != 0:
-            await asyncio.wait(
-                {f(vehicle) for f in self._initialization_tasks}
-            )
+        if self._initialization_tasks:
+            await asyncio.gather(*(f(vehicle) for f in self._initialization_tasks))
 
         await self._start_background_tasks(vehicle)
 
@@ -369,12 +377,13 @@ class ZmqStateMachine(StateMachine):
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
-            if hasattr(method, "_is_exposed_zmq"):
-                self._exported_states[method._zmq_name] = _State(
-                    method, method._zmq_name
+            m: Any = method
+            if hasattr(m, "_is_exposed_zmq"):
+                self._exported_states[m._zmq_name] = _State(
+                    m, m._zmq_name
                 )
-            elif hasattr(method, "_is_exposed_field_zmq"):
-                self._exported_fields[method._zmq_name] = method
+            elif hasattr(m, "_is_exposed_field_zmq"):
+                self._exported_fields[m._zmq_name] = m
 
     _zmq_identifier: str
     _zmq_proxy_server: str
@@ -387,12 +396,8 @@ class ZmqStateMachine(StateMachine):
         self._zmq_context = zmq.asyncio.Context()
 
     @background
-    async def _zmg_bg_sub(self, vehicle: Vehicle):
-        socket = zmq.asyncio.Socket(
-            context=self._zmq_context,
-            io_loop=asyncio.get_event_loop(),
-            socket_type=zmq.SUB,
-        )
+    async def _zmq_bg_sub(self, vehicle: Vehicle):
+        socket = self._zmq_context.socket(zmq.SUB)
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
 
         socket.setsockopt_string(zmq.SUBSCRIBE, "")
@@ -429,11 +434,7 @@ class ZmqStateMachine(StateMachine):
     async def _zmq_bg_pub(self, _: Vehicle):
         # pub side of things is just sending from a queue
         self._zmq_messages_sending = asyncio.Queue()
-        socket = zmq.asyncio.Socket(
-            context=self._zmq_context,
-            io_loop=asyncio.get_event_loop(),
-            socket_type=zmq.PUB,
-        )
+        socket = self._zmq_context.socket(zmq.PUB)
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
         while self._running:
             msg_sending = await self._zmq_messages_sending.get()
