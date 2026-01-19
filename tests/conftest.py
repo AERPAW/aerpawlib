@@ -1,6 +1,7 @@
 """
 Pytest configuration and shared fixtures for aerpawlib tests.
 """
+
 import pytest
 import asyncio
 import sys
@@ -16,6 +17,7 @@ if project_root not in sys.path:
 # Event Loop Configuration
 # ============================================================================
 
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for the test session."""
@@ -29,10 +31,12 @@ def event_loop():
 # Coordinate and Vector Fixtures
 # ============================================================================
 
+
 @pytest.fixture
 def origin_coordinate():
     """A coordinate at AERPAW Lake Wheeler site."""
     from aerpawlib.v1.util import Coordinate
+
     return Coordinate(35.727436, -78.696587, 0)
 
 
@@ -40,6 +44,7 @@ def origin_coordinate():
 def nearby_coordinate():
     """A coordinate ~100m north of origin."""
     from aerpawlib.v1.util import Coordinate
+
     return Coordinate(35.728336, -78.696587, 0)
 
 
@@ -47,6 +52,7 @@ def nearby_coordinate():
 def sample_vector():
     """A sample VectorNED for testing."""
     from aerpawlib.v1.util import VectorNED
+
     return VectorNED(100.0, 50.0, -10.0)
 
 
@@ -54,6 +60,7 @@ def sample_vector():
 def zero_vector():
     """A zero VectorNED."""
     from aerpawlib.v1.util import VectorNED
+
     return VectorNED(0, 0, 0)
 
 
@@ -61,6 +68,7 @@ def zero_vector():
 def unit_north_vector():
     """A unit vector pointing north."""
     from aerpawlib.v1.util import VectorNED
+
     return VectorNED(1, 0, 0)
 
 
@@ -68,26 +76,11 @@ def unit_north_vector():
 # SITL Fixtures
 # ============================================================================
 
-@pytest.fixture(scope="module")
-def sitl_manager():
-    """
-    Start SITL for integration tests.
-
-    This fixture has module scope - SITL starts once per test module
-    and is reused for all tests in that module.
-    """
-    from aerpawlib.sitl import SITLManager
-
-    sitl = SITLManager("-v copter -w --speedup 5 --no-mavproxy")
-    sitl.start(timeout=180)
-    yield sitl
-    sitl.stop()
-
 
 @pytest.fixture(scope="module")
-def sitl_connection_string(sitl_manager):
+def sitl_connection_string():
     """Get the SITL connection string."""
-    return sitl_manager.connection_string
+    return "udp:127.0.0.1:14551"
 
 
 @pytest.fixture
@@ -104,6 +97,7 @@ async def connected_drone(sitl_connection_string):
     # Wait for GPS fix
     timeout = 60
     import time
+
     start = time.time()
     while drone.gps.fix_type < 3 and (time.time() - start) < timeout:
         await asyncio.sleep(0.5)
@@ -123,17 +117,17 @@ async def connected_drone(sitl_connection_string):
 # Pytest Configuration
 # ============================================================================
 
+
 def pytest_configure(config):
     """Configure custom pytest markers."""
     config.addinivalue_line(
         "markers", "unit: mark test as a unit test (no external dependencies)"
     )
     config.addinivalue_line(
-        "markers", "integration: mark test as an integration test (requires SITL)"
+        "markers",
+        "integration: mark test as an integration test (requires SITL)",
     )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -145,4 +139,3 @@ def pytest_collection_modifyitems(config, items):
         # Add 'integration' marker to tests in integration/ directory
         if "/integration/" in str(item.fspath):
             item.add_marker(pytest.mark.integration)
-

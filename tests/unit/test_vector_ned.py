@@ -3,6 +3,7 @@ Unit tests for VectorNED class.
 
 Tests all vector operations including arithmetic, rotation, normalization, etc.
 """
+
 import pytest
 from aerpawlib.v1.util import VectorNED
 
@@ -189,9 +190,9 @@ class TestVectorNEDNorm:
         """Test normalizing 3D vector."""
         v = VectorNED(1, 2, 2)  # magnitude = 3
         normed = v.norm()
-        assert abs(normed.north - 1/3) < 1e-10
-        assert abs(normed.east - 2/3) < 1e-10
-        assert abs(normed.down - 2/3) < 1e-10
+        assert abs(normed.north - 1 / 3) < 1e-10
+        assert abs(normed.east - 2 / 3) < 1e-10
+        assert abs(normed.down - 2 / 3) < 1e-10
 
 
 class TestVectorNEDRotation:
@@ -270,4 +271,3 @@ class TestVectorNEDStr:
         assert "3.5" in s
         assert s.startswith("(")
         assert s.endswith(")")
-

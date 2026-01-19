@@ -15,18 +15,23 @@ from aerpawlib.runner import StateMachine, state, in_background
 from aerpawlib.util import VectorNED, Coordinate
 from aerpawlib.vehicle import Drone
 
-FLIGHT_ALT = 5      # m
-CIRCLE_RAD = 10     # m
-CIRCLE_VEL = 1      # m/s
+FLIGHT_ALT = 5  # m
+CIRCLE_RAD = 10  # m
+CIRCLE_VEL = 1  # m/s
 N_LAPS = 3
+
 
 class Circle(StateMachine):
     _target_center: Coordinate
-    _point_to_center: bool=False
+    _point_to_center: bool = False
 
     def initialize_args(self, extra_args):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--facecenter", help="continually look at center of circle", action="store_false")
+        parser.add_argument(
+            "--facecenter",
+            help="continually look at center of circle",
+            action="store_false",
+        )
         args = parser.parse_args(args=extra_args)
 
         self._point_to_center = not args.facecenter
@@ -42,7 +47,9 @@ class Circle(StateMachine):
     @state(name="fly_to_circumference")
     async def fly_out(self, drone: Drone):
         print("flying north to the circumference")
-        await drone.goto_coordinates(self._target_center + VectorNED(CIRCLE_RAD, 0))
+        await drone.goto_coordinates(
+            self._target_center + VectorNED(CIRCLE_RAD, 0)
+        )
         return "circularize"
 
     _lap = 0
@@ -52,7 +59,7 @@ class Circle(StateMachine):
     @state(name="circularize")
     async def circularize(self, drone: Drone):
         current_pos = drone.position
-        radius_vec = current_pos - self._target_center # points out to drone
+        radius_vec = current_pos - self._target_center  # points out to drone
 
         # calculate perpendicular/tangent vector by taking cross product w/ down
         perp_vec = radius_vec.cross_product(VectorNED(0, 0, 1))
@@ -60,8 +67,9 @@ class Circle(StateMachine):
         # normalize and ignore the height
         hypot = perp_vec.hypot(True)
         target_velocity = VectorNED(
-                perp_vec.north / hypot * CIRCLE_VEL,
-                perp_vec.east / hypot * CIRCLE_VEL)
+            perp_vec.north / hypot * CIRCLE_VEL,
+            perp_vec.east / hypot * CIRCLE_VEL,
+        )
 
         # calculate distance from ideal radius for proportional correction
         radius_err = radius_vec.hypot() - CIRCLE_RAD
@@ -80,8 +88,10 @@ class Circle(StateMachine):
             self._prev_avg_theta = avg_theta
 
         if self._point_to_center:
-            await drone.set_heading(math.degrees(-avg_theta)-90, blocking=False)
-        
+            await drone.set_heading(
+                math.degrees(-avg_theta) - 90, blocking=False
+            )
+
         # this condition fires when going from 3.14 rad -> -3.14 rad
         if self._prev_avg_theta > 0 and avg_theta < 0:
             self._lap += 1

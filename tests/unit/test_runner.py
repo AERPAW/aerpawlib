@@ -3,6 +3,7 @@ Unit tests for Runner classes.
 
 Tests BasicRunner, StateMachine, state decorators, etc.
 """
+
 import pytest
 from aerpawlib.v1.runner import (
     Runner,
@@ -27,7 +28,7 @@ class TestBasicRunner:
                 pass
 
         runner = TestRunner()
-        assert hasattr(runner.my_entry, '_entrypoint')
+        assert hasattr(runner.my_entry, "_entrypoint")
         assert runner.my_entry._entrypoint is True
 
     @pytest.mark.asyncio
@@ -89,13 +90,14 @@ class TestStateMachine:
                 return None
 
         runner = TestRunner()
-        assert hasattr(runner.start_state, '_is_state')
+        assert hasattr(runner.start_state, "_is_state")
         assert runner.start_state._state_name == "start"
         assert runner.start_state._state_first is True
 
     def test_state_decorator_empty_name_raises(self):
         """Test @state with empty name raises exception."""
         with pytest.raises(Exception, match="state name can't be"):
+
             @state("")
             async def bad_state(self, vehicle):
                 return None
@@ -176,7 +178,7 @@ class TestTimedState:
                 return None
 
         runner = TestRunner()
-        assert hasattr(runner.wait_state, '_is_state')
+        assert hasattr(runner.wait_state, "_is_state")
         assert runner.wait_state._state_duration == 1.0
 
     @pytest.mark.asyncio
@@ -271,4 +273,3 @@ class TestRunnerCleanup:
         runner.cleanup()
 
         assert cleaned_up == ["cleaned"]
-

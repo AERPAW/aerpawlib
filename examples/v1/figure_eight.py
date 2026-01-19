@@ -18,8 +18,8 @@ from aerpawlib.v1.util import VectorNED, Coordinate
 from aerpawlib.v1.vehicle import Drone
 
 # Configuration
-FLIGHT_ALT = 15     # meters
-LOOP_RADIUS = 20    # meters (radius of each loop)
+FLIGHT_ALT = 15  # meters
+LOOP_RADIUS = 20  # meters (radius of each loop)
 NUM_WAYPOINTS = 16  # points per loop
 
 
@@ -33,17 +33,29 @@ class FigureEight(BasicRunner):
     def initialize_args(self, extra_args: List[str]):
         """Parse custom arguments."""
         parser = ArgumentParser()
-        parser.add_argument("--radius", type=float, default=LOOP_RADIUS,
-                          help="Loop radius in meters")
-        parser.add_argument("--altitude", type=float, default=FLIGHT_ALT,
-                          help="Flight altitude in meters")
+        parser.add_argument(
+            "--radius",
+            type=float,
+            default=LOOP_RADIUS,
+            help="Loop radius in meters",
+        )
+        parser.add_argument(
+            "--altitude",
+            type=float,
+            default=FLIGHT_ALT,
+            help="Flight altitude in meters",
+        )
         args, _ = parser.parse_known_args(extra_args)
 
         self._radius = args.radius
         self._altitude = args.altitude
-        print(f"[example] Figure-8 config: radius={self._radius}m, alt={self._altitude}m")
+        print(
+            f"[example] Figure-8 config: radius={self._radius}m, alt={self._altitude}m"
+        )
 
-    def _generate_figure_8_waypoints(self, center: Coordinate) -> List[Coordinate]:
+    def _generate_figure_8_waypoints(
+        self, center: Coordinate
+    ) -> List[Coordinate]:
         """Generate waypoints for a figure-8 pattern."""
         waypoints = []
 
@@ -54,7 +66,7 @@ class FigureEight(BasicRunner):
             offset = VectorNED(
                 self._radius * math.cos(angle),
                 self._radius * math.sin(angle),
-                0
+                0,
             )
             waypoints.append(loop1_center + offset)
 
@@ -66,7 +78,7 @@ class FigureEight(BasicRunner):
             offset = VectorNED(
                 self._radius * math.cos(angle),
                 self._radius * math.sin(angle),
-                0
+                0,
             )
             waypoints.append(loop2_center + offset)
 
@@ -94,7 +106,9 @@ class FigureEight(BasicRunner):
             loop_num = 1 if i < self._waypoints_per_loop else 2
             wp_in_loop = i % self._waypoints_per_loop + 1
 
-            print(f"[example] Loop {loop_num}, waypoint {wp_in_loop}/{self._waypoints_per_loop}")
+            print(
+                f"[example] Loop {loop_num}, waypoint {wp_in_loop}/{self._waypoints_per_loop}"
+            )
             await drone.goto_coordinates(target, tolerance=2)
 
         # Return to center
@@ -105,4 +119,3 @@ class FigureEight(BasicRunner):
         print("[example] Landing...")
         await drone.land()
         print("[example] Figure-8 complete!")
-

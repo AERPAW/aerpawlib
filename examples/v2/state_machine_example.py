@@ -4,6 +4,7 @@ State machine example for aerpawlib v2 API.
 This example demonstrates how to use the StateMachine pattern for
 complex missions with multiple states and background tasks.
 """
+
 import asyncio
 
 from aerpawlib.v2 import (
@@ -65,17 +66,21 @@ class SurveyMission(StateMachine):
     @background
     async def log_telemetry(self, drone: Drone):
         """Log telemetry data periodically."""
-        logger.debug(f"[Telemetry] Alt: {drone.altitude:.1f}m, "
-              f"Speed: {drone.state.groundspeed:.1f}m/s, "
-              f"Heading: {drone.heading:.0f}°, "
-              f"Battery: {drone.battery.percentage:.0f}%")
+        logger.debug(
+            f"[Telemetry] Alt: {drone.altitude:.1f}m, "
+            f"Speed: {drone.state.groundspeed:.1f}m/s, "
+            f"Heading: {drone.heading:.0f}°, "
+            f"Battery: {drone.battery.percentage:.0f}%"
+        )
         await sleep(1)
 
     @background
     async def battery_monitor(self, drone: Drone):
         """Monitor battery and trigger RTL if low."""
         if drone.battery.percentage < self.min_battery:
-            logger.warning(f"Battery low ({drone.battery.percentage:.0f}%)! Triggering RTL...")
+            logger.warning(
+                f"Battery low ({drone.battery.percentage:.0f}%)! Triggering RTL..."
+            )
             self.transition_to("emergency_rtl")
         await sleep(5)
 
@@ -89,11 +94,15 @@ class SurveyMission(StateMachine):
             logger.info("  [WAITING] GPS fix...")
             await sleep(1)
             return "preflight"  # Stay in this state
-        logger.info(f"  [OK] GPS: {drone.gps.quality} ({drone.gps.satellites} sats)")
+        logger.info(
+            f"  [OK] GPS: {drone.gps.quality} ({drone.gps.satellites} sats)"
+        )
 
         # Check battery
         if drone.battery.percentage < 30:
-            logger.error(f"  [FAIL] Battery too low: {drone.battery.percentage:.0f}%")
+            logger.error(
+                f"  [FAIL] Battery too low: {drone.battery.percentage:.0f}%"
+            )
             return None  # Stop the mission
         logger.info(f"  [OK] Battery: {drone.battery.percentage:.0f}%")
 
@@ -126,7 +135,9 @@ class SurveyMission(StateMachine):
             return "rtl"
 
         waypoint = self.waypoints[self.current_waypoint]
-        logger.info(f"=== Flying to {waypoint.name} ({self.current_waypoint + 1}/{len(self.waypoints)}) ===")
+        logger.info(
+            f"=== Flying to {waypoint.name} ({self.current_waypoint + 1}/{len(self.waypoints)}) ==="
+        )
 
         await drone.goto(coordinates=waypoint, tolerance=2.0)
 
@@ -159,7 +170,9 @@ class OrbitMission(StateMachine):
     Demonstrates timed_state for continuous operations like orbiting.
     """
 
-    def __init__(self, orbit_radius: float = 20.0, orbit_duration: float = 60.0):
+    def __init__(
+        self, orbit_radius: float = 20.0, orbit_duration: float = 60.0
+    ):
         super().__init__()
         self.orbit_radius = orbit_radius
         self.orbit_duration = orbit_duration
@@ -188,10 +201,11 @@ class OrbitMission(StateMachine):
 
         # Set velocity to orbit
         from aerpawlib.v2 import VectorNED
+
         velocity = VectorNED(
             -self.orbit_radius * 0.5 * math.sin(rad),  # tangent velocity
             self.orbit_radius * 0.5 * math.cos(rad),
-            0
+            0,
         )
 
         await drone.set_velocity(velocity, heading=angle + 90)
@@ -218,4 +232,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

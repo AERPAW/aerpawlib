@@ -14,6 +14,7 @@ Environment variables:
     SITL_VERBOSE=1  - Show SITL output
     SITL_SPEEDUP=10 - Simulation speedup (default: 5)
 """
+
 import pytest
 import asyncio
 import time
@@ -24,21 +25,6 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.slow,
 ]
-
-
-def check_sitl_available():
-    """Check if SITL is available."""
-    try:
-        from aerpawlib.sitl import SITLManager
-        manager = SITLManager()
-        return manager._find_sim_vehicle() is not None
-    except Exception:
-        return False
-
-
-# Skip all tests if SITL is not available
-if not check_sitl_available():
-    pytest.skip("SITL not available", allow_module_level=True)
 
 
 class TestDroneConnection:
@@ -179,10 +165,10 @@ class TestDroneNavigation:
 
         # Define waypoints (small square)
         waypoints = [
-            start_pos + VectorNED(20, 0, 0),    # North
-            start_pos + VectorNED(20, 20, 0),   # Northeast
-            start_pos + VectorNED(0, 20, 0),    # East
-            start_pos,                           # Back to start
+            start_pos + VectorNED(20, 0, 0),  # North
+            start_pos + VectorNED(20, 20, 0),  # Northeast
+            start_pos + VectorNED(0, 20, 0),  # East
+            start_pos,  # Back to start
         ]
 
         for wp in waypoints:
@@ -309,4 +295,3 @@ class TestDroneVelocity:
 
         # Cleanup
         await connected_drone.land()
-

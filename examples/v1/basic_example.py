@@ -32,7 +32,9 @@ class SquareFlight(BasicRunner):
         # Take off
         print(f"[example] Taking off to {takeoff_altitude}m...")
         await drone.takeoff(takeoff_altitude)
-        print(f"[example] Takeoff complete, altitude: {drone.position.alt:.1f}m")
+        print(
+            f"[example] Takeoff complete, altitude: {drone.position.alt:.1f}m"
+        )
 
         # Save starting position
         start_position = drone.position
@@ -63,4 +65,3 @@ class SquareFlight(BasicRunner):
         print(f"[example] Landing...")
         await drone.land()
         print(f"[example] Mission complete!")
-
