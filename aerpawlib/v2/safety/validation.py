@@ -186,7 +186,26 @@ def clamp_velocity(velocity, limits: SafetyLimits):
 
 
 async def run_preflight_checks(vehicle: "Vehicle", limits: SafetyLimits) -> PreflightCheckResult:
-    """Run comprehensive pre-flight safety checks."""
+    """Run pre-flight safety checks for LOCAL DEVELOPMENT and SITL testing.
+
+    NOTE: In the AERPAW environment, preflight validation is handled by the
+    external "parameter checker" script triggered via the OEO console command
+    "# check_params". This function is for local testing convenience only and
+    does NOT replace the official AERPAW preflight validation.
+
+    Checks performed:
+    - Safety limits configuration validity
+    - GPS fix quality (if enabled in limits)
+    - Battery level
+    - Vehicle connection status
+
+    Args:
+        vehicle: The vehicle to check
+        limits: Safety limits configuration
+
+    Returns:
+        PreflightCheckResult with pass/fail status and details
+    """
     result = PreflightCheckResult()
 
     # Check safety limits configuration

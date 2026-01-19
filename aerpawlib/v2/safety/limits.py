@@ -20,16 +20,24 @@ class SafetyLimits:
     """
     Safety limits configuration for vehicle operations.
 
-    These limits help prevent common mistakes that could damage the drone
-    or cause crashes. All limits can be adjusted or disabled as needed.
+    These limits are primarily for LOCAL DEVELOPMENT and SITL testing.
+    In the AERPAW environment, safety enforcement is handled externally:
+
+    - Battery failsafe: Handled by the AUTOPILOT (RTL/LAND on low battery)
+    - Speed/geofence limits: Enforced by the MAVLink FILTER in C-VM
+    - Preflight checks: Handled by the PARAMETER CHECKER OEO script
+
+    The SafetyMonitor uses these limits for logging warnings, but does NOT
+    enforce RTL or other actions. The limits are also used by validation
+    functions to clamp values and provide helpful error messages.
     """
-    # Speed limits
+    # Speed limits (for local validation/clamping)
     max_speed: float = 15.0           # m/s horizontal
     max_vertical_speed: float = 5.0   # m/s vertical
 
-    # Battery limits
+    # Battery limits (for warnings only - autopilot handles actual failsafe)
     min_battery_percent: float = 20.0      # warning threshold
-    critical_battery_percent: float = 10.0  # RTL threshold
+    critical_battery_percent: float = 10.0  # critical warning threshold
 
     # GPS requirements
     require_gps_fix: bool = True

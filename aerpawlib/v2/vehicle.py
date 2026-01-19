@@ -34,6 +34,7 @@ from .logging import get_logger, LogComponent
 
 if TYPE_CHECKING:
     from .safety import SafetyCheckerClient
+    from .aerpaw import AERPAWPlatform
 
 _POLLING_DELAY = 0.01
 _HEARTBEAT_TIMEOUT = 5.0
@@ -381,10 +382,28 @@ CallbackType = Callable[..., Any]
 
 
 class Vehicle:
-    """Base vehicle class providing common functionality."""
+    """Base vehicle class providing common functionality.
 
-    def __init__(self, connection: str = "udp://:14540"):
+    Connection Loss Behavior:
+        In the AERPAW environment, if the MAVLink connection is lost (either due
+        to hardware failure or the MAVLink filter severing the connection), the
+        script should crash and send a message to OEO. Auto-reconnect is disabled
+        by default and should only be enabled for local SITL testing.
+
+        The MAVLink filter may sever the connection if an illegal command is
+        detected (geofence violation, speed limit exceeded, etc.). In this case,
+        reconnection would not succeed and the experiment is effectively aborted.
+    """
+
+    def __init__(self, connection: str = "udp://:14540", oeo_platform: Optional["AERPAWPlatform"] = None):
+        """Initialize the vehicle.
+
+        Args:
+            connection: MAVLink connection string (e.g., "udp://:14540")
+            oeo_platform: Optional AERPAWPlatform instance for OEO logging on disconnect
+        """
         self._connection_string = connection
+        self._oeo_platform = oeo_platform
         self._system: Optional[System] = None
         self._connected = False
         self._armed = False
@@ -421,6 +440,25 @@ class Vehicle:
         await self.disconnect()
 
     async def connect(self, timeout: float = 30.0, auto_reconnect: bool = False, retry_count: int = 3, retry_delay: float = 2.0) -> bool:
+        """Connect to the vehicle via MAVLink.
+
+        Args:
+            timeout: Connection timeout in seconds
+            auto_reconnect: Enable automatic reconnection on connection loss.
+                WARNING: This should only be used for LOCAL DEVELOPMENT and SITL
+                testing. In the AERPAW environment, if the MAVLink filter severs
+                the connection, reconnection will not succeed and the experiment
+                should terminate.
+            retry_count: Number of initial connection attempts
+            retry_delay: Delay between initial connection retries in seconds
+
+        Returns:
+            True if connection succeeded
+
+        Raises:
+            ConnectionTimeoutError: If connection times out
+            AerpawConnectionError: If all connection attempts fail
+        """
         self._auto_reconnect = auto_reconnect
         self._max_reconnect_attempts = retry_count
         last_error: Optional[Exception] = None
@@ -466,6 +504,13 @@ class Vehicle:
         raise last_error or AerpawConnectionError(message="All connection attempts failed", address=self._connection_string, attempt=retry_count, max_attempts=retry_count)
 
     def _start_heartbeat_monitor(self) -> None:
+        """Start background heartbeat monitoring.
+
+        On connection loss:
+        - Sends a message to OEO console (if platform is configured)
+        - If auto_reconnect is enabled (SITL only), attempts to reconnect
+        - Otherwise, marks connection as lost and the script should terminate
+        """
         if self._heartbeat_monitor_task is not None:
             return
 
@@ -474,15 +519,40 @@ class Vehicle:
                 await asyncio.sleep(1.0)
                 if not self.connection_healthy:
                     logger.warning(f"Heartbeat lost (last: {self.seconds_since_heartbeat:.1f}s ago)")
+
+                    # Send OEO message on connection loss (per AERPAW design)
+                    if self._oeo_platform is not None:
+                        try:
+                            from .aerpaw import MessageSeverity
+                            await self._oeo_platform.log_to_oeo(
+                                f"MAVLink connection lost - last heartbeat {self.seconds_since_heartbeat:.1f}s ago",
+                                MessageSeverity.ERROR
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to send OEO disconnect message: {e}")
+
                     await self._trigger_callbacks(VehicleEvent.DISCONNECT)
+
                     if self._auto_reconnect:
+                        # Auto-reconnect is for SITL/local testing only
                         await self._attempt_reconnect()
                     else:
+                        # In AERPAW: connection loss = script termination
                         self._connected = False
 
         self._heartbeat_monitor_task = asyncio.create_task(_monitor())
 
     async def _attempt_reconnect(self) -> bool:
+        """Attempt to reconnect to the vehicle after connection loss.
+
+        WARNING: This is for LOCAL DEVELOPMENT and SITL testing only!
+        In the AERPAW environment, if the MAVLink filter severs the connection
+        due to a safety violation, reconnection will not succeed. The experiment
+        should terminate and the safety pilots will handle the vehicle manually.
+
+        Returns:
+            True if reconnection succeeded, False otherwise.
+        """
         self._connected = False
         self._reconnect_attempts += 1
         if self._reconnect_attempts > self._max_reconnect_attempts:

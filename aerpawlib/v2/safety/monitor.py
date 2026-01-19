@@ -1,5 +1,15 @@
 """
 Safety monitor for continuous flight monitoring.
+
+NOTE: This monitor is for LOCAL DEVELOPMENT and SITL testing only.
+In the AERPAW environment, safety enforcement is handled by external
+infrastructure:
+- Battery failsafe: Handled by the autopilot itself
+- Speed/geofence limits: Enforced by the MAVLink filter in C-VM
+- Preflight checks: Handled by the "parameter checker" OEO script
+
+This monitor provides warnings and logging but does NOT enforce RTL
+or other safety actions - those are delegated to the autopilot/C-VM.
 """
 from __future__ import annotations
 
@@ -18,13 +28,19 @@ logger = logging.getLogger("aerpawlib.safety")
 
 class SafetyMonitor:
     """
-    Monitors vehicle state and enforces safety limits during flight.
+    Monitors vehicle state and logs safety warnings during flight.
 
-    Runs as a background task and can:
-    - Warn when battery is low
-    - Automatically trigger RTL on critical battery
-    - Log safety events
-    - Monitor speed limits
+    This monitor is primarily for LOCAL DEVELOPMENT and SITL testing.
+    In the AERPAW environment, actual safety enforcement is handled by:
+    - Autopilot: Battery failsafe RTL/LAND
+    - MAVLink Filter (C-VM): Geofence and speed limit enforcement
+    - Parameter Checker: Pre-flight validation
+
+    This monitor:
+    - Logs warnings when battery is low
+    - Logs warnings when speed limits are exceeded
+    - Triggers callbacks for safety events
+    - Does NOT enforce RTL or other actions (delegated to autopilot/C-VM)
     """
 
     def __init__(self, vehicle: "Vehicle", limits: SafetyLimits):
@@ -88,7 +104,11 @@ class SafetyMonitor:
             )
 
     async def _check_battery(self) -> None:
-        """Check battery levels and trigger RTL if critical."""
+        """Check battery levels and log warnings.
+
+        NOTE: Actual battery failsafe (RTL/LAND) is handled by the autopilot.
+        This method only logs warnings and triggers callbacks for monitoring.
+        """
         battery_pct = self._vehicle.battery.percentage
 
         # Skip battery checks if battery data hasn't been received yet (0.0% or very low voltage)
@@ -99,16 +119,15 @@ class SafetyMonitor:
         if battery_pct <= self._limits.critical_battery_percent:
             if not self._battery_rtl_triggered:
                 self._battery_rtl_triggered = True
+                # Log critical warning - autopilot handles actual RTL
+                logger.critical(
+                    f"BATTERY CRITICAL ({battery_pct:.1f}%) - "
+                    "Autopilot battery failsafe should trigger RTL/LAND"
+                )
                 await self._trigger_violation(
                     SafetyViolationType.BATTERY_CRITICAL,
-                    f"CRITICAL BATTERY: {battery_pct:.1f}% - Triggering automatic RTL!"
+                    f"CRITICAL BATTERY: {battery_pct:.1f}% - Autopilot failsafe expected"
                 )
-                try:
-                    logger.critical(f"BATTERY CRITICAL ({battery_pct:.1f}%) - Automatic RTL triggered!")
-                    if self._vehicle.state.is_in_air:
-                        await self._vehicle.rtl(wait=False)
-                except Exception as e:
-                    logger.error(f"Failed to trigger RTL on critical battery: {e}")
 
         elif battery_pct <= self._limits.min_battery_percent:
             if not self._low_battery_warned:
