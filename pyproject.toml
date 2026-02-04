@@ -44,6 +44,7 @@ dependencies = [
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
+    "psutil>=5.9.0",
 ]
 all = [
     "aerpawlib[v2,dev,docs]",
@@ -83,11 +84,6 @@ exclude = '''
 )/
 '''
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["aerpawlib/test"]
-python_files = ["*_test.py", "test_*.py"]
-addopts = "-v --tb=short"
 
 [tool.coverage.run]
 source = ["aerpawlib"]

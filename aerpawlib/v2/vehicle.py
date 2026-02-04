@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
-# Fail fast on MAVSDK - no try/except dance
+# Fail fast on MAVSDK
 from mavsdk import System
 from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, OffboardError
 from mavsdk.action import ActionError
@@ -26,6 +26,7 @@ from .exceptions import (
 )
 from .safety import (
     SafetyLimits, SafetyMonitor, PreflightCheckResult,
+    ConnectionHandler,
     validate_coordinate, validate_altitude, validate_speed, validate_timeout, validate_tolerance,
     clamp_speed, run_preflight_checks,
     validate_waypoint_with_checker, validate_speed_with_checker, validate_takeoff_with_checker,
@@ -143,7 +144,7 @@ class CommandHandle:
 
     @property
     def time_remaining(self) -> Optional[float]:
-        return max(0, self._timeout - self.elapsed_time) if self._timeout else None
+        return max(0.0, self._timeout - self.elapsed_time) if self._timeout else None
 
     @property
     def progress(self) -> Dict[str, Any]:
@@ -429,8 +430,31 @@ class Vehicle:
         self._critical_battery_triggered = False
         self._heartbeat_monitor_task: Optional[asyncio.Task] = None
         self._recording = False
+        self._recording_task: Optional[asyncio.Task] = None
         self._flight_log: List[Dict[str, Any]] = []
         self._recording_interval: float = 0.1
+
+        # Initialize connection handler
+        oeo_client = None
+        if oeo_platform and hasattr(oeo_platform, "oeo_client"):
+            oeo_client = oeo_platform.oeo_client
+
+        self._connection_handler = ConnectionHandler(
+            self,
+            oeo_client=oeo_client,
+            heartbeat_timeout=_HEARTBEAT_TIMEOUT
+        )
+        # Register disconnect callback to ensure script termination
+        self._connection_handler.on_disconnect(self._on_connection_lost)
+
+    async def _on_connection_lost(self, event):
+        """Callback when connection is lost."""
+        if self._connected:
+            logger.critical(f"Connection lost! Reason: {event.reason.name} - {event.message}")
+            self._connected = False
+            self._running = False
+            # This will cause background tasks to exit and runner loops to fail
+            await self._trigger_callbacks(VehicleEvent.DISCONNECT)
 
     async def __aenter__(self) -> "Vehicle":
         await self.connect()
@@ -475,6 +499,7 @@ class Vehicle:
                         self._connected = True
                         self._last_heartbeat = time.time()
                         self._reconnect_attempts = 0
+                        self._connection_handler.mark_connected()
                         logger.info("Connected to vehicle")
                         break
                     if time.time() - start_time > timeout:
@@ -485,6 +510,9 @@ class Vehicle:
                     continue
 
                 await self._start_telemetry()
+                # Always start connection monitoring in v2
+                self._connection_handler.start_monitoring()
+
                 if auto_reconnect:
                     self._start_heartbeat_monitor()
                 await self._fetch_vehicle_info()
@@ -606,9 +634,16 @@ class Vehicle:
 
         async def create_subscription(stream_getter, handler):
             """Generic telemetry subscription coroutine."""
-            async for data in stream_getter():
-                self._last_heartbeat = time.time()
-                await handler(data)
+            try:
+                # stream_getter() call may raise AioRpcError if connection is closing
+                async for data in stream_getter():
+                    if not self._running:
+                        break
+                    self._last_heartbeat = time.time()
+                    self._connection_handler.update_heartbeat()
+                    await handler(data)
+            except asyncio.CancelledError:
+                pass
 
         for stream_getter, handler in telemetry_handlers:
             task = asyncio.create_task(create_subscription(stream_getter, handler))
@@ -680,24 +715,48 @@ class Vehicle:
             logger.warning(f"Failed to fetch vehicle version: {e}")
 
     async def disconnect(self):
+        """Disconnect from the vehicle and cleanup all background tasks."""
         self._running = False
+        self._connected = False
+
+        if hasattr(self, "_connection_handler"):
+            await self._connection_handler.stop_monitoring()
+            self._connection_handler.mark_disconnected()
+
         if self._recording:
             self.stop_recording()
+
+        # Handle heartbeat monitor task
         if self._heartbeat_monitor_task:
             self._heartbeat_monitor_task.cancel()
             try:
+                # Only await if we are on the same loop
                 await self._heartbeat_monitor_task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, RuntimeError, Exception):
                 pass
             self._heartbeat_monitor_task = None
+
+        # Handle telemetry tasks
         for task in self._telemetry_tasks:
             task.cancel()
             try:
+                # Only await if we are on the same loop
                 await task
-            except asyncio.CancelledError:
+            except (asyncio.CancelledError, RuntimeError, Exception):
                 pass
         self._telemetry_tasks.clear()
+
+        # Handle recording task
+        if self._recording_task:
+            self._recording_task.cancel()
+            try:
+                await self._recording_task
+            except (asyncio.CancelledError, RuntimeError, Exception):
+                pass
+            self._recording_task = None
+
         self._connected = False
+        self._system = None  # Encourage gRPC cleanup
         logger.info("Disconnected from vehicle")
 
     def start_recording(self, interval: float = 0.1) -> None:
@@ -711,7 +770,7 @@ class Vehicle:
                 self._flight_log.append(self._capture_telemetry_snapshot())
                 await asyncio.sleep(self._recording_interval)
 
-        asyncio.create_task(_record_loop())
+        self._recording_task = asyncio.create_task(_record_loop())
 
     def stop_recording(self) -> int:
         if not self._recording:
@@ -807,11 +866,11 @@ class Vehicle:
     async def get_all_params(self) -> Dict[str, Any]:
         try:
             params = {}
-            async for p in self._system.param.get_all_params():
-                if hasattr(p, 'float_param'):
-                    params[p.float_param.name] = p.float_param.value
-                elif hasattr(p, 'int_param'):
-                    params[p.int_param.name] = p.int_param.value
+            all_params = await self._system.param.get_all_params()
+            for p in all_params.float_params:
+                params[p.name] = p.value
+            for p in all_params.int_params:
+                params[p.name] = p.value
             return params
         except Exception as e:
             raise CommandError(message=f"Failed to get all parameters: {e}", command="get_all_params", reason=str(e))
@@ -909,8 +968,14 @@ class Vehicle:
 class Drone(Vehicle):
     """Drone (multicopter) vehicle class with flight control methods."""
 
-    def __init__(self, connection: str = "udp://:14540", safety_limits: Optional[SafetyLimits] = None, safety_checker: Optional["SafetyCheckerClient"] = None):
-        super().__init__(connection)
+    def __init__(
+        self,
+        connection: str = "udp://:14540",
+        safety_limits: Optional[SafetyLimits] = None,
+        safety_checker: Optional["SafetyCheckerClient"] = None,
+        oeo_platform: Optional["AERPAWPlatform"] = None,
+    ):
+        super().__init__(connection, oeo_platform=oeo_platform)
         self._waypoints: List[Waypoint] = []
         self.safety_limits = safety_limits or SafetyLimits()
         self._safety_monitor: Optional[SafetyMonitor] = None
@@ -928,7 +993,7 @@ class Drone(Vehicle):
 
     async def disconnect(self):
         if self._safety_monitor:
-            self._safety_monitor.stop()
+            await self._safety_monitor.stop()
             self._safety_monitor = None
         await super().disconnect()
 
@@ -960,7 +1025,7 @@ class Drone(Vehicle):
             command="takeoff",
             completion_condition=lambda: self.state.relative_altitude >= altitude * 0.95,
             cancel_action=self.hold, timeout=timeout, abort_checker=lambda: self._aborted,
-            progress_getter=lambda: {"current_altitude": self.state.relative_altitude, "target_altitude": altitude, "altitude_remaining": max(0, altitude - self.state.relative_altitude)},
+            progress_getter=lambda: {"current_altitude": self.state.relative_altitude, "target_altitude": altitude, "altitude_remaining": max(0.0, altitude - self.state.relative_altitude)},
         )
         handle._start()
 
@@ -1138,7 +1203,7 @@ class Drone(Vehicle):
             except Exception:
                 pass
 
-        handle = CommandHandle(command="set_velocity", completion_condition=lambda: time.time() - start >= duration, cancel_action=stop, timeout=duration + 5, abort_checker=lambda: self._aborted, progress_getter=lambda: {"elapsed": time.time() - start, "duration": duration, "time_remaining": max(0, duration - (time.time() - start)), "velocity": velocity})
+        handle = CommandHandle(command="set_velocity", completion_condition=lambda: time.time() - start >= duration, cancel_action=stop, timeout=duration + 5, abort_checker=lambda: self._aborted, progress_getter=lambda: {"elapsed": time.time() - start, "duration": duration, "time_remaining": max(0.0, duration - (time.time() - start)), "velocity": velocity})
         handle._start()
 
         if wait:
@@ -1181,7 +1246,7 @@ class Drone(Vehicle):
 
         def progress():
             elapsed, angle = time.time() - start_time, abs(angular_speed * (time.time() - start_time))
-            return {"elapsed": elapsed, "orbit_time": orbit_time, "time_remaining": max(0, orbit_time - elapsed), "angle_completed": angle, "total_angle": 360 * revolutions, "revolutions_completed": angle / 360, "progress_percent": min(100, angle / (360 * revolutions) * 100)}
+            return {"elapsed": elapsed, "orbit_time": orbit_time, "time_remaining": max(0.0, orbit_time - elapsed), "angle_completed": angle, "total_angle": 360 * revolutions, "revolutions_completed": angle / 360, "progress_percent": min(100.0, angle / (360 * revolutions) * 100)}
 
         handle = CommandHandle(command="orbit", completion_condition=lambda: time.time() - start_time >= orbit_time or not orbit_active, cancel_action=stop, timeout=orbit_time + 10, abort_checker=lambda: self._aborted, progress_getter=progress)
         handle._start()
@@ -1217,8 +1282,12 @@ class Drone(Vehicle):
 class Rover(Vehicle):
     """Ground rover vehicle class."""
 
-    def __init__(self, connection: str = "udp://:14540"):
-        super().__init__(connection)
+    def __init__(
+        self,
+        connection: str = "udp://:14540",
+        oeo_platform: Optional["AERPAWPlatform"] = None,
+    ):
+        super().__init__(connection, oeo_platform=oeo_platform)
         self._waypoints: List[Waypoint] = []
 
     async def goto(self, latitude: Optional[float] = None, longitude: Optional[float] = None, coordinates: Optional[Coordinate] = None, tolerance: float = 2.0, speed: Optional[float] = None):

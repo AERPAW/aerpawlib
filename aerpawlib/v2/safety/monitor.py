@@ -61,11 +61,16 @@ class SafetyMonitor:
         self._task = asyncio.create_task(self._monitor_loop())
         logger.info("Safety monitor started")
 
-    def stop(self) -> None:
-        """Stop the safety monitor."""
+    async def stop(self) -> None:
+        """Stop the safety monitor and wait for completion."""
         self._running = False
         if self._task:
             self._task.cancel()
+            try:
+                await self._task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._task = None
         logger.info("Safety monitor stopped")
 
     def on_violation(self, violation: SafetyViolationType, callback: Callable) -> None:

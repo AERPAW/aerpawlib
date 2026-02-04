@@ -93,18 +93,3 @@ class SimpleSquareMission(BasicRunner):
         logger.info("Landing...")
         await drone.land()
         logger.info("Mission complete!")
-
-
-async def main():
-    """Run the example mission."""
-    # For simulation, use UDP
-    drone = Drone("udp://:14540")
-
-    mission = SimpleSquareMission()
-    await mission.fly_square(drone)
-
-    await drone.disconnect()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

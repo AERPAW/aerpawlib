@@ -3,7 +3,7 @@ Helper utilities for aerpawlib v1.
 
 Common patterns extracted to reduce code duplication and improve maintainability.
 
-@author: Code review cleanup
+@author: Julian Reder
 """
 
 import asyncio

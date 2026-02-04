@@ -178,11 +178,16 @@ class ConnectionHandler:
         self._monitoring_task = asyncio.create_task(self._monitor_loop())
         logger.info("Connection monitoring started")
 
-    def stop_monitoring(self) -> None:
+    async def stop_monitoring(self) -> None:
         """Stop the connection monitoring task."""
         self._running = False
         if self._monitoring_task:
             self._monitoring_task.cancel()
+            try:
+                await self._monitoring_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._monitoring_task = None
         logger.info("Connection monitoring stopped")
 
     async def _monitor_loop(self) -> None:

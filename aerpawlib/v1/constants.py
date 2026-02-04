@@ -5,6 +5,7 @@ All timing, tolerance, and configuration values should be defined here
 for easy tuning and documentation.
 """
 
+
 # =============================================================================
 # Connection Constants
 # =============================================================================
@@ -21,10 +22,32 @@ POLLING_DELAY_S = 0.01
 # Interval between heartbeat timeout checks (seconds)
 HEARTBEAT_CHECK_INTERVAL_S = 1.0
 
+# Maximum time since last heartbeat before considering vehicle disconnected (seconds)
+HEARTBEAT_TIMEOUT_S = 1.0
+
 
 # =============================================================================
-# Movement Constants
+# Safety Initialization Constants
 # =============================================================================
+
+# Whether to wait for external arming by default (True = safe, False = SITL-friendly)
+DEFAULT_WAIT_FOR_EXTERNAL_ARM = True
+
+# Log interval while waiting for arm (seconds)
+WAITING_FOR_ARM_LOG_INTERVAL_S = 5.0
+
+# Delay after entering GUIDED mode before proceeding (seconds)
+POST_GUIDED_DELAY_S = 1.0
+
+# Default RTL on script end behavior (True = safe, returns home)
+DEFAULT_RTL_ON_END = True
+
+# Default skip initialization behavior (False = perform all safety checks)
+DEFAULT_SKIP_INIT = False
+
+
+
+# Movement Constants
 
 # Default tolerance for position reached checks (meters)
 DEFAULT_POSITION_TOLERANCE_M = 2.0
@@ -41,9 +64,8 @@ DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE = 0.95
 DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 
 
-# =============================================================================
 # Timing Constants
-# =============================================================================
+
 
 # Delay between steps of the arm -> guided -> takeoff sequence (seconds)
 # This provides time for the autopilot to process each command
@@ -66,9 +88,7 @@ VELOCITY_UPDATE_DELAY_S = 0.1
 ARMABLE_STATUS_LOG_INTERVAL_S = 5.0
 
 
-# =============================================================================
 # Verbose Logging Constants
-# =============================================================================
 
 # Default prefix for verbose log files
 VERBOSE_LOG_FILE_PREFIX = "aerpawlib_vehicle_dump"
@@ -77,9 +97,7 @@ VERBOSE_LOG_FILE_PREFIX = "aerpawlib_vehicle_dump"
 VERBOSE_LOG_DELAY_S = 0.1
 
 
-# =============================================================================
 # Validation Limits
-# =============================================================================
 
 # Minimum acceptable position tolerance (meters)
 # Prevents users from setting unrealistically tight tolerances

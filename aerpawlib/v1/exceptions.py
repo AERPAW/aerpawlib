@@ -8,7 +8,7 @@ generic Exception.
 All exceptions inherit from AerpawlibError, which inherits from Exception,
 so existing catch blocks will continue to work.
 
-@author: Code review cleanup
+@author: Julian Reder
 """
 
 from typing import Optional, Any
@@ -64,8 +64,10 @@ class ConnectionTimeoutError(ConnectionError):
 class HeartbeatLostError(ConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
-    def __init__(self, message: str = "Vehicle heartbeat lost"):
-        super().__init__(message)
+    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None):
+        self.last_heartbeat_age = last_heartbeat_age
+        msg = message or f"Vehicle heartbeat lost (last heartbeat {last_heartbeat_age:.1f}s ago)"
+        super().__init__(msg)
 
 
 class MAVSDKNotInstalledError(ConnectionError):
@@ -75,6 +77,28 @@ class MAVSDKNotInstalledError(ConnectionError):
         super().__init__(
             "MAVSDK is not installed. Install with: pip install mavsdk"
         )
+
+
+# =============================================================================
+# AERPAW Platform Errors
+# =============================================================================
+
+
+class AERPAWPlatformError(AerpawlibError):
+    """Base class for AERPAW platform-specific errors."""
+
+    pass
+
+
+class NotInAERPAWEnvironmentError(AERPAWPlatformError):
+    """Raised when AERPAW platform features are used outside the platform."""
+
+    def __init__(self, feature: str):
+        super().__init__(
+            f"'{feature}' requires AERPAW platform environment. "
+            "This feature is not available in standalone/SITL mode."
+        )
+        self.feature = feature
 
 
 # =============================================================================

@@ -1,141 +1,114 @@
 """
-Pytest configuration and shared fixtures for aerpawlib tests.
+Pytest configuration and fixtures for aerpawlib tests.
 """
 
-import pytest
+from __future__ import annotations
+
 import asyncio
-import sys
-import os
+import time
+from typing import TYPE_CHECKING, AsyncGenerator
 
-# Ensure the project root is in the path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+import pytest
+import pytest_asyncio
 
+from aerpawlib.v1.vehicle import Drone
+from aerpawlib.v1.util import Coordinate, VectorNED
 
-# ============================================================================
-# Event Loop Configuration
-# ============================================================================
+if TYPE_CHECKING:
+    pass
 
+# Constants
+DEFAULT_SITL_PORT = 14550
+SITL_GPS_TIMEOUT = 60  # seconds
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    yield loop
-    loop.close()
+# AERPAW Lake Wheeler site coordinates
+LAKE_WHEELER_LAT = 35.727436
+LAKE_WHEELER_LON = -78.696587
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add custom command-line options."""
+    parser.addoption(
+        "--sitl-port",
+        action="store",
+        default=str(DEFAULT_SITL_PORT),
+        help=f"UDP port for SITL connection (default: {DEFAULT_SITL_PORT})",
+    )
 
-# ============================================================================
-# Coordinate and Vector Fixtures
-# ============================================================================
+def pytest_configure(config: pytest.Config) -> None:
+    """Register custom markers."""
+    config.addinivalue_line("markers", "unit: Unit tests with no external dependencies")
+    config.addinivalue_line("markers", "integration: Integration tests requiring SITL simulator")
+    config.addinivalue_line("markers", "slow: Tests that take a long time to run")
 
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Auto-apply markers based on test directory."""
+    for item in items:
+        path_str = str(item.fspath)
+        if "/unit/" in path_str:
+            item.add_marker(pytest.mark.unit)
+        elif "/integration/" in path_str:
+            item.add_marker(pytest.mark.integration)
+
+# Utility Fixtures
 
 @pytest.fixture
 def origin_coordinate():
-    """A coordinate at AERPAW Lake Wheeler site."""
-    from aerpawlib.v1.util import Coordinate
-
-    return Coordinate(35.727436, -78.696587, 0)
-
+    return Coordinate(LAKE_WHEELER_LAT, LAKE_WHEELER_LON, 0)
 
 @pytest.fixture
 def nearby_coordinate():
-    """A coordinate ~100m north of origin."""
-    from aerpawlib.v1.util import Coordinate
-
-    return Coordinate(35.728336, -78.696587, 0)
-
-
-@pytest.fixture
-def sample_vector():
-    """A sample VectorNED for testing."""
-    from aerpawlib.v1.util import VectorNED
-
-    return VectorNED(100.0, 50.0, -10.0)
-
+    return Coordinate(LAKE_WHEELER_LAT + 0.0009, LAKE_WHEELER_LON, 0)
 
 @pytest.fixture
 def zero_vector():
-    """A zero VectorNED."""
-    from aerpawlib.v1.util import VectorNED
-
     return VectorNED(0, 0, 0)
 
+# SITL Connection Fixtures
 
-@pytest.fixture
-def unit_north_vector():
-    """A unit vector pointing north."""
-    from aerpawlib.v1.util import VectorNED
+@pytest.fixture(scope="session")
+def sitl_connection_string(request: pytest.FixtureRequest) -> str:
+    port = request.config.getoption("--sitl-port")
+    return f"udp://127.0.0.1:{port}"
 
-    return VectorNED(1, 0, 0)
-
-
-# ============================================================================
-# SITL Fixtures
-# ============================================================================
-
-
-@pytest.fixture(scope="module")
-def sitl_connection_string():
-    """Get the SITL connection string."""
-    return "udp:127.0.0.1:14551"
-
-
-@pytest.fixture
-async def connected_drone(sitl_connection_string):
+@pytest_asyncio.fixture(scope="function")
+async def connected_drone(
+    sitl_connection_string: str,
+) -> AsyncGenerator[Drone, None]:
     """
-    Provide a connected Drone instance for testing.
+    Provide a connected Drone instance for integration testing.
 
-    The drone is connected to SITL and ready for commands.
+    This fixture:
+    1. Connects to SITL in a background thread to avoid hanging the event loop.
+    2. Waits for a valid GPS fix.
+    3. Resets (reboots) the vehicle after the test.
     """
-    from aerpawlib.v1.vehicle import Drone
+    # Create drone in a thread because its constructor is blocking
+    drone = await asyncio.to_thread(Drone, sitl_connection_string)
 
-    drone = Drone(sitl_connection_string)
-
-    # Wait for GPS fix
-    timeout = 60
-    import time
-
-    start = time.time()
-    while drone.gps.fix_type < 3 and (time.time() - start) < timeout:
+    # Wait for GPS fix (fix_type >= 3 = 3D fix)
+    start = time.monotonic()
+    while time.monotonic() - start < SITL_GPS_TIMEOUT:
+        try:
+            if drone.gps.fix_type >= 3:
+                break
+        except Exception:
+            pass
         await asyncio.sleep(0.5)
+    else:
+        drone.close()
+        pytest.fail(f"GPS fix not acquired within {SITL_GPS_TIMEOUT}s. Check if SITL is running and has a clear sky view.")
 
     yield drone
 
-    # Cleanup: disarm if armed, close connection
-    if drone.armed:
-        try:
-            await drone._run_on_mavsdk_loop(drone._system.action.disarm())
-        except Exception:
-            pass
-    drone.close()
+    # Reset SITL between tests by rebooting
+    try:
+        # We use the internal MAVSDK system to send a reboot command
+        # This ensures parameters/missions etc are reset
+        await drone._run_on_mavsdk_loop(drone._system.action.reboot())
+        # Wait for the command to be sent and vehicle to start rebooting
+        await asyncio.sleep(1)
+    except Exception as e:
+        print(f"Warning: Failed to reboot drone: {e}")
+    finally:
+        drone.close()
 
-
-# ============================================================================
-# Pytest Configuration
-# ============================================================================
-
-
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test (no external dependencies)"
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: mark test as an integration test (requires SITL)",
-    )
-    config.addinivalue_line("markers", "slow: mark test as slow running")
-
-
-def pytest_collection_modifyitems(config, items):
-    """Auto-add markers based on test location."""
-    for item in items:
-        # Add 'unit' marker to tests in unit/ directory
-        if "/unit/" in str(item.fspath):
-            item.add_marker(pytest.mark.unit)
-        # Add 'integration' marker to tests in integration/ directory
-        if "/integration/" in str(item.fspath):
-            item.add_marker(pytest.mark.integration)

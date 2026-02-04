@@ -11,14 +11,10 @@ tests/
 │   ├── test_vector_ned.py       # v1 VectorNED tests
 │   ├── test_coordinate.py       # v1 Coordinate tests
 │   ├── test_runner.py           # v1 Runner/StateMachine tests
-│   ├── test_util.py             # v1 utility function tests
-│   ├── test_v2_vector_ned.py    # v2 VectorNED tests
-│   ├── test_v2_coordinate.py    # v2 Coordinate tests
-│   └── test_v2_runner.py        # v2 Runner tests
+│   └── ...
 └── integration/             # SITL integration tests
     ├── test_drone_sitl.py       # v1 drone operations
     ├── test_missions.py         # v1 mission scenarios
-    ├── test_sitl_manager.py     # SITL manager tests
     └── test_v2_drone_sitl.py    # v2 drone operations
 ```
 
@@ -26,18 +22,25 @@ tests/
 
 ### Prerequisites
 
+1. Install dependencies:
+   ```bash
+   pip install pytest pytest-asyncio
+   ```
+
+2. Start ArduPilot SITL externally:
+   ```bash
+   # Example for ArduCopter
+   sim_vehicle.py -v ArduCopter --out=udp:127.0.0.1:14550
+   ```
+
+### Run Integration Tests
+
 ```bash
-# Install test dependencies
-pip install pytest pytest-asyncio pytest-timeout
+# Default (port 14550)
+pytest tests/integration/
 
-# For integration tests, install ArduPilot SITL
-./install_ardupilot.sh
-```
-
-### Run All Tests
-
-```bash
-pytest
+# Custom Port
+pytest tests/integration/ --sitl-port=14551
 ```
 
 ### Run Only Unit Tests (Fast, No SITL Required)

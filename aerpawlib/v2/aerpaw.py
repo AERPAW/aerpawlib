@@ -507,6 +507,7 @@ class MessageSeverity(Enum):
 # Constants
 DEFAULT_CVM_IP = "192.168.32.25"
 DEFAULT_CVM_PORT = 12435
+DEFAULT_OEO_PORT = 14590
 
 
 # Validation pattern for checkpoint names (alphanumeric, underscores, hyphens)
@@ -601,6 +602,12 @@ class AERPAWPlatform:
         # import time.
         self._session: Optional["aiohttp.ClientSession"] = None
 
+        # OEO Client for notifications
+        self.oeo_client = OEOClient(
+            address=cvm_address,
+            port=DEFAULT_OEO_PORT
+        )
+
     @property
     def connected(self) -> bool:
         """Whether the platform is currently connected."""
@@ -613,6 +620,9 @@ class AERPAWPlatform:
         Returns:
             True if connection succeeded, False otherwise.
         """
+        # Connect OEO client as well
+        await self.oeo_client.connect()
+
         # Close any existing session first
         if self._session and not self._session.closed:
             await self._session.close()
@@ -678,6 +688,7 @@ class AERPAWPlatform:
 
     async def disconnect(self):
         """Disconnect from the AERPAW platform and cleanup resources."""
+        await self.oeo_client.disconnect()
         if self._session and not self._session.closed:
             await self._session.close()
         self._session = None
