@@ -124,6 +124,10 @@ def setup_logging(
     console_handler.setFormatter(AerpawFormatter())
     root_logger.addHandler(console_handler)
 
+    # Suppress noisy external logs
+    logging.getLogger("_cython.cygrpc").setLevel(logging.WARNING)
+    logging.getLogger("grpc._cython.cygrpc").setLevel(logging.WARNING)
+
     # File handler (if specified)
     if log_file:
         file_handler = logging.FileHandler(log_file, mode="a")
@@ -666,6 +670,10 @@ def main():
         args=cli_args
     )  # we'll pass other args to the script
 
+    # Filter out empty strings from unknown_args which can be caused by trailing
+    # spaces or empty quoted arguments in some shell environments
+    unknown_args = [arg for arg in unknown_args if arg != ""]
+
     # Initialize logging based on command line arguments
     global logger
     logger = setup_logging(
@@ -681,7 +689,6 @@ def main():
 
     # Log startup information
     logger.info("aerpawlib - AERPAW Vehicle Control Library")
-    logger.info("By John Kesler and Julian Reder")
     logger.debug(f"Python version: {sys.version}")
     logger.debug(f"Working directory: {os.getcwd()}")
     logger.debug(f"API version: {args.api_version}")

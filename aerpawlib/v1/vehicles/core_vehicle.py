@@ -48,8 +48,7 @@ from aerpawlib.v1.helpers import (
 # Configure module logger
 logger = logging.getLogger(__name__)
 
-# Suppress noisy grpc logs
-logging.getLogger("_cython.cygrpc").setLevel(logging.WARNING)
+
 
 
 class _BatteryCompat:
