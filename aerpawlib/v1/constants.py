@@ -5,9 +5,7 @@ All timing, tolerance, and configuration values should be defined here
 for easy tuning and documentation.
 """
 
-# =============================================================================
 # Connection Constants
-# =============================================================================
 
 # Maximum time to wait for initial connection to vehicle (seconds)
 CONNECTION_TIMEOUT_S = 30.0
@@ -25,9 +23,8 @@ HEARTBEAT_CHECK_INTERVAL_S = 1.0
 HEARTBEAT_TIMEOUT_S = 1.0
 
 
-# =============================================================================
 # Safety Initialization Constants
-# =============================================================================
+
 
 # Whether to wait for external arming by default (True = safe, False = SITL-friendly)
 DEFAULT_WAIT_FOR_EXTERNAL_ARM = True
@@ -115,3 +112,57 @@ MAX_GROUNDSPEED_M_S = 30.0
 
 # Minimum ground speed (m/s)
 MIN_GROUNDSPEED_M_S = 0.0
+
+
+# AERPAW Platform Constants
+
+# Default Controller VM (C-VM) address and port
+DEFAULT_CVM_IP = "192.168.32.25"
+DEFAULT_CVM_PORT = 12435
+
+# OEO Log Severities
+OEO_MSG_SEV_INFO = "INFO"
+OEO_MSG_SEV_WARN = "WARNING"
+OEO_MSG_SEV_ERR = "ERROR"
+OEO_MSG_SEV_CRIT = "CRITICAL"
+OEO_MSG_SEVS = [
+    OEO_MSG_SEV_INFO,
+    OEO_MSG_SEV_WARN,
+    OEO_MSG_SEV_ERR,
+    OEO_MSG_SEV_CRIT,
+]
+
+
+# ZMQ Constants
+
+# Default ZMQ proxy ports
+ZMQ_PROXY_IN_PORT = "5570"
+ZMQ_PROXY_OUT_PORT = "5571"
+
+# ZMQ Message Types
+ZMQ_TYPE_TRANSITION = "state_transition"
+ZMQ_TYPE_FIELD_REQUEST = "field_request"
+ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
+
+
+# Safety Checker Constants
+
+# Safety Checker Request Types
+SERVER_STATUS_REQ = "server_status_req"
+VALIDATE_WAYPOINT_REQ = "validate_waypoint_req"
+VALIDATE_CHANGE_SPEED_REQ = "validate_change_speed_req"
+VALIDATE_TAKEOFF_REQ = "validate_takeoff_req"
+VALIDATE_LANDING_REQ = "validate_landing_req"
+
+
+# Waypoint and Plan Constants
+
+# Default waypoint speed (m/s)
+DEFAULT_WAYPOINT_SPEED = 5
+
+# MAVLink/Plan Commands
+PLAN_CMD_TAKEOFF = 22
+PLAN_CMD_WAYPOINT = 16
+PLAN_CMD_RTL = 20
+PLAN_CMD_SPEED = 178
+

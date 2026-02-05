@@ -13,13 +13,25 @@ from typing import List, Tuple
 
 from pykml import parser
 
+from .constants import (
+    DEFAULT_WAYPOINT_SPEED,
+    PLAN_CMD_TAKEOFF,
+    PLAN_CMD_WAYPOINT,
+    PLAN_CMD_RTL,
+    PLAN_CMD_SPEED,
+)
+
 
 class VectorNED:
     """
-    Representation of a difference between two coordinates (used for expressing
-    relative motion). Makes use of NED (north, east, down) scheme.
+    Representation of a difference between two coordinates.
 
-    Units are expressed in meters
+    Makes use of the NED (North, East, Down) scheme, with units in meters.
+
+    Attributes:
+        north (float): Displacement in the North direction (meters).
+        east (float): Displacement in the East direction (meters).
+        down (float): Displacement in the Down direction (meters).
     """
 
     north: float
@@ -33,11 +45,13 @@ class VectorNED:
 
     def rotate_by_angle(self, angle: float):
         """
-        Transform this VectorNED and rotate it by a certain angle, provided in
-        degrees.
+        Rotate the vector by a given angle in the horizontal plane.
 
-        ex: VectorNED(1, 0, 0).rotate_by_angle(90) -> VectorNed(0, -1, 0)
-        ex: VectorNED(1, 0, 0).rotate_by_angle(45) -> VectorNed(0.707, -0.707, 0)
+        Args:
+            angle (float): The rotation angle in degrees (clockwise).
+
+        Returns:
+            VectorNED: A new VectorNED object representing the rotated displacement.
         """
         rads = angle / 180 * math.pi
 
@@ -48,7 +62,16 @@ class VectorNED:
 
     def cross_product(self, o):
         """
-        find the cross product of this and the other vector (this x o)
+        Calculate the cross product of this vector and another.
+
+        Args:
+            o (VectorNED): The other vector.
+
+        Returns:
+            VectorNED: The cross product result (self x o).
+
+        Raises:
+            TypeError: If 'o' is not a VectorNED object.
         """
         if not isinstance(o, VectorNED):
             raise TypeError()
@@ -60,8 +83,14 @@ class VectorNED:
 
     def hypot(self, ignore_down: bool = False):
         """
-        find the distance of this VectorNED, optionally ignoring any changes in
-        height
+        Calculate the magnitude (length) of the vector.
+
+        Args:
+            ignore_down (bool, optional): If True, calculate only the 2D ground
+                distance (North/East). Defaults to False.
+
+        Returns:
+            float: The magnitude in meters.
         """
         if ignore_down:
             return math.hypot(self.north, self.east)
@@ -70,10 +99,11 @@ class VectorNED:
 
     def norm(self):
         """
-        returns a normalized version of this vector in 3d space, with a magnitude
-        equal to 1
+        Returns a unit vector in the same direction as this vector.
 
-        if the zero vector, returns the zero vector
+        Returns:
+            VectorNED: A normalized vector with magnitude 1. If this is a zero
+                vector, returns another zero vector.
         """
         hypot = self.hypot()
         if hypot == 0:
@@ -109,19 +139,12 @@ class VectorNED:
 
 class Coordinate:
     """
-    An absolute point in space making use of lat, lon, and an altitude (over
-    the home location of the vehicle).
+    An absolute point in WGS84 space.
 
-    `lat`/`lon` should be expressed in *degrees*, while `alt` is in *meters*
-    (relative to the takeoff/home location)
-
-    `Coordinate`s can be added or subtracted with `VectorNED`s using Python's
-    respective operators to calculate a new `Coordinate` relative to the
-    original.
-
-    `Coordinate`s can be subtracted from each other using Python's subtraction
-    operator to calculate the vector difference between them, which is returned
-    as a `VectorNED`
+    Attributes:
+        lat (float): Latitude in degrees.
+        lon (float): Longitude in degrees.
+        alt (float): Altitude in meters relative to home location.
     """
 
     lat: float
@@ -135,10 +158,16 @@ class Coordinate:
 
     def ground_distance(self, other) -> float:
         """
-        Get the ground distance (in meters) between this `Coordinate` and
-        another `Coordinate`.
+        Calculate the horizontal distance to another coordinate.
 
-        Makes use of `Coordinate.distance` under the hood
+        Args:
+            other (Coordinate): The target coordinate.
+
+        Returns:
+            float: Ground distance in meters.
+
+        Raises:
+            TypeError: If 'other' is not a Coordinate object.
         """
         if not isinstance(other, Coordinate):
             raise TypeError()
@@ -148,13 +177,18 @@ class Coordinate:
 
     def distance(self, other) -> float:
         """
-        Get the true distance (in meters) between this `Coordinate` and another
-        `Coordinate`. Unlike `Coordinate.ground_distance`, this function also
-        takes the altitude into account.
+        Calculate the 3D distance to another coordinate.
 
-        The implementation used here makes use of Haversine Distance -- this
-        should be extremely accurate (max err < 3m) for any distances used
-        within the scope of the AERPAW program. (<10km)
+        Uses the Haversine formula for ground distance and accounts for altitude.
+
+        Args:
+            other (Coordinate): The target coordinate.
+
+        Returns:
+            float: 3D distance in meters.
+
+        Raises:
+            TypeError: If 'other' is not a Coordinate object.
         """
         if not isinstance(other, Coordinate):
             raise TypeError()
@@ -172,8 +206,18 @@ class Coordinate:
 
     def bearing(self, other, wrap_360: bool = True) -> float:
         """
-        Calculate the bearing (angle) between two `Coordinates`, and return it
-        in degrees
+        Calculate the bearing (compass angle) to another coordinate.
+
+        Args:
+            other (Coordinate): The target coordinate.
+            wrap_360 (bool, optional): Whether to wrap the result to [0, 360).
+                Defaults to True.
+
+        Returns:
+            float: Bearing in degrees.
+
+        Raises:
+            TypeError: If 'other' is not a Coordinate object.
         """
         if not isinstance(other, Coordinate):
             raise TypeError()
@@ -227,7 +271,12 @@ class Coordinate:
         return f"({self.lat},{self.lon},{self.alt})"
 
     def toJson(self):
-        """Return a JSON string representing this Coordinate object"""
+        """
+        Serialize the coordinate to a JSON string.
+
+        Returns:
+            str: JSON representation of the lat, lon, and alt.
+        """
         return json.dumps(self, default=lambda o: o.__dict__)
 
 
@@ -236,23 +285,23 @@ Waypoint = Tuple[
     int, float, float, float, int, float
 ]  # command, x, y, z, waypoint_id, speed
 
-_DEFAULT_WAYPOINT_SPEED = 5  # m/s
-
-_PLAN_CMD_TAKEOFF = 22
-_PLAN_CMD_WAYPOINT = 16
-_PLAN_CMD_RTL = 20
-_PLAN_CMD_SPEED = 178
-
 
 def read_from_plan(
-    path: str, default_speed: float = _DEFAULT_WAYPOINT_SPEED
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
 ) -> List[Waypoint]:
     """
-    Helper function to read a provided .plan file (passed in as `path`) into a
-    list of `Waypoint`s that can then be used to run waypoint-based missions.
+    Parse a QGroundControl .plan file into a list of Waypoints.
 
-    This function has really only been tested with `.plan` files generated by
-    QGroundControl.
+    Args:
+        path (str): Path to the .plan file.
+        default_speed (float, optional): Speed to use if none specified in plan.
+            Defaults to DEFAULT_WAYPOINT_SPEED.
+
+    Returns:
+        List[Waypoint]: A list of extracted waypoint tuples.
+
+    Raises:
+        Exception: If the file is not a valid .plan file.
     """
     waypoints = []
     with open(path) as f:
@@ -262,29 +311,42 @@ def read_from_plan(
     current_speed = default_speed
     for item in data["mission"]["items"]:
         command = item["command"]
-        if command in [_PLAN_CMD_TAKEOFF, _PLAN_CMD_WAYPOINT, _PLAN_CMD_RTL]:
+        if command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             x, y, z = item["params"][4:7]
             waypoint_id = item["doJumpId"]
             waypoints.append((command, x, y, z, waypoint_id, current_speed))
-        elif command in [_PLAN_CMD_SPEED]:
+        elif command in [PLAN_CMD_SPEED]:
             current_speed = item["params"][1]
     return waypoints
 
 
 def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
     """
-    Helper to get a Coordinate from a `Waypoint`
+    Extract a Coordinate object from a Waypoint tuple.
+
+    Args:
+        waypoint (Waypoint): The waypoint tuple.
+
+    Returns:
+        Coordinate: The extracted location.
     """
     return Coordinate(waypoint[1], waypoint[2], waypoint[3])
 
 
 def read_from_plan_complete(
-    path: str, default_speed: float = _DEFAULT_WAYPOINT_SPEED
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
 ):
     """
-    Helper to read from a .plan file and gather all fields from each waypoint
+    Read a .plan file and return detailed waypoint dictionaries.
 
-    This can then be used for more advanced .plan file based missions
+    Includes additional fields like wait_for delay.
+
+    Args:
+        path (str): Path to the .plan file.
+        default_speed (float, optional): Default speed in m/s.
+
+    Returns:
+        List[dict]: List of waypoint data dictionaries.
     """
     waypoints = []
     with open(path) as f:
@@ -294,9 +356,9 @@ def read_from_plan_complete(
     current_speed = default_speed
     for item in data["mission"]["items"]:
         command = item["command"]
-        if command in [_PLAN_CMD_SPEED]:
+        if command in [PLAN_CMD_SPEED]:
             current_speed = item["params"][1]
-        elif command in [_PLAN_CMD_TAKEOFF, _PLAN_CMD_WAYPOINT, _PLAN_CMD_RTL]:
+        elif command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             x, y, z = item["params"][4:7]
             waypoint_id = item["doJumpId"]
             delay = item["params"][0]
@@ -314,7 +376,13 @@ def read_from_plan_complete(
 
 def readGeofence(filePath):
     """
-    Reads geofence kml file to create array of coordinates representing geofence
+    Parse a KML file into a list of lat/lon points.
+
+    Args:
+        filePath (str): Path to the KML file.
+
+    Returns:
+        List[dict]: Points as [{'lat': ..., 'lon': ...}, ...].
     """
     root = parser.fromstring(open(filePath, "rb").read())
     coordinates_string = (
@@ -333,8 +401,15 @@ def readGeofence(filePath):
 
 def inside(lon, lat, geofence):
     """
-    ray-casting algorithm based on
-    https://wrf.ecse.rpi.edu//Research/Short_Notes/pnpoly.html
+    Determine if a point is inside a polygon using ray-casting.
+
+    Args:
+        lon (float): Longitude of point.
+        lat (float): Latitude of point.
+        geofence (list): List of {'lat': ..., 'lon': ...} points.
+
+    Returns:
+        bool: True if inside, False otherwise.
     """
     inside = False
     i = 0
@@ -358,6 +433,17 @@ def inside(lon, lat, geofence):
 
 
 def liesOnSegment(px, py, qx, qy, rx, ry):
+    """
+    Check if point Q lies on line segment PR.
+
+    Args:
+        px, py: Coords of point P.
+        qx, qy: Coords of point Q.
+        rx, ry: Coords of point R.
+
+    Returns:
+        bool: True if Q is on PR.
+    """
     if (
         (qx <= max(px, rx))
         and (qx >= min(px, rx))
@@ -370,11 +456,13 @@ def liesOnSegment(px, py, qx, qy, rx, ry):
 
 def orientation(px, py, qx, qy, rx, ry):
     """
-    Find the orientation of an ordered triplet (p,q,r)
+    Find the orientation of an ordered triplet (p, q, r).
+
+    Args:
+        px, py, qx, qy, rx, ry: Coordinates.
+
     Returns:
-    0 : Colinear points
-    1 : Clockwise points
-    2 : Counterclockwise
+        int: 0 if colinear, 1 if clockwise, 2 if counterclockwise.
     """
     val = (float(qy - py) * (rx - qx)) - (float(qx - px) * (ry - qy))
     if val > 0:
@@ -387,7 +475,14 @@ def orientation(px, py, qx, qy, rx, ry):
 
 def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
     """
-    Returns true if segment pq intersects with rs. Else false.
+    Check if line segment PQ intersects with segment RS.
+
+    Args:
+        px, py, qx, qy: Coords of segment PQ.
+        rx, ry, sx, sy: Coords of segment RS.
+
+    Returns:
+        bool: True if they intersect.
     """
     o1 = orientation(px, py, qx, qy, rx, ry)
     o2 = orientation(px, py, qx, qy, sx, sy)

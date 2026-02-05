@@ -42,14 +42,27 @@ logger = logging.getLogger(__name__)
 
 class Drone(Vehicle):
     """
-    Drone vehicle type. Implements all functionality that AERPAW's drones
-    expose to user scripts, which includes basic movement control (going to
-    coords, turning, landing).
+    Drone implementation for multirotors.
+
+    Provides core flight functionality including takeoff, landing,
+    navigation, and velocity control.
+
+    Attributes:
+        _velocity_loop_active (bool): Whether a background velocity command loop is running.
     """
 
     _velocity_loop_active: bool = False
 
     def __init__(self, connection_string: str):
+        """
+        Initialize the drone and check for startup constraints.
+
+        Args:
+            connection_string (str): MAVLink connection string.
+
+        Raises:
+            NotArmableError: If the vehicle is already armed (safety check).
+        """
         super().__init__(connection_string)
         # Give telemetry a moment to populate (including armed state)
         time.sleep(1.0)
@@ -62,6 +75,17 @@ class Drone(Vehicle):
         blocking: bool = True,
         lock_in: bool = True,
     ) -> None:
+        """
+        Command the drone to turn to a specific heading.
+
+        Args:
+            heading (float, optional): Target heading in degrees (0-360).
+                If None, clears any locked heading.
+            blocking (bool, optional): Whether to wait for the drone to finish turning.
+                Defaults to True.
+            lock_in (bool, optional): If True, internal state will track this heading
+                for future combined commands. Defaults to True.
+        """
         if blocking:
             await self.await_ready_to_move()
 
@@ -105,6 +129,17 @@ class Drone(Vehicle):
         target_alt: float,
         min_alt_tolerance: float = DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
     ) -> None:
+        """
+        Perform a takeoff to the target altitude.
+
+        Args:
+            target_alt (float): Target altitude Above Ground Level (meters).
+            min_alt_tolerance (float, optional): Fraction of target altitude
+                to reach before continuing. Defaults to DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE.
+
+        Raises:
+            TakeoffError: If the takeoff command fails or is rejected by the autopilot.
+        """
         validate_altitude(target_alt, "target_alt")
         await self.await_ready_to_move()
 
@@ -131,6 +166,14 @@ class Drone(Vehicle):
             raise TakeoffError(str(e), original_error=e)
 
     async def _action_wait_disarm(self, coro, name, exc_cls):
+        """
+        Internal helper to execute an action and wait for the drone to disarm.
+
+        Args:
+            coro: The MAVSDK coroutine to run.
+            name (str): Label for logging.
+            exc_cls (Type[Exception]): Exception class to raise on failure.
+        """
         await self.await_ready_to_move()
         self._abortable = False
         try:
@@ -224,15 +267,17 @@ class Drone(Vehicle):
         duration: Optional[float] = None,
     ) -> None:
         """
-        Set a drone's velocity that it will use for `duration` seconds.
+        Set the drone's velocity in NED frame.
 
         Args:
-            velocity_vector: Velocity in NED frame (m/s)
-            global_relative: If True, vector is in global frame; if False, in body frame
-            duration: How long to maintain velocity (None = until changed)
+            velocity_vector (VectorNED): Target velocity.
+            global_relative (bool, optional): If True, north/east are world-aligned.
+                If False, they are relative to current heading. Defaults to True.
+            duration (float, optional): How long to maintain this velocity.
+                If None, maintains it until stopped or changed.
 
         Raises:
-            VelocityError: If velocity command fails
+            VelocityError: If offboard mode cannot be started.
         """
         await self.await_ready_to_move()
         self._velocity_loop_active = False

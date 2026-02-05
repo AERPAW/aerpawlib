@@ -30,11 +30,13 @@ logger = logging.getLogger(__name__)
 
 class Rover(Vehicle):
     """
-    Rover vehicle type. Implements all functionality that AERPAW's rovers
-    expose to user scripts, which includes basic movement control (going to
-    coords).
+    Rover implementation for ground vehicles.
 
-    `target_heading` is ignored for rovers, as they can't strafe.
+    Focuses on 2D ground navigation using MAVSDK's action.goto_location.
+
+    Note:
+        `target_heading` is currently ignored during movement as the
+        MAVLink mission item for navigation usually handles steering.
     """
 
     async def goto_coordinates(

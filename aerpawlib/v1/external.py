@@ -12,20 +12,32 @@ import re
 
 class ExternalProcess:
     """
-    Object allowing for interaction with a process spawned by this script and
-    run asynchronously to the aerpawlib script. Allows for basic interaction
-    with stdio and stdout as well as dynamic passing of arguments.
+    Representation of an external process spawned by the script.
+
+    Allows for asynchronous interaction with standard streams (stdin, stdout)
+    and dynamic passing of command-line arguments.
+
+    Attributes:
+        _executable (str): Path to the executable.
+        _params (list): List of command-line arguments.
+        _stdin (str, optional): Path to a file to use for stdin redirection.
+        _stdout (str, optional): Path to a file to use for stdout redirection.
+        process (asyncio.subprocess.Process): The underlying process object.
     """
 
     def __init__(
         self, executable: str, params=[], stdin: str = None, stdout: str = None
     ):
         """
-        Prepare external process for execution. Does NOT execute process, you
-        must call `start()`.
+        Prepare external process for execution.
 
-        `params` should be the parameters that will be passed to the process.
-        Split the list where there would be spaces in the command line version.
+        Does NOT execute process immediately; call `start()` to run it.
+
+        Args:
+            executable (str): The executable path or command.
+            params (list, optional): Parameters to pass to the process. Defaults to [].
+            stdin (str, optional): Filename for stdin redirection. Defaults to None.
+            stdout (str, optional): Filename for stdout redirection. Defaults to None.
         """
         self._executable = executable
         self._params = params
@@ -34,7 +46,7 @@ class ExternalProcess:
 
     async def start(self):
         """
-        Start the executable in an asyncronous process
+        Start the executable in an asynchronous process.
         """
         executable = self._executable
         executable += " " + " ".join(self._params)
@@ -53,7 +65,11 @@ class ExternalProcess:
 
     async def read_line(self) -> str:
         """
-        Read one line from the stdout buffer. Returns None if process has stopped.
+        Read one line from the stdout buffer.
+
+        Returns:
+            str: The read line decoded to ASCII, or None if the process has stopped
+                or stdout is redirected to a file.
         """
         if not self.process.stdout:
             return None
@@ -62,27 +78,31 @@ class ExternalProcess:
 
     async def send_input(self, data: str):
         """
-        Send a string to the process's stdin
+        Send a string to the process's stdin.
+
+        Args:
+            data (str): The data to send.
         """
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
 
     async def wait_until_terminated(self):
         """
-        Idles until process is complete
+        Wait until the process is complete.
         """
         await self.process.wait()
 
     async def wait_until_output(self, output_regex) -> List[str]:
         """
-        block and wait until we see the output_regex regular expression show up
-        in a line of the output stream (only works w/out stdout set)
+        Block and wait until a line matching the given regex is found in stdout.
 
-        Returns all lines consumes up until and including regex
+        Only works if stdout is not redirected to a file.
 
-        Use an r"string" as output_regex
+        Args:
+            output_regex (str): The regular expression to search for.
 
-        Will exit only if process terminates or pattern is matched
+        Returns:
+            List[str]: All lines read from stdout up to and including the matching line.
         """
         buff = []
         while True:

@@ -152,7 +152,9 @@ class _VersionCompat:
 
 class DummyVehicle:
     """
-    Vehicle class for things that don't need vehicles.
+    A placeholder vehicle class for scripts that do not require physical vehicle interaction.
+
+    This class provides the same interface as `Vehicle` but with empty implementations.
     """
 
     def __init__(self):
@@ -170,18 +172,25 @@ class DummyVehicle:
 
 class Vehicle:
     """
-    Overarching "generic vehicle" type. Implements all functionality, excluding
-    movement commands (which are *always* vehicle specific).
+    Overarching "generic vehicle" type.
 
-    This implementation uses MAVSDK internally while maintaining the exact same
-    API as the original DroneKit-based implementation.
+    Implements common functionality for all vehicle types (drone, rover, etc.),
+    excluding specific movement commands. This class maintains an internal
+    MAVSDK session while providing a DroneKit-compatible API.
 
     Safety Initialization Patterns:
-    - Never auto-arms by default; waits for external actor (safety pilot/GCS)
-    - Switches to GUIDED mode after detecting armed state
-    - Captures home location when entering GUIDED mode
-    - Tracks connection via heartbeat monitoring
-    - Auto-RTL/land on script end (configurable)
+    - Never auto-arms by default; waits for external actor (safety pilot/GCS).
+    - Detects armed state and transitions to GUIDED mode.
+    - Captures home location upon entering GUIDED mode.
+    - Tracks connection via heartbeat monitoring.
+    - Supports configurable auto-RTL or landing upon script termination.
+
+    Attributes:
+        _system (System): The MAVSDK system instance.
+        _has_heartbeat (bool): Whether a heartbeat has been received.
+        _home_location (Coordinate): The captured home position.
+        _armed_state (ThreadSafeValue): Current arm status.
+        _mode (ThreadSafeValue): Current flight mode name.
     """
 
     _system: Optional[System]
@@ -220,6 +229,15 @@ class Vehicle:
     _last_heartbeat_time: float = 0.0
 
     def __init__(self, connection_string: str):
+        """
+        Initialize the vehicle and connect to the autopilot.
+
+        Args:
+            connection_string (str): MAVLink connection string (e.g., 'udp://:14540').
+
+        Raises:
+            ConnectionTimeoutError: If connection cannot be established within timeout.
+        """
         self._connection_string = connection_string
         self._system = None
         self._has_heartbeat = False
@@ -263,7 +281,11 @@ class Vehicle:
         self._connect_sync()
 
     def _connect_sync(self):
-        """Synchronous connection for compatibility with original API."""
+        """
+        Establish connection and start telemetry in background threads.
+
+        This is a synchronous wrapper around asynchronous connection logic.
+        """
         loop = asyncio.new_event_loop()
         self._mavsdk_loop = loop  # Store reference for thread-safe calls
 
@@ -303,8 +325,16 @@ class Vehicle:
 
     async def _run_on_mavsdk_loop(self, coro):
         """
-        Run a coroutine on the MAVSDK event loop from any other loop.
-        This is necessary because gRPC futures are bound to the loop they were created on.
+        Run a coroutine on the MAVSDK event loop.
+
+        Args:
+            coro: The coroutine to execute.
+
+        Returns:
+            The result of the coroutine.
+
+        Raises:
+            RuntimeError: If the MAVSDK loop is not initialized.
         """
         if self._mavsdk_loop is None:
             raise RuntimeError("MAVSDK loop not initialized")
@@ -316,7 +346,9 @@ class Vehicle:
         return future.result()
 
     async def _connect_async(self):
-        """Async connection and telemetry setup."""
+        """
+        Asynchronously connect to the MAVSDK system and start telemetry tasks.
+        """
         self._system = System()
         await self._system.connect(system_address=self._connection_string)
 
@@ -333,7 +365,9 @@ class Vehicle:
         await self._fetch_vehicle_info()
 
     async def _start_telemetry(self):
-        """Start background telemetry update tasks."""
+        """
+        Spawn background tasks to subscribe to various telemetry streams.
+        """
 
         async def _position_update():
             async for position in self._system.telemetry.position():
@@ -417,7 +451,9 @@ class Vehicle:
             self._telemetry_tasks.append(task)
 
     async def _fetch_vehicle_info(self):
-        """Fetch static vehicle information."""
+        """
+        Fetch static vehicle information like firmware version once.
+        """
         try:
             version = await self._system.info.get_version()
             self._autopilot_info.major = version.flight_sw_major
@@ -449,6 +485,9 @@ class Vehicle:
     def home_amsl(self) -> float:
         """
         Get the absolute altitude (AMSL) of the home position in meters.
+
+        Returns:
+            float: Altitude Above Mean Sea Level.
         """
         return self._home_abs_alt.get()
 
@@ -505,7 +544,10 @@ class Vehicle:
 
     def debug_dump(self) -> str:
         """
-        Dump various properties collected by this vehicle for logging/debug purposes.
+        Generate a CSV-formatted string of current vehicle state.
+
+        Returns:
+            str: Comma-separated values of all tracked vehicle properties.
         """
         nav_controller_output = (
             None,
@@ -544,11 +586,19 @@ class Vehicle:
 
     # Internal logic
     def _internal_update_loop(self):
+        """
+        Background loop for periodic internal state maintenance and logging.
+        """
         while self._running.get():
             self._internal_update()
             time.sleep(INTERNAL_UPDATE_DELAY_S)
 
     def _internal_update(self):
+        """
+        Perform a single iteration of internal updates.
+
+        Handles verbose logging if enabled.
+        """
         # Called regularly at some given frequency by an internal update loop
         if self._verbose_logging and (
             self._verbose_logging_last_log_time + self._verbose_logging_delay
@@ -579,8 +629,9 @@ class Vehicle:
 
     async def await_ready_to_move(self) -> None:
         """
-        Helper function that blocks execution and waits for the vehicle to
-        finish the current action/movement.
+        Block and wait until the vehicle is ready for the next command.
+
+        Ensures the vehicle is armed and the previous movement has finished.
         """
         if not self.armed:
             await self._initialize_postarm()
@@ -590,6 +641,9 @@ class Vehicle:
         )
 
     def _abort(self):
+        """
+        Trigger an abort of the current operation if it is marked as abortable.
+        """
         if self._abortable:
             AERPAW_Platform.log_to_oeo("[aerpawlib] Aborted.")
             self._abortable = False
@@ -648,6 +702,12 @@ class Vehicle:
                 raise DisarmError(str(e), original_error=e)
 
     def _initialize_prearm(self, should_postarm_init: bool) -> None:
+        """
+        Wait for pre-arm conditions (GPS fix, etc.) to be satisfied.
+
+        Args:
+            should_postarm_init (bool): Whether to perform post-arm initialization later.
+        """
         logger.debug(
             f"_initialize_prearm(should_postarm_init={should_postarm_init}) called"
         )
@@ -797,6 +857,6 @@ class Vehicle:
 
     async def _stop(self) -> None:
         """
-        Internal utility to stop any movement being run in the background.
+        Stop any background movement tasks.
         """
         self._ready_to_move = lambda _: True

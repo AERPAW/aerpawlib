@@ -4,18 +4,32 @@ ZMQ Proxy utility for aerpawlib. Unchanged from legacy version.
 @author: John Kesler (morzack)
 """
 
+import logging
 import zmq
 
-ZMQ_PROXY_IN_PORT = "5570"
-ZMQ_PROXY_OUT_PORT = "5571"
+from .constants import (
+    ZMQ_PROXY_IN_PORT,
+    ZMQ_PROXY_OUT_PORT,
+)
 
-ZMQ_TYPE_TRANSITION = "state_transition"
-ZMQ_TYPE_FIELD_REQUEST = "field_request"
-ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 def run_zmq_proxy():
-    # TODO make use asynico. for now must be separate process
+    """
+    Start a ZMQ forwarder device (XSUB/XPUB proxy).
+
+    This proxy acts as a central hub for ZMQ-based communication between
+    multiple runners. It binds to ZMQ_PROXY_IN_PORT for incoming messages
+    and ZMQ_PROXY_OUT_PORT for outgoing broadcast.
+
+    Note:
+        This function is blocking and currently uses synchronous ZMQ.
+        It should be called in a separate process or thread.
+    """
+    # Asyncio ZMQ will not be supported by v1
+    # This feature will be added to v2
     zmq_context = zmq.Context()
 
     p_sub = zmq_context.socket(zmq.XSUB)
@@ -24,5 +38,5 @@ def run_zmq_proxy():
     p_sub.bind(f"tcp://*:{ZMQ_PROXY_IN_PORT}")
     p_pub.bind(f"tcp://*:{ZMQ_PROXY_OUT_PORT}")
 
-    print("[aerpawlib] launching zmq proxy")
+    logger.info("launching zmq proxy")
     zmq.proxy(p_sub, p_pub)

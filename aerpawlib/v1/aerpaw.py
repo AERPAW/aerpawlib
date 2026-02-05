@@ -11,28 +11,42 @@ functionality.
 import base64
 import requests
 
-_DEFAULT_CVM_IP = "192.168.32.25"
-_DEFAULT_CVM_PORT = 12435
-
-OEO_MSG_SEV_INFO = "INFO"
-OEO_MSG_SEV_WARN = "WARNING"
-OEO_MSG_SEV_ERR = "ERROR"
-OEO_MSG_SEV_CRIT = "CRITICAL"
-_OEO_MSG_SEVS = [
+from .constants import (
+    DEFAULT_CVM_IP,
+    DEFAULT_CVM_PORT,
     OEO_MSG_SEV_INFO,
-    OEO_MSG_SEV_WARN,
-    OEO_MSG_SEV_ERR,
-    OEO_MSG_SEV_CRIT,
-]
+    OEO_MSG_SEVS,
+)
 
 
 class AERPAW:
+    """
+    Interface for interacting with the AERPAW platform services.
+
+    This class provides methods for logging to the AERPAW Operational
+    Entity Observer (OEO) and using the AERPAW checkpoint system.
+
+    Attributes:
+        _cvm_addr (str): The IP address of the Controller VM (C-VM).
+        _cvm_port (int): The port of the C-VM service.
+        _connected (bool): Whether the object is successfully connected to the AERPAW platform.
+        _connection_warning_displayed (bool): Whether the connection warning has been shown.
+        _no_stdout (bool): If True, suppresses printing to standard output.
+    """
+
     _cvm_addr: str
     _connected: bool
 
     _connection_warning_displayed = False
 
-    def __init__(self, cvm_addr=_DEFAULT_CVM_IP, cvm_port=_DEFAULT_CVM_PORT):
+    def __init__(self, cvm_addr=DEFAULT_CVM_IP, cvm_port=DEFAULT_CVM_PORT):
+        """
+        Initialize the AERPAW platform interface.
+
+        Args:
+            cvm_addr (str): The IP address of the C-VM. Defaults to DEFAULT_CVM_IP.
+            cvm_port (int): The port of the C-VM service. Defaults to DEFAULT_CVM_PORT.
+        """
         self._cvm_addr = cvm_addr
         self._cvm_port = cvm_port
         self._connected = self.attach_to_aerpaw_platform()
@@ -61,6 +75,9 @@ class AERPAW:
         return self._connected
 
     def _display_connection_warning(self):
+        """
+        Displays a warning if the AERPAW platform is used outside of an AERPAW environment.
+        """
         if self._connection_warning_displayed:
             return
         if not self._no_stdout:
@@ -71,8 +88,16 @@ class AERPAW:
 
     def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO):
         """
-        Send `msg` to the OEO console, if connected. Prints message regardless
-        of connection status.
+        Send a message to the OEO console, if connected.
+
+        Prints the message to stdout regardless of connection status, unless _no_stdout is True.
+
+        Args:
+            msg (str): The message to log.
+            severity (str): The severity level of the message. Defaults to OEO_MSG_SEV_INFO.
+
+        Raises:
+            Exception: If the provided severity is not supported.
         """
         if not self._no_stdout:
             print(msg)
@@ -80,7 +105,7 @@ class AERPAW:
             self._display_connection_warning()
             return
 
-        if severity not in _OEO_MSG_SEVS:
+        if severity not in OEO_MSG_SEVS:
             raise Exception("severity provided for log_to_oeo not supported")
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8"))
         try:
@@ -93,6 +118,16 @@ class AERPAW:
                 print("unable to send previous message to OEO.")
 
     def _checkpoint_build_request(self, var_type, var_name):
+        """
+        Builds a checkpoint request URL.
+
+        Args:
+            var_type (str): The type of the checkpoint variable ('bool', 'int', or 'string').
+            var_name (str): The name of the checkpoint variable.
+
+        Returns:
+            str: The full URL for the checkpoint request.
+        """
         return f"http://{self._cvm_addr}:{self._cvm_port}/checkpoint/{var_type}/{var_name}"
 
     # NOTE: unlike the above functionality, all checkpoint functions will cause an
@@ -119,7 +154,13 @@ class AERPAW:
 
     def checkpoint_set(self, checkpoint_name: str):
         """
-        Set a checkpoint in the AERPAW checkpoint system with name `checkpoint_name`
+        Set a boolean checkpoint in the AERPAW checkpoint system.
+
+        Args:
+            checkpoint_name (str): The name of the checkpoint to set.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -134,10 +175,16 @@ class AERPAW:
 
     def checkpoint_check(self, checkpoint_name: str) -> bool:
         """
-        See if a checkpoint has been set in the AERPAW checkpoint system with name
-        `checkpoint_name`.
+        Check if a boolean checkpoint has been set.
 
-        Returns `True` if it has been set, `False` otherwise
+        Args:
+            checkpoint_name (str): The name of the checkpoint to check.
+
+        Returns:
+            bool: True if the checkpoint is set, False otherwise.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error/malformed content.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -160,7 +207,13 @@ class AERPAW:
 
     def checkpoint_increment_counter(self, counter_name: str):
         """
-        Increment a counter in the AERPAW checkpoint system with name `counter_name`.
+        Increment an integer counter in the AERPAW checkpoint system.
+
+        Args:
+            counter_name (str): The name of the counter to increment.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -175,11 +228,16 @@ class AERPAW:
 
     def checkpoint_check_counter(self, counter_name: str) -> int:
         """
-        Get the current state of a counter in the AERPAW checkpoint system with name
-        `counter_name`
+        Get the current value of an integer counter.
 
-        An un-incremented counter will always start at 0, regardless of if it has been
-        interacted with.
+        Args:
+            counter_name (str): The name of the counter to check.
+
+        Returns:
+            int: The current value of the counter. Defaults to 0 if never incremented.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error/malformed content.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -201,8 +259,14 @@ class AERPAW:
 
     def checkpoint_set_string(self, string_name: str, value: str):
         """
-        Set the value of a string in the AERPAW checkpoint system's key:value store with
-        name `string_name` and value `value`
+        Set a string value in the AERPAW checkpoint system.
+
+        Args:
+            string_name (str): The key for the string value.
+            value (str): The string value to store.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -218,8 +282,16 @@ class AERPAW:
 
     def checkpoint_check_string(self, string_name: str) -> str:
         """
-        Get the value of a key:value pair in AERPAW's key:value store with key
-        `string_name`
+        Get a string value from the AERPAW checkpoint system.
+
+        Args:
+            string_name (str): The key for the string value.
+
+        Returns:
+            str: The stored string value.
+
+        Raises:
+            Exception: If not in an AERPAW environment or if the server returns an error.
         """
         if not self._connected:
             self._display_connection_warning()

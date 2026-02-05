@@ -17,8 +17,8 @@ import zmq
 import zmq.asyncio
 
 from .vehicle import Vehicle
-from .constants import STATE_MACHINE_DELAY_S
-from .zmqutil import (
+from .constants import (
+    STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
     ZMQ_TYPE_TRANSITION,
@@ -36,39 +36,36 @@ from .exceptions import (
 
 class Runner:
     """
-    Base execution framework -- generally, this should only be used to build
-    new runners. Only exposes the base functions needed to interface with
-    aerpawlib's runner.
+    Base execution framework for aerpawlib scripts.
+
+    All custom execution frameworks must extend this class to be executable
+    by the aerpawlib infrastructure.
     """
 
     async def run(self, _: Vehicle):
         """
-        Run the script that's been loaded in -- this is what implements the
-        core logic of whatever's being run. The `aerpawlib.vehicle.Vehicle`
-        passed in will have been initialized externally by the launch script.
+        Core logic of the script.
 
-        For other runners provided with aerpawlib (ex: `StateMachine`,
-        `BasicRunner`), you should avoid overriding this.
+        This method is called by the launch script after initializations.
+        It should be overridden by subclasses to implement specific execution models.
+
+        Args:
+            _: The vehicle object initialized for this script.
         """
         pass
 
     def initialize_args(self, _: List[str]):
         """
-        Can be overridden to parse and handle extra command line arguments
-        passed to the runner. The easiest way to interact with them is through
-        `argparse` -- check out `examples/squareoff_logging.py` for an example
-        of this.
+        Parse and handle additional command-line arguments.
 
-        This is expected to be overridden by the user script if it is used.
+        Args:
+            _: List of command-line arguments as strings.
         """
         pass
 
     def cleanup(self):
         """
-        Any additional user-provided functionality that is called when the
-        script exits should be implemented here.
-
-        This is expected to be overridden by the user script if it is used.
+        Perform cleanup tasks when the script exits.
         """
         pass
 
@@ -118,6 +115,13 @@ class _StateType(Enum):
 
 
 class _State:
+    """
+    Internal representation of a state in a StateMachine.
+
+    Attributes:
+        _name (str): The name of the state.
+        _func (_Runnable): The function to be executed for this state.
+    """
     _name: str
     _func: _Runnable
 
@@ -126,6 +130,16 @@ class _State:
         self._func = func
 
     async def run(self, runner: Runner, vehicle: Vehicle) -> str:
+        """
+        Run the function associated with this state.
+
+        Args:
+            runner: The Runner instance executing this state.
+            vehicle: The Vehicle instance to be controlled.
+
+        Returns:
+            str: The name of the next state to transition to.
+        """
         if self._func._state_type == _StateType.STANDARD:
             return await self._func.__func__(runner, vehicle)
         elif self._func._state_type == _StateType.TIMED:
@@ -152,12 +166,18 @@ class _State:
 
 def state(name: str, first: bool = False):
     """
-    Decorator used to specify a state used by a `StateMachine`. Functions
-    decorated using this are expected to be given a name and return a string
-    that is the name of the next state to transition to/run. If no next state
-    is returned, then the `StateMachine` will (gracefully) stop.
+    Decorator to specify a state in a StateMachine.
 
-    The function decorated by this is expected to be `async`
+    Args:
+        name (str): The name of the state.
+        first (bool, optional): Whether this is the initial state of the machine.
+            Defaults to False.
+
+    Returns:
+        Callable: The decorated function.
+
+    Raises:
+        InvalidStateNameError: If the name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -174,15 +194,17 @@ def state(name: str, first: bool = False):
 
 def timed_state(name: str, duration: float, loop=False, first: bool = False):
     """
-    Timed state. Will wait `duration` seconds before transitioning to the next
-    state. If `loop` is true, the decorated function will be continuously
-    called until the duration has expired.
+    Decorator for a state that runs for a fixed duration.
 
-    This guarentees that the state will persist for *at least* `duration`
-    seconds, so timed states will continue running for longer than that if the
-    decorated function lasts longer than the timer.
+    Args:
+        name (str): The name of the state.
+        duration (float): Minimum duration in seconds for this state.
+        loop (bool, optional): Whether to repeatedly call the decorated function
+            during the duration. Defaults to False.
+        first (bool, optional): Whether this is the initial state. Defaults to False.
 
-    The function decorated by this is expected to be `async`
+    Returns:
+        Callable: The decorated function.
     """
 
     def decorator(func):
@@ -198,6 +220,18 @@ def timed_state(name: str, duration: float, loop=False, first: bool = False):
 
 
 def expose_zmq(name: str):
+    """
+    Decorator to expose a state for remote control via ZMQ.
+
+    Args:
+        name (str): The name of the state to expose.
+
+    Returns:
+        Callable: The decorated function.
+
+    Raises:
+        InvalidStateNameError: If the name is empty.
+    """
     if name == "":
         raise InvalidStateNameError()
 
@@ -211,8 +245,16 @@ def expose_zmq(name: str):
 
 def expose_field_zmq(name: str):
     """
-    Make a field requestable by querying it through zmq. The function decorated
-    by this will be called and the return value will be sent.
+    Decorator to make a field requestable via ZMQ.
+
+    Args:
+        name (str): The name of the field to expose.
+
+    Returns:
+        Callable: The decorated function.
+
+    Raises:
+        InvalidStateNameError: If the name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -230,15 +272,13 @@ _BackgroundTask = Callable[[Runner, Vehicle], None]
 
 def background(func):
     """
-    Designate a function to be run in parallel to a given StateMachine.
-    By `asyncio`'s design, background function's don't have to take
-    thread-safety into consideration.
+    Designate a function to be run in parallel to a StateMachine.
 
-    The function decorated by this is expected to be `async`
+    Args:
+        func: The asynchronous function to run in the background.
 
-    When using @background, make sure to incorporate some kind of delay.
-    Without any delay, an @background thread can eat all the python
-    instance's CPU
+    Returns:
+        Callable: The decorated function.
     """
     func._is_background = True
     return func
@@ -249,15 +289,15 @@ _InitializationTask = Callable[[Runner, Vehicle], None]
 
 def at_init(func):
     """
-    Designate a function to be run at vehicle initialization and before vehicle
-    arming (or at least the prompt to arm). The vehicle will not be armable
-    until after all `at_init` functions finish executing.
+    Designate a function to be run during vehicle initialization.
 
-    The function designated should have a signature that accepts a Vehicle.
+    The function will run before the vehicle is armed.
 
-    The function decorated by this is expected to be `async`. If there are
-    multiple functions marked with `at_init`, they will all be run at the same
-    time.
+    Args:
+        func: The asynchronous function to run.
+
+    Returns:
+        Callable: The decorated function.
     """
     func._run_at_init = True
     return func
@@ -265,16 +305,18 @@ def at_init(func):
 
 class StateMachine(Runner):
     """
-    A `StateMachine` is a type of runner that consists of various states
-    declared using the `state` decorator. Each state, when run, should return a
-    string that is the name of the next state to execute. If no next state is
-    provided, it's assumed that the state machine is done running.
+    A runner that executes states in a sequence.
 
-    `StateMachine` also supports `background` tasks, which are run in parallel
-    to any state execution.
+    Each state returns the name of the next state to transition to.
+    Supports background tasks and initialization tasks.
 
-    For an example of a `StateMachine` in action, check out
-    `examples/squareoff_logging.py`
+    Attributes:
+        _states (Dict[str, _State]): Mapping of state names to _State objects.
+        _background_tasks (List[_BackgroundTask]): List of background functions to run.
+        _initialization_tasks (List[_InitializationTask]): Functions to run at init.
+        _entrypoint (str): The name of the initial state.
+        _current_state (str): The name of the state currently being executed.
+        _running (bool): Whether the state machine is active.
     """
 
     _states: Dict[str, _State]
@@ -286,6 +328,13 @@ class StateMachine(Runner):
     _running: bool
 
     def _build(self):
+        """
+        Introspect the class to identify states, background tasks, and init tasks.
+
+        Raises:
+            MultipleInitialStatesError: If more than one state is marked 'first'.
+            NoInitialStateError: If no initial state is found.
+        """
         self._states = {}
         self._background_tasks = []
         self._initialization_tasks = []
@@ -308,6 +357,12 @@ class StateMachine(Runner):
             raise NoInitialStateError()
 
     async def _start_background_tasks(self, vehicle: Vehicle):
+        """
+        Start all background tasks in the asyncio event loop.
+
+        Args:
+            vehicle: The vehicle instance.
+        """
         for task in self._background_tasks:
 
             async def _task_runner(t=task):
@@ -317,6 +372,17 @@ class StateMachine(Runner):
             asyncio.ensure_future(_task_runner())
 
     async def run(self, vehicle: Vehicle, build_before_running=True):
+        """
+        Execute the state machine logic.
+
+        Args:
+            vehicle (Vehicle): The vehicle instance.
+            build_before_running (bool): Whether to call _build() first.
+                Defaults to True.
+
+        Raises:
+            InvalidStateError: If the machine transitions to an unregistered state.
+        """
         if build_before_running:
             self._build()
         assert self._entrypoint
@@ -363,13 +429,13 @@ class StateMachine(Runner):
 
 class ZmqStateMachine(StateMachine):
     """
-    A `ZmqStateMachine` is a more complex state machine that interacts with zmq
-    in the background. Specifically, it is capable of having its state controlled
-    via zmq requets, as well as make zmq requests to other state machines through
-    the network. zmq will NOT work without using this type of runner.
+    A StateMachine that can be controlled remotely via ZMQ.
 
-    For examples of how to structure programs using this, check out
-    `examples/zmq_preplanned_orbit` and `examples/zmq_runner`.
+    Attributes:
+        _exported_states (Dict[str, _State]): States exposed for ZMQ transitions.
+        _exported_fields (Dict[str, Callable]): Fields exposed for ZMQ queries.
+        _zmq_identifier (str): Unique name for this machine in the ZMQ network.
+        _zmq_proxy_server (str): Address of the ZMQ proxy.
     """
 
     _exported_states: Dict[str, _State]
@@ -394,12 +460,25 @@ class ZmqStateMachine(StateMachine):
     def _initialize_zmq_bindings(
         self, vehicle_identifier: str, proxy_server_addr: str
     ):
+        """
+        Configure ZMQ connection parameters.
+
+        Args:
+            vehicle_identifier (str): The identifier for this vehicle.
+            proxy_server_addr (str): The address of the ZMQ proxy server.
+        """
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr
         self._zmq_context = zmq.asyncio.Context()
 
     @background
     async def _zmg_bg_sub(self, vehicle: Vehicle):
+        """
+        Background task to subscribe to ZMQ messages.
+
+        Args:
+            vehicle: The vehicle instance.
+        """
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
             io_loop=asyncio.get_event_loop(),
@@ -418,6 +497,13 @@ class ZmqStateMachine(StateMachine):
             asyncio.ensure_future(self._zmq_handle_request(vehicle, message))
 
     async def _zmq_handle_request(self, vehicle: Vehicle, message):
+        """
+        Handle an incoming ZMQ request.
+
+        Args:
+            vehicle: The vehicle instance.
+            message (dict): The received message object.
+        """
         if message["msg_type"] == ZMQ_TYPE_TRANSITION:
             next_state = message["next_state"]
             self._next_state_overr = next_state
@@ -436,6 +522,12 @@ class ZmqStateMachine(StateMachine):
 
     @background
     async def _zmq_bg_pub(self, _: Vehicle):
+        """
+        Background task to publish ZMQ messages.
+
+        Args:
+            _: The vehicle instance.
+        """
         self._zmq_messages_sending = asyncio.Queue()
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
@@ -448,6 +540,16 @@ class ZmqStateMachine(StateMachine):
             await socket.send_pyobj(msg_sending)
 
     async def run(self, vehicle: Vehicle, zmq_proxy=False):
+        """
+        Execute the ZMQ-enabled state machine.
+
+        Args:
+            vehicle (Vehicle): The vehicle instance.
+            zmq_proxy (bool): Unused, for compatibility.
+
+        Raises:
+            StateMachineError: If ZMQ bindings were not initialized.
+        """
         self._build()
 
         if None in [self._zmq_identifier, self._zmq_proxy_server]:
@@ -474,9 +576,14 @@ class ZmqStateMachine(StateMachine):
 
     async def query_field(self, identifier: str, field: str):
         """
-        Query a field from a zmq runner within the network specified by `identifier`.
-        The field to be queried is given by `field`. The value returned will be returned
-        by this function, and can be any python object.
+        Query a field from another ZMQ runner.
+
+        Args:
+            identifier (str): Identifier of the target runner.
+            field (str): Name of the field to query.
+
+        Returns:
+            Any: The value returned by the target runner.
         """
         if identifier not in self._zmq_received_fields:
             self._zmq_received_fields[identifier] = {}
@@ -493,6 +600,14 @@ class ZmqStateMachine(StateMachine):
         return self._zmq_received_fields[identifier][field]
 
     async def _reply_queried_field(self, identifier: str, field: str, value):
+        """
+        Send a reply to a field query.
+
+        Args:
+            identifier (str): Identifier of the runner that requested the field.
+            field (str): Name of the field.
+            value (Any): Value of the field.
+        """
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
             "from": self._zmq_identifier,
