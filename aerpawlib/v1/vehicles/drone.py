@@ -19,6 +19,7 @@ from aerpawlib.v1.constants import (
     HEADING_TOLERANCE_DEG,
     VELOCITY_UPDATE_DELAY_S,
     DEFAULT_POSITION_TOLERANCE_M,
+    MIN_ARM_TO_TAKEOFF_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
     TakeoffError,
@@ -65,7 +66,7 @@ class Drone(Vehicle):
         """
         super().__init__(connection_string)
         # Give telemetry a moment to populate (including armed state)
-        time.sleep(1.0)
+        time.sleep(1.0)  # TODO: remove this sleep with better async init
         if self.armed:
             raise NotArmableError("Vehicle already armed at start!")
 
@@ -142,6 +143,13 @@ class Drone(Vehicle):
         """
         validate_altitude(target_alt, "target_alt")
         await self.await_ready_to_move()
+
+        # Enforce minimum delay between arming and takeoff
+        time_since_arm = time.time() - self._last_arm_time.get()
+        if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
+            delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
+            logger.debug(f"Delaying takeoff by {delay:.2f}s to satisfy minimum arm-to-takeoff time")
+            await asyncio.sleep(delay)
 
         if self._mission_start_time is None:
             self._mission_start_time = time.time()

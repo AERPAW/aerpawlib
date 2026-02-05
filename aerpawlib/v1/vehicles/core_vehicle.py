@@ -251,6 +251,7 @@ class Vehicle:
         # Internal state tracking (use ThreadSafeValue for thread-safe access)
         self._armed_state = ThreadSafeValue(False)
         self._is_armable_state = ThreadSafeValue(False)
+        self._last_arm_time = ThreadSafeValue(0.0)
         self._position_lat = ThreadSafeValue(0.0)
         self._position_lon = ThreadSafeValue(0.0)
         self._position_alt = ThreadSafeValue(0.0)
@@ -409,7 +410,10 @@ class Vehicle:
         async def _armed_update():
             async for armed in self._system.telemetry.armed():
                 # print(armed)
+                old_armed = self._armed_state.get()
                 self._armed_state.set(armed)
+                if armed and not old_armed:
+                    self._last_arm_time.set(time.time())
 
         async def _health_update():
             async for health in self._system.telemetry.health():

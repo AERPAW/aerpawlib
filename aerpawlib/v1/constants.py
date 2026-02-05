@@ -35,6 +35,9 @@ WAITING_FOR_ARM_LOG_INTERVAL_S = 5.0
 # Delay after entering GUIDED mode before proceeding (seconds)
 POST_GUIDED_DELAY_S = 1.0
 
+# Minimum time to wait after arming before attempting takeoff (seconds)
+MIN_ARM_TO_TAKEOFF_DELAY_S = 2.0
+
 # Default RTL on script end behavior (True = safe, returns home)
 DEFAULT_RTL_ON_END = True
 
