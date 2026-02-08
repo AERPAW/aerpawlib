@@ -5,6 +5,8 @@ All timing, tolerance, and configuration values should be defined here
 for easy tuning and documentation.
 """
 
+import os
+
 # Connection Constants
 
 # Maximum time to wait for initial connection to vehicle (seconds)
@@ -122,6 +124,12 @@ MIN_GROUNDSPEED_M_S = 0.0
 # Default Controller VM (C-VM) address and port
 DEFAULT_CVM_IP = "192.168.32.25"
 DEFAULT_CVM_PORT = 12435
+
+# connect to OEO-CONSOLE, or default to C-VM (will only work on portable nodes)
+DEFAULT_FORWARD_SERVER_IP = os.getenv("AP_EXPENV_OEOCVM_XM", "192.168.32.25")
+DEFAULT_FORWARD_SERVER_PORT = 12435
+
+DEFAULT_HUMAN_READABLE_AGENT_ID = os.getenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM")
 
 # OEO Log Severities
 OEO_MSG_SEV_INFO = "INFO"

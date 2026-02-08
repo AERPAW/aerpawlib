@@ -589,6 +589,10 @@ class SafetyCheckerServer:
 
 
 if __name__ == "__main__":
+    # DEPRECATED: This is a stupid way to run the safety checker server,
+    # but it allows us to keep the same command line interface for legacy and new safety checkers
+    # without needing to maintain two separate entry points.
+    # v2 will do away with this and have a more elegant way to launch the server.
     parser = ArgumentParser(
         description="safetyChecker - Launch a safety checker server"
     )

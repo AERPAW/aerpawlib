@@ -17,8 +17,9 @@ logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
 
 from .constants import (
-    DEFAULT_CVM_IP,
-    DEFAULT_CVM_PORT,
+    DEFAULT_FORWARD_SERVER_IP,
+    DEFAULT_FORWARD_SERVER_PORT,
+    DEFAULT_HUMAN_READABLE_AGENT_ID,
     OEO_MSG_SEV_INFO,
     OEO_MSG_SEV_WARN,
     OEO_MSG_SEV_ERR,
@@ -31,32 +32,32 @@ class AERPAW:
     """
     Interface for interacting with the AERPAW platform services.
 
-    This class provides methods for logging to the AERPAW Operational
-    Entity Observer (OEO) and using the AERPAW checkpoint system.
+    This class provides methods for logging to the AERPAW OEO-Console and using the AERPAW checkpoint system.
 
     Attributes:
-        _cvm_addr (str): The IP address of the Controller VM (C-VM).
-        _cvm_port (int): The port of the C-VM service.
+        _forw_addr (str): The IP address of the forward server.
+        _forw_port (int): The port of the forward server service.
         _connected (bool): Whether the object is successfully connected to the AERPAW platform.
         _connection_warning_displayed (bool): Whether the connection warning has been shown.
         _no_stdout (bool): If True, suppresses printing to standard output.
     """
 
-    _cvm_addr: str
+    _forw_addr: str
+    _forw_port: int
     _connected: bool
 
     _connection_warning_displayed = False
 
-    def __init__(self, cvm_addr=DEFAULT_CVM_IP, cvm_port=DEFAULT_CVM_PORT):
+    def __init__(self, forw_addr=DEFAULT_FORWARD_SERVER_IP, forw_port=DEFAULT_FORWARD_SERVER_PORT):
         """
         Initialize the AERPAW platform interface.
 
         Args:
-            cvm_addr (str): The IP address of the C-VM. Defaults to DEFAULT_CVM_IP.
-            cvm_port (int): The port of the C-VM service. Defaults to DEFAULT_CVM_PORT.
+            forw_addr (str): The IP address of the forward server. Defaults to DEFAULT_FORWARD_SERVER_IP.
+            forw_port (int): The port of the forward server service. Defaults to DEFAULT_FORWARD_SERVER_PORT.
         """
-        self._cvm_addr = cvm_addr
-        self._cvm_port = cvm_port
+        self._forw_addr = forw_addr
+        self._forw_port = forw_port
         self._connected = self.attach_to_aerpaw_platform()
         self._no_stdout = False
 
@@ -67,7 +68,7 @@ class AERPAW:
         """
         try:
             requests.post(
-                f"http://{self._cvm_addr}:{self._cvm_port}/ping", timeout=1
+                f"http://{self._forw_addr}:{self._forw_port}/ping", timeout=1
             )
         except requests.exceptions.RequestException:
             return False
@@ -92,7 +93,7 @@ class AERPAW:
             logger.info("the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment")
         self._connection_warning_displayed = True
 
-    def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO):
+    def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID):
         """
         Send a message to the OEO console, if connected.
 
@@ -101,6 +102,7 @@ class AERPAW:
         Args:
             msg (str): The message to log.
             severity (str): The severity level of the message. Defaults to OEO_MSG_SEV_INFO.
+            agent_id (str): The ID of the agent sending the message. Defaults to DEFAULT_HUMAN_READABLE_AGENT_ID.
 
         Raises:
             Exception: If the provided severity is not supported.
@@ -125,10 +127,16 @@ class AERPAW:
             raise Exception("severity provided for log_to_oeo not supported")
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8"))
         try:
-            requests.post(
-                f"http://{self._cvm_addr}:{self._cvm_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}",
-                timeout=3,
-            )
+            if agent_id:
+                requests.post(
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
+                    timeout=3,
+                )
+            else:
+                requests.post(
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}",
+                    timeout=3,
+                )
         except requests.exceptions.RequestException:
             if not self._no_stdout:
                 logger.error("unable to send previous message to OEO.")
@@ -144,7 +152,7 @@ class AERPAW:
         Returns:
             str: The full URL for the checkpoint request.
         """
-        return f"http://{self._cvm_addr}:{self._cvm_port}/checkpoint/{var_type}/{var_name}"
+        return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{var_name}"
 
     # NOTE: unlike the above functionality, all checkpoint functions will cause an
     # exception if they are run while not in the AERPAW platform, as there isn't a way
@@ -163,7 +171,7 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.post(
-            f"http://{self._cvm_addr}:{self._cvm_port}/checkpoint/reset"
+            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset"
         )
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
@@ -321,6 +329,44 @@ class AERPAW:
             raise Exception("error when getting from checkpoint server")
         response_content = response.content.decode()
         return response_content
+
+    def publish_user_oeo_topic(self, value: str, topic: str, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID) -> bool:
+        """
+        Publish `value` to a user topic in the OEO system (can be added/is
+        visible on the OEO-console).
+        Use `agent_id` to provide an identifier for the message being sent. By
+        default, it uses the current node's number.
+        `topic` is used to structure the topic as received in the OEO system.
+        The message will be received internally "oeo/user/`topic`" and can be
+        viewed in the OEO-CONSOLE by adding `topic`. `topic` can include "/"s
+        to indicate a hierachy within the message (e.g. "radio_script/snr" and
+        "radio_script/throughput" could both be seen on the console by "add"ing
+        "radio_script").
+        returns bool based on success
+        """
+
+        # note for devs, the messages can be sent to http://oeo_console:port/oeo_pub/encoded_topic/encoded_value/(optional)encoded_agent
+
+        if not self._connected:
+            self._display_connection_warning()
+            return False
+
+        value_b64 = base64.urlsafe_b64encode(str(value).encode('utf-8')).decode('utf-8')
+        topic_b64 = base64.urlsafe_b64encode(str(topic).encode('utf-8')).decode('utf-8')
+        agent_b64 = None
+
+        if agent_id is not None:
+            agent_b64 = base64.urlsafe_b64encode(str(agent_id).encode('utf-8')).decode('utf-8')
+
+        try:
+            if not agent_id:
+                requests.post(f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}", timeout=3)
+            else:
+                requests.post(f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}", timeout=3)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"unable to publish value to OEO system. exception: {e}")
+            return False
+        return True
 
 
 AERPAW_Platform = AERPAW()
