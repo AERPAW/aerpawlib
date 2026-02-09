@@ -22,7 +22,7 @@ Usage:
 from .external import *
 from .aerpaw import *
 from .zmqutil import *
-from .safetyChecker import *
+from .safety import *
 from .util import *
 from .vehicle import *
 from .runner import *
