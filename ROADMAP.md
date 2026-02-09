@@ -11,4 +11,6 @@ There are a number of features that are not currently implemented in aerpawlib b
   - Improve documentation with more examples and tutorials
   - Better OEO integration features
 - v1 API improvements
-  - OEO integration for v1 API
+  - Improve documentation
+  - Add more integration tests for the v1 API
+  - Fix testing pipeline
