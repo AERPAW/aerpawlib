@@ -102,3 +102,4 @@ class Rover(Vehicle):
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
             raise NavigationError(str(e), original_error=e)
+

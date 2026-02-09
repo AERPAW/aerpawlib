@@ -545,7 +545,7 @@ class HeadingDemo(BasicRunner):
 
 Migration from legacy to v1 requires minimal changes:
 
-### 1. Update imports
+### Update imports
 
 ```python
 # Before (legacy)
@@ -557,4 +557,6 @@ from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
 
 
 That's it! All other code remains unchanged.
+
+> Note that compatible versions of datastructures (_GPSInfoCompat) do not inherit from their DroneKit counterparts, so type assertions will fail. If you were relying on type assertions, you're probably doing something wrong.
 

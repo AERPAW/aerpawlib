@@ -270,7 +270,7 @@ class Coordinate:
     def __str__(self):
         return f"({self.lat},{self.lon},{self.alt})"
 
-    def toJson(self):
+    def to_json(self):
         """
         Serialize the coordinate to a JSON string.
 
@@ -278,6 +278,9 @@ class Coordinate:
             str: JSON representation of the lat, lon, and alt.
         """
         return json.dumps(self, default=lambda o: o.__dict__)
+
+    def toJson(self):
+        return self.to_json()
 
 
 # Waypoint type alias
@@ -374,7 +377,7 @@ def read_from_plan_complete(
     return waypoints
 
 
-def readGeofence(filePath):
+def read_geofence(filePath):
     """
     Parse a KML file into a list of lat/lon points.
 
@@ -390,13 +393,17 @@ def readGeofence(filePath):
     )
     coordinates_list = coordinates_string.split()
     polygon = []
-    for str in coordinates_list:
+    for str_val in coordinates_list:
         point = {
-            "lon": float(str.split(",")[0]),
-            "lat": float(str.split(",")[1]),
+            "lon": float(str_val.split(",")[0]),
+            "lat": float(str_val.split(",")[1]),
         }
         polygon.append(point)
     return polygon
+
+
+def readGeofence(filePath):
+    return read_geofence(filePath)
 
 
 def inside(lon, lat, geofence):
@@ -432,7 +439,7 @@ def inside(lon, lat, geofence):
     return inside
 
 
-def liesOnSegment(px, py, qx, qy, rx, ry):
+def lies_on_segment(px, py, qx, qy, rx, ry):
     """
     Check if point Q lies on line segment PR.
 
@@ -454,6 +461,10 @@ def liesOnSegment(px, py, qx, qy, rx, ry):
     return False
 
 
+def liesOnSegment(px, py, qx, qy, rx, ry):
+    return lies_on_segment(px, py, qx, qy, rx, ry)
+
+
 def orientation(px, py, qx, qy, rx, ry):
     """
     Find the orientation of an ordered triplet (p, q, r).
@@ -473,7 +484,7 @@ def orientation(px, py, qx, qy, rx, ry):
         return 0  # Colinear
 
 
-def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
+def do_intersect(px, py, qx, qy, rx, ry, sx, sy):
     """
     Check if line segment PQ intersects with segment RS.
 
@@ -494,13 +505,18 @@ def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
         return True
 
     # Special Cases
-    if (o1 == 0) and liesOnSegment(px, py, rx, ry, qx, qy):
+    if (o1 == 0) and lies_on_segment(px, py, rx, ry, qx, qy):
         return True
-    if (o2 == 0) and liesOnSegment(px, py, sx, sy, qx, qy):
+    if (o2 == 0) and lies_on_segment(px, py, sx, sy, qx, qy):
         return True
-    if (o3 == 0) and liesOnSegment(rx, ry, px, py, sx, sy):
+    if (o3 == 0) and lies_on_segment(rx, ry, px, py, sx, sy):
         return True
-    if (o4 == 0) and liesOnSegment(rx, ry, qx, qy, sx, sy):
+    if (o4 == 0) and lies_on_segment(rx, ry, qx, qy, sx, sy):
         return True
 
     return False
+
+
+def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
+    return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
+
