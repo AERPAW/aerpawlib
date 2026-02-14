@@ -237,8 +237,6 @@ Create KML files with polygon boundaries:
 </kml>
 ```
 
-> **Note**: For more advanced safety features (pre-flight checks, battery failsafe, parameter validation, continuous monitoring), upgrade to the [v2 API](../v2/README.md).
-
 ---
 
 ## Utility Types
