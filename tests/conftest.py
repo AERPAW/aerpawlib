@@ -5,12 +5,15 @@ Pytest configuration and fixtures for aerpawlib tests.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import struct
 import time
 from typing import AsyncGenerator, Type, TypeVar
 
 import pytest
 import pytest_asyncio
+from mavsdk.mavlink_direct import MavlinkMessage
 
 from aerpawlib.v1.exceptions import ConnectionTimeoutError
 from aerpawlib.v1.util import Coordinate, VectorNED
@@ -124,11 +127,10 @@ async def _connect_and_wait(
 
 async def _full_sitl_reset(vehicle: Vehicle) -> None:
     """
-    Performs a full SITL reset.
-    Reboot alone is often not sufficient as it doesn't clear missions
-    or geofences from ArduPilot's EEPROM.
+    Performs a SITL cleanup.
+    Runs RTL and resets battery state.
     """
-    print(f"\n[Cleanup] Performing full SITL reset for {type(vehicle).__name__}...")
+    print(f"\n[Cleanup] Performing SITL cleanup for {type(vehicle).__name__}...")
 
     system = vehicle._system
     if not system:
@@ -150,26 +152,64 @@ async def _full_sitl_reset(vehicle: Vehicle) -> None:
             # Geofence plugin might not be supported on all vehicles
             pass
 
-        # 3. Disarm (force if needed)
+        # 3. Return to Launch (RTL)
+        try:
+            await system.action.return_to_launch()
+            print("  - RTL initiated")
+        except Exception as e:
+            print(f"  - RTL failed: {e}")
+
+        # 4. Reset Battery (MAV_CMD_BATTERY_RESET = 501)
+        try:
+            # Define the fields for a COMMAND_LONG message as a dictionary
+            # MAV_CMD_BATTERY_RESET = 501
+            fields = {
+                "target_system": 1,
+                "target_component": 1,
+                "command": 501,
+                "confirmation": 0,
+                "param1": 1.0,  # Battery ID
+                "param2": 100.0,  # Reset value
+                "param3": 0.0,
+                "param4": 0.0,
+                "param5": 0.0,
+                "param6": 0.0,
+                "param7": 0.0
+            }
+
+            # MavlinkMessage expects:
+            # 1. target_system_id (int)
+            # 2. target_component_id (int)
+            # 3. message_id/name (str or int)
+            # 4. fields_json (str)
+            message = MavlinkMessage(
+                system_id=1,
+                component_id=1,
+                target_system_id=1,
+                target_component_id=1,
+                message_name="COMMAND_LONG",
+                fields_json=json.dumps(fields)
+            )
+
+
+            await system.mavlink_direct.send_message(message)
+            print("  - Battery reset command sent")
+        except Exception as e:
+            print(f"  - Battery reset failed: {e}")
+
+        # 5. Disarm
         try:
             await system.action.disarm()
             print("  - Disarmed")
         except Exception:
             pass
 
-        # 4. Reboot
-        try:
-            await system.action.reboot()
-            print("  - Rebooting SITL...")
-        except Exception as e:
-            print(f"  - Reboot failed: {e}")
-
     try:
         await vehicle._run_on_mavsdk_loop(_cleanup_steps())
-        # Give it a moment to initiate the reboot before closing
+        # Give it a moment to process commands
         await asyncio.sleep(2)
     except Exception as e:
-        print(f"Warning: Full SITL reset failed: {e}")
+        print(f"Warning: SITL cleanup failed: {e}")
 
 @pytest_asyncio.fixture(scope="function")
 async def connected_drone(

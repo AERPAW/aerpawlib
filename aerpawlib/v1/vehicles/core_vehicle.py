@@ -332,16 +332,22 @@ class Vehicle:
             The result of the coroutine.
 
         Raises:
-            RuntimeError: If the MAVSDK loop is not initialized.
+            RuntimeError: If the MAVSDK loop is not initialized or not running.
         """
         if self._mavsdk_loop is None:
             raise RuntimeError("MAVSDK loop not initialized")
+        if not self._mavsdk_loop.is_running():
+            # If the loop isn't running yet, we might be in the middle of connecting
+            # or it has crashed.
+            logger.warning("MAVSDK loop is not yet running, waiting...")
+            start_time = time.time()
+            while not self._mavsdk_loop.is_running() and time.time() - start_time < 5.0:
+                await asyncio.sleep(0.1)
+            if not self._mavsdk_loop.is_running():
+                raise RuntimeError("MAVSDK loop is not running")
 
         future = asyncio.run_coroutine_threadsafe(coro, self._mavsdk_loop)
-        # Wait for result without blocking the current event loop
-        while not future.done():
-            await asyncio.sleep(POLLING_DELAY_S)
-        return future.result()
+        return await asyncio.wrap_future(future)
 
     async def _connect_async(self):
         """
@@ -655,12 +661,22 @@ class Vehicle:
         """
         Clean up the `Vehicle` object/any state
         """
+        logger.debug("Closing vehicle connection...")
         self._running.set(False)
+
+        # Stop telemetry tasks
         for task in self._telemetry_tasks:
             task.cancel()
 
-        if self._mavsdk_loop and self._mavsdk_loop.is_running():
-            self._mavsdk_loop.call_soon_threadsafe(self._mavsdk_loop.stop, *())
+        # Stop MAVSDK loop
+        if self._mavsdk_loop is not None:
+            self._mavsdk_loop.call_soon_threadsafe(self._mavsdk_loop.stop)
+
+        if self._verbose_logging_file_writer is not None:
+            self._verbose_logging_file_writer.close()
+            self._verbose_logging_file_writer = None
+
+        logger.info("Vehicle connection closed")
 
     async def set_armed(self, value: bool) -> None:
         """

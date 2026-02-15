@@ -16,7 +16,6 @@ A Python library for controlling vehicles within the AERPAW platform. This libra
 
 ## Installation
 
-*In the FUTURE,*
 You can install the package using pip:
 
 ```bash
