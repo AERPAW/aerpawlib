@@ -126,7 +126,7 @@ class SquareOff(StateMachine):
         self._next_sample = time.time() + self._sampling_delay
         _dump_to_csv(vehicle, self._cur_line, self._csv_writer)
         self._log_file.flush()
-        os.fsync(self._log_file)
+        os.fsync(self._log_file.fileno())
         self._cur_line += 1
         await asyncio.sleep(self._sampling_delay)
 

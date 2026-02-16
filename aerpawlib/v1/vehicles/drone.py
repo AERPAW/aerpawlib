@@ -65,8 +65,15 @@ class Drone(Vehicle):
             NotArmableError: If the vehicle is already armed (safety check).
         """
         super().__init__(connection_string)
-        # Give telemetry a moment to populate (including armed state)
-        time.sleep(1.0)  # TODO: remove this sleep with better async init
+        # Wait for armed-state telemetry to arrive before checking
+        start = time.time()
+        while not self._armed_telemetry_received.get():
+            if time.time() - start > 5.0:
+                logger.warning(
+                    "Timeout waiting for armed-state telemetry; proceeding anyway"
+                )
+                break
+            time.sleep(POLLING_DELAY_S)
         if self.armed:
             raise NotArmableError("Vehicle already armed at start!")
 
@@ -103,9 +110,25 @@ class Drone(Vehicle):
 
         logger.debug(f"Turning to {heading} (current: {self.heading})")
         try:
+            # Compute current NED offset from home so the drone holds its
+            # current position while rotating (rather than flying to home).
+            home = self.home_coords
+            if home is not None:
+                offset = self.position - home
+                north_m = offset.north
+                east_m = offset.east
+            else:
+                north_m = 0.0
+                east_m = 0.0
+
             await self._run_on_mavsdk_loop(
                 self._system.offboard.set_position_ned(
-                    PositionNedYaw(0, 0, -self._position_alt.get(), heading)
+                    PositionNedYaw(
+                        north_m,
+                        east_m,
+                        -self._position_alt.get(),
+                        heading,
+                    )
                 )
             )
             try:
@@ -267,6 +290,9 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
             raise NavigationError(str(e), original_error=e)
+        finally:
+            # Clear locked heading so it does not contaminate subsequent commands
+            self._current_heading = None
 
     async def set_velocity(
         self,
@@ -323,13 +349,46 @@ class Drone(Vehicle):
             )
 
             async def _velocity_helper():
-                while self._velocity_loop_active:
-                    if target_end and time.time() > target_end:
-                        self._velocity_loop_active = False
+                try:
+                    while self._velocity_loop_active:
+                        if target_end and time.time() > target_end:
+                            self._velocity_loop_active = False
+                            # Zero velocity before stopping offboard to prevent
+                            # the flight controller from holding the last
+                            # commanded velocity vector
+                            try:
+                                await self._run_on_mavsdk_loop(
+                                    self._system.offboard.set_velocity_ned(
+                                        VelocityNedYaw(0, 0, 0, yaw)
+                                    )
+                                )
+                                await asyncio.sleep(0.1)
+                            except (OffboardError, ActionError):
+                                pass
+                            try:
+                                await self._run_on_mavsdk_loop(
+                                    self._system.offboard.stop()
+                                )
+                            except (OffboardError, ActionError):
+                                logger.warning(
+                                    "Failed to stop offboard mode cleanly"
+                                )
+                            return
+                        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                except Exception as e:
+                    logger.error(f"Velocity helper error: {e}")
+                    self._velocity_loop_active = False
+                    try:
+                        await self._run_on_mavsdk_loop(
+                            self._system.offboard.set_velocity_ned(
+                                VelocityNedYaw(0, 0, 0, 0)
+                            )
+                        )
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.stop()
                         )
-                    await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                    except Exception:
+                        pass
 
             self._velocity_loop_active = True
             asyncio.ensure_future(_velocity_helper())
@@ -339,3 +398,15 @@ class Drone(Vehicle):
     async def _stop(self) -> None:
         await super()._stop()
         self._velocity_loop_active = False
+        # Explicitly zero velocity and exit offboard mode to ensure clean
+        # state transition between velocity and position commands
+        try:
+            await self._run_on_mavsdk_loop(
+                self._system.offboard.set_velocity_ned(
+                    VelocityNedYaw(0, 0, 0, self.heading)
+                )
+            )
+            await asyncio.sleep(0.05)
+            await self._run_on_mavsdk_loop(self._system.offboard.stop())
+        except Exception:
+            pass  # May not be in offboard mode, that's fine

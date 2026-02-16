@@ -26,7 +26,7 @@ class ExternalProcess:
     """
 
     def __init__(
-        self, executable: str, params=[], stdin: str = None, stdout: str = None
+        self, executable: str, params=None, stdin: str = None, stdout: str = None
     ):
         """
         Prepare external process for execution.
@@ -35,12 +35,12 @@ class ExternalProcess:
 
         Args:
             executable (str): The executable path or command.
-            params (list, optional): Parameters to pass to the process. Defaults to [].
+            params (list, optional): Parameters to pass to the process. Defaults to None.
             stdin (str, optional): Filename for stdin redirection. Defaults to None.
             stdout (str, optional): Filename for stdout redirection. Defaults to None.
         """
         self._executable = executable
-        self._params = params
+        self._params = params if params is not None else []
         self._stdin = stdin
         self._stdout = stdout
 
@@ -103,10 +103,14 @@ class ExternalProcess:
 
         Returns:
             List[str]: All lines read from stdout up to and including the matching line.
+                Returns the buffer collected so far if the process ends or stdout
+                is unavailable before a match is found.
         """
         buff = []
         while True:
             out = await self.read_line()
+            if out is None or out == "":
+                return buff
             buff.append(out)
             if re.search(output_regex, out):
                 return buff

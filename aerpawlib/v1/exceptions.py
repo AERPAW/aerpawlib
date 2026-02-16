@@ -44,13 +44,17 @@ class AerpawlibError(Exception):
 # =============================================================================
 
 
-class ConnectionError(AerpawlibError):
+class AerpawConnectionError(AerpawlibError):
     """Base class for connection-related errors."""
 
     pass
 
 
-class ConnectionTimeoutError(ConnectionError):
+# Backward-compatible alias (avoid shadowing built-in ConnectionError)
+ConnectionError = AerpawConnectionError
+
+
+class ConnectionTimeoutError(AerpawConnectionError):
     """Raised when connection to the vehicle times out."""
 
     def __init__(self, timeout_seconds: float, message: Optional[str] = None):
@@ -61,7 +65,7 @@ class ConnectionTimeoutError(ConnectionError):
         super().__init__(msg)
 
 
-class HeartbeatLostError(ConnectionError):
+class HeartbeatLostError(AerpawConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
     def __init__(
@@ -75,7 +79,7 @@ class HeartbeatLostError(ConnectionError):
         super().__init__(msg)
 
 
-class MAVSDKNotInstalledError(ConnectionError):
+class MAVSDKNotInstalledError(AerpawConnectionError):
     """Raised when MAVSDK is not installed."""
 
     def __init__(self):

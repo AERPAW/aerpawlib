@@ -354,7 +354,7 @@ class StateMachine(Runner):
                 self._background_tasks.append(method)
             if hasattr(method, "_run_at_init"):
                 self._initialization_tasks.append(method)
-        if not self._entrypoint:
+        if not hasattr(self, "_entrypoint") or not self._entrypoint:
             raise NoInitialStateError()
 
     async def _start_background_tasks(self, vehicle: Vehicle):
@@ -393,8 +393,8 @@ class StateMachine(Runner):
         self._running = True
 
         if len(self._initialization_tasks) != 0:
-            await asyncio.wait(
-                {f(vehicle) for f in self._initialization_tasks}
+            await asyncio.gather(
+                *[f(vehicle) for f in self._initialization_tasks]
             )
 
         await self._start_background_tasks(vehicle)
@@ -473,7 +473,7 @@ class ZmqStateMachine(StateMachine):
         self._zmq_context = zmq.asyncio.Context()
 
     @background
-    async def _zmg_bg_sub(self, vehicle: Vehicle):
+    async def _zmq_bg_sub(self, vehicle: Vehicle):
         """
         Background task to subscribe to ZMQ messages.
 
@@ -553,7 +553,10 @@ class ZmqStateMachine(StateMachine):
         """
         self._build()
 
-        if None in [self._zmq_identifier, self._zmq_proxy_server]:
+        if (
+            getattr(self, "_zmq_identifier", None) is None
+            or getattr(self, "_zmq_proxy_server", None) is None
+        ):
             from .exceptions import StateMachineError
 
             raise StateMachineError(
@@ -596,7 +599,7 @@ class ZmqStateMachine(StateMachine):
             "field": field,
         }
         await self._zmq_messages_sending.put(query_obj)
-        while self._zmq_received_fields[identifier][field] == None:
+        while self._zmq_received_fields[identifier][field] is None:
             await asyncio.sleep(0.01)
         return self._zmq_received_fields[identifier][field]
 

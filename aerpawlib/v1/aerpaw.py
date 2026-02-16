@@ -11,7 +11,7 @@ functionality.
 import base64
 import requests
 
-from ..v2.logging import get_logger, LogComponent
+from .logging import get_logger, LogComponent
 
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
@@ -369,4 +369,24 @@ class AERPAW:
         return True
 
 
-AERPAW_Platform = AERPAW()
+class _AERPAWLazyProxy:
+    """
+    Lazy proxy for the AERPAW singleton.
+
+    Defers construction of the actual AERPAW instance until first attribute
+    access, avoiding a ~1 second HTTP timeout on every import when running
+    outside the AERPAW environment.
+    """
+
+    _instance = None
+
+    def _get_instance(self):
+        if self._instance is None:
+            self._instance = AERPAW()
+        return self._instance
+
+    def __getattr__(self, name):
+        return getattr(self._get_instance(), name)
+
+
+AERPAW_Platform = _AERPAWLazyProxy()

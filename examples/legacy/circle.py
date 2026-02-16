@@ -18,7 +18,7 @@ from aerpawlib.vehicle import Drone
 FLIGHT_ALT = 5  # m
 CIRCLE_RAD = 10  # m
 CIRCLE_VEL = 1  # m/s
-N_LAPS = 3
+N_LAPS = 1
 
 
 class Circle(StateMachine):

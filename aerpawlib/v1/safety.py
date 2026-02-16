@@ -332,7 +332,7 @@ class SafetyCheckerServer:
                 socket.send(response)
             except KeyError as e:
                 socket.send(
-                    f"Unimplemented function request <{function_name}>"
+                    f"Unimplemented function request <{function_name}>".encode("utf-8")
                 )
             except Exception as e:
                 socket.send(b"Unknown error!")
@@ -390,12 +390,12 @@ class SafetyCheckerServer:
                 )
 
         # Makes sure next waypoint is inside one of the include geofences
-        inside_geofence = False
-        for geofence in self.include_geofences:
-            if inside(nextLoc.lon, nextLoc.lat, geofence):
-                inside_geofence = True
+        dest_geofence = None
+        for gf in self.include_geofences:
+            if inside(nextLoc.lon, nextLoc.lat, gf):
+                dest_geofence = gf
                 break
-        if inside_geofence == False:
+        if dest_geofence is None:
             return (
                 False,
                 "Invalid waypoint. Waypoint (%s,%s) is outside of the geofence. ABORTING!"
@@ -409,13 +409,14 @@ class SafetyCheckerServer:
                     "Invalid waypoint. Waypoint (%s,%s) is inside a no-go zone. ABORTING!"
                     % (nextLoc.lat, nextLoc.lon),
                 )
-        # Makes sure path between two points does not leave geofence
-        for i in range(len(geofence) - 1):
+        # Makes sure path between two points does not leave the
+        # geofence that the destination was found inside of.
+        for i in range(len(dest_geofence) - 1):
             if do_intersect(
-                geofence[i]["lon"],
-                geofence[i]["lat"],
-                geofence[i + 1]["lon"],
-                geofence[i + 1]["lat"],
+                dest_geofence[i]["lon"],
+                dest_geofence[i]["lat"],
+                dest_geofence[i + 1]["lon"],
+                dest_geofence[i + 1]["lat"],
                 curLoc.lon,
                 curLoc.lat,
                 nextLoc.lon,
@@ -502,6 +503,12 @@ class SafetyCheckerServer:
         Ensure the copter is attempting to land within 5 meters of the takeoff location
         Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
         """
+        if not hasattr(self, "takeoff_location") or self.takeoff_location is None:
+            return (
+                False,
+                "Cannot validate landing: no takeoff location recorded. "
+                "Was validate_takeoff_command called first?",
+            )
         currentLocation = Coordinate(currentLat, currentLon, alt=0)
         distance = self.takeoff_location.ground_distance(currentLocation)
 

@@ -261,12 +261,15 @@ class Vehicle:
         self._home_position: Optional[util.Coordinate] = None
         self._home_abs_alt = ThreadSafeValue(0.0)
 
-        # Compatibility objects
-        self._battery = _BatteryCompat()
-        self._gps = _GPSInfoCompat()
-        self._attitude = _AttitudeCompat()
+        # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
+        self._battery_val = ThreadSafeValue(_BatteryCompat())
+        self._gps_val = ThreadSafeValue(_GPSInfoCompat())
+        self._attitude_val = ThreadSafeValue(_AttitudeCompat())
         self._autopilot_info = _VersionCompat()
         self._mode = ThreadSafeValue("UNKNOWN")
+
+        # Flag set once the first armed-state telemetry message arrives
+        self._armed_telemetry_received = ThreadSafeValue(False)
 
         # Telemetry tasks
         self._telemetry_tasks: List[asyncio.Task] = []
@@ -383,10 +386,11 @@ class Vehicle:
 
         async def _attitude_update():
             async for attitude in self._system.telemetry.attitude_euler():
-                # print(attitude)
-                self._attitude.roll = math.radians(attitude.roll_deg)
-                self._attitude.pitch = math.radians(attitude.pitch_deg)
-                self._attitude.yaw = math.radians(attitude.yaw_deg)
+                new_att = _AttitudeCompat()
+                new_att.roll = math.radians(attitude.roll_deg)
+                new_att.pitch = math.radians(attitude.pitch_deg)
+                new_att.yaw = math.radians(attitude.yaw_deg)
+                self._attitude_val.set(new_att)
                 self._heading_deg.set(attitude.yaw_deg % 360)
 
         async def _velocity_update():
@@ -398,15 +402,17 @@ class Vehicle:
 
         async def _gps_update():
             async for gps_info in self._system.telemetry.gps_info():
-                # print(gps_info)
-                self._gps.satellites_visible = gps_info.num_satellites
-                self._gps.fix_type = gps_info.fix_type.value
+                new_gps = _GPSInfoCompat()
+                new_gps.satellites_visible = gps_info.num_satellites
+                new_gps.fix_type = gps_info.fix_type.value
+                self._gps_val.set(new_gps)
 
         async def _battery_update():
             async for battery in self._system.telemetry.battery():
-                # print(battery)
-                self._battery.voltage = battery.voltage_v
-                self._battery.level = int(battery.remaining_percent)
+                new_bat = _BatteryCompat()
+                new_bat.voltage = battery.voltage_v
+                new_bat.level = int(battery.remaining_percent)
+                self._battery_val.set(new_bat)
 
         async def _flight_mode_update():
             async for mode in self._system.telemetry.flight_mode():
@@ -415,9 +421,9 @@ class Vehicle:
 
         async def _armed_update():
             async for armed in self._system.telemetry.armed():
-                # print(armed)
                 old_armed = self._armed_state.get()
                 self._armed_state.set(armed)
+                self._armed_telemetry_received.set(True)
                 if armed and not old_armed:
                     self._last_arm_time.set(time.time())
 
@@ -503,7 +509,7 @@ class Vehicle:
         """
         Get the status of the battery. Returns object with `voltage`, `current`, and `level`.
         """
-        return self._battery
+        return self._battery_val.get()
 
     @property
     def gps(self) -> _GPSInfoCompat:
@@ -512,7 +518,7 @@ class Vehicle:
         Exposes the `fix_type` (0-1: no fix, 2: 2d fix, 3: 3d fix),
         and number of `satellites_visible`.
         """
-        return self._gps
+        return self._gps_val.get()
 
     @property
     def armed(self) -> bool:
@@ -547,7 +553,7 @@ class Vehicle:
         - pitch/roll are horizon-relative
         - yaw is world relative (north=0)
         """
-        return self._attitude
+        return self._attitude_val.get()
 
     def debug_dump(self) -> str:
         """
@@ -740,7 +746,7 @@ class Vehicle:
             if time.time() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
                 logger.debug(
                     f"Waiting for armable state... "
-                    f"(GPS fix={self._gps.fix_type}, sats={self._gps.satellites_visible})"
+                    f"(GPS fix={self.gps.fix_type}, sats={self.gps.satellites_visible})"
                 )
                 last_log = time.time()
             time.sleep(POLLING_DELAY_S)

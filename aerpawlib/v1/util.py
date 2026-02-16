@@ -48,7 +48,8 @@ class VectorNED:
         Rotate the vector by a given angle in the horizontal plane.
 
         Args:
-            angle (float): The rotation angle in degrees (clockwise).
+            angle (float): The rotation angle in degrees (counterclockwise
+                when viewed from above).
 
         Returns:
             VectorNED: A new VectorNED object representing the rotated displacement.
@@ -76,7 +77,7 @@ class VectorNED:
         if not isinstance(o, VectorNED):
             raise TypeError()
         return VectorNED(
-            self.east * o.down + self.down * o.east,
+            self.east * o.down - self.down * o.east,
             self.down * o.north - self.north * o.down,
             self.north * o.east - self.east * o.north,
         )
@@ -201,7 +202,7 @@ class Coordinate:
             self.lat * d2r
         ) * math.cos(other.lat * d2r) * math.pow(math.sin(dlon / 2), 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        d = 6367 * c
+        d = 6378.137 * c  # WGS84 equatorial radius in km
         return math.hypot(d * 1000, other.alt - self.alt)
 
     def bearing(self, other, wrap_360: bool = True) -> float:
@@ -224,6 +225,11 @@ class Coordinate:
 
         d_lat = other.lat - self.lat
         d_lon = other.lon - self.lon
+
+        # Guard against coincident points where atan2 is undefined/noisy
+        if abs(d_lat) < 1e-10 and abs(d_lon) < 1e-10:
+            return 0.0  # Default to north when points are coincident
+
         bearing = 90 + math.atan2(-d_lat, d_lon) * 57.2957795
         if wrap_360:
             bearing %= 360

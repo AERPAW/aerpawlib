@@ -64,7 +64,7 @@ class Rover(Vehicle):
             f"tolerance={tolerance}, target_heading={target_heading}) called"
         )
         await self.await_ready_to_move()
-        self._ready_to_move = lambda self: False
+        self._ready_to_move = lambda _: False
 
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
