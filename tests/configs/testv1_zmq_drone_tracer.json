@@ -1,0 +1,5 @@
+{"api-version": "v1",
+  "script":  "examples.legacy.zmq_preplanned_orbit.drone_tracer",
+  "vehicle": "drone",
+  "conn": "udpin://127.0.0.1:14551",
+  "debug": ""}

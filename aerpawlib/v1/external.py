@@ -63,7 +63,7 @@ class ExternalProcess:
             stdin=None if self._stdin is not None else asyncio.subprocess.PIPE,
         )
 
-    async def read_line(self) -> str:
+    async def read_line(self) -> str | None:
         """
         Read one line from the stdout buffer.
 
@@ -74,6 +74,8 @@ class ExternalProcess:
         if not self.process.stdout:
             return None
         out = await self.process.stdout.readline()
+        if not out:
+            return None
         return out.decode("ascii").rstrip()
 
     async def send_input(self, data: str):
@@ -82,7 +84,15 @@ class ExternalProcess:
 
         Args:
             data (str): The data to send.
+
+        Raises:
+            RuntimeError: If stdin is not available (e.g. redirected to a file).
         """
+        if self.process.stdin is None:
+            raise RuntimeError(
+                "Cannot send input: stdin is not available "
+                "(was it redirected to a file?)"
+            )
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
 
@@ -109,7 +119,7 @@ class ExternalProcess:
         buff = []
         while True:
             out = await self.read_line()
-            if out is None or out == "":
+            if out is None:
                 return buff
             buff.append(out)
             if re.search(output_regex, out):

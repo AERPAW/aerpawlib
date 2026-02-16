@@ -30,23 +30,26 @@ class LeaderRunner(ZmqStateMachine):
         ping and looking at the time in the output. This makes use of native
         aerpawlib tooling (ExternalProcess)
         """
-        ping = ExternalProcess("ping", params=[address, "-c", str(count)])
+        ping = ExternalProcess("ping", params=["-c", str(count), address])
         await ping.start()
         latencies = []
         # repeatedly wait for ping to produce output w/ icmp_seq field
         buff = 1
         while buff:
             buff = await ping.wait_until_output(r"icmp_seq=")
-            ping_re_match = self._ping_regex.match(
-                buff[-1]
-            )  # last line contains useful data
-            latencies.append(float(ping_re_match.group("time")))
-            if ping_re_match.group("seq") == str(
-                count
-            ):  # if icmp_seq shows we've sent everything
+            if not buff:
                 break
-        avg_latency = sum(latencies) / len(latencies)
-        return avg_latency
+            ping_re_match = self._ping_regex.match(buff[-1])
+            if ping_re_match is None:
+                continue
+            latencies.append(float(ping_re_match.group("time")))
+            if ping_re_match.group("seq") == str(count):
+                break
+        if not latencies:
+            raise RuntimeError(
+                f"Ping to {address} produced no parseable output (process may have exited early)"
+            )
+        return sum(latencies) / len(latencies)
 
     @state(name="launch", first=True)
     async def state_start(self, _):

@@ -1,0 +1,5 @@
+{"api-version": "v1",
+  "script":  "examples.legacy.squareoff_logging",
+  "vehicle": "drone",
+  "conn": "udpin://127.0.0.1:14551",
+  "debug": ""}

@@ -115,8 +115,10 @@ class SquareOff(StateMachine):
         args = parser.parse_args(args=extra_args)
 
         self._sampling_delay = 1 / args.samplerate
-        self._log_file = open(args.output, "w+")
+        self._log_file = open(args.output, "a+")
+        self._log_file.seek(0)
         self._cur_line = sum(1 for _ in self._log_file) + 1
+        self._log_file.seek(0, 2)  # Seek back to end for appending
         self._csv_writer = csv.writer(self._log_file)
 
     @background

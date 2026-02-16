@@ -2,7 +2,7 @@
 Rover vehicle implementation.
 """
 
-import logging
+from aerpawlib.v1.log import get_logger, LogComponent
 import time
 from typing import Optional
 
@@ -25,7 +25,7 @@ from aerpawlib.v1.helpers import (
 )
 from aerpawlib.v1.vehicles.core_vehicle import Vehicle
 
-logger = logging.getLogger(__name__)
+logger = get_logger(LogComponent.ROVER)
 
 
 class Rover(Vehicle):
@@ -82,16 +82,15 @@ class Rover(Vehicle):
                 )
             )
 
-            def at_coords(self) -> bool:
-                return coordinates.ground_distance(self.position) <= tolerance
-
-            self._ready_to_move = at_coords
+            self._ready_to_move = (
+                lambda s: coordinates.ground_distance(s.position) <= tolerance
+            )
 
             logger.debug(
                 f"Waiting to reach destination (tolerance={tolerance}m)..."
             )
             await wait_for_condition(
-                lambda: at_coords(self),
+                lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=300,
                 timeout_message=f"Rover failed to reach destination {coordinates} within 300s",
@@ -102,4 +101,6 @@ class Rover(Vehicle):
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
             raise NavigationError(str(e), original_error=e)
-
+        except TimeoutError as e:
+            logger.error(f"Goto timed out: {e}")
+            raise NavigationError(str(e), original_error=e)

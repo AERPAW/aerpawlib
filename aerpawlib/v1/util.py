@@ -393,7 +393,8 @@ def read_geofence(filePath):
     Returns:
         List[dict]: Points as [{'lat': ..., 'lon': ...}, ...].
     """
-    root = parser.fromstring(open(filePath, "rb").read())
+    with open(filePath, "rb") as f:
+        root = parser.fromstring(f.read())
     coordinates_string = (
         root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
     )

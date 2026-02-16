@@ -9,9 +9,12 @@ functionality.
 """
 
 import base64
+import threading
+from urllib.parse import quote as url_quote
+
 import requests
 
-from .logging import get_logger, LogComponent
+from .log import get_logger, LogComponent
 
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
@@ -171,7 +174,8 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.post(
-            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset"
+            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
@@ -192,7 +196,8 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.post(
-            self._checkpoint_build_request("bool", checkpoint_name)
+            self._checkpoint_build_request("bool", checkpoint_name),
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -216,7 +221,8 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.get(
-            self._checkpoint_build_request("bool", checkpoint_name)
+            self._checkpoint_build_request("bool", checkpoint_name),
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
@@ -245,7 +251,8 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.post(
-            self._checkpoint_build_request("int", counter_name)
+            self._checkpoint_build_request("int", counter_name),
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -269,14 +276,15 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.get(
-            self._checkpoint_build_request("int", counter_name)
+            self._checkpoint_build_request("int", counter_name),
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
         response_content = response.content.decode()
         try:
             return int(response_content)
-        except TypeError:
+        except (TypeError, ValueError):
             raise Exception(
                 f"malformed content in response from server: {response_content}"
             )
@@ -298,8 +306,9 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.post(
-            self._checkpoint_build_request("string", string_name)
-            + f"?val={value}"
+            self._checkpoint_build_request("string", string_name),
+            params={"val": value},
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -323,7 +332,8 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment"
             )
         response = requests.get(
-            self._checkpoint_build_request("string", string_name)
+            self._checkpoint_build_request("string", string_name),
+            timeout=5,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
@@ -378,11 +388,16 @@ class _AERPAWLazyProxy:
     outside the AERPAW environment.
     """
 
-    _instance = None
+    def __init__(self):
+        self.__dict__["_instance"] = None
+        self.__dict__["_lock"] = threading.Lock()
 
     def _get_instance(self):
         if self._instance is None:
-            self._instance = AERPAW()
+            with self._lock:
+                # Double-check after acquiring lock
+                if self._instance is None:
+                    self.__dict__["_instance"] = AERPAW()
         return self._instance
 
     def __getattr__(self, name):

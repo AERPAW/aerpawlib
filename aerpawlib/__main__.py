@@ -25,6 +25,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from argparse import ArgumentParser
 from typing import Optional
 
@@ -120,6 +121,7 @@ def setup_logging(
                 return f"{prefix} {color}{timestamp}{self.RESET} {record.getMessage()}"
             else:
                 return f"{prefix} {record.getMessage()}"
+
 
     console_handler.setFormatter(AerpawFormatter())
     root_logger.addHandler(console_handler)
@@ -267,6 +269,14 @@ def run_v2_experiment(
             runner.initialize_args(unknown_args)
 
             if flag_zmq_runner:
+                if not args.zmq_identifier or not args.zmq_server_addr:
+                    logger.error(
+                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
+                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                    )
+                    raise ValueError(
+                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                    )
                 if hasattr(runner, "_initialize_zmq_bindings"):
                     runner._initialize_zmq_bindings(
                         args.zmq_identifier, args.zmq_server_addr
@@ -295,11 +305,13 @@ def run_v2_experiment(
                         logger.info("Emergency landing command sent")
                     except Exception as e:
                         logger.error(f"Emergency landing failed: {e}")
+                        traceback.print_exc()
             except (Exception, AioRpcError) as e:
                 # Catch AioRpcError and check for "Socket closed" which indicates
                 # the gRPC connection was severed (e.g. by MAVLink filter)
                 err_msg = str(e)
                 logger.error(f"Experiment failed: {err_msg}")
+                traceback.print_exc()
 
                 if (
                     isinstance(e, AioRpcError)
@@ -341,6 +353,7 @@ def run_v2_experiment(
                         await vehicle.rtl()
                     except Exception as e:
                         logger.error(f"RTL failed: {e}")
+                        traceback.print_exc()
 
                 # Duration
                 try:
@@ -390,6 +403,7 @@ def run_v2_experiment(
         experiment_success = False
     except Exception as e:
         logger.error(f"Fatal error during mission: {e}")
+        traceback.print_exc()
         experiment_success = False
 
     # Standard exit code handling
@@ -419,72 +433,88 @@ def run_v1_experiment(
         logger.error(f"Invalid vehicle type: {args.vehicle}")
         raise Exception("Please specify a valid vehicle type")
 
-    # Connection
-    logger.info("Connecting to vehicle...")
-    try:
-
-        async def create_vehicle():
-            v = vehicle_type(args.conn)
-            if hasattr(v, "_connected"):
-                start = time.time()
-                while (
-                    not v._connected
-                    and (time.time() - start) < args.conn_timeout
-                ):
-                    await asyncio.sleep(0.1)
-                if not v._connected:
-                    raise TimeoutError("Connection timeout")
-            return v
-
-        vehicle = asyncio.run(
-            asyncio.wait_for(create_vehicle(), timeout=args.conn_timeout)
-        )
-    except Exception as e:
-        raise ConnectionError(f"Could not connect: {e}")
-
-    # Shutdown
-    def handle_shutdown(signum, frame):
-        logger.warning("Initiating graceful shutdown...")
-        if vehicle:
-            vehicle.close()
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, handle_shutdown)
-    signal.signal(signal.SIGTERM, handle_shutdown)
-
-    if AERPAW_Platform:
-        AERPAW_Platform._no_stdout = args.no_stdout
-
-    runner.initialize_args(unknown_args)
-    if args.initialize and hasattr(vehicle, "_initialize_prearm"):
-        vehicle._initialize_prearm(args.initialize)
-
-    if flag_zmq_runner:
-        runner._initialize_zmq_bindings(
-            args.zmq_identifier, args.zmq_server_addr
-        )
-
     logger.info(f"Starting experiment execution ({version_name})")
+
+    async def run_experiment_async():
+        # Connection
+        logger.info("Connecting to vehicle...")
+        try:
+            async def create_vehicle_inner():
+                v = vehicle_type(args.conn)
+                if hasattr(v, "_connected"):
+                    start = time.time()
+                    while (
+                        not v._connected
+                        and (time.time() - start) < args.conn_timeout
+                    ):
+                        await asyncio.sleep(0.1)
+                    if not v._connected:
+                        raise TimeoutError("Connection timeout")
+                return v
+
+            vehicle = await asyncio.wait_for(create_vehicle_inner(), timeout=args.conn_timeout)
+        except Exception as e:
+            raise ConnectionError(f"Could not connect: {e}")
+
+        # Shutdown
+        def handle_shutdown(signum, frame):
+            logger.warning("Initiating graceful shutdown...")
+            if vehicle:
+                vehicle.close()
+            sys.exit(0)
+
+        signal.signal(signal.SIGINT, handle_shutdown)
+        signal.signal(signal.SIGTERM, handle_shutdown)
+
+        if AERPAW_Platform:
+            AERPAW_Platform._no_stdout = args.no_stdout
+
+        runner.initialize_args(unknown_args)
+        if args.initialize and hasattr(vehicle, "_initialize_prearm"):
+            vehicle._initialize_prearm(args.initialize)
+
+        if flag_zmq_runner:
+            if not args.zmq_identifier or not args.zmq_server_addr:
+                logger.error(
+                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
+                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                )
+                raise ValueError(
+                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                )
+            runner._initialize_zmq_bindings(
+                args.zmq_identifier, args.zmq_server_addr
+            )
+
+        success = False
+        try:
+            await runner.run(vehicle)
+            success = True
+        except Exception as e:
+            logger.error(f"Experiment failed: {e}")
+            traceback.print_exc()
+        finally:
+            # RTL/Cleanup
+            if vehicle:
+                if vehicle.armed and args.rtl_at_end:
+                    logger.warning("Vehicle still armed! RTLing...")
+                    try:
+                        if args.vehicle == "drone":
+                            await vehicle.return_to_launch()
+                        elif args.vehicle == "rover" and vehicle.home_coords:
+                            await vehicle.goto_coordinates(vehicle.home_coords)
+                    except Exception as e:
+                        logger.error(f"RTL failed: {e}")
+                        traceback.print_exc()
+                vehicle.close()
+        return success
 
     experiment_success = False
     try:
-        asyncio.run(runner.run(vehicle))
-        experiment_success = True
+        experiment_success = asyncio.run(run_experiment_async())
     except Exception as e:
-        logger.error(f"Experiment failed: {e}")
-
-    # RTL/Cleanup
-    if vehicle:
-        if vehicle.armed and args.rtl_at_end:
-            logger.warning("Vehicle still armed! RTLing...")
-            try:
-                if args.vehicle == "drone":
-                    asyncio.run(vehicle.return_to_launch())
-                elif args.vehicle == "rover" and vehicle.home_coords:
-                    asyncio.run(vehicle.goto_coordinates(vehicle.home_coords))
-            except Exception as e:
-                logger.error(f"RTL failed: {e}")
-        vehicle.close()
+        logger.error(f"Fatal error during v1 execution: {e}")
+        traceback.print_exc()
 
     sys.exit(0 if experiment_success else 1)
 

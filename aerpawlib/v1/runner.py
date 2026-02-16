@@ -31,6 +31,7 @@ from .exceptions import (
     NoInitialStateError,
     MultipleInitialStatesError,
     InvalidStateNameError,
+    StateMachineError,
 )
 
 
@@ -95,10 +96,16 @@ class BasicRunner(Runner):
     """
 
     def _build(self):
+        self._entry = None
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
             if hasattr(method, "_entrypoint"):
+                if self._entry is not None:
+                    raise StateMachineError(
+                        "Multiple @entrypoint decorators found. "
+                        "BasicRunner supports exactly one entry point."
+                    )
                 self._entry = method
 
     async def run(self, vehicle: Vehicle):
@@ -151,8 +158,11 @@ class _State:
                 last_state = ""
                 while running:
                     last_state = await self._func.__func__(runner, vehicle)
+                    if not running:  # Check after potential await (D1)
+                        break
                     if not self._func._state_loop:
                         running = False
+                        break
                     await asyncio.sleep(STATE_MACHINE_DELAY_S)
                 return last_state
 
@@ -327,6 +337,7 @@ class StateMachine(Runner):
     _current_state: str
     _override_next_state_transition: bool
     _running: bool
+    _background_task_futures: List[asyncio.Future]
 
     def _build(self):
         """
@@ -339,6 +350,7 @@ class StateMachine(Runner):
         self._states = {}
         self._background_tasks = []
         self._initialization_tasks = []
+        self._background_task_futures = []
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
@@ -368,9 +380,17 @@ class StateMachine(Runner):
 
             async def _task_runner(t=task):
                 while self._running:
-                    await t.__func__(self, vehicle)
+                    try:
+                        await t.__func__(self, vehicle)
+                    except asyncio.CancelledError:
+                        return
+                    except Exception as e:
+                        logger.error(f"Background task {t.__name__} failed: {e}")
+                        traceback.print_exc()
+                        await asyncio.sleep(1.0)  # Backoff before retry
 
-            asyncio.ensure_future(_task_runner())
+            future = asyncio.ensure_future(_task_runner())
+            self._background_task_futures.append(future)
 
     async def run(self, vehicle: Vehicle, build_before_running=True):
         """
@@ -417,6 +437,13 @@ class StateMachine(Runner):
             if self._current_state is None:
                 self.stop()
             await asyncio.sleep(STATE_MACHINE_DELAY_S)
+        # Ensure background tasks are cleaned up
+        self._running = False
+        for future in self._background_task_futures:
+            future.cancel()
+        if self._background_task_futures:
+            await asyncio.gather(*self._background_task_futures, return_exceptions=True)
+
         self.cleanup()
 
     def stop(self):
@@ -458,6 +485,9 @@ class ZmqStateMachine(StateMachine):
     _zmq_identifier: str
     _zmq_proxy_server: str
 
+    # Sentinel used to distinguish "field not yet received" from "received None"
+    _ZMQ_FIELD_PENDING = object()
+
     def _initialize_zmq_bindings(
         self, vehicle_identifier: str, proxy_server_addr: str
     ):
@@ -471,6 +501,11 @@ class ZmqStateMachine(StateMachine):
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr
         self._zmq_context = zmq.asyncio.Context()
+        # Pre-initialise queues/dicts so they are available before
+        # the @background tasks have had a chance to start.
+        self._zmq_messages_sending = asyncio.Queue()
+        self._zmq_messages_handling = asyncio.Queue()
+        self._zmq_received_fields = {}  # indexed by [identifier][field]
 
     @background
     async def _zmq_bg_sub(self, vehicle: Vehicle):
@@ -488,14 +523,15 @@ class ZmqStateMachine(StateMachine):
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
 
         socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        self._zmq_messages_handling = asyncio.Queue()
-        self._zmq_received_fields = {}  # indexed by [identifier][field]
 
-        while self._running:
-            message = await socket.recv_pyobj()
-            if message["identifier"] != self._zmq_identifier:
-                continue
-            asyncio.ensure_future(self._zmq_handle_request(vehicle, message))
+        try:
+            while self._running:
+                message = await socket.recv_pyobj()
+                if message["identifier"] != self._zmq_identifier:
+                    continue
+                asyncio.ensure_future(self._zmq_handle_request(vehicle, message))
+        finally:
+            socket.close()
 
     async def _zmq_handle_request(self, vehicle: Vehicle, message):
         """
@@ -529,16 +565,18 @@ class ZmqStateMachine(StateMachine):
         Args:
             _: The vehicle instance.
         """
-        self._zmq_messages_sending = asyncio.Queue()
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
             io_loop=asyncio.get_event_loop(),
             socket_type=zmq.PUB,
         )
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
-        while self._running:
-            msg_sending = await self._zmq_messages_sending.get()
-            await socket.send_pyobj(msg_sending)
+        try:
+            while self._running:
+                msg_sending = await self._zmq_messages_sending.get()
+                await socket.send_pyobj(msg_sending)
+        finally:
+            socket.close()
 
     async def run(self, vehicle: Vehicle, zmq_proxy=False):
         """
@@ -560,7 +598,9 @@ class ZmqStateMachine(StateMachine):
             from .exceptions import StateMachineError
 
             raise StateMachineError(
-                "initialize_zmq_bindings must be used with a zmq runner"
+                "ZMQ bindings not initialized. Pass --zmq-identifier and "
+                "--zmq-proxy-server when running (e.g. --zmq-identifier leader "
+                "--zmq-proxy-server 127.0.0.1)"
             )
 
         await super().run(vehicle, build_before_running=False)
@@ -591,7 +631,7 @@ class ZmqStateMachine(StateMachine):
         """
         if identifier not in self._zmq_received_fields:
             self._zmq_received_fields[identifier] = {}
-        self._zmq_received_fields[identifier][field] = None
+        self._zmq_received_fields[identifier][field] = self._ZMQ_FIELD_PENDING
         query_obj = {
             "msg_type": ZMQ_TYPE_FIELD_REQUEST,
             "from": self._zmq_identifier,
@@ -599,7 +639,7 @@ class ZmqStateMachine(StateMachine):
             "field": field,
         }
         await self._zmq_messages_sending.put(query_obj)
-        while self._zmq_received_fields[identifier][field] is None:
+        while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
             await asyncio.sleep(0.01)
         return self._zmq_received_fields[identifier][field]
 

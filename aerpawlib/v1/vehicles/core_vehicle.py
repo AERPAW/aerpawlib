@@ -9,7 +9,10 @@ backward compatibility with the original DroneKit-based interface.
 """
 
 import asyncio
-import logging
+
+from grpc.aio import AioRpcError
+
+from aerpawlib.v1.log import get_logger, LogComponent
 import math
 import time
 import threading
@@ -38,6 +41,7 @@ from aerpawlib.v1.exceptions import (
     DisarmError,
     NotArmableError,
     NotImplementedForVehicleError,
+    AerpawConnectionError,
 )
 from aerpawlib.v1.helpers import (
     wait_for_condition,
@@ -46,7 +50,7 @@ from aerpawlib.v1.helpers import (
 )
 
 # Configure module logger
-logger = logging.getLogger(__name__)
+logger = get_logger(LogComponent.VEHICLE)
 
 
 class _BatteryCompat:
@@ -216,6 +220,7 @@ class Vehicle:
     _verbose_logging_file_writer = None
     _verbose_logging_last_log_time: float = 0
     _verbose_logging_delay: float = VERBOSE_LOG_DELAY_S
+    _verbose_log_lock: threading.Lock
 
     # Safety initialization state
     _initialization_complete: bool = False
@@ -238,6 +243,7 @@ class Vehicle:
         self._connection_string = connection_string
         self._system = None
         self._has_heartbeat = False
+        self._verbose_log_lock = threading.Lock()
         self._should_postarm_init = True
         self._mission_start_time: Optional[float] = None
 
@@ -258,7 +264,7 @@ class Vehicle:
         self._position_abs_alt = ThreadSafeValue(0.0)
         self._heading_deg = ThreadSafeValue(0.0)
         self._velocity_ned = ThreadSafeValue([0.0, 0.0, 0.0])
-        self._home_position: Optional[util.Coordinate] = None
+        self._home_position = ThreadSafeValue(None)
         self._home_abs_alt = ThreadSafeValue(0.0)
 
         # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
@@ -270,6 +276,9 @@ class Vehicle:
 
         # Flag set once the first armed-state telemetry message arrives
         self._armed_telemetry_received = ThreadSafeValue(False)
+
+        # Track active futures for cancellation in close()
+        self._pending_mavsdk_futures = set()
 
         # Telemetry tasks
         self._telemetry_tasks: List[asyncio.Task] = []
@@ -308,8 +317,8 @@ class Vehicle:
                 loop.close()
 
         # Start connection in background thread
-        t = threading.Thread(target=_run_connection, daemon=True)
-        t.start()
+        self._mavsdk_thread = threading.Thread(target=_run_connection, daemon=True)
+        self._mavsdk_thread.start()
 
         # Wait for connection with timeout
         start = time.time()
@@ -350,7 +359,21 @@ class Vehicle:
                 raise RuntimeError("MAVSDK loop is not running")
 
         future = asyncio.run_coroutine_threadsafe(coro, self._mavsdk_loop)
-        return await asyncio.wrap_future(future)
+        self._pending_mavsdk_futures.add(future)
+        try:
+            return await asyncio.wait_for(asyncio.wrap_future(future), timeout=30.0)
+        except asyncio.TimeoutError:
+            future.cancel()
+            raise RuntimeError(
+                "MAVSDK operation timed out after 30s — "
+                "the MAVSDK event loop may have crashed"
+            )
+        except (AioRpcError, Exception) as e:
+            if isinstance(e, AioRpcError):
+                raise AerpawConnectionError(f"MAVSDK gRPC error: {e}")
+            raise
+        finally:
+            self._pending_mavsdk_futures.discard(future)
 
     async def _connect_async(self):
         """
@@ -370,6 +393,27 @@ class Vehicle:
 
         # Fetch vehicle info
         await self._fetch_vehicle_info()
+
+    async def _resilient_telemetry_task(self, name, coro_factory):
+        """Wrap a telemetry subscription in retry logic."""
+        retry_count = 0
+        max_retries = 10
+        while self._running.get() and retry_count < max_retries:
+            try:
+                await coro_factory()
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                retry_count += 1
+                logger.warning(
+                    f"Telemetry stream '{name}' failed (attempt {retry_count}): {e}"
+                )
+                if retry_count < max_retries:
+                    await asyncio.sleep(min(2 ** retry_count, 30))
+                else:
+                    logger.error(
+                        f"Telemetry stream '{name}' failed after {max_retries} retries"
+                    )
 
     async def _start_telemetry(self):
         """
@@ -438,29 +482,30 @@ class Vehicle:
 
         async def _home_update():
             async for home in self._system.telemetry.home():
-                # print(home)
-                self._home_position = util.Coordinate(
+                self._home_position.set(util.Coordinate(
                     home.latitude_deg,
                     home.longitude_deg,
                     home.relative_altitude_m,
-                )
+                ))
                 self._home_abs_alt.set(home.absolute_altitude_m)
 
         # Start all telemetry tasks
-        telemetry_coros = [
-            _position_update(),
-            _attitude_update(),
-            _velocity_update(),
-            _gps_update(),
-            _battery_update(),
-            _flight_mode_update(),
-            _armed_update(),
-            _health_update(),
-            _home_update(),
+        telemetry_defs = [
+            ("position", lambda: _position_update()),
+            ("attitude", lambda: _attitude_update()),
+            ("velocity", lambda: _velocity_update()),
+            ("gps", lambda: _gps_update()),
+            ("battery", lambda: _battery_update()),
+            ("flight_mode", lambda: _flight_mode_update()),
+            ("armed", lambda: _armed_update()),
+            ("health", lambda: _health_update()),
+            ("home", lambda: _home_update()),
         ]
 
-        for coro in telemetry_coros:
-            task = asyncio.create_task(coro)
+        for name, factory in telemetry_defs:
+            task = asyncio.create_task(
+                self._resilient_telemetry_task(name, factory)
+            )
             self._telemetry_tasks.append(task)
 
     async def _fetch_vehicle_info(self):
@@ -530,8 +575,9 @@ class Vehicle:
         Get the home location from MAVLink telemetry.
         Returns the autopilot's home position, or falls back to _home_location if not available.
         """
-        if self._home_position is not None:
-            return self._home_position
+        home = self._home_position.get()
+        if home is not None:
+            return home
         return self._home_location
 
     @property
@@ -617,14 +663,21 @@ class Vehicle:
             self._verbose_logging_last_log_time + self._verbose_logging_delay
             < time.time()
         ):
-            if self._verbose_logging_file_writer is None:
-                self._verbose_logging_file_writer = open(
-                    f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
-                    "w",
-                )
-            log_output = self.debug_dump()
-            self._verbose_logging_file_writer.write(f"{log_output}\n")
-            self._verbose_logging_last_log_time = time.time()
+            with self._verbose_log_lock:
+                if self._verbose_logging_file_writer is None:
+                    self._verbose_logging_file_writer = open(
+                        f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
+                        "w",
+                    )
+                    # Write header row (F4)
+                    self._verbose_logging_file_writer.write(
+                        "timestamp_ns,armed,attitude,autopilot_info,battery,gps,"
+                        "heading,home_coords,position,velocity,mode,nav_output,"
+                        "mission_item\n"
+                    )
+                log_output = self.debug_dump()
+                self._verbose_logging_file_writer.write(f"{log_output}\n")
+                self._verbose_logging_last_log_time = time.time()
 
     # Special things
     def done_moving(self) -> bool:
@@ -658,7 +711,12 @@ class Vehicle:
         Trigger an abort of the current operation if it is marked as abortable.
         """
         if self._abortable:
-            AERPAW_Platform.log_to_oeo("[aerpawlib] Aborted.")
+            # log_to_oeo is blocking, run in thread (E6)
+            threading.Thread(
+                target=AERPAW_Platform.log_to_oeo,
+                args=("[aerpawlib] Aborted.",),
+                daemon=True,
+            ).start()
             self._abortable = False
             self._aborted = True
 
@@ -670,17 +728,30 @@ class Vehicle:
         logger.debug("Closing vehicle connection...")
         self._running.set(False)
 
-        # Stop telemetry tasks
-        for task in self._telemetry_tasks:
-            task.cancel()
+        # Cancel pending MAVSDK operations
+        for future in list(self._pending_mavsdk_futures):
+            try:
+                future.cancel()
+            except:
+                pass
+
+        # Cancel telemetry tasks on their own event loop (thread-safe)
+        if self._mavsdk_loop is not None and self._mavsdk_loop.is_running():
+            for task in self._telemetry_tasks:
+                self._mavsdk_loop.call_soon_threadsafe(task.cancel)
 
         # Stop MAVSDK loop
         if self._mavsdk_loop is not None:
             self._mavsdk_loop.call_soon_threadsafe(self._mavsdk_loop.stop)
 
-        if self._verbose_logging_file_writer is not None:
-            self._verbose_logging_file_writer.close()
-            self._verbose_logging_file_writer = None
+        # Close verbose log writer under the same lock the update loop uses
+        with self._verbose_log_lock:
+            if self._verbose_logging_file_writer is not None:
+                self._verbose_logging_file_writer.close()
+                self._verbose_logging_file_writer = None
+
+        if hasattr(self, "_mavsdk_thread") and self._mavsdk_thread.is_alive():
+            self._mavsdk_thread.join(timeout=2.0)
 
         logger.info("Vehicle connection closed")
 
@@ -814,7 +885,14 @@ class Vehicle:
         await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
         self._abortable = True
-        self._home_location = self.position
+
+        # Wait for home position to be populated from telemetry (up to 5s)
+        logger.debug("Waiting for auto-set home position...")
+        h_start = time.time()
+        while self._home_position.get() is None and time.time() - h_start < 5.0:
+            await asyncio.sleep(0.1)
+
+        self._home_location = self.home_coords
         logger.debug(f"Home location set to: {self._home_location}")
 
     async def goto_coordinates(

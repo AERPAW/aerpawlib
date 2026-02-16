@@ -3,7 +3,7 @@ Drone vehicle implementation.
 """
 
 import asyncio
-import logging
+from aerpawlib.v1.log import get_logger, LogComponent
 import math
 import time
 from typing import Optional
@@ -38,7 +38,7 @@ from aerpawlib.v1.helpers import (
 )
 from aerpawlib.v1.vehicles.core_vehicle import Vehicle
 
-logger = logging.getLogger(__name__)
+logger = get_logger(LogComponent.DRONE)
 
 
 class Drone(Vehicle):
@@ -144,9 +144,14 @@ class Drone(Vehicle):
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
             )
-            await self._run_on_mavsdk_loop(self._system.offboard.stop())
-        except (OffboardError, ActionError):
-            pass
+        except (OffboardError, ActionError) as e:
+            logger.warning(f"set_heading error: {e}")
+        finally:
+            # Ensure offboard mode is stopped
+            try:
+                await self._run_on_mavsdk_loop(self._system.offboard.stop())
+            except (OffboardError, ActionError):
+                pass
 
     async def takeoff(
         self,
@@ -236,6 +241,7 @@ class Drone(Vehicle):
         coordinates: util.Coordinate,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: Optional[float] = None,
+        timeout: float = 300.0,
     ) -> None:
         """
         Make the vehicle go to provided coordinates.
@@ -244,6 +250,7 @@ class Drone(Vehicle):
             coordinates: Target position
             tolerance: Distance in meters to consider destination reached
             target_heading: Optional heading to maintain during movement
+            timeout: Maximum time to wait for completion in seconds (C3)
 
         Raises:
             ValueError: If tolerance is out of acceptable range
@@ -283,12 +290,15 @@ class Drone(Vehicle):
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
-                timeout=300,
-                timeout_message=f"Failed to reach target within 300s",
+                timeout=timeout,
+                timeout_message=f"Drone failed to reach destination {coordinates} within {timeout}s",
             )
             logger.debug(f"Arrived at destination")
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
+            raise NavigationError(str(e), original_error=e)
+        except TimeoutError as e:
+            logger.error(f"Goto timed out: {e}")
             raise NavigationError(str(e), original_error=e)
         finally:
             # Clear locked heading so it does not contaminate subsequent commands
@@ -315,7 +325,8 @@ class Drone(Vehicle):
         """
         await self.await_ready_to_move()
         self._velocity_loop_active = False
-        await asyncio.sleep(POLLING_DELAY_S)
+        # Wait for previous loop to exit (C5)
+        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.1)
 
         if not global_relative:
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
@@ -345,13 +356,13 @@ class Drone(Vehicle):
 
             self._ready_to_move = lambda _: True
             target_end = (
-                time.time() + duration if duration is not None else None
+                time.monotonic() + duration if duration is not None else None
             )
 
             async def _velocity_helper():
                 try:
                     while self._velocity_loop_active:
-                        if target_end and time.time() > target_end:
+                        if target_end and time.monotonic() > target_end:
                             self._velocity_loop_active = False
                             # Zero velocity before stopping offboard to prevent
                             # the flight controller from holding the last

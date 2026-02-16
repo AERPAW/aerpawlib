@@ -8,7 +8,7 @@ to maintain backward compatibility with existing code.
 """
 
 import json
-import logging
+from .log import get_logger, LogComponent
 import os
 import zlib
 from argparse import ArgumentParser
@@ -27,7 +27,7 @@ from .constants import (
 )
 
 # Configure logger
-logger = logging.getLogger(__name__)
+logger = get_logger(LogComponent.SAFETY)
 
 
 # serialize a safety checker request
@@ -124,6 +124,18 @@ class SafetyCheckerClient:
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect(f"tcp://{addr}:{port}")
+
+    def close(self):
+        """Close the ZMQ socket and context to free resources."""
+        self.socket.close()
+        self.context.term()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        self.close()
+        return False
 
     def send_request(self, msg):
         """
@@ -229,6 +241,22 @@ class SafetyCheckerClient:
         return self.validate_landing_command(currentLat, currentLon)
 
 
+def _polygon_edges(polygon):
+    """
+    Yield consecutive (p1, p2) edge pairs for a polygon, including the
+    closing edge from the last vertex back to the first.
+
+    Args:
+        polygon (list): List of {'lat': ..., 'lon': ...} points.
+
+    Yields:
+        Tuple[dict, dict]: Pairs of adjacent vertices.
+    """
+    n = len(polygon)
+    for i in range(n):
+        yield polygon[i], polygon[(i + 1) % n]
+
+
 # noinspection PyUnusedLocal
 class SafetyCheckerServer:
     """
@@ -276,8 +304,8 @@ class SafetyCheckerServer:
             VALIDATE_LANDING_REQ: self.validate_landing_handler,
         }
 
-        vehicle_config_file = open(vehicle_config_filename, "r")
-        config = yaml.safe_load(vehicle_config_file)
+        with open(vehicle_config_filename, "r") as vehicle_config_file:
+            config = yaml.safe_load(vehicle_config_file)
 
         self.validate_config(config, vehicle_config_filename)
 
@@ -331,12 +359,20 @@ class SafetyCheckerServer:
                     response = req_function(*params)
                 socket.send(response)
             except KeyError as e:
-                socket.send(
-                    f"Unimplemented function request <{function_name}>".encode("utf-8")
+                error_resp = serialize_response(
+                    request_function=str(e),
+                    result=False,
+                    message=f"Unimplemented function request <{function_name}>",
                 )
+                socket.send(error_resp)
             except Exception as e:
-                socket.send(b"Unknown error!")
-                raise (e)
+                error_resp = serialize_response(
+                    request_function="unknown",
+                    result=False,
+                    message=f"Server error: {e}",
+                )
+                socket.send(error_resp)
+                # Do NOT re-raise — keep the server running
 
     def validate_config(self, config: Dict, vehicle_config_filename: str):
         """
@@ -411,16 +447,13 @@ class SafetyCheckerServer:
                 )
         # Makes sure path between two points does not leave the
         # geofence that the destination was found inside of.
-        for i in range(len(dest_geofence) - 1):
+        # Check all edges including the closing edge (last → first vertex).
+        for p1, p2 in _polygon_edges(dest_geofence):
             if do_intersect(
-                dest_geofence[i]["lon"],
-                dest_geofence[i]["lat"],
-                dest_geofence[i + 1]["lon"],
-                dest_geofence[i + 1]["lat"],
-                curLoc.lon,
-                curLoc.lat,
-                nextLoc.lon,
-                nextLoc.lat,
+                p1["lon"], p1["lat"],
+                p2["lon"], p2["lat"],
+                curLoc.lon, curLoc.lat,
+                nextLoc.lon, nextLoc.lat,
             ):
                 return (
                     False,
@@ -430,16 +463,12 @@ class SafetyCheckerServer:
 
         # Makes sure path between two points does not enter no-go zone
         for zone in self.exclude_geofences:
-            for i in range(len(zone) - 1):
+            for p1, p2 in _polygon_edges(zone):
                 if do_intersect(
-                    zone[i]["lon"],
-                    zone[i]["lat"],
-                    zone[i + 1]["lon"],
-                    zone[i + 1]["lat"],
-                    curLoc.lon,
-                    curLoc.lat,
-                    nextLoc.lon,
-                    nextLoc.lat,
+                    p1["lon"], p1["lat"],
+                    p2["lon"], p2["lat"],
+                    curLoc.lon, curLoc.lat,
+                    nextLoc.lon, nextLoc.lat,
                 ):
                     return (
                         False,
@@ -662,6 +691,7 @@ if __name__ == "__main__":
         "--port",
         help="Port for communication between client and server",
         required=True,
+        type=int,
     )
     parser.add_argument(
         "--vehicle_config",
