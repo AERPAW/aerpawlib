@@ -7,11 +7,11 @@ A Python library for controlling vehicles within the [AERPAW](https://aerpaw.org
 
 ## Features
 
-- **Unified vehicle control** – Drone and Rover support via MAVSDK
-- **Scriptable missions** – BasicRunner, StateMachine, ZmqStateMachine
-- **Multi-vehicle coordination** – ZMQ-based leader/follower and swarm patterns
-- **Safety checker** – Geofence validation for waypoints, takeoff, and speed
-- **AERPAW integration** – OEO logging, checkpoints, safety pilot arming
+- Unified vehicle control
+- Scriptable missions
+- Multi-vehicle coordination
+- Safety checker
+- AERPAW Platform integration
 
 ## Installation
 
@@ -35,7 +35,7 @@ class MyMission(BasicRunner):
 ```
 
 ```bash
-python -m aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
+python -m aerpawlib --script my_mission --conn udpin://127.0.0.1:14550 --vehicle drone
 ```
 
 ## Documentation
@@ -60,13 +60,6 @@ python -m aerpawlib --config tests/configs/testv1_basic_runner.json
 ```
 
 See [examples/README.md](examples/README.md) for full list.
-
-## API Versions
-
-| Version | Status | Use Case |
-|---------|--------|----------|
-| **v1** | Stable | Production, legacy compatibility |
-| **v2** | Beta | Future (has known bugs) |
 
 ## License
 
