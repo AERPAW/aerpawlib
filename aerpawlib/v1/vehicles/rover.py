@@ -47,7 +47,7 @@ class Rover(Vehicle):
         coordinates: util.Coordinate,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         target_heading: Optional[float] = None,
-        timeout: Optional[int] = DEFAULT_GOTO_TIMEOUT_S,
+        timeout: Optional[float] = DEFAULT_GOTO_TIMEOUT_S,
     ) -> None:
         """
         Make the vehicle go to provided coordinates.

@@ -399,8 +399,8 @@ class Drone(Vehicle):
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.stop()
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Velocity helper cleanup failed: %s", e)
 
             self._velocity_loop_active = True
             asyncio.ensure_future(_velocity_helper())
@@ -420,5 +420,5 @@ class Drone(Vehicle):
             )
             await asyncio.sleep(0.05)
             await self._run_on_mavsdk_loop(self._system.offboard.stop())
-        except Exception:
-            pass  # May not be in offboard mode, that's fine
+        except Exception as e:
+            logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)

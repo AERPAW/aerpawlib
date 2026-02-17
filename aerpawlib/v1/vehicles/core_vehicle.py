@@ -423,7 +423,6 @@ class Vehicle:
 
         async def _position_update():
             async for position in self._system.telemetry.position():
-                # print(position)
                 self._position_lat.set(position.latitude_deg)
                 self._position_lon.set(position.longitude_deg)
                 self._position_alt.set(position.relative_altitude_m)
@@ -440,7 +439,6 @@ class Vehicle:
 
         async def _velocity_update():
             async for velocity in self._system.telemetry.velocity_ned():
-                # print(velocity)
                 self._velocity_ned.set(
                     [velocity.north_m_s, velocity.east_m_s, velocity.down_m_s]
                 )
@@ -461,7 +459,6 @@ class Vehicle:
 
         async def _flight_mode_update():
             async for mode in self._system.telemetry.flight_mode():
-                # print(mode)
                 self._mode.set(mode.name)
 
         async def _armed_update():
@@ -474,7 +471,6 @@ class Vehicle:
 
         async def _health_update():
             async for health in self._system.telemetry.health():
-                print(health)
                 self._is_armable_state.set(
                     health.is_global_position_ok
                     and health.is_home_position_ok
@@ -518,8 +514,8 @@ class Vehicle:
             self._autopilot_info.major = version.flight_sw_major
             self._autopilot_info.minor = version.flight_sw_minor
             self._autopilot_info.patch = version.flight_sw_patch
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not fetch vehicle version info: %s", e)
 
     # Properties - maintaining original API
     @property
@@ -733,8 +729,8 @@ class Vehicle:
         for future in list(self._pending_mavsdk_futures):
             try:
                 future.cancel()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Error cancelling MAVSDK future: %s", e)
 
         # Cancel telemetry tasks on their own event loop (thread-safe)
         if self._mavsdk_loop is not None and self._mavsdk_loop.is_running():

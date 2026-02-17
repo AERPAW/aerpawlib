@@ -344,28 +344,30 @@ class SafetyCheckerServer:
         socket.bind(f"tcp://*:{port}")
 
         logger.info("waiting for messages")
+
         while True:
             raw_msg = socket.recv()
             message = deserialize_msg(raw_msg)
             logger.debug(f"Received request: {message}")
-            # noinspection PyUnusedLocal
             try:
-                function_name = message["request_function"]
+                function_name = message.get("request_function", "unknown")
                 req_function = self.REQUEST_FUNCTIONS[function_name]
-                params = message["params"]
+                params = message.get("params")
                 if params is None:
                     response = req_function(None)
                 else:
                     response = req_function(*params)
                 socket.send(response)
             except KeyError as e:
+                fn = message.get("request_function", "unknown")
                 error_resp = serialize_response(
                     request_function=str(e),
                     result=False,
-                    message=f"Unimplemented function request <{function_name}>",
+                    message=f"Unimplemented or missing function request <{fn}>",
                 )
                 socket.send(error_resp)
             except Exception as e:
+                logger.debug("Safety checker server handler error: %s", e)
                 error_resp = serialize_response(
                     request_function="unknown",
                     result=False,

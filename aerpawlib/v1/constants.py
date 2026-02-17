@@ -163,6 +163,9 @@ ZMQ_TYPE_TRANSITION = "state_transition"
 ZMQ_TYPE_FIELD_REQUEST = "field_request"
 ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
 
+# Timeout for ZMQ field query (seconds) - prevents indefinite block if peer never replies
+ZMQ_QUERY_FIELD_TIMEOUT_S = 30.0
+
 
 # Safety Checker Constants
 

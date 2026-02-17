@@ -21,6 +21,7 @@ from .constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
+    ZMQ_QUERY_FIELD_TIMEOUT_S,
     ZMQ_TYPE_TRANSITION,
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_FIELD_CALLBACK,
@@ -522,7 +523,7 @@ class ZmqStateMachine(StateMachine):
         """
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
-            io_loop=asyncio.get_event_loop(),
+            io_loop=asyncio.get_running_loop(),
             socket_type=zmq.SUB,
         )
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
@@ -572,7 +573,7 @@ class ZmqStateMachine(StateMachine):
         """
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
-            io_loop=asyncio.get_event_loop(),
+            io_loop=asyncio.get_running_loop(),
             socket_type=zmq.PUB,
         )
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
@@ -623,16 +624,25 @@ class ZmqStateMachine(StateMachine):
         }
         await self._zmq_messages_sending.put(transition_obj)
 
-    async def query_field(self, identifier: str, field: str):
+    async def query_field(
+        self,
+        identifier: str,
+        field: str,
+        timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
+    ):
         """
         Query a field from another ZMQ runner.
 
         Args:
             identifier (str): Identifier of the target runner.
             field (str): Name of the field to query.
+            timeout (float): Max seconds to wait for reply (default: ZMQ_QUERY_FIELD_TIMEOUT_S).
 
         Returns:
             Any: The value returned by the target runner.
+
+        Raises:
+            asyncio.TimeoutError: If the target runner does not reply within timeout.
         """
         if identifier not in self._zmq_received_fields:
             self._zmq_received_fields[identifier] = {}
@@ -644,8 +654,15 @@ class ZmqStateMachine(StateMachine):
             "field": field,
         }
         await self._zmq_messages_sending.put(query_obj)
-        while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
-            await asyncio.sleep(0.01)
+
+        async def _wait_for_reply():
+            while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(
+            _wait_for_reply(),
+            timeout=timeout,
+        )
         return self._zmq_received_fields[identifier][field]
 
     async def _reply_queried_field(self, identifier: str, field: str, value):
