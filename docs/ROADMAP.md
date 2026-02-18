@@ -11,7 +11,12 @@ Planned features and improvements for future releases.
   - [ ] Additional examples and tutorials
 - [ ] **Testing**
   - [ ] More integration tests for v1 API
-  - [ ] Fix testing pipeline (CI, SITL setup)
+  - [ ] Fix integrated SITL testing (currently broken)
+  - [ ] Get all tests passing (currently some skipped/failing)
+  - [ ] Installing aerpawlib[dev] installs ardupilot SITL into the code
+  - [ ] ZMQ tests
+- [ ] **Features**
+  - [ ] ZMQ doesn't appear to be working correctly
 
 ## v2 API (Development)
 
