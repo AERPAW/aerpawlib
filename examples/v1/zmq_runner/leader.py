@@ -2,7 +2,7 @@
 
 import re
 
-from aerpawlib.runner import (
+from aerpawlib.v1.runner import (
     ZmqStateMachine,
     at_init,
     background,
@@ -11,10 +11,10 @@ from aerpawlib.runner import (
     state,
     timed_state,
 )
-from aerpawlib.util import Coordinate, Waypoint, read_from_plan_complete
-from aerpawlib.vehicle import Drone
+from aerpawlib.v1.util import Coordinate, Waypoint, read_from_plan_complete
+from aerpawlib.v1.vehicle import Drone
 
-from aerpawlib.external import ExternalProcess
+from aerpawlib.v1.external import ExternalProcess
 
 target_ip = "127.0.0.1"
 

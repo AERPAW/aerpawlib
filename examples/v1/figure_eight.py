@@ -5,7 +5,7 @@ This script demonstrates complex flight patterns using coordinate math.
 Flies a figure-8 pattern using waypoints.
 
 Run with:
-    python -m aerpawlib --api v1 --script examples.v1.figure_eight \
+    aerpawlib --api v1 --script examples.v1.figure_eight \
         --vehicle drone --conn udp:127.0.0.1:14550
 """
 

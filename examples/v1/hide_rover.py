@@ -5,7 +5,7 @@ The .plan file should move the rover to a location from which it will be able to
 You can optionally provide a specific latitude & longitude to hide the rover at via arguments (see Usage).
 
 Usage:
-    python -m aerpawlib --conn ... --vehicle rover --script hide_rover \
+    aerpawlib --conn ... --vehicle rover --script hide_rover \
             --file <.plan file to run> \
             --hide-fence <.kml file containing geofence> \
             --lat <latitude to hide rover (optional)> \
@@ -35,7 +35,7 @@ import random
 from argparse import ArgumentParser
 from typing import List, TextIO
 
-from aerpawlib.runner import (
+from aerpawlib.v1.runner import (
     StateMachine,
     at_init,
     background,
@@ -44,16 +44,16 @@ from aerpawlib.runner import (
     state,
     timed_state,
 )
-from aerpawlib.util import (
+from aerpawlib.v1.util import (
     Coordinate,
     Waypoint,
     inside,
     readGeofence,
     read_from_plan_complete,
 )
-from aerpawlib.vehicle import Drone, Rover, Vehicle
+from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
-from aerpawlib.external import ExternalProcess
+from aerpawlib.v1.external import ExternalProcess
 
 
 class HideRover(StateMachine):

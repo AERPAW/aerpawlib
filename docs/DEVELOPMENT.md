@@ -7,7 +7,7 @@ This document is for contributors and developers working on the aerpawlib codeba
 ```
 aerpawlib-vehicle-control/
 ├── aerpawlib/
-│   ├── __main__.py          # CLI entry point (python -m aerpawlib)
+│   ├── __main__.py          # CLI entry point (aerpawlib)
 │   ├── v1/                  # v1 API (MAVSDK, DroneKit-compatible)
 │   │   ├── __init__.py
 │   │   ├── aerpaw.py        # AERPAW platform (OEO, checkpoints)
@@ -150,7 +150,7 @@ See [tests/README.md](../tests/README.md) for full details.
 ### Verbose Vehicle State
 
 ```bash
-python -m aerpawlib --script my_mission --conn ... --vehicle drone --debug-dump
+aerpawlib --script my_mission --conn ... --vehicle drone --debug-dump
 ```
 
 Writes CSV of vehicle state to `aerpawlib_vehicle_dump_*.csv`.
@@ -158,9 +158,9 @@ Writes CSV of vehicle state to `aerpawlib_vehicle_dump_*.csv`.
 ### Log Level
 
 ```bash
-python -m aerpawlib --script my_mission ... --debug   # DEBUG
-python -m aerpawlib --script my_mission ... -v       # INFO
-python -m aerpawlib --script my_mission ... -q       # WARNING only
+aerpawlib --script my_mission ... --debug   # DEBUG
+aerpawlib --script my_mission ... -v       # INFO
+aerpawlib --script my_mission ... -q       # WARNING only
 ```
 
 ### SITL Verbosity

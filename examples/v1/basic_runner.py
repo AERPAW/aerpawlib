@@ -3,9 +3,9 @@ Example of a script that has a single entry point that doesn't use any kind of
 special Runner.
 """
 
-from aerpawlib.runner import BasicRunner, entrypoint
-from aerpawlib.util import VectorNED
-from aerpawlib.vehicle import Drone
+from aerpawlib.v1.runner import BasicRunner, entrypoint
+from aerpawlib.v1.util import VectorNED
+from aerpawlib.v1.vehicle import Drone
 
 
 class MyScript(BasicRunner):

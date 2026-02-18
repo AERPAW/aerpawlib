@@ -1,5 +1,1 @@
-{"api-version": "v2",
-  "script":  "examples.v2.basic_example",
-  "vehicle": "drone",
-  "conn": "udpin://127.0.0.1:14551",
-  "debug": ""}
+{"api-version":"v2","script":"examples.v2.basic_example","vehicle":"drone","conn":"udpin://127.0.0.1:14551"}

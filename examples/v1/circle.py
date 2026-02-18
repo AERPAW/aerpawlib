@@ -4,16 +4,16 @@ circle will make a vehicle (drone is the only supported one for now) fly in a
 use velocity control.
 
 Usage:
-    python -m aerpawlib --conn ... --vehicle ... --script circle
+    aerpawlib --conn ... --vehicle ... --script circle
 """
 
 import argparse
 import asyncio
 import math
 
-from aerpawlib.runner import StateMachine, state, in_background
-from aerpawlib.util import VectorNED, Coordinate
-from aerpawlib.vehicle import Drone
+from aerpawlib.v1.runner import StateMachine, state, in_background
+from aerpawlib.v1.util import VectorNED, Coordinate
+from aerpawlib.v1.vehicle import Drone
 
 FLIGHT_ALT = 5  # m
 CIRCLE_RAD = 10  # m

@@ -32,7 +32,7 @@ exclude_geofences:
 
 ```bash
 # From command line (recommended)
-python -m aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
+aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
 ```
 
 Or in Python:
@@ -271,7 +271,7 @@ server_process.start()
 ### Using screen (Linux)
 
 ```bash
-screen -dmS safety_checker python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
+screen -dmS safety_checker aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
 ```
 
 > **Note**: `aerpawlib.v1.safetyChecker` is a deprecated alias for `aerpawlib.v1.safety`. Use `safety` for new code.

@@ -25,7 +25,7 @@ This guide provides an overview of supported workflows, features, and how to run
 
 3. **Run with aerpawlib**:
    ```bash
-   python -m aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
+   aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
    ```
 
 ## Supported Workflows
@@ -51,7 +51,7 @@ class SimpleMission(BasicRunner):
 
 **Run**:
 ```bash
-python -m aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
+aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
 ```
 
 ---
@@ -121,24 +121,24 @@ Coordinate multiple vehicles via ZMQ. One script per vehicle; a proxy relays mes
 **Use case**: Leader/follower, swarm coordination, ground-air teams
 
 **Setup**:
-1. Start ZMQ proxy: `python -m aerpawlib --run-proxy`
+1. Start ZMQ proxy: `aerpawlib --run-proxy`
 2. Run each vehicle with `--zmq-identifier` and `--zmq-proxy-server`
 
 **Leader**:
 ```bash
-python -m aerpawlib --script examples.legacy.zmq_runner.leader \
+aerpawlib --script examples.v1.zmq_runner.leader \
   --conn udp://127.0.0.1:14550 --vehicle drone \
   --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 ```
 
 **Follower**:
 ```bash
-python -m aerpawlib --script examples.legacy.zmq_runner.follower \
+aerpawlib --script examples.v1.zmq_runner.follower \
   --conn udp://127.0.0.1:14551 --vehicle drone \
   --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
 
-See [examples/legacy/zmq_runner/README.md](../examples/legacy/zmq_runner/README.md) and [examples/legacy/zmq_preplanned_orbit/README.md](../examples/legacy/zmq_preplanned_orbit/README.md).
+See [examples/v1/zmq_runner/README.md](../examples/v1/zmq_runner/README.md) and [examples/v1/zmq_preplanned_orbit/README.md](../examples/v1/zmq_preplanned_orbit/README.md).
 
 ---
 
@@ -159,7 +159,7 @@ for cmd, x, y, z, wp_id, speed in waypoints:
 
 **Run**:
 ```bash
-python -m aerpawlib --script examples.legacy.preplanned_trajectory \
+aerpawlib --script examples.v1.preplanned_trajectory \
   --conn udp://127.0.0.1:14550 --vehicle drone --plan mission.plan
 ```
 
@@ -173,7 +173,7 @@ Validate waypoints, takeoff, and speed against geofences before commanding the v
 
 **Setup**:
 1. Create YAML config and KML geofences (see [v1 Safety Checker](v1/safety_checker.md))
-2. Start server: `python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml`
+2. Start server: `aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml`
 3. In script: create `SafetyCheckerClient`, call `validate_waypoint_command` before `goto_coordinates`
 
 See [v1/safety_checker.md](v1/safety_checker.md) for full details.
@@ -216,7 +216,7 @@ Standalone/SITL: vehicle auto-arms after armable state is reached.
 ### Command-Line Interface
 
 ```bash
-python -m aerpawlib --script <module> --conn <connection> --vehicle <type> [options]
+aerpawlib --script <module> --conn <connection> --vehicle <type> [options]
 ```
 
 **Required**:
@@ -230,7 +230,7 @@ python -m aerpawlib --script <module> --conn <connection> --vehicle <type> [opti
 - `--skip-rtl`: Do not RTL/land at script end
 - `--debug-dump`: Enable verbose vehicle state logging
 - `--zmq-identifier`, `--zmq-proxy-server`: For ZMQ scripts
-- `-v` / `--verbose`, `--debug`, `-q` / `--quiet`: Logging level
+- `-v` / `--verbose` (DEBUG), `-q` / `--quiet` (WARNING): Logging level (default: INFO)
 
 ### Config File (beta)
 
@@ -246,7 +246,7 @@ Use `--config` to load options from JSON:
 ```
 
 ```bash
-python -m aerpawlib --config mission.json
+aerpawlib --config mission.json
 ```
 
 CLI arguments override config file values.
@@ -260,11 +260,11 @@ CLI arguments override config file values.
 |------|-------------|
 | `examples/v1/basic_example.py` | Simple square flight |
 | `examples/v1/figure_eight.py` | Figure-8 pattern |
-| `examples/legacy/basic_runner.py` | Minimal BasicRunner |
-| `examples/legacy/squareoff_logging.py` | StateMachine + background logging |
-| `examples/legacy/preplanned_trajectory.py` | Load .plan file |
-| `examples/legacy/zmq_runner/` | Leader/follower ZMQ |
-| `examples/legacy/zmq_preplanned_orbit/` | Multi-drone orbit mission |
+| `examples/v1/basic_runner.py` | Minimal BasicRunner |
+| `examples/v1/squareoff_logging.py` | StateMachine + background logging |
+| `examples/v1/preplanned_trajectory.py` | Load .plan file |
+| `examples/v1/zmq_runner/` | Leader/follower ZMQ |
+| `examples/v1/zmq_preplanned_orbit/` | Multi-drone orbit mission |
 | `examples/v2/` | v2 API examples |
 
 ---
@@ -282,7 +282,7 @@ CLI arguments override config file values.
 - For StateMachine: exactly one state must have `first=True`
 
 **ZMQ scripts fail**
-- Start proxy first: `python -m aerpawlib --run-proxy`
+- Start proxy first: `aerpawlib --run-proxy`
 - Pass `--zmq-identifier` and `--zmq-proxy-server` to each vehicle
 
 **Vehicle not armable**

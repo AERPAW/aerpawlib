@@ -2,14 +2,14 @@
 Tool used to run aerpawlib scripts that make use of a Runner class.
 
 usage:
-    python -m aerpawlib --script <script import path> --conn <connection string> \
+    aerpawlib --script <script import path> --conn <connection string> \
             --vehicle <vehicle type>
 
 example:
-    python -m aerpawlib --script experimenter_script --conn /dev/ttyACM0 \
+    aerpawlib --script experimenter_script --conn /dev/ttyACM0 \
             --vehicle drone
 
-    python -m aerpawlib --script experimenter_script --conn udp:127.0.0.1:14550 \
+    aerpawlib --script experimenter_script --conn udp:127.0.0.1:14550 \
             --vehicle drone
 """
 
@@ -33,7 +33,6 @@ from typing import Optional
 # Configure logging
 def setup_logging(
     verbose: bool = False,
-    debug: bool = False,
     quiet: bool = False,
     log_file: Optional[str] = None,
 ) -> logging.Logger:
@@ -44,8 +43,7 @@ def setup_logging(
     user scripts, and libraries) are captured and formatted consistently.
 
     Args:
-        verbose: Enable verbose (INFO level) logging
-        debug: Enable debug (DEBUG level) logging
+        verbose: Enable debug (DEBUG level) logging
         quiet: Suppress most output (WARNING level only)
         log_file: Optional path to write logs to file
 
@@ -55,11 +53,9 @@ def setup_logging(
     # Configure the ROOT logger to capture logs from all modules
     root_logger = logging.getLogger()
 
-    # Determine log level
-    if debug:
+    # Determine log level: quiet=WARNING, default=INFO, verbose=DEBUG
+    if verbose:
         level = logging.DEBUG
-    elif verbose:
-        level = logging.INFO
     elif quiet:
         level = logging.WARNING
     else:
@@ -105,7 +101,7 @@ def setup_logging(
                 # Shorten aerpawlib.v1.vehicle -> v1.vehicle
                 name = name[10:]  # Remove "aerpawlib."
             elif "." in name:
-                # For user scripts, show last two parts: examples.legacy.basic_runner -> legacy.basic_runner
+                # For user scripts, show last two parts: examples.v1.basic_runner -> v1.basic_runner
                 parts = name.split(".")
                 name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
@@ -154,7 +150,7 @@ def discover_runner(api_module, experimenter_script):
     Runner = getattr(api_module, "Runner")
     StateMachine = getattr(api_module, "StateMachine")
     BasicRunner = getattr(api_module, "BasicRunner")
-    # ZmqStateMachine only exists in v1/legacy
+    # ZmqStateMachine only exists in v1
     ZmqStateMachine = getattr(api_module, "ZmqStateMachine", None)
 
     runner = None
@@ -189,6 +185,7 @@ def run_v2_experiment(
 ):
     """Run an experiment using the v2 API."""
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
+    assert runner is not None  # discover_runner raises if no runner found
     logger.debug(
         f"Time after discover runner: {time.time() - start_time:.2f}s"
     )
@@ -413,8 +410,9 @@ def run_v2_experiment(
 def run_v1_experiment(
     args, unknown_args, api_module, experimenter_script, version_name="v1"
 ):
-    """Run an experiment using the v1/legacy API."""
+    """Run an experiment using the v1 API."""
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
+    assert runner is not None  # discover_runner raises if no runner found
 
     Vehicle = getattr(api_module, "Vehicle")
     Drone = getattr(api_module, "Drone")
@@ -659,12 +657,7 @@ def main():
     log_grp.add_argument(
         "-v",
         "--verbose",
-        help="enable verbose logging (INFO level)",
-        action="store_true",
-    )
-    log_grp.add_argument(
-        "--debug",
-        help="enable debug logging (DEBUG level, very verbose)",
+        help="enable debug logging (DEBUG level)",
         action="store_true",
     )
     log_grp.add_argument(
@@ -708,7 +701,6 @@ def main():
     global logger
     logger = setup_logging(
         verbose=args.verbose,
-        debug=args.debug,
         quiet=args.quiet,
         log_file=args.log_file,
     )

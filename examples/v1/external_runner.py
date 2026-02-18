@@ -2,14 +2,14 @@
 external_runner will run and interact with some processes
 
 Usage:
-    python -m aerpawlib --conn ... --vehicle generic --script external_runner
+    aerpawlib --conn ... --vehicle generic --script external_runner
 """
 
 import re
 
-from aerpawlib.runner import BasicRunner, entrypoint
+from aerpawlib.v1.runner import BasicRunner, entrypoint
 
-from aerpawlib.external import ExternalProcess
+from aerpawlib.v1.external import ExternalProcess
 
 
 class MyScript(BasicRunner):

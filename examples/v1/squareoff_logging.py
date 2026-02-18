@@ -8,7 +8,7 @@ initialize_args. Additionally, this runner hold internal state used to implement
     - an additonal level of state (current leg)
 
 Usage:
-    python -m aerpawlib --conn ... --vehicle ... --script squareoff_logging \
+    aerpawlib --conn ... --vehicle ... --script squareoff_logging \
         --output <optional output file> --samplerate <sample rate in Hz>
 
 State vis:
@@ -41,9 +41,9 @@ import time
 from typing import List, TextIO
 import os
 
-from aerpawlib.runner import StateMachine, state, background, timed_state
-from aerpawlib.util import VectorNED
-from aerpawlib.vehicle import Drone, Rover, Vehicle
+from aerpawlib.v1.runner import StateMachine, state, background, timed_state
+from aerpawlib.v1.util import VectorNED
+from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
 FLIGHT_ALT = 5  # m
 SQUARE_SIZE = 10  # m

@@ -35,7 +35,7 @@ class MyMission(BasicRunner):
 ```
 
 ```bash
-python -m aerpawlib --script my_mission --conn udpin://127.0.0.1:14550 --vehicle drone
+aerpawlib --script my_mission --conn udpin://127.0.0.1:14550 --vehicle drone
 ```
 
 ## Documentation
@@ -53,10 +53,10 @@ python -m aerpawlib --script my_mission --conn udpin://127.0.0.1:14550 --vehicle
 
 ```bash
 # Basic square flight
-python -m aerpawlib --script examples.v1.basic_example --conn udp://127.0.0.1:14550 --vehicle drone
+aerpawlib --script examples.v1.basic_example --conn udp://127.0.0.1:14550 --vehicle drone
 
 # With config file
-python -m aerpawlib --config tests/configs/testv1_basic_runner.json
+aerpawlib --config tests/configs/testv1_basic_runner.json
 ```
 
 See [examples/README.md](examples/README.md) for full list.

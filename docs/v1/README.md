@@ -153,7 +153,7 @@ The v1 API includes the same safety checker as the legacy API for geofence valid
 Run the safety checker server in a separate process:
 
 ```bash
-python -m aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
+aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
 ```
 
 Or in Python (constructor blocks):

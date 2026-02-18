@@ -1,302 +1,102 @@
 # aerpawlib Examples
 
-> **Documentation**: See [docs/USER_GUIDE.md](../docs/USER_GUIDE.md) for workflows and [docs/README.md](../docs/README.md) for the full documentation index.
-
-## Squareoff with Logging
-
-`squareoff_logging.py` is an example aerpawlib script that will fly a drone in
-a 10m by 10m square, while using the `StateMachine`'s `background` utility to
-continually log the drone's position to a file. This example is intended to
-demonstrate how to write a dynamic state machine as well as use the
-`background` tool.
-
-This script can be run on either a drone or a rover. To run it, use aerpawlib:
-
-```
-python -m aerpawlib --conn ... --script squareoff_logging --vehicle drone
-```
-
-When run, it will continually output positional data to a log file that can be
-specified using the `--output` param. The sample rate can be changed using
-`--samplerate`. If no file is specified, it will default to outputting to a
-file named `GPS_DATA_YYYY-MM-DD_HH:MM:SS.csv`. This output format is below:
-
-```
-line num,lon,lat,alt,battery voltage,timestamp,GPS fix type,# visible sats
-
-timestamp format: YYYY-MM-DD HH:MM:SS.ssssss
-```
-
-A flowchart of the various states is below:
-
-```
-┌───────┐drone ┌──────────┐
-│ start ├──────► take_off │
-└───┬───┘      └─────┬────┘
-    │                │
-    ├────────────────┘
-    │
-┌───▼───────┐
-│ leg_north ├───────────┐
-│           │           │
-│ leg_west  │           │
-│           │       ┌───▼─────────┐
-│ leg_south ◄───────┤ at_position │
-│           │pick   └───┬──┬────▲─┘
-│ leg_east  │based on   │  └────┘sleep 5s
-└───────────┘current_leg│
-                    ┌───▼────┐drone ┌──────┐
-                    │ finish ├──────► land │
-                    └────────┘      └──────┘
-```
-
-The centerpiece of this script, aside from the background logging, is the
-dynamic state changing. By default, the only state stored by a `StateMachine`
-is the current state *function* -- individually, each function can be
-considered to be stateless (with side effects affecting the vehicle).
-
-To introduce additional state into the state machine, all you have to do is add
-method variables to your `StateMachine` derived object. This script uses
-`_legs: List[str]` and `_current_leg: int` to do that. `_current_leg` is
-altered and interpreted by the `at_position` state to then dynamically pick the
-next state on the fly.
-
-## Preplanned Trajectory
-
-`preplanned_trajectory.py` is an example aerpawlib script that makes a vehicle
-fly between different waypoints read from a `.plan` file generated using
-`QGroundControl`. This example is a good starting point for experiments that
-make use of non-dynamic flight plans.
-
-This script can be run on either a drone or rover. To run it, use aerpawlib:
-
-```
-python -m aerpawlib --conn ... --script preplanned_trajectory --vehicle drone \
-    --file <.plan file to use>
-```
-
-When run, it will load in the `.plan` file located at the path specified by
-`--plan` and then send the drone to each waypoint specified sequentially in it.
-
-A flowchart of the various states is below:
-
-```
-┌──────────┐
-│ take_off │
-└──────┬───┘
-       │
-       ├────────────────────────────────────────┐
-       │                                        │
-┌──────▼────────┐    ┌────────────┐     ┌───────┴─────┐
-│ next_waypoint ├────► in_transit ├─────► at_waypoint │
-└──────┬────────┘    └────────────┘     └─────────────┘
-       │
-    ┌──▼──┐
-    │ rtl │
-    └─────┘
-```
-
-This script includes several states that can be used as hooks to introduce
-custom logic that runs during various parts of the flight plan.
-
-`in_transit` is a function that will be called once after the script picks a
-waypoint for the vehicle to go to, at which point it blocks until the vehicle
-arrives. Custom logic can be added before the `await` statement, at which point
-the script blocks while waiting for the drone to finish moving.
-
-To add custom logic that waits for the drone to finish moving, you can
-continually poll `drone.done_moving()`.
-
-`at_waypoint` is a timed state that is called once the vehicle arrives at a
-waypoint. As a timed state, it is guaranteed to be called repeatedly for at
-least `duration` seconds.
-
----
-
 ## Directory Structure
 
 ```
 examples/
-├── v1/                      # v1 API examples (MAVSDK-based, DroneKit-compatible)
-│   ├── basic_example.py         # Simple square flight pattern
-│   └── figure_eight.py          # Figure-8 pattern with waypoints
-├── v2/                      # v2 API examples (modern, async-first)
-│   ├── basic_example.py         # Simple mission with telemetry
-│   ├── command_handle_example.py # Non-blocking command execution
-│   ├── enhanced_example.py      # Advanced features
-│   ├── state_machine_example.py # StateMachine pattern
-│   └── test_runner.py           # Test runner
-└── legacy/                  # Legacy examples (compatible with v1 runner)
-    ├── basic_runner.py          # Minimal BasicRunner
-    ├── circle.py               # Circular flight
-    ├── squareoff_logging.py    # StateMachine + background logging
-    ├── preplanned_trajectory.py # Load .plan file
-    ├── external_runner.py       # ExternalProcess usage
-    ├── hide_rover.py
-    ├── zmq_runner/              # Leader/follower ZMQ
-    └── zmq_preplanned_orbit/    # Multi-drone orbit mission
+├── v1/                          # v1 API (MAVSDK-based)
+│   ├── basic_example.py         # Square flight pattern
+│   ├── basic_runner.py          # Minimal BasicRunner
+│   ├── figure_eight.py          # Figure-8 pattern
+│   ├── circle.py               # Circular flight
+│   ├── squareoff_logging.py     # StateMachine + background logging
+│   ├── preplanned_trajectory.py # Load QGroundControl .plan file
+│   ├── hide_rover.py            # Rover plan + geofence hide
+│   ├── external_runner.py       # ExternalProcess usage
+│   ├── zmq_runner/              # Leader/follower ZMQ coordination
+│   │   ├── leader.py
+│   │   ├── follower.py
+│   │   └── README.md
+│   └── zmq_preplanned_orbit/   # Multi-drone orbit mission
+│       ├── drone_orbiter.py
+│       ├── drone_tracer.py
+│       ├── ground_coordinator.py
+│       ├── orbit.plan
+│       └── README.md
+└── v2/                          # v2 API (modern, async-first)
+    ├── basic_example.py
+    ├── command_handle_example.py
+    ├── enhanced_example.py
+    ├── state_machine_example.py
+    └── test_runner.py
 ```
+
+## Quick Reference
+
+| Example | Description |
+|---------|-------------|
+| `basic_example` | Square flight pattern (10m × 10m) |
+| `basic_runner` | Minimal BasicRunner – takeoff, fly north, land |
+| `figure_eight` | Figure-8 waypoint pattern |
+| `circle` | Circular flight using velocity control |
+| `squareoff_logging` | Square flight with background position logging |
+| `preplanned_trajectory` | Waypoints from QGroundControl `.plan` file |
+| `hide_rover` | Rover follows plan, then hides in geofence |
+| `external_runner` | Spawn and interact with external processes |
+| `zmq_runner` | Leader/follower multi-vehicle coordination |
+| `zmq_preplanned_orbit` | Two drones: tracer + orbiter |
 
 ## Running Examples
 
-### v1 API Examples
+### v1 API
 
 ```bash
-# Basic square flight
-python -m aerpawlib --api-version v1 --script examples.v1.basic_example \
-    --vehicle drone --conn udp:127.0.0.1:14550
+# Basic examples
+aerpawlib --api-version v1 --script examples.v1.basic_example \
+    --vehicle drone --conn udp://127.0.0.1:14550
 
-# Figure-8 pattern
-python -m aerpawlib --api-version v1 --script examples.v1.figure_eight \
-    --vehicle drone --conn udp:127.0.0.1:14550
+aerpawlib --api-version v1 --script examples.v1.basic_runner \
+    --vehicle drone --conn udp://127.0.0.1:14550
+
+aerpawlib --api-version v1 --script examples.v1.figure_eight \
+    --vehicle drone --conn udp://127.0.0.1:14550
+
+# State machine examples
+aerpawlib --script examples.v1.circle \
+    --vehicle drone --conn udp://127.0.0.1:14550
+
+aerpawlib --script examples.v1.squareoff_logging \
+    --vehicle drone --conn udp://127.0.0.1:14550
+
+# Preplanned trajectory (requires .plan file)
+aerpawlib --script examples.v1.preplanned_trajectory \
+    --vehicle drone --conn udp://127.0.0.1:14550 --file mission.plan
+
+# External process
+aerpawlib --script examples.v1.external_runner \
+    --vehicle drone --conn udp://127.0.0.1:14550
 ```
 
-### Legacy Examples (v1 runner)
+### ZMQ Multi-Vehicle (v1)
+
+Requires `aerpawlib --run-proxy` in a separate terminal first.
 
 ```bash
-# Basic runner
-python -m aerpawlib --script examples.legacy.basic_runner \
-    --vehicle drone --conn udp:127.0.0.1:14550
+# Leader/follower
+aerpawlib --script examples.v1.zmq_runner.leader \
+    --conn udp://127.0.0.1:14550 --vehicle drone \
+    --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 
-# Squareoff with logging
-python -m aerpawlib --script examples.legacy.squareoff_logging \
-    --vehicle drone --conn udp:127.0.0.1:14550
-
-# Preplanned trajectory from .plan file
-python -m aerpawlib --script examples.legacy.preplanned_trajectory \
-    --vehicle drone --conn udp:127.0.0.1:14550 --plan mission.plan
-
-# Circle flight
-python -m aerpawlib --script examples.legacy.circle \
-    --vehicle drone --conn udp:127.0.0.1:14550
+aerpawlib --script examples.v1.zmq_runner.follower \
+    --conn udp://127.0.0.1:14551 --vehicle drone \
+    --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
 
-### v2 API Examples
-
-```bash
-# Basic example
-python -m aerpawlib --api-version v2 --script examples.v2.basic_example \
-    --vehicle drone --conn udp:127.0.0.1:14550
-
-# State machine example
-python -m aerpawlib --api-version v2 --script examples.v2.state_machine_example \
-    --vehicle drone --conn udp:127.0.0.1:14550
-
-# Non-blocking command handles
-python -m aerpawlib --api-version v2 --script examples.v2.command_handle_example \
-    --vehicle drone --conn udp:127.0.0.1:14550
-```
+See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_orbit/README.md](v1/zmq_preplanned_orbit/README.md) for ZMQ setup details.
 
 
-# Legacy Documentation
+## Notable Examples
 
-The following documentation is for legacy examples (deprecated, use v1 or v2 instead):
+`squareoff_logging:` Demonstrates `StateMachine` with `@background` for parallel position logging. Uses dynamic state transitions (`_legs`, `_current_leg`) to fly a square.
 
-## Squareoff with Logging
-
-`squareoff_logging.py` is an example aerpawlib script that will fly a drone in
-a 10m by 10m square, while using the `StateMachine`'s `background` utility to
-continually log the drone's position to a file. This example is intended to
-demonstrate how to write a dynamic state machine as well as use the
-`background` tool.
-
-This script can be run on either a drone or a rover. To run it, use aerpawlib:
-
-```
-python -m aerpawlib --conn ... --script squareoff_logging --vehicle drone
-```
-
-When run, it will continually output positional data to a log file that can be
-specified using the `--output` param. The sample rate can be changed using
-`--samplerate`. If no file is specified, it will default to outputting to a
-file named `GPS_DATA_YYYY-MM-DD_HH:MM:SS.csv`. This output format is below:
-
-```
-line num,lon,lat,alt,battery voltage,timestamp,GPS fix type,# visible sats
-
-timestamp format: YYYY-MM-DD HH:MM:SS.ssssss
-```
-
-A flowchart of the various states is below:
-
-```
-┌───────┐drone ┌──────────┐
-│ start ├──────► take_off │
-└───┬───┘      └─────┬────┘
-    │                │
-    ├────────────────┘
-    │
-┌───▼───────┐
-│ leg_north ├───────────┐
-│           │           │
-│ leg_west  │           │
-│           │       ┌───▼─────────┐
-│ leg_south ◄───────┤ at_position │
-│           │pick   └───┬──┬────▲─┘
-│ leg_east  │based on   │  └────┘sleep 5s
-└───────────┘current_leg│
-                    ┌───▼────┐drone ┌──────┐
-                    │ finish ├──────► land │
-                    └────────┘      └──────┘
-```
-
-The centerpiece of this script, aside from the background logging, is the
-dynamic state changing. By default, the only state stored by a `StateMachine`
-is the current state *function* -- individually, each function can be
-considered to be stateless (with side effects affecting the vehicle).
-
-To introduce additional state into the state machine, all you have to do is add
-method variables to your `StateMachine` derived object. This script uses
-`_legs: List[str]` and `_current_leg: int` to do that. `_current_leg` is
-altered and interpreted by the `at_position` state to then dynamically pick the
-next state on the fly.
-
-## Preplanned Trajectory
-
-`preplanned_trajectory.py` is an example aerpawlib script that makes a vehicle
-fly between different waypoints read from a `.plan` file generated using
-`QGroundControl`. This example is a good starting point for experiments that
-make use of non-dynamic flight plans.
-
-This script can be run on either a drone or rover. To run it, use aerpawlib:
-
-```
-python -m aerpawlib --conn ... --script preplanned_trajectory --vehicle drone \
-    --file <.plan file to use>
-```
-
-When run, it will load in the `.plan` file located at the path specified by
-`--plan` and then send the drone to each waypoint specified sequentially in it.
-
-A flowchart of the various states is below:
-
-```
-┌──────────┐
-│ take_off │
-└──────┬───┘
-       │
-       ├────────────────────────────────────────┐
-       │                                        │
-┌──────▼────────┐    ┌────────────┐     ┌───────┴─────┐
-│ next_waypoint ├────► in_transit ├─────► at_waypoint │
-└──────┬────────┘    └────────────┘     └─────────────┘
-       │
-    ┌──▼──┐
-    │ rtl │
-    └─────┘
-```
-
-This script includes several states that can be used as hooks to introduce
-custom logic that runs during various parts of the flight plan.
-
-`in_transit` is a function that will be called once after the script picks a
-waypoint for the vehicle to go to, at which point it blocks until the vehicle
-arrives. Custom logic can be added before the `await` statement, at which point
-the script blocks while waiting for the drone to finish moving.
-
-To add custom logic that waits for the drone to finish moving, you can
-continually poll `drone.done_moving()`.
-
-`at_waypoint` is a timed state that is called once the vehicle arrives at a
-waypoint. As a timed state, it is guaranteed to be called repeatedly for at
-least `duration` seconds.
+`preplanned_trajectory:` Loads waypoints from a QGroundControl `.plan` file. Uses `at_init`, `timed_state`, and `ExternalProcess` (ping) for waypoint-based missions.

@@ -6,7 +6,7 @@ script also contains an example of how to use the ExternalProcess tooling, in
 this case by calling ping periodically (at every waypoint)
 
 Usage:
-    python -m aerpawlib --conn ... --vehicle ... --script preplanned_trajectory \
+    aerpawlib --conn ... --vehicle ... --script preplanned_trajectory \
             --file <.plan file to run>
 
 State vis:
@@ -38,7 +38,7 @@ import collections
 
 collections.MutableMapping = collections.abc.MutableMapping
 import dronekit as dk
-from aerpawlib.runner import (
+from aerpawlib.v1.runner import (
     StateMachine,
     at_init,
     background,
@@ -47,17 +47,17 @@ from aerpawlib.runner import (
     state,
     timed_state,
 )
-from aerpawlib.util import (
+from aerpawlib.v1.util import (
     Coordinate,
     VectorNED,
     Waypoint,
     read_from_plan_complete,
 )
-from aerpawlib.vehicle import Drone, Rover, Vehicle
+from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 from pymavlink import mavutil
 
-from aerpawlib.aerpaw import AERPAW_Platform
-from aerpawlib.external import ExternalProcess
+from aerpawlib.v1.aerpaw import AERPAW_Platform
+from aerpawlib.v1.external import ExternalProcess
 
 
 class PreplannedTrajectory(StateMachine):
@@ -251,15 +251,15 @@ class PreplannedTrajectory(StateMachine):
         if self._no_plan_upload:
             return
 
-        # Upload the plan file to the drone
+        # Upload the plan file to the drone (DroneKit-specific; v1 uses MAVSDK)
         AERPAW_Platform.log_to_oeo(f"Building CommandSequence...")
-        current_commands = vehicle._vehicle.commands
+        current_commands = vehicle._vehicle.commands  # type: ignore[union-attr]
 
         # Wait for the vehicle to be ready (so we can grab the commands)
-        vehicle._vehicle.wait_ready(True, raise_exception=False)
+        vehicle._vehicle.wait_ready(True, raise_exception=False)  # type: ignore[union-attr]
 
         # Clear out initial home location value and any builtin commands
-        current_commands._vehicle._wploader.clear()
+        current_commands._vehicle._wploader.clear()  # type: ignore[union-attr]
         current_commands.clear()
 
         # Loop over waypoint list (ignore first 0,0,alt waypoint)
