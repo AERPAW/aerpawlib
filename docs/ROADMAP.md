@@ -15,6 +15,7 @@ Planned features and improvements for future releases.
   - [ ] Get all tests passing (currently some skipped/failing)
   - [ ] Installing aerpawlib[dev] installs ardupilot SITL into the code
   - [ ] ZMQ tests
+  - [ ] Get SITL from C-VM docker and use it for testing instead of ardupilot SITL
 - [ ] **Features**
   - [ ] ZMQ doesn't appear to be working correctly
 
