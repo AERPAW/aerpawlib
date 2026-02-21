@@ -33,6 +33,42 @@ class TestDroneConnection:
         b = connected_drone.battery
         assert b.voltage > 0 and 0 <= b.level <= 100
 
+    @pytest.mark.asyncio
+    async def test_attitude_not_none(self, connected_drone):
+        a = connected_drone.attitude
+        assert a is not None
+        # pitch/roll/yaw are floats
+        assert isinstance(a.pitch, float)
+        assert isinstance(a.roll, float)
+        assert isinstance(a.yaw, float)
+
+    @pytest.mark.asyncio
+    async def test_velocity_is_list_or_tuple(self, connected_drone):
+        """velocity property returns some iterable with 3 components."""
+        v = connected_drone.velocity
+        assert v is not None
+        assert len(v) == 3
+
+    @pytest.mark.asyncio
+    async def test_battery_level_valid_range(self, connected_drone):
+        b = connected_drone.battery
+        assert 0 <= b.level <= 100
+
+    @pytest.mark.asyncio
+    async def test_gps_satellites_visible(self, connected_drone):
+        g = connected_drone.gps
+        assert g.satellites_visible >= 0
+
+    @pytest.mark.asyncio
+    async def test_home_coords_set_after_guided(self, connected_drone):
+        """Home coordinates should be set once the vehicle is in guided mode."""
+        connected_drone._initialize_prearm(should_postarm_init=True)
+        # Home is set as part of prearm initialization
+        home = connected_drone.home_coords
+        assert home is not None
+        assert -90 <= home.lat <= 90
+        assert -180 <= home.lon <= 180
+
 
 class TestDroneArming:
     """Drone arming."""
@@ -111,49 +147,6 @@ class TestDroneHeading:
         h = connected_drone.heading
         assert 80 < h < 100
         await connected_drone.land()
-
-
-class TestDroneTelemetryExtended:
-    """Extended telemetry checks."""
-
-    @pytest.mark.asyncio
-    async def test_attitude_not_none(self, connected_drone):
-        a = connected_drone.attitude
-        assert a is not None
-        # pitch/roll/yaw are floats
-        assert isinstance(a.pitch, float)
-        assert isinstance(a.roll, float)
-        assert isinstance(a.yaw, float)
-
-    @pytest.mark.asyncio
-    async def test_velocity_is_list_or_tuple(self, connected_drone):
-        """velocity property returns some iterable with 3 components."""
-        v = connected_drone.velocity
-        assert v is not None
-        assert len(v) == 3
-
-    @pytest.mark.asyncio
-    async def test_battery_level_valid_range(self, connected_drone):
-        b = connected_drone.battery
-        assert 0 <= b.level <= 100
-
-    @pytest.mark.asyncio
-    async def test_gps_satellites_visible(self, connected_drone):
-        g = connected_drone.gps
-        assert g.satellites_visible >= 0
-
-    @pytest.mark.asyncio
-    async def test_home_coords_set_after_guided(self, connected_drone):
-        """Home coordinates should be set once the vehicle is in guided mode."""
-        connected_drone._initialize_prearm(should_postarm_init=True)
-        # Home is set as part of prearm initialization
-        home = connected_drone.home_coords
-        assert home is not None
-        assert -90 <= home.lat <= 90
-        assert -180 <= home.lon <= 180
-
-
-
 
 
 class TestDroneHeadingNonBlocking:

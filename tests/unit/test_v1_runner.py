@@ -69,6 +69,32 @@ class TestBasicRunner:
         await R().run(v)
         assert received[0] is v
 
+    @pytest.mark.asyncio
+    async def test_multiple_entrypoint_raises(self):
+        """Having two @entrypoint methods should raise StateMachineError during run."""
+        class R(BasicRunner):
+            @entrypoint
+            async def entry_a(self, vehicle):
+                pass
+
+            @entrypoint
+            async def entry_b(self, vehicle):
+                pass
+
+        with pytest.raises(StateMachineError, match="Multiple @entrypoint"):
+            await R().run(DummyVehicle())
+
+    @pytest.mark.asyncio
+    async def test_entrypoint_exception_propagates(self):
+        """Exceptions raised inside @entrypoint propagate to the caller."""
+        class R(BasicRunner):
+            @entrypoint
+            async def run_mission(self, vehicle):
+                raise ValueError("mission failed")
+
+        with pytest.raises(ValueError, match="mission failed"):
+            await R().run(DummyVehicle())
+
 
 class TestStateMachine:
     """StateMachine and @state."""
@@ -181,34 +207,6 @@ class TestRunnerInit:
 
         R().initialize_args(["--x", "1"])
         assert args == ["--x", "1"]
-
-
-class TestBasicRunnerExtended:
-    @pytest.mark.asyncio
-    async def test_multiple_entrypoint_raises(self):
-        """Having two @entrypoint methods should raise StateMachineError during run."""
-        class R(BasicRunner):
-            @entrypoint
-            async def entry_a(self, vehicle):
-                pass
-
-            @entrypoint
-            async def entry_b(self, vehicle):
-                pass
-
-        with pytest.raises(StateMachineError, match="Multiple @entrypoint"):
-            await R().run(DummyVehicle())
-
-    @pytest.mark.asyncio
-    async def test_entrypoint_exception_propagates(self):
-        """Exceptions raised inside @entrypoint propagate to the caller."""
-        class R(BasicRunner):
-            @entrypoint
-            async def run_mission(self, vehicle):
-                raise ValueError("mission failed")
-
-        with pytest.raises(ValueError, match="mission failed"):
-            await R().run(DummyVehicle())
 
 
 class TestStateDecoratorEdgeCases:

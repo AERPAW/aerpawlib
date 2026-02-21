@@ -16,9 +16,22 @@ class TestExternalProcess:
         ep = ExternalProcess("echo")
         assert ep._params == []
 
+    def test_init_stores_executable(self):
+        ep = ExternalProcess("myapp")
+        assert ep._executable == "myapp"
+
+    def test_init_stores_stdin_stdout(self):
+        ep = ExternalProcess("cat", stdin="/tmp/in.txt", stdout="/tmp/out.txt")
+        assert ep._stdin == "/tmp/in.txt"
+        assert ep._stdout == "/tmp/out.txt"
+
     def test_init_with_params(self):
         ep = ExternalProcess("echo", params=["hello"])
         assert ep._params == ["hello"]
+
+    def test_init_none_params_defaults_to_empty_list(self):
+        ep = ExternalProcess("echo", params=None)
+        assert ep._params == []
 
     @pytest.mark.asyncio
     async def test_echo_produces_output(self):
@@ -54,21 +67,6 @@ class TestExternalProcess:
         await ep.start()
         buff = await ep.wait_until_output(r"nonexistent")
         assert buff == [] or buff is not None
-
-
-class TestExternalProcessExtended:
-    def test_init_stores_executable(self):
-        ep = ExternalProcess("myapp")
-        assert ep._executable == "myapp"
-
-    def test_init_stores_stdin_stdout(self):
-        ep = ExternalProcess("cat", stdin="/tmp/in.txt", stdout="/tmp/out.txt")
-        assert ep._stdin == "/tmp/in.txt"
-        assert ep._stdout == "/tmp/out.txt"
-
-    def test_init_none_params_defaults_to_empty_list(self):
-        ep = ExternalProcess("echo", params=None)
-        assert ep._params == []
 
     @pytest.mark.asyncio
     async def test_read_line_multiple(self):

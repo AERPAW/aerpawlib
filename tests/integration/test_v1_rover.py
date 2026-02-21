@@ -21,24 +21,6 @@ class TestRoverConnection:
         pos = connected_rover.position
         assert -90 <= pos.lat <= 90 and -180 <= pos.lon <= 180
 
-
-class TestRoverNavigation:
-    """Rover navigation."""
-
-    @pytest.mark.asyncio
-    async def test_goto_coordinates(self, connected_rover):
-        from aerpawlib.v1.util import VectorNED
-
-        connected_rover._initialize_prearm(should_postarm_init=True)
-        start = connected_rover.position
-        target = start + VectorNED(20, 0)
-        await connected_rover.goto_coordinates(target, tolerance=3)
-        dist = connected_rover.position.ground_distance(target)
-        assert dist < 5
-
-class TestRoverTelemetryExtended:
-    """Extended telemetry checks for rover."""
-
     @pytest.mark.asyncio
     async def test_battery_valid(self, connected_rover):
         b = connected_rover.battery
@@ -64,7 +46,19 @@ class TestRoverTelemetryExtended:
         assert g.satellites_visible >= 0
 
 
+class TestRoverNavigation:
+    """Rover navigation."""
 
+    @pytest.mark.asyncio
+    async def test_goto_coordinates(self, connected_rover):
+        from aerpawlib.v1.util import VectorNED
+
+        connected_rover._initialize_prearm(should_postarm_init=True)
+        start = connected_rover.position
+        target = start + VectorNED(20, 0)
+        await connected_rover.goto_coordinates(target, tolerance=3)
+        dist = connected_rover.position.ground_distance(target)
+        assert dist < 5
 
 
 class TestRoverMultiWaypoint:
@@ -93,7 +87,4 @@ class TestRoverMultiWaypoint:
         await connected_rover.goto_coordinates(target, tolerance=3, target_heading=90)
         dist = connected_rover.position.ground_distance(target)
         assert dist < 5
-
-
-
 

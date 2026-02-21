@@ -92,6 +92,65 @@ class TestVectorNED:
         with pytest.raises(TypeError):
             VectorNED(1, 2, 3) - 5
 
+    def test_str_format(self):
+        v = VectorNED(1.0, 2.0, 3.0)
+        s = str(v)
+        assert "1.0" in s and "2.0" in s and "3.0" in s
+
+    def test_mul_float(self):
+        v = VectorNED(1.5, 2.5, 3.5)
+        r = v * 2.0
+        assert abs(r.north - 3.0) < 1e-10
+        assert abs(r.east - 5.0) < 1e-10
+        assert abs(r.down - 7.0) < 1e-10
+
+    def test_rmul_float(self):
+        v = VectorNED(1.0, 0.0, 0.0)
+        r = 3.0 * v
+        assert abs(r.north - 3.0) < 1e-10
+
+    def test_mul_invalid_type_raises(self):
+        with pytest.raises(TypeError):
+            VectorNED(1, 2, 3) * "oops"
+
+    def test_add_invalid_type_raises(self):
+        with pytest.raises(TypeError):
+            VectorNED(1, 2, 3) + "oops"
+
+    def test_cross_product_non_vector_raises(self):
+        with pytest.raises(TypeError):
+            VectorNED(1, 0, 0).cross_product(42)
+
+    def test_cross_product_antiparallel(self):
+        """cross product of anti-parallel vectors should be zero."""
+        v1 = VectorNED(1, 0, 0)
+        v2 = VectorNED(-1, 0, 0)
+        c = v1.cross_product(v2)
+        assert abs(c.north) < 1e-10 and abs(c.east) < 1e-10 and abs(c.down) < 1e-10
+
+    def test_hypot_3d(self):
+        # 1, 1, 1 => sqrt(3)
+        v = VectorNED(1, 1, 1)
+        assert abs(v.hypot() - math.sqrt(3)) < 1e-10
+
+    def test_norm_direction_preserved(self):
+        v = VectorNED(3, 4, 0)
+        n = v.norm()
+        assert abs(n.north - 0.6) < 1e-10
+        assert abs(n.east - 0.8) < 1e-10
+
+    def test_rotate_by_angle_180(self):
+        v = VectorNED(1, 0, 0)
+        r = v.rotate_by_angle(180)
+        # Rotated 180° → (-1, 0, 0) direction (allow floating point tolerance)
+        assert abs(r.north - (-1)) < 1e-10
+        assert abs(r.east) < 1e-10
+
+    def test_down_preserved_in_rotation(self):
+        v = VectorNED(1, 0, 5)
+        r = v.rotate_by_angle(90)
+        assert abs(r.down - 5) < 1e-10
+
 
 class TestCoordinate:
     """Coordinate creation and operations."""
@@ -136,183 +195,11 @@ class TestCoordinate:
         j = json.loads(c.toJson())
         assert j["lat"] == 35.7274 and j["lon"] == -78.6960
 
+    def test_to_json_legacy_style(self):
+        c = Coordinate(35.7274, -78.6960, 100)
+        j = json.loads(c.toJson())
+        assert j["lat"] == 35.7274 and j["lon"] == -78.6960
 
-class TestPlanFile:
-    """Plan file reading."""
-
-    @pytest.fixture
-    def sample_plan(self):
-        data = {
-            "fileType": "Plan",
-            "mission": {
-                "items": [
-                    {"command": PLAN_CMD_TAKEOFF, "params": [0, 0, 0, 0, 35.7274, -78.6960, 10], "doJumpId": 1},
-                    {"command": PLAN_CMD_WAYPOINT, "params": [0, 0, 0, 0, 35.7284, -78.6960, 20], "doJumpId": 2},
-                    {"command": PLAN_CMD_RTL, "params": [0, 0, 0, 0, 0, 0, 0], "doJumpId": 3},
-                ]
-            },
-        }
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
-            json.dump(data, f)
-            path = f.name
-        yield path
-        os.unlink(path)
-
-    def test_read_from_plan(self, sample_plan):
-        wps = read_from_plan(sample_plan)
-        assert len(wps) == 3
-        assert wps[0][0] == PLAN_CMD_TAKEOFF
-        assert wps[0][1] == 35.7274 and wps[0][3] == 10
-
-    def test_read_from_plan_wrong_type(self):
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"fileType": "NotAPlan", "mission": {"items": []}}, f)
-            path = f.name
-        try:
-            with pytest.raises(Exception, match="Wrong file type"):
-                read_from_plan(path)
-        finally:
-            os.unlink(path)
-
-    def test_get_location_from_waypoint(self, sample_plan):
-        wps = read_from_plan(sample_plan)
-        c = get_location_from_waypoint(wps[0])
-        assert isinstance(c, Coordinate)
-        assert c.lat == 35.7274 and c.alt == 10
-
-    def test_read_from_plan_complete(self, sample_plan):
-        wps = read_from_plan_complete(sample_plan)
-        assert len(wps) == 3
-        assert "id" in wps[0] and "pos" in wps[0] and "wait_for" in wps[0]
-
-
-class TestGeofence:
-    """Geofence and geometry functions."""
-
-    @pytest.fixture
-    def square_geofence(self):
-        return [
-            {"lon": -78.70, "lat": 35.72},
-            {"lon": -78.70, "lat": 35.74},
-            {"lon": -78.68, "lat": 35.74},
-            {"lon": -78.68, "lat": 35.72},
-            {"lon": -78.70, "lat": 35.72},
-        ]
-
-    def test_inside_true(self, square_geofence):
-        assert inside(-78.69, 35.73, square_geofence) is True
-
-    def test_inside_false(self, square_geofence):
-        assert inside(-78.50, 35.73, square_geofence) is False
-
-    def test_orientation_colinear(self):
-        assert orientation(0, 0, 1, 1, 2, 2) == 0
-
-    def test_orientation_clockwise(self):
-        assert orientation(0, 0, 1, 1, 1, 0) == 1
-
-    def test_do_intersect_crossing(self):
-        assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) is True
-
-    def test_do_intersect_parallel(self):
-        assert doIntersect(0, 0, 10, 0, 0, 1, 10, 1) is False
-
-    def test_lies_on_segment_true(self):
-        assert liesOnSegment(0, 0, 1, 1, 2, 2) is True
-
-    def test_lies_on_segment_false(self):
-        assert liesOnSegment(0, 0, 3, 3, 2, 2) is False
-
-
-class TestReadGeofence:
-    """read_geofence from KML."""
-
-    @pytest.fixture
-    def minimal_kml(self):
-        kml = """<?xml version="1.0"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-<Document>
-<Placemark>
-<Polygon>
-<outerBoundaryIs>
-<LinearRing>
-<coordinates>-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0</coordinates>
-</LinearRing>
-</outerBoundaryIs>
-</Polygon>
-</Placemark>
-</Document>
-</kml>"""
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".kml", delete=False) as f:
-            f.write(kml.encode())
-            path = f.name
-        yield path
-        os.unlink(path)
-
-    def test_read_geofence_returns_polygon(self, minimal_kml):
-        poly = read_geofence(minimal_kml)
-        assert len(poly) >= 4
-        assert all("lat" in p and "lon" in p for p in poly)
-
-
-class TestVectorNEDExtended:
-    def test_str_format(self):
-        v = VectorNED(1.0, 2.0, 3.0)
-        s = str(v)
-        assert "1.0" in s and "2.0" in s and "3.0" in s
-
-    def test_mul_float(self):
-        v = VectorNED(1.5, 2.5, 3.5)
-        r = v * 2.0
-        assert abs(r.north - 3.0) < 1e-10
-        assert abs(r.east - 5.0) < 1e-10
-        assert abs(r.down - 7.0) < 1e-10
-
-    def test_rmul_float(self):
-        v = VectorNED(1.0, 0.0, 0.0)
-        r = 3.0 * v
-        assert abs(r.north - 3.0) < 1e-10
-
-    def test_mul_invalid_type_raises(self):
-        with pytest.raises(TypeError):
-            VectorNED(1, 2, 3) * "oops"
-
-    def test_cross_product_non_vector_raises(self):
-        with pytest.raises(TypeError):
-            VectorNED(1, 0, 0).cross_product(42)
-
-    def test_cross_product_antiparallel(self):
-        """cross product of anti-parallel vectors should be zero."""
-        v1 = VectorNED(1, 0, 0)
-        v2 = VectorNED(-1, 0, 0)
-        c = v1.cross_product(v2)
-        assert abs(c.north) < 1e-10 and abs(c.east) < 1e-10 and abs(c.down) < 1e-10
-
-    def test_hypot_3d(self):
-        # 1, 1, 1 => sqrt(3)
-        v = VectorNED(1, 1, 1)
-        assert abs(v.hypot() - math.sqrt(3)) < 1e-10
-
-    def test_norm_direction_preserved(self):
-        v = VectorNED(3, 4, 0)
-        n = v.norm()
-        assert abs(n.north - 0.6) < 1e-10
-        assert abs(n.east - 0.8) < 1e-10
-
-    def test_rotate_by_angle_180(self):
-        v = VectorNED(1, 0, 0)
-        r = v.rotate_by_angle(180)
-        # Rotated 180° → (-1, 0, 0) direction (allow floating point tolerance)
-        assert abs(r.north - (-1)) < 1e-10
-        assert abs(r.east) < 1e-10
-
-    def test_down_preserved_in_rotation(self):
-        v = VectorNED(1, 0, 5)
-        r = v.rotate_by_angle(90)
-        assert abs(r.down - 5) < 1e-10
-
-
-class TestCoordinateExtended:
     def test_str_format(self):
         c = Coordinate(35.0, -78.0, 100.0)
         s = str(c)
@@ -411,9 +298,55 @@ class TestCoordinateExtended:
         assert r.lon > c.lon
 
 
-class TestPlanFileExtended:
+class TestPlanFile:
+    """Plan file reading."""
+
     @pytest.fixture
-    def plan_with_speed_change(self):
+    def sample_plan(self):
+        data = {
+            "fileType": "Plan",
+            "mission": {
+                "items": [
+                    {"command": PLAN_CMD_TAKEOFF, "params": [0, 0, 0, 0, 35.7274, -78.6960, 10], "doJumpId": 1},
+                    {"command": PLAN_CMD_WAYPOINT, "params": [0, 0, 0, 0, 35.7284, -78.6960, 20], "doJumpId": 2},
+                    {"command": PLAN_CMD_RTL, "params": [0, 0, 0, 0, 0, 0, 0], "doJumpId": 3},
+                ]
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
+            json.dump(data, f)
+            path = f.name
+        yield path
+        os.unlink(path)
+
+    def test_read_from_plan(self, sample_plan):
+        wps = read_from_plan(sample_plan)
+        assert len(wps) == 3
+        assert wps[0][0] == PLAN_CMD_TAKEOFF
+        assert wps[0][1] == 35.7274 and wps[0][3] == 10
+
+    def test_read_from_plan_wrong_type(self):
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"fileType": "NotAPlan", "mission": {"items": []}}, f)
+            path = f.name
+        try:
+            with pytest.raises(Exception, match="Wrong file type"):
+                read_from_plan(path)
+        finally:
+            os.unlink(path)
+
+    def test_get_location_from_waypoint(self, sample_plan):
+        wps = read_from_plan(sample_plan)
+        c = get_location_from_waypoint(wps[0])
+        assert isinstance(c, Coordinate)
+        assert c.lat == 35.7274 and c.alt == 10
+
+    def test_read_from_plan_complete(self, sample_plan):
+        wps = read_from_plan_complete(sample_plan)
+        assert len(wps) == 3
+        assert "id" in wps[0] and "pos" in wps[0] and "wait_for" in wps[0]
+
+    def test_speed_change_applied_to_following_waypoints(self, sample_plan):
         """Plan with a PLAN_CMD_SPEED item between waypoints."""
         data = {
             "fileType": "Plan",
@@ -442,41 +375,46 @@ class TestPlanFileExtended:
                 ]
             },
         }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".plan", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
             json.dump(data, f)
             path = f.name
-        yield path
-        os.unlink(path)
+        try:
+            wps = read_from_plan(path)
+            # SPEED item is not yielded as a waypoint itself
+            assert len(wps) == 3  # takeoff, waypoint, RTL
+            # First waypoint uses default speed
+            assert wps[0][5] == DEFAULT_WAYPOINT_SPEED
+            # Subsequent waypoints after the speed change
+            assert wps[1][5] == 12.0
+            assert wps[2][5] == 12.0
+        finally:
+            os.unlink(path)
 
-    def test_speed_change_applied_to_following_waypoints(self, plan_with_speed_change):
-        wps = read_from_plan(plan_with_speed_change)
-        # SPEED item is not yielded as a waypoint itself
-        assert len(wps) == 3  # takeoff, waypoint, RTL
-        # First waypoint uses default speed
-        assert wps[0][5] == DEFAULT_WAYPOINT_SPEED
-        # Subsequent waypoints after the speed change
-        assert wps[1][5] == 12.0
-        assert wps[2][5] == 12.0
-
-    def test_read_from_plan_complete_speed_change(self, plan_with_speed_change):
-        wps = read_from_plan_complete(plan_with_speed_change)
-        assert len(wps) == 3
-        assert wps[0]["speed"] == DEFAULT_WAYPOINT_SPEED
-        assert wps[1]["speed"] == 12.0
-        assert wps[2]["speed"] == 12.0
-
-    def test_read_from_plan_complete_has_wait_for(self, plan_with_speed_change):
-        wps = read_from_plan_complete(plan_with_speed_change)
-        for wp in wps:
-            assert "wait_for" in wp
+    def test_read_from_plan_complete_speed_change(self, sample_plan):
+        data = {
+            "fileType": "Plan",
+            "mission": {
+                "items": [
+                    {"command": PLAN_CMD_TAKEOFF, "params": [0, 0, 0, 0, 35.72, -78.69, 10], "doJumpId": 1},
+                    {"command": PLAN_CMD_SPEED, "params": [0, 12.0, 0, 0, 0, 0, 0], "doJumpId": 2},
+                    {"command": PLAN_CMD_WAYPOINT, "params": [0, 0, 0, 0, 35.73, -78.69, 20], "doJumpId": 3},
+                ]
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
+            json.dump(data, f)
+            path = f.name
+        try:
+            wps = read_from_plan_complete(path)
+            assert len(wps) == 2
+            assert wps[0]["speed"] == DEFAULT_WAYPOINT_SPEED
+            assert wps[1]["speed"] == 12.0
+        finally:
+            os.unlink(path)
 
     def test_read_from_plan_empty_mission(self):
         data = {"fileType": "Plan", "mission": {"items": []}}
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".plan", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
             json.dump(data, f)
             path = f.name
         try:
@@ -499,9 +437,7 @@ class TestPlanFileExtended:
                 ]
             },
         }
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".plan", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
             json.dump(data, f)
             path = f.name
         try:
@@ -512,8 +448,49 @@ class TestPlanFileExtended:
             os.unlink(path)
 
 
-class TestGeometryExtended:
-    """Covers orientation CCW, do_intersect collinear, lies_on_segment corners."""
+class TestGeofence:
+    """Geofence and geometry functions."""
+
+    @pytest.fixture
+    def square_geofence(self):
+        return [
+            {"lon": -78.70, "lat": 35.72},
+            {"lon": -78.70, "lat": 35.74},
+            {"lon": -78.68, "lat": 35.74},
+            {"lon": -78.68, "lat": 35.72},
+            {"lon": -78.70, "lat": 35.72},
+        ]
+
+    def test_inside_true(self, square_geofence):
+        assert inside(-78.69, 35.73, square_geofence) is True
+
+    def test_inside_false(self, square_geofence):
+        assert inside(-78.50, 35.73, square_geofence) is False
+
+    def test_orientation_colinear(self):
+        assert orientation(0, 0, 1, 1, 2, 2) == 0
+
+    def test_orientation_clockwise(self):
+        assert orientation(0, 0, 1, 1, 1, 0) == 1
+
+    def test_orientation_colinear_extended(self):
+        assert orientation(0, 0, 1, 1, 2, 2) == 0
+
+    def test_orientation_clockwise_extended(self):
+        # Clockwise: going right then down-right
+        assert orientation(0, 0, 4, 4, 4, 0) == 1
+
+    def test_do_intersect_crossing(self):
+        assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) is True
+
+    def test_do_intersect_parallel(self):
+        assert doIntersect(0, 0, 10, 0, 0, 1, 10, 1) is False
+
+    def test_lies_on_segment_true(self):
+        assert liesOnSegment(0, 0, 1, 1, 2, 2) is True
+
+    def test_lies_on_segment_false(self, square_geofence):
+        assert liesOnSegment(0, 0, 3, 3, 2, 2) is False
 
     def test_orientation_counterclockwise(self):
         # Counter-clockwise triplet
@@ -522,9 +499,6 @@ class TestGeometryExtended:
     def test_orientation_clockwise(self):
         # Clockwise: going right then down-right
         assert orientation(0, 0, 4, 4, 4, 0) == 1
-
-    def test_orientation_colinear(self):
-        assert orientation(0, 0, 1, 1, 2, 2) == 0
 
     def test_lies_on_segment_endpoint(self):
         # Point Q is exactly at endpoint P
@@ -583,3 +557,33 @@ class TestGeometryExtended:
     def test_inside_empty_fence_returns_false(self):
         assert inside(0, 0, []) is False
 
+
+class TestReadGeofence:
+    """read_geofence from KML."""
+
+    @pytest.fixture
+    def minimal_kml(self):
+        kml = """<?xml version="1.0"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+<Placemark>
+<Polygon>
+<outerBoundaryIs>
+<LinearRing>
+<coordinates>-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0</coordinates>
+</LinearRing>
+</outerBoundaryIs>
+</Polygon>
+</Placemark>
+</Document>
+</kml>"""
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".kml", delete=False) as f:
+            f.write(kml.encode())
+            path = f.name
+        yield path
+        os.unlink(path)
+
+    def test_read_geofence_returns_polygon(self, minimal_kml):
+        poly = read_geofence(minimal_kml)
+        assert len(poly) >= 4
+        assert all("lat" in p and "lon" in p for p in poly)

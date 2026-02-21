@@ -12,9 +12,11 @@ Planned features and improvements for future releases.
 - [ ] **Testing**
   - [x] Fix integrated SITL testing (currently broken)
   - [ ] Get all tests passing (currently some skipped/failing)
-  - [ ] Installing aerpawlib[dev] installs ardupilot SITL into the code (note that this is the special aerpaw sitl)
+  - [x] Installing aerpawlib[dev] installs ardupilot SITL into the code (note that this is the special aerpaw sitl)
+    - That isn't possible technically, but we have added "aerpawlib-setup-sitl" script to install SITL and compile copter and rover." 
   - [ ] ZMQ tests
-  - [ ] Get SITL from C-VM docker and use it for testing instead of ardupilot SITL
+  - [x] Get SITL from C-VM docker and use it for testing instead of ardupilot SITL 
+    - *choosing not to implement because of python3.7- requirement). WE will use the latest 4.6.3 SITL)*
 - [ ] **Features**
   - [ ] ZMQ doesn't appear to be working correctly
 
