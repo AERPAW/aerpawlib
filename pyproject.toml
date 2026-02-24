@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aerpawlib"
-version = "1.0.0-beta-4"
+version = "1.0.0-rc1"
 description = "Tools and frameworks for writing AERPAW scripts"
 readme = "README.md"
 license = {text = "MIT"}
@@ -80,26 +80,6 @@ include = ["aerpawlib*", "scripts*"]
 
 [tool.setuptools.package-data]
 aerpawlib = ["*.yaml", "*.kml", "*.plan"]
-
-[tool.black]
-line-length = 79
-target-version = ["py39", "py310", "py311", "py312", "py313", "py314"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
-
 
 [tool.coverage.run]
 source = ["aerpawlib"]

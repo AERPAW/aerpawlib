@@ -439,7 +439,7 @@ def run_v1_experiment(
         try:
             async def create_vehicle_inner():
                 # Run blocking constructor off event loop to keep it responsive
-                v = await asyncio.to_thread(vehicle_type, args.conn)
+                v = await asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port)
                 if hasattr(v, "_connected"):
                     start = time.time()
                     while (
@@ -600,7 +600,7 @@ def main():
         "--script", help="experimenter script", required=not proxy_mode
     )
     core_grp.add_argument(
-        "--conn", help="connection string", required=not proxy_mode
+        "--conn", "--connection", help="connection string", required=not proxy_mode
     )
     core_grp.add_argument(
         "--vehicle",
@@ -694,6 +694,15 @@ def main():
         type=float,
         default=5.0,
         dest="heartbeat_timeout",
+    )
+    conn_grp.add_argument(
+        "--mavsdk-port",
+        help="gRPC port for the embedded mavsdk_server (default: 50051). "
+        "Use a unique port per vehicle process to avoid conflicts when running "
+        "multiple vehicles on the same host.",
+        type=int,
+        default=50051,
+        dest="mavsdk_port",
     )
 
     args, unknown_args = parser.parse_known_args(

@@ -42,6 +42,7 @@ class TestDroneConnection:
         assert isinstance(a.roll, float)
         assert isinstance(a.yaw, float)
 
+
     @pytest.mark.asyncio
     async def test_battery_level_valid_range(self, connected_drone):
         b = connected_drone.battery
@@ -215,8 +216,6 @@ class TestDroneVelocityControl:
         connected_drone._initialize_prearm(should_postarm_init=True)
         await connected_drone.takeoff(10)
         pos_before = connected_drone.position
-        if not hasattr(connected_drone, "set_velocity"):
-            pytest.skip("set_velocity not implemented")
         await connected_drone.set_velocity(VectorNED(2, 0, 0))
         await _asyncio.sleep(3)
         await connected_drone.set_velocity(VectorNED(0, 0, 0))  # stop

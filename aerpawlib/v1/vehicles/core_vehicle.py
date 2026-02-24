@@ -132,6 +132,29 @@ def is_udp_port_in_use(host: str, port: int) -> bool:
             return True
 
 
+def is_tcp_port_in_use(host: str, port: int) -> bool:
+    """
+    Check if a local TCP port is in use by trying to bind to it.
+
+    Args:
+        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0').
+        port: The port number to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return True
+            logger.warning("TCP port check failed: %s", e)
+            return True
+
+
 class _BatteryCompat:
     """
     Compatibility wrapper to match dronekit.Battery interface.
@@ -393,6 +416,15 @@ class Vehicle:
                     "Stop the other process or use a different connection string.",
                 )
 
+        # Warn if mavsdk gRPC port is already in use (avoids confusing multi-vehicle issues)
+        if is_tcp_port_in_use("127.0.0.1", self._mavsdk_server_port):
+            raise PortInUseError(
+                self._mavsdk_server_port,
+                f"MAVSDK gRPC port {self._mavsdk_server_port} is already in use. "
+                "If running multiple vehicles, use --mavsdk-port with a unique port per process "
+                "(e.g. --mavsdk-port 50051 for the first, --mavsdk-port 50052 for the second)."
+            )
+
         loop = asyncio.new_event_loop()
         self._mavsdk_loop = loop  # Store reference for thread-safe calls
 
@@ -512,19 +544,25 @@ class Vehicle:
     async def _resilient_telemetry_task(self, name, coro_factory):
         """Wrap a telemetry subscription in retry logic."""
         retry_count = 0
-        max_retries = 10
+        max_retries = 3
         while self._running.get() and retry_count < max_retries:
             try:
                 await coro_factory()
             except asyncio.CancelledError:
                 return
             except Exception as e:
+                # Suppress warnings that occur during normal shutdown
+                if not self._running.get():
+                    return
                 retry_count += 1
                 logger.warning(
                     f"Telemetry stream '{name}' failed (attempt {retry_count}): {e}"
                 )
                 if retry_count < max_retries:
-                    await asyncio.sleep(min(2 ** retry_count, 30))
+                    try:
+                        await asyncio.sleep(retry_count)  # Linear backoff: 1s, 2s
+                    except asyncio.CancelledError:
+                        return
                 else:
                     logger.error(
                         f"Telemetry stream '{name}' failed after {max_retries} retries"
