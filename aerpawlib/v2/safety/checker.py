@@ -21,7 +21,7 @@ from ..constants import (
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_LANDING_REQ,
 )
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..types import Coordinate
 
 logger = get_logger(LogComponent.SAFETY)

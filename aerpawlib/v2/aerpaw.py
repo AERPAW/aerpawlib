@@ -12,7 +12,7 @@ from typing import Optional
 import requests
 
 from .constants import DEFAULT_FORWARD_SERVER_IP, DEFAULT_FORWARD_SERVER_PORT
-from .logging import LogComponent, get_logger
+from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.AERPAW)
 

@@ -25,7 +25,7 @@ from ..exceptions import (
     ConnectionTimeoutError,
     NotArmableError,
 )
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 from .state import VehicleState
 

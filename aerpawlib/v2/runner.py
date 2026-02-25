@@ -20,7 +20,7 @@ from .exceptions import (
     NoInitialStateError,
     InvalidStateNameError,
 )
-from .logging import LogComponent, get_logger
+from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.RUNNER)
 

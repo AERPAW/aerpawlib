@@ -654,9 +654,17 @@ def main():
             f"Time to import API module: {time.time() - start_time:.2f}s"
         )
         # Inject into globals for backward compatibility in some scripts if needed
-        for name in dir(api_module):
-            if not name.startswith("_"):
+        # Use __all__ if defined, otherwise filter out standard modules
+        if hasattr(api_module, "__all__"):
+            for name in api_module.__all__:
                 globals()[name] = getattr(api_module, name)
+        else:
+            for name in dir(api_module):
+                if not name.startswith("_"):
+                    # Don't overwrite standard modules that we've already imported
+                    if name in ["logging", "os", "sys", "time", "asyncio", "json", "signal", "traceback"]:
+                        continue
+                    globals()[name] = getattr(api_module, name)
     except Exception as e:
         logger.error(f"Failed to import aerpawlib {api_version}: {e}")
         sys.exit(1)

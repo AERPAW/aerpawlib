@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Awaitable, Callable, Optional
 
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..types import Battery, Coordinate
 from .limits import SafetyLimits
 

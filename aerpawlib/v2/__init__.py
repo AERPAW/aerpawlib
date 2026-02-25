@@ -53,7 +53,7 @@ def __getattr__(name: str):
     if name == "DummyVehicle":
         from .vehicle import DummyVehicle
         return DummyVehicle
-    if name in ("BasicRunner", "StateMachine", "entrypoint", "state", "timed_state", "background", "at_init"):
+    if name in ("Runner", "BasicRunner", "StateMachine", "entrypoint", "state", "timed_state", "background", "at_init"):
         from . import runner
         return getattr(runner, name)
     if name == "AERPAW_Platform":
@@ -71,6 +71,7 @@ __all__ = [
     "Attitude",
     "Battery",
     "BasicRunner",
+    "Runner",
     "check_zmq_proxy_reachable",
     "CommandError",
     "constants",

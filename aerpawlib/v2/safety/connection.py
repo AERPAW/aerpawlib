@@ -14,7 +14,7 @@ from typing import Callable, Optional, Protocol
 
 from ..constants import HEARTBEAT_START_DELAY_S, HEARTBEAT_TIMEOUT_S
 from ..exceptions import HeartbeatLostError
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..protocols import VehicleProtocol
 
 logger = get_logger(LogComponent.VEHICLE)

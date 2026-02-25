@@ -7,7 +7,7 @@ Reuses logic from v1.
 import socket
 
 from .constants import ZMQ_PROXY_OUT_PORT
-from .logging import LogComponent, get_logger
+from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.ZMQ)
 

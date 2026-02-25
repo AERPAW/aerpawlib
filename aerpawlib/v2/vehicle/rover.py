@@ -14,7 +14,7 @@ from ..constants import (
     DEFAULT_POSITION_TOLERANCE_M,
 )
 from ..exceptions import NavigationError
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..types import Coordinate
 from .base import Vehicle, _validate_tolerance, _wait_for_condition
 

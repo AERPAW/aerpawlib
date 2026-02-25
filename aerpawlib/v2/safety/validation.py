@@ -6,7 +6,7 @@ Integrated into vehicle lifecycle.
 
 from __future__ import annotations
 
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..protocols import VehicleProtocol
 
 logger = get_logger(LogComponent.SAFETY)

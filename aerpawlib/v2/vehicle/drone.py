@@ -29,7 +29,7 @@ from ..exceptions import (
     TakeoffError,
     VelocityError,
 )
-from ..logging import LogComponent, get_logger
+from ..log import LogComponent, get_logger
 from ..types import Coordinate, VectorNED
 from .base import CommandHandle, Vehicle, _validate_tolerance, _wait_for_condition
 
