@@ -35,6 +35,9 @@ DEFAULT_SITL_INSTANCE_ROVER = 1  # Uses TCP 5770-5779
 # MAVSDK server ports - each vehicle needs its own gRPC port to avoid conflicts
 DEFAULT_MAVSDK_SERVER_PORT_DRONE = 50051
 DEFAULT_MAVSDK_SERVER_PORT_ROVER = 50052
+# v2 uses separate ports to allow v1 and v2 tests in same session
+DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2 = 50053
+DEFAULT_MAVSDK_SERVER_PORT_ROVER_V2 = 50054
 SITL_STARTUP_TIMEOUT = 90
 SITL_GPS_TIMEOUT = 120
 LAKE_WHEELER_LAT = 35.727436
@@ -350,7 +353,7 @@ def sitl_connection_string_rover(sitl_manager_rover: SITLManager) -> str:
 
 
 async def _full_sitl_reset(vehicle) -> None:
-    """Disarm, clear mission, battery reset. Full clean state between tests."""
+    """Disarm, clear mission, battery reset. Full clean state between tests (v1)."""
     from mavsdk.mavlink_direct import MavlinkMessage
 
     system = getattr(vehicle, "_system", None)
@@ -399,6 +402,51 @@ async def _full_sitl_reset(vehicle) -> None:
         await asyncio.sleep(2)
     except Exception:
         pass
+
+
+async def _full_sitl_reset_v2(vehicle) -> None:
+    """Full SITL reset for v2 vehicles (direct await, no _run_on_mavsdk_loop)."""
+    from mavsdk.mavlink_direct import MavlinkMessage
+
+    system = getattr(vehicle, "_system", None)
+    if not system:
+        return
+
+    try:
+        await system.mission.clear_mission()
+    except Exception:
+        pass
+    try:
+        await system.geofence.clear_geofence()
+    except Exception:
+        pass
+    try:
+        await system.action.return_to_launch()
+        await asyncio.sleep(2)
+    except Exception:
+        pass
+    try:
+        fields = {
+            "target_system": 1, "target_component": 1,
+            "command": 42651, "confirmation": 0,
+            "param1": 1.0, "param2": 100.0,
+            "param3": 0.0, "param4": 0.0,
+            "param5": 0.0, "param6": 0.0, "param7": 0.0,
+        }
+        msg = MavlinkMessage(
+            system_id=1, component_id=1,
+            target_system_id=1, target_component_id=1,
+            message_name="COMMAND_LONG",
+            fields_json=json.dumps(fields),
+        )
+        await system.mavlink_direct.send_message(msg)
+    except Exception:
+        pass
+    try:
+        await system.action.disarm()
+    except Exception:
+        pass
+    await asyncio.sleep(2)
 
 
 async def _connect_and_wait_gps(
@@ -475,3 +523,51 @@ async def connected_rover(sitl_connection_string_rover: str) -> AsyncGenerator:
         await _full_sitl_reset(rover)
     finally:
         rover.close()
+
+
+async def _connect_and_wait_gps_v2(
+    vehicle_class,
+    connection_string: str,
+    mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2,
+    timeout: int = SITL_GPS_TIMEOUT,
+):
+    """Connect v2 vehicle and wait for 3D GPS fix."""
+    from aerpawlib.v2.exceptions import ConnectionTimeoutError
+
+    try:
+        vehicle = await vehicle_class.connect(
+            connection_string,
+            mavsdk_server_port=mavsdk_server_port,
+            timeout=timeout,
+        )
+    except ConnectionTimeoutError:
+        pytest.fail(f"Connection timeout to {connection_string}")
+    except Exception as e:
+        pytest.fail(f"Vehicle init failed: {type(e).__name__}: {e}")
+
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        fix = vehicle.gps.fix_type
+        if fix >= 3:
+            return vehicle
+        await asyncio.sleep(1)
+
+    vehicle.close()
+    pytest.fail(f"No 3D GPS fix within {timeout}s")
+
+
+@pytest_asyncio.fixture
+async def connected_drone_v2(sitl_connection_string_drone: str) -> AsyncGenerator:
+    """v2 Drone connected to SITL. Full reset before each test."""
+    from aerpawlib.v2.vehicle import Drone
+
+    drone = await _connect_and_wait_gps_v2(
+        Drone,
+        sitl_connection_string_drone,
+        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2,
+    )
+    yield drone
+    try:
+        await _full_sitl_reset_v2(drone)
+    finally:
+        drone.close()

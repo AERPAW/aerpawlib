@@ -1,169 +1,64 @@
 """
-Safety monitor for continuous flight monitoring.
+SafetyMonitor for aerpawlib v2.
 
-NOTE: This monitor is for LOCAL DEVELOPMENT and SITL testing only.
-In the AERPAW environment, safety enforcement is handled by external
-infrastructure:
-- Battery failsafe: Handled by the autopilot itself
-- Speed/geofence limits: Enforced by the MAVLink filter in C-VM
-- Preflight checks: Handled by the "parameter checker" OEO script
-
-This monitor provides warnings and logging but does NOT enforce RTL
-or other safety actions - those are delegated to the autopilot/C-VM.
+Emits events and logs only; does not enforce.
+Uses await for async callbacks (no fire-and-forget create_task).
 """
 
 from __future__ import annotations
 
-import asyncio
-from typing import Callable, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import Awaitable, Callable, Optional
 
-from ..logging import get_logger, LogComponent
-from .types import SafetyViolationType
+from ..logging import LogComponent, get_logger
+from ..types import Battery, Coordinate
 from .limits import SafetyLimits
-
-if TYPE_CHECKING:
-    from ..vehicle import Vehicle
 
 logger = get_logger(LogComponent.SAFETY)
 
 
 class SafetyMonitor:
     """
-    Monitors vehicle state and logs safety warnings during flight.
+    Monitors vehicle state against SafetyLimits.
 
-    This monitor is primarily for LOCAL DEVELOPMENT and SITL testing.
-    In the AERPAW environment, actual safety enforcement is handled by:
-    - Autopilot: Battery failsafe RTL/LAND
-    - MAVLink Filter (C-VM): Geofence and speed limit enforcement
-    - Parameter Checker: Pre-flight validation
-
-    This monitor:
-    - Logs warnings when battery is low
-    - Logs warnings when speed limits are exceeded
-    - Triggers callbacks for safety events
-    - Does NOT enforce RTL or other actions (delegated to autopilot/C-VM)
+    Emits events and logs only. Does not enforce.
     """
 
-    def __init__(self, vehicle: "Vehicle", limits: SafetyLimits):
-        self._vehicle = vehicle
+    def __init__(self, limits: SafetyLimits) -> None:
         self._limits = limits
-        self._running = False
-        self._task: Optional[asyncio.Task] = None
-        self._callbacks: Dict[SafetyViolationType, List[Callable]] = {}
-        self._warnings_issued: Set[SafetyViolationType] = set()
-        self._battery_rtl_triggered = False
-        self._low_battery_warned = False
-
-    def start(self) -> None:
-        """Start the safety monitor."""
-        if self._running:
-            return
-        self._running = True
-        self._task = asyncio.create_task(self._monitor_loop())
-        logger.info("Safety monitor started")
-
-    async def stop(self) -> None:
-        """Stop the safety monitor and wait for completion."""
-        self._running = False
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except (asyncio.CancelledError, Exception):
-                pass
-            self._task = None
-        logger.info("Safety monitor stopped")
+        self._callbacks: list[Callable[[str, str], Awaitable[None]]] = []
 
     def on_violation(
-        self, violation: SafetyViolationType, callback: Callable
+        self, cb: Callable[[str, str], Awaitable[None]]
     ) -> None:
-        """Register a callback for a specific violation type."""
-        if violation not in self._callbacks:
-            self._callbacks[violation] = []
-        self._callbacks[violation].append(callback)
+        """Register async callback (event_type, message)."""
+        self._callbacks.append(cb)
 
-    async def _monitor_loop(self) -> None:
-        """Main monitoring loop."""
-        while self._running:
-            try:
-                await self._check_all()
-                await asyncio.sleep(0.5)
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"Safety monitor error: {e}")
-                await asyncio.sleep(1)
+    async def _emit(self, event_type: str, message: str) -> None:
+        """Emit event to all callbacks. Awaits each (no fire-and-forget)."""
+        logger.warning(f"[SafetyMonitor] {event_type}: {message}")
+        for cb in self._callbacks:
+            await cb(event_type, message)
 
-    async def _check_all(self) -> None:
-        """Run all safety checks."""
-        if self._limits.enable_battery_failsafe:
-            await self._check_battery()
-
-        if self._vehicle.state.is_in_air and self._limits.enable_speed_limits:
-            await self._check_speed()
-
-    async def _check_speed(self) -> None:
-        """Check speed limits."""
-        speed = self._vehicle.state.groundspeed
-        if speed > self._limits.max_speed * 1.1:  # 10% tolerance
-            await self._trigger_violation(
-                SafetyViolationType.SPEED_TOO_HIGH,
-                f"Speed {speed:.1f}m/s exceeds maximum {self._limits.max_speed}m/s",
-            )
-
-    async def _check_battery(self) -> None:
-        """Check battery levels and log warnings.
-
-        NOTE: Actual battery failsafe (RTL/LAND) is handled by the autopilot.
-        This method only logs warnings and triggers callbacks for monitoring.
-        """
-        battery_pct = self._vehicle.battery.percentage
-
-        # Skip battery checks if battery data hasn't been received yet (0.0% or very low voltage)
-        # SITL and real vehicles should report valid battery data once connected
-        if battery_pct == 0.0 and self._vehicle.battery.voltage < 1.0:
-            return
-
-        if battery_pct <= self._limits.critical_battery_percent:
-            if not self._battery_rtl_triggered:
-                self._battery_rtl_triggered = True
-                # Log critical warning - autopilot handles actual RTL
-                logger.critical(
-                    f"BATTERY CRITICAL ({battery_pct:.1f}%) - "
-                    "Autopilot battery failsafe should trigger RTL/LAND"
+    async def check_altitude(self, position: Coordinate) -> None:
+        """Check altitude against limits."""
+        if self._limits.max_altitude_m is not None:
+            if position.alt > self._limits.max_altitude_m:
+                await self._emit(
+                    "ALTITUDE_EXCEEDED",
+                    f"Altitude {position.alt}m exceeds max {self._limits.max_altitude_m}m",
                 )
-                await self._trigger_violation(
-                    SafetyViolationType.BATTERY_CRITICAL,
-                    f"CRITICAL BATTERY: {battery_pct:.1f}% - Autopilot failsafe expected",
+        if self._limits.min_altitude_m is not None:
+            if position.alt < self._limits.min_altitude_m:
+                await self._emit(
+                    "ALTITUDE_BELOW_MIN",
+                    f"Altitude {position.alt}m below min {self._limits.min_altitude_m}m",
                 )
 
-        elif battery_pct <= self._limits.min_battery_percent:
-            if not self._low_battery_warned:
-                self._low_battery_warned = True
-                await self._trigger_violation(
-                    SafetyViolationType.BATTERY_LOW,
-                    f"Low battery warning: {battery_pct:.1f}% - Consider landing soon",
+    async def check_battery(self, battery: Battery) -> None:
+        """Check battery against limits."""
+        if self._limits.min_battery_percent is not None:
+            if battery.level < self._limits.min_battery_percent:
+                await self._emit(
+                    "LOW_BATTERY",
+                    f"Battery {battery.level}% below min {self._limits.min_battery_percent}%",
                 )
-
-    async def _trigger_violation(
-        self, violation: SafetyViolationType, message: str
-    ) -> None:
-        """Trigger a safety violation."""
-        logger.warning(f"SAFETY: {message}")
-
-        for callback in self._callbacks.get(violation, []):
-            try:
-                result = callback(violation, message)
-                if asyncio.iscoroutine(result):
-                    await result
-            except Exception as e:
-                logger.error(f"Violation callback error: {e}")
-
-    def reset(self) -> None:
-        """Reset warning state (call on landing)."""
-        self._warnings_issued.clear()
-        self._battery_rtl_triggered = False
-        self._low_battery_warned = False
-
-
-__all__ = ["SafetyMonitor"]

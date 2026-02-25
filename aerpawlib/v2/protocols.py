@@ -1,158 +1,61 @@
 """
-Protocol definitions for aerpawlib v2 API.
+Protocols for aerpawlib v2 API.
+
+Used for testing, mocking, and avoiding circular imports.
 """
 
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Protocol, runtime_checkable
+from typing import Optional, Protocol, runtime_checkable
 
-from .types import Coordinate, VectorNED, Attitude, FlightMode, LandedState
+from .types import Battery, Coordinate, GPSInfo, VectorNED
 
 
 @runtime_checkable
 class GPSProtocol(Protocol):
-    """Protocol for GPS state containers."""
-
-    satellites: int
-    fix_type: int
+    """Protocol for GPS-like objects."""
 
     @property
-    def has_fix(self) -> bool: ...
+    def fix_type(self) -> int:
+        ...
 
     @property
-    def quality(self) -> str: ...
-
-
-@runtime_checkable
-class BatteryProtocol(Protocol):
-    """Protocol for battery state containers."""
-
-    voltage: float
-    charge: float
-
-    @property
-    def percentage(self) -> float: ...
-
-    @property
-    def is_low(self) -> bool: ...
-
-    @property
-    def is_critical(self) -> bool: ...
-
-
-@runtime_checkable
-class StateProtocol(Protocol):
-    """Protocol for vehicle state containers."""
-
-    heading: float
-    velocity: VectorNED
-    attitude: Attitude
-    altitude: float
-    relative_altitude: float
-    latitude: float
-    longitude: float
-    groundspeed: float
-    airspeed: float
-    climb_rate: float
-    flight_mode: FlightMode
-    landed_state: LandedState
-
-    @property
-    def position(self) -> Coordinate: ...
-
-    @property
-    def speed(self) -> float: ...
-
-    @property
-    def is_in_air(self) -> bool: ...
+    def satellites_visible(self) -> int:
+        ...
 
 
 @runtime_checkable
 class VehicleProtocol(Protocol):
-    """
-    Protocol defining the interface for vehicle classes.
-
-    Use this to type-hint variables that could be either a real Drone
-    or a MockDrone, enabling proper static type checking while allowing
-    test mocks.
-
-    Example:
-        def fly_mission(vehicle: VehicleProtocol) -> None:
-            await vehicle.takeoff(altitude=10)
-            await vehicle.goto(latitude=51.5, longitude=-0.1)
-            await vehicle.land()
-    """
-
-    state: StateProtocol
-    gps: GPSProtocol
-    battery: BatteryProtocol
+    """Protocol for vehicle-like objects (ConnectionHandler dependency)."""
 
     @property
-    def connected(self) -> bool: ...
+    def connected(self) -> bool:
+        ...
 
     @property
-    def connection_healthy(self) -> bool: ...
+    def armed(self) -> bool:
+        ...
 
     @property
-    def armed(self) -> bool: ...
+    def position(self) -> Coordinate:
+        ...
 
     @property
-    def is_armable(self) -> bool: ...
+    def home_coords(self) -> Optional[Coordinate]:
+        ...
 
     @property
-    def home(self) -> Optional[Coordinate]: ...
+    def battery(self) -> Battery:
+        ...
 
     @property
-    def position(self) -> Coordinate: ...
+    def gps(self) -> GPSInfo:
+        ...
 
     @property
-    def heading(self) -> float: ...
+    def heading(self) -> float:
+        ...
 
-    @property
-    def velocity(self) -> VectorNED: ...
-
-    @property
-    def altitude(self) -> float: ...
-
-    @property
-    def is_in_air(self) -> bool: ...
-
-    async def connect(self, timeout: float = 30.0) -> bool: ...
-
-    async def disconnect(self) -> None: ...
-
-    async def arm(self, force: bool = False) -> bool: ...
-
-    async def disarm(self, force: bool = False) -> bool: ...
-
-    async def takeoff(
-        self, altitude: float = 5.0, wait: bool = True
-    ) -> bool: ...
-
-    async def land(self, wait: bool = True) -> bool: ...
-
-    async def goto(
-        self,
-        latitude: Optional[float] = None,
-        longitude: Optional[float] = None,
-        altitude: Optional[float] = None,
-        coordinates: Optional[Coordinate] = None,
-        speed: Optional[float] = None,
-        heading: Optional[float] = None,
-    ): ...
-
-    async def rtl(self, wait: bool = True) -> bool: ...
-
-    async def hold(self) -> None: ...
-
-    def on(self, event: Any, callback: Callable) -> None: ...
-
-    def off(self, event: Any, callback: Callable) -> None: ...
-
-
-__all__ = [
-    "GPSProtocol",
-    "BatteryProtocol",
-    "StateProtocol",
-    "VehicleProtocol",
-]
+    def heartbeat_tick(self) -> None:
+        """Called when telemetry indicates heartbeat received."""
+        ...

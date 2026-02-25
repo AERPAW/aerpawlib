@@ -1,98 +1,49 @@
 """
-Utilities allowing for aerpawlib scripts to interact with external processes
-running in a userspace.
-
-This is the v2 API version of the external process utilities.
-The v2 version provides the same async-first interface as legacy/v1.
+External process utilities for aerpawlib v2.
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import List
-import re
+from typing import List, Optional
 
 
 class ExternalProcess:
     """
-    Object allowing for interaction with a process spawned by this script and
-    run asynchronously to the aerpawlib script. Allows for basic interaction
-    with stdio and stdout as well as dynamic passing of arguments.
+    Representation of an external process.
+
+    Async interface for stdin/stdout interaction.
     """
 
     def __init__(
         self,
         executable: str,
-        params=None,
-        stdin: str = None,
-        stdout: str = None,
-    ):
-        """
-        Prepare external process for execution. Does NOT execute process, you
-        must call `start()`.
-
-        `params` should be the parameters that will be passed to the process.
-        Split the list where there would be spaces in the command line version.
-        """
-        self.process = None
+        params: Optional[List[str]] = None,
+        stdin: Optional[str] = None,
+        stdout: Optional[str] = None,
+    ) -> None:
         self._executable = executable
-        self._params = params if params is not None else []
+        self._params = params or []
         self._stdin = stdin
         self._stdout = stdout
+        self.process: Optional[asyncio.subprocess.Process] = None
 
-    async def start(self):
-        """
-        Start the executable in an asynchronous process
-        """
-        executable = self._executable
-        executable += " " + " ".join(self._params)
-        if self._stdin is not None:
-            executable += f" < {self._stdin}"
-        if self._stdout is not None:
-            executable += f" > {self._stdout}"
-
-        self.process = await asyncio.create_subprocess_shell(
-            executable,
-            stdout=(
-                None if self._stdout is not None else asyncio.subprocess.PIPE
-            ),
-            stdin=None if self._stdin is not None else asyncio.subprocess.PIPE,
+    async def start(self) -> None:
+        """Start the process."""
+        cmd = [self._executable] + self._params
+        stdin = asyncio.subprocess.PIPE if self._stdin is None else None
+        stdout = asyncio.subprocess.PIPE if self._stdout is None else None
+        self.process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=stdin,
+            stdout=stdout,
         )
 
-    async def read_line(self) -> str | None:
-        """
-        Read one line from the stdout buffer. Returns None if process has stopped.
-        """
-        if not self.process.stdout:
+    async def read_line(self) -> Optional[str]:
+        """Read one line from stdout."""
+        if self.process is None or self.process.stdout is None:
             return None
-        out = await self.process.stdout.readline()
-        return out.decode("ascii").rstrip()
-
-    async def send_input(self, data: str):
-        """
-        Send a string to the process's stdin
-        """
-        self.process.stdin.write(data.encode())
-        await self.process.stdin.drain()
-
-    async def wait_until_terminated(self):
-        """
-        Idles until process is complete
-        """
-        await self.process.wait()
-
-    async def wait_until_output(self, output_regex) -> List[str]:
-        """
-        block and wait until we see the output_regex regular expression show up
-        in a line of the output stream (only works w/out stdout set)
-
-        Returns all lines consumes up until and including regex
-
-        Use an r"string" as output_regex
-
-        Will exit only if process terminates or pattern is matched
-        """
-        buff = []
-        while True:
-            out = await self.read_line()
-            buff.append(out)
-            if re.search(output_regex, out):
-                return buff
+        line = await self.process.stdout.readline()
+        if not line:
+            return None
+        return line.decode("ascii", errors="replace").rstrip()

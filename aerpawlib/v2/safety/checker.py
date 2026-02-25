@@ -1,492 +1,98 @@
 """
-Safety checker client/server for aerpawlib v2 API.
+SafetyCheckerClient for aerpawlib v2.
 
-AERPAW Architecture Overview:
-----------------------------
-This module implements a client-server model for pre-validating vehicle commands:
-
-1. SafetyCheckerClient (runs in E-VM / experimenter script):
-   - Queries the SafetyCheckerServer to pre-validate commands BEFORE sending them
-   - This is OPTIONAL - commands can be sent directly without pre-validation
-   - Allows scripts to check if a command WILL be accepted before attempting it
-   - Example: Generate random waypoints and validate them before flying
-
-2. SafetyCheckerServer (runs in C-VM, NOT in experimenter code):
-   - Provides the validation logic for geofences, speed limits, altitude
-   - Receives queries from the client and returns validation results
-   - NOTE: The server code is included here for completeness but should be
-     deployed on the C-VM, not instantiated by experimenter scripts
-
-3. MAVLink Filter (external, in C-VM):
-   - The ACTUAL enforcement mechanism - sits between E-VM and autopilot
-   - Observes all MAVLink messages and blocks/allows based on safety rules
-   - If an illegal command is detected, it SEVERS the connection entirely
-   - This is what prevents unsafe operations - NOT the SafetyCheckerClient
-
-The SafetyCheckerClient is useful for experimenter scripts that want to:
-- Pre-validate waypoints before attempting navigation
-- Check if a speed change will be accepted
-- Avoid triggering a connection severance by the MAVLink filter
-
-ZMQ is a hard requirement for this module - it will fail fast if not available.
+Async ZMQ client for external geofence validation.
 """
 
 from __future__ import annotations
 
 import json
 import zlib
-from pathlib import Path
-from typing import Any, Optional, Tuple, TYPE_CHECKING
+from typing import Tuple
 
-# Fail fast on ZMQ - it's required for this module
-try:
-    import zmq
-    import zmq.asyncio
-except ImportError as e:
-    raise ImportError(
-        "ZMQ is required for safety checker client/server. "
-        "Install with: pip install pyzmq"
-    ) from e
+import zmq
+import zmq.asyncio
 
-from .types import (
-    RequestType,
-    ValidationResult,
-    SafetyCheckResult,
-    SafetyViolationType,
+from ..constants import (
+    SAFETY_CHECKER_REQUEST_TIMEOUT_S,
+    SERVER_STATUS_REQ,
+    VALIDATE_WAYPOINT_REQ,
+    VALIDATE_CHANGE_SPEED_REQ,
+    VALIDATE_TAKEOFF_REQ,
+    VALIDATE_LANDING_REQ,
 )
-from .limits import SafetyConfig, VehicleType
-
-if TYPE_CHECKING:
-    from ..types import Coordinate
-
-from ..logging import get_logger, LogComponent
+from ..logging import LogComponent, get_logger
+from ..types import Coordinate
 
 logger = get_logger(LogComponent.SAFETY)
 
 
-def _serialize_message(data: dict) -> bytes:
-    """Compress and serialize a message."""
-    return zlib.compress(json.dumps(data).encode("utf-8"))
+def _serialize_request(request_function: str, params: list) -> bytes:
+    raw = json.dumps({"request_function": request_function, "params": params})
+    return zlib.compress(raw.encode("utf-8"))
 
 
-def _deserialize_message(data: bytes) -> dict:
-    """Decompress and deserialize a message."""
-    return json.loads(zlib.decompress(data).decode("utf-8"))
+def _deserialize_response(data: bytes) -> dict:
+    raw = zlib.decompress(data).decode("utf-8")
+    return json.loads(raw)
 
 
 class SafetyCheckerClient:
-    """
-    Async client for querying the SafetyCheckerServer (runs in C-VM).
+    """Async client for SafetyCheckerServer via ZMQ."""
 
-    This client allows experimenter scripts to PRE-VALIDATE commands before
-    sending them to the vehicle. This is useful for:
-    - Randomly generating waypoints and checking which are valid
-    - Avoiding triggering the MAVLink filter's connection severance
-    - Checking speed/altitude limits before commanding a change
-
-    IMPORTANT: This does NOT enforce safety. The MAVLink filter in the C-VM
-    is what actually blocks unsafe commands. Using this client is OPTIONAL -
-    you can send commands directly and the filter will block if unsafe.
-
-    The server address defaults to the C-VM IP (192.168.32.25) on port 14580.
-
-    Example:
-        async with SafetyCheckerClient("192.168.32.25", 14580) as checker:
-            # Check if a waypoint is valid before flying there
-            result = await checker.validate_waypoint(current, target)
-            if result:
-                await vehicle.goto(target)
-            else:
-                print(f"Waypoint rejected: {result.message}")
-    """
-
-    def __init__(self, address: str = "localhost", port: int = 14580):
-        self._address = address
+    def __init__(
+        self,
+        addr: str,
+        port: int,
+        timeout_s: float = SAFETY_CHECKER_REQUEST_TIMEOUT_S,
+    ) -> None:
+        self._addr = addr
         self._port = port
-        self._context: Optional[zmq.asyncio.Context] = None
-        self._socket: Optional[Any] = None
-        self._connected = False
+        self._timeout_s = timeout_s
+        self._ctx = zmq.asyncio.Context()
+        self._socket = self._ctx.socket(zmq.REQ)
+        timeout_ms = int(timeout_s * 1000)
+        self._socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
+        self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
+        self._socket.connect(f"tcp://{addr}:{port}")
 
-    async def connect(self) -> None:
-        """Connect to the safety checker server."""
-        self._context = zmq.asyncio.Context()
-        self._socket = self._context.socket(zmq.REQ)
-        self._socket.connect(f"tcp://{self._address}:{self._port}")
-        self._connected = True
+    def close(self) -> None:
+        self._socket.close()
+        self._ctx.term()
 
-    async def disconnect(self) -> None:
-        """Disconnect from the server."""
-        if self._socket:
-            self._socket.close()
-            self._socket = None
-        if self._context:
-            self._context.term()
-            self._context = None
-        self._connected = False
+    async def _send_request(self, msg: bytes) -> Tuple[bool, str]:
+        await self._socket.send(msg)
+        raw = await self._socket.recv()
+        resp = _deserialize_response(raw)
+        return resp["result"], resp.get("message", "")
 
-    async def __aenter__(self) -> "SafetyCheckerClient":
-        await self.connect()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
-        await self.disconnect()
-
-    async def _send_request(
-        self, request_type: RequestType, params: Optional[list] = None
-    ) -> ValidationResult:
-        """Send a request to the server and get the response."""
-        if not self._connected:
-            raise RuntimeError("Not connected to safety checker server")
-
-        request = {"request_function": request_type.value, "params": params}
-        await self._socket.send(_serialize_message(request))
-        response = _deserialize_message(await self._socket.recv())
-        logger.debug(f"Safety checker response: {response}")
-
-        return ValidationResult(
-            valid=response.get("result", False),
-            message=response.get("message", ""),
-            request_type=request_type,
-        )
-
-    async def check_server_status(self) -> ValidationResult:
-        """Check if the safety checker server is running."""
-        return await self._send_request(RequestType.SERVER_STATUS)
+    async def check_server_status(self) -> Tuple[bool, str]:
+        msg = _serialize_request(SERVER_STATUS_REQ, [])
+        return await self._send_request(msg)
 
     async def validate_waypoint(
-        self, current: "Coordinate", target: "Coordinate"
-    ) -> ValidationResult:
-        """Validate a waypoint command against geofences."""
-        return await self._send_request(
-            RequestType.VALIDATE_WAYPOINT,
-            [current.to_json(), target.to_json()],
+        self, current: Coordinate, next_loc: Coordinate
+    ) -> Tuple[bool, str]:
+        msg = _serialize_request(
+            VALIDATE_WAYPOINT_REQ,
+            [current.to_json(), next_loc.to_json()],
         )
+        return await self._send_request(msg)
 
-    async def validate_speed(self, speed: float) -> ValidationResult:
-        """Validate a speed change command."""
-        return await self._send_request(RequestType.VALIDATE_SPEED, [speed])
+    async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+        msg = _serialize_request(VALIDATE_CHANGE_SPEED_REQ, [new_speed])
+        return await self._send_request(msg)
 
     async def validate_takeoff(
-        self, altitude: float, latitude: float, longitude: float
-    ) -> ValidationResult:
-        """Validate a takeoff command."""
-        return await self._send_request(
-            RequestType.VALIDATE_TAKEOFF, [altitude, latitude, longitude]
+        self, takeoff_alt: float, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
+        msg = _serialize_request(
+            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon]
         )
+        return await self._send_request(msg)
 
     async def validate_landing(
-        self, latitude: float, longitude: float
-    ) -> ValidationResult:
-        """Validate a landing command."""
-        return await self._send_request(
-            RequestType.VALIDATE_LANDING, [latitude, longitude]
-        )
-
-
-class SafetyCheckerServer:
-    """
-    Safety checker server that validates vehicle commands.
-
-    IMPORTANT: This server runs on the C-VM (Control VM), NOT in experimenter
-    scripts. It is included in aerpawlib for completeness but should be deployed
-    as part of the AERPAW platform infrastructure.
-
-    The server validates commands based on:
-    - Geofence boundaries (include/exclude polygons)
-    - Speed limits (min/max)
-    - Altitude restrictions (for copters)
-
-    The SafetyCheckerClient (in experimenter scripts) queries this server to
-    pre-validate commands. The MAVLink filter also uses this same validation
-    logic to decide whether to forward or block commands.
-
-    Deployment (C-VM only):
-        config = SafetyConfig.from_yaml("/path/to/vehicle_config.yaml")
-        server = SafetyCheckerServer(config, port=14580)
-        await server.serve()
-    """
-
-    def __init__(self, config: SafetyConfig | str | Path, port: int = 14580):
-        if isinstance(config, (str, Path)):
-            self._config = SafetyConfig.from_yaml(config)
-        else:
-            self._config = config
-
-        self._port = port
-        self._context: Optional[zmq.asyncio.Context] = None
-        self._socket: Optional[Any] = None
-        self._takeoff_location: Optional["Coordinate"] = None
-        self._running = False
-
-        self._handlers = {
-            RequestType.SERVER_STATUS: self._handle_server_status,
-            RequestType.VALIDATE_WAYPOINT: self._handle_validate_waypoint,
-            RequestType.VALIDATE_SPEED: self._handle_validate_speed,
-            RequestType.VALIDATE_TAKEOFF: self._handle_validate_takeoff,
-            RequestType.VALIDATE_LANDING: self._handle_validate_landing,
-        }
-
-    def _create_response(
-        self, request_type: RequestType, result: bool, message: str = ""
-    ) -> bytes:
-        """Create a serialized response message."""
-        return _serialize_message(
-            {
-                "request_function": request_type.value,
-                "result": result,
-                "message": message,
-            }
-        )
-
-    def _handle_server_status(self) -> Tuple[bool, str]:
-        return (True, "")
-
-    def _handle_validate_waypoint(
-        self, current_json: str, target_json: str
+        self, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
-        from ..types import Coordinate
-        from ..geofence import is_inside_polygon, path_crosses_polygon
-
-        current = Coordinate.from_json(current_json)
-        target = Coordinate.from_json(target_json)
-        logger.debug(f"Validating waypoint: {target}")
-
-        # Check altitude for copters
-        if self._config.vehicle_type == VehicleType.COPTER:
-            if (
-                self._config.min_altitude is not None
-                and target.altitude < self._config.min_altitude
-            ):
-                return (
-                    False,
-                    f"Altitude {target.altitude}m below minimum {self._config.min_altitude}m",
-                )
-            if (
-                self._config.max_altitude is not None
-                and target.altitude > self._config.max_altitude
-            ):
-                return (
-                    False,
-                    f"Altitude {target.altitude}m exceeds maximum {self._config.max_altitude}m",
-                )
-
-        # Check geofences
-        inside_geofence = False
-        active_geofence = None
-        for geofence in self._config.include_geofences:
-            if is_inside_polygon(target, geofence):
-                inside_geofence, active_geofence = True, geofence
-                break
-
-        if not inside_geofence:
-            return (
-                False,
-                f"Waypoint ({target.latitude},{target.longitude}) is outside of the geofence",
-            )
-
-        for zone in self._config.exclude_geofences:
-            if is_inside_polygon(target, zone):
-                return (
-                    False,
-                    f"Waypoint ({target.latitude},{target.longitude}) is inside a no-go zone",
-                )
-
-        if active_geofence and path_crosses_polygon(
-            current, target, active_geofence
-        ):
-            return (
-                False,
-                f"Path from ({current.latitude},{current.longitude}) to ({target.latitude},{target.longitude}) leaves geofence",
-            )
-
-        for zone in self._config.exclude_geofences:
-            if path_crosses_polygon(current, target, zone):
-                return (False, "Path enters no-go zone")
-
-        return (True, "")
-
-    def _handle_validate_speed(self, speed: float) -> Tuple[bool, str]:
-        if speed > self._config.max_speed:
-            return (
-                False,
-                f"Speed {speed} exceeds maximum {self._config.max_speed}",
-            )
-        if speed < self._config.min_speed:
-            return (
-                False,
-                f"Speed {speed} below minimum {self._config.min_speed}",
-            )
-        return (True, "")
-
-    def _handle_validate_takeoff(
-        self, altitude: float, latitude: float, longitude: float
-    ) -> Tuple[bool, str]:
-        from ..types import Coordinate
-
-        if self._config.vehicle_type == VehicleType.COPTER:
-            if (
-                self._config.min_altitude is not None
-                and altitude < self._config.min_altitude
-            ):
-                return (False, f"Takeoff altitude {altitude}m below minimum")
-            if (
-                self._config.max_altitude is not None
-                and altitude > self._config.max_altitude
-            ):
-                return (False, f"Takeoff altitude {altitude}m exceeds maximum")
-
-        self._takeoff_location = Coordinate(latitude, longitude, 0)
-        return (True, "")
-
-    def _handle_validate_landing(
-        self, latitude: float, longitude: float
-    ) -> Tuple[bool, str]:
-        from ..types import Coordinate
-
-        if self._takeoff_location is None:
-            return (False, "No takeoff location recorded")
-
-        current = Coordinate(latitude, longitude, 0)
-        distance = self._takeoff_location.ground_distance_to(current)
-        if distance > 5:
-            return (
-                False,
-                f"Landing location must be within 5m of takeoff ({distance:.1f}m away)",
-            )
-        return (True, "")
-
-    async def serve(self) -> None:
-        """Start the server and process requests."""
-        self._context = zmq.asyncio.Context()
-        self._socket = self._context.socket(zmq.REP)
-        self._socket.bind(f"tcp://*:{self._port}")
-        self._running = True
-
-        logger.info(f"Safety checker server listening on port {self._port}")
-
-        try:
-            while self._running:
-                raw_msg = await self._socket.recv()
-                message = _deserialize_message(raw_msg)
-                logger.debug(f"Received request: {message}")
-
-                try:
-                    request_type = RequestType(message["request_function"])
-                    handler = self._handlers.get(request_type)
-
-                    if handler is None:
-                        response = self._create_response(
-                            request_type,
-                            False,
-                            f"Unknown request: {request_type.value}",
-                        )
-                    else:
-                        params = message.get("params") or []
-                        result, msg = handler(*params)
-                        response = self._create_response(
-                            request_type, result, msg
-                        )
-
-                except (KeyError, ValueError) as e:
-                    response = _serialize_message(
-                        {"result": False, "message": f"Invalid request: {e}"}
-                    )
-
-                await self._socket.send(response)
-        finally:
-            self._socket.close()
-            self._context.term()
-
-    def stop(self) -> None:
-        """Stop the server."""
-        self._running = False
-
-
-# Helper functions for validation with checker
-
-
-async def validate_waypoint_with_checker(
-    checker: SafetyCheckerClient,
-    current: "Coordinate",
-    target: "Coordinate",
-    raise_on_fail: bool = True,
-) -> SafetyCheckResult:
-    """Validate a waypoint against the safety checker server."""
-    from ..exceptions import GeofenceViolationError
-
-    try:
-        result = await checker.validate_waypoint(current, target)
-        check_result = SafetyCheckResult.from_validation_result(result)
-
-        if not check_result.passed and raise_on_fail:
-            raise GeofenceViolationError(message=check_result.message)
-
-        return check_result
-    except GeofenceViolationError:
-        raise
-    except Exception as e:
-        logger.error(f"Safety checker validation failed: {e}")
-        return SafetyCheckResult.fail(
-            SafetyViolationType.GEOFENCE_VIOLATION,
-            f"Safety checker error: {e}",
-        )
-
-
-async def validate_speed_with_checker(
-    checker: SafetyCheckerClient, speed: float, raise_on_fail: bool = True
-) -> SafetyCheckResult:
-    """Validate a speed change against the safety checker server."""
-    from ..exceptions import SpeedLimitExceededError
-
-    try:
-        result = await checker.validate_speed(speed)
-        check_result = SafetyCheckResult.from_validation_result(result)
-
-        if not check_result.passed and raise_on_fail:
-            raise SpeedLimitExceededError(message=check_result.message)
-
-        return check_result
-    except SpeedLimitExceededError:
-        raise
-    except Exception as e:
-        logger.error(f"Safety checker speed validation failed: {e}")
-        return SafetyCheckResult.fail(
-            SafetyViolationType.SPEED_TOO_HIGH, f"Safety checker error: {e}"
-        )
-
-
-async def validate_takeoff_with_checker(
-    checker: SafetyCheckerClient,
-    altitude: float,
-    latitude: float,
-    longitude: float,
-    raise_on_fail: bool = True,
-) -> SafetyCheckResult:
-    """Validate a takeoff against the safety checker server."""
-    from ..exceptions import SafetyError
-
-    try:
-        result = await checker.validate_takeoff(altitude, latitude, longitude)
-        check_result = SafetyCheckResult.from_validation_result(result)
-
-        if not check_result.passed and raise_on_fail:
-            raise SafetyError(message=check_result.message)
-
-        return check_result
-    except SafetyError:
-        raise
-    except Exception as e:
-        logger.error(f"Safety checker takeoff validation failed: {e}")
-        return SafetyCheckResult.fail(
-            SafetyViolationType.ALTITUDE_OUT_OF_BOUNDS,
-            f"Safety checker error: {e}",
-        )
-
-
-__all__ = [
-    "SafetyCheckerClient",
-    "SafetyCheckerServer",
-    "validate_waypoint_with_checker",
-    "validate_speed_with_checker",
-    "validate_takeoff_with_checker",
-]
+        msg = _serialize_request(VALIDATE_LANDING_REQ, [current_lat, current_lon])
+        return await self._send_request(msg)
