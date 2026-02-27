@@ -8,7 +8,9 @@ Full SITL reset (disarm, clear mission, battery reset) runs between each test.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -35,13 +37,32 @@ DEFAULT_SITL_INSTANCE_ROVER = 1  # Uses TCP 5770-5779
 # MAVSDK server ports - each vehicle needs its own gRPC port to avoid conflicts
 DEFAULT_MAVSDK_SERVER_PORT_DRONE = 50051
 DEFAULT_MAVSDK_SERVER_PORT_ROVER = 50052
-# v2 uses separate ports to allow v1 and v2 tests in same session
-DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2 = 50053
-DEFAULT_MAVSDK_SERVER_PORT_ROVER_V2 = 50054
 SITL_STARTUP_TIMEOUT = 90
 SITL_GPS_TIMEOUT = 120
 LAKE_WHEELER_LAT = 35.727436
 LAKE_WHEELER_LON = -78.696587
+
+
+def is_udp_port_in_use(host: str, port: int) -> bool:
+    """
+    Check if a local UDP port is in use by trying to bind to it.
+
+    Args:
+        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0', or '::1').
+        port: The port number to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return True
+            return True
 
 
 def _find_sim_vehicle() -> Optional[Path]:
@@ -65,16 +86,6 @@ def _find_sim_vehicle() -> Optional[Path]:
             return script
     return None
 
-
-def _port_available(host: str, port: int) -> bool:
-    """Check if a port is accepting connections."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(0.5)
-            s.connect((host, port))
-        return True
-    except (socket.error, OSError):
-        return False
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -114,7 +125,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Pytest configuration."""
     configure_logging(level=LogLevel.DEBUG, root_name="aerpawlib")
+    # Grab the root aerpawlib logger
+    aerpaw_logger = logging.getLogger("aerpawlib")
 
+    # Strip away the custom stream handlers
+    aerpaw_logger.handlers.clear()
+
+    # Force the logs to flow up to pytest's root interceptor
+    aerpaw_logger.propagate = True
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     """Auto-apply markers based on test path."""
@@ -126,9 +144,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
             item.add_marker(pytest.mark.integration)
 
 
-# ---------------------------------------------------------------------------
 # Unit test fixtures (no SITL)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -152,9 +168,7 @@ def zero_vector():
     return VectorNED(0, 0, 0)
 
 
-# ---------------------------------------------------------------------------
 # SITL management
-# ---------------------------------------------------------------------------
 
 
 class SITLManager:
@@ -231,7 +245,7 @@ class SITLManager:
         # Wait for MAVLink port
         start = time.monotonic()
         while time.monotonic() - start < SITL_STARTUP_TIMEOUT:
-            if _port_available("127.0.0.1", self.port):
+            if is_udp_port_in_use("127.0.0.1", self.port):
                 logger.info(f"SITL Ready on udpin://127.0.0.1:{self.port}")
                 return f"udpin://127.0.0.1:{self.port}"
 
@@ -347,9 +361,7 @@ def sitl_connection_string_rover(sitl_manager_rover: SITLManager) -> str:
     return sitl_manager_rover.connection_string()
 
 
-# ---------------------------------------------------------------------------
 # Full SITL reset (between each integration test)
-# ---------------------------------------------------------------------------
 
 
 async def _full_sitl_reset(vehicle) -> None:
@@ -528,7 +540,7 @@ async def connected_rover(sitl_connection_string_rover: str) -> AsyncGenerator:
 async def _connect_and_wait_gps_v2(
     vehicle_class,
     connection_string: str,
-    mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2,
+    mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT_DRONE,
     timeout: int = SITL_GPS_TIMEOUT,
 ):
     """Connect v2 vehicle and wait for 3D GPS fix."""
@@ -564,7 +576,7 @@ async def connected_drone_v2(sitl_connection_string_drone: str) -> AsyncGenerato
     drone = await _connect_and_wait_gps_v2(
         Drone,
         sitl_connection_string_drone,
-        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_DRONE_V2,
+        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_DRONE,
     )
     yield drone
     try:
@@ -581,7 +593,7 @@ async def connected_rover_v2(sitl_connection_string_rover: str) -> AsyncGenerato
     rover = await _connect_and_wait_gps_v2(
         Rover,
         sitl_connection_string_rover,
-        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_ROVER_V2,
+        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_ROVER,
     )
     yield rover
     try:

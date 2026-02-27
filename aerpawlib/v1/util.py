@@ -6,8 +6,10 @@ maintaining API compatibility.
 
 @author: Julian Reder (quantumbagel)
 """
-
+import errno
 import json
+import socket
+
 import math
 from typing import List, Tuple
 
@@ -527,3 +529,46 @@ def do_intersect(px, py, qx, qy, rx, ry, sx, sy):
 def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
     return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
 
+
+def is_udp_port_in_use(host: str, port: int) -> bool:
+    """
+    Check if a local UDP port is in use by trying to bind to it.
+
+    Args:
+        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0', or '::1').
+        port: The port number to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return True
+            return True
+
+
+def is_tcp_port_in_use(host: str, port: int) -> bool:
+    """
+    Check if a local TCP port is in use by trying to bind to it.
+
+    Args:
+        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0').
+        port: The port number to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_STREAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return True
+            return True
