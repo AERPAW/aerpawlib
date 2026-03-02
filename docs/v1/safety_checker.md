@@ -96,12 +96,12 @@ server = SafetyCheckerServer(
 
 The server validates:
 
-1. **Waypoint position**: Must be inside at least one include geofence
-2. **No-go zones**: Must not be inside any exclude geofence
-3. **Path validation**: Path must not cross geofence boundaries
-4. **Path no-go**: Path must not enter any no-go zones
-5. **Altitude (copter)**: Must be within min_alt and max_alt
-6. **Speed**: Must be within min_speed and max_speed
+1. Waypoint position: Must be inside at least one include geofence
+2. No-go zones: Must not be inside any exclude geofence
+3. Path validation: Path must not cross geofence boundaries
+4. Path no-go: Path must not enter any no-go zones
+5. Altitude (copter): Must be within min_alt and max_alt
+6. Speed: Must be within min_speed and max_speed
 
 ---
 
@@ -193,13 +193,13 @@ The safety checker uses ZMQ REQ/REP pattern with zlib-compressed JSON messages.
 
 ### Request Types
 
-| Type | Description |
-|------|-------------|
-| `server_status_req` | Check server status |
-| `validate_waypoint_req` | Validate waypoint |
+| Type                        | Description           |
+|-----------------------------|-----------------------|
+| `server_status_req`         | Check server status   |
+| `validate_waypoint_req`     | Validate waypoint     |
 | `validate_change_speed_req` | Validate speed change |
-| `validate_takeoff_req` | Validate takeoff |
-| `validate_landing_req` | Validate landing |
+| `validate_takeoff_req`      | Validate takeoff      |
+| `validate_landing_req`      | Validate landing      |
 
 ---
 
@@ -301,18 +301,6 @@ async with SafetyCheckerClient("localhost", 14580) as checker:
     await drone.land()
 ```
 
-### v2 Safety Advantages
-
-| Feature | v1 | v2 |
-|---------|-----|-----|
-| Geofence validation | ✅ | ✅ |
-| Pre-flight checks | ❌ | ✅ |
-| Battery failsafe | ❌ | ✅ |
-| Speed limits | ❌ | ✅ |
-| Parameter validation | ❌ | ✅ |
-| Async support | ❌ | ✅ |
-| Context manager | ❌ | ✅ |
-| Configurable limits | ❌ | ✅ |
 
 See the [v2 Safety Guide](../v2/safety.md) for details.
 
