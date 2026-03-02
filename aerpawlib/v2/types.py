@@ -42,6 +42,16 @@ class VectorNED:
             return VectorNED(0, 0, 0)
         return VectorNED(self.north / h, self.east / h, self.down / h)
 
+    def cross_product(self, other: "VectorNED") -> "VectorNED":
+        """Cross product of self and other (self x other)."""
+        if not isinstance(other, VectorNED):
+            raise TypeError()
+        return VectorNED(
+            self.east * other.down - self.down * other.east,
+            self.down * other.north - self.north * other.down,
+            self.north * other.east - self.east * other.north,
+        )
+
     def __add__(self, o: "VectorNED") -> "VectorNED":
         return VectorNED(
             self.north + o.north, self.east + o.east, self.down + o.down

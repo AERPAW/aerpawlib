@@ -37,6 +37,40 @@ def _deserialize_response(data: bytes) -> dict:
     return json.loads(raw)
 
 
+class NoOpSafetyChecker:
+    """
+    Passthrough safety checker when SafetyCheckerServer is not available.
+
+    All validations return (True, ""). Logs an error explaining that the
+    safety checker server is not connected/configured.
+    """
+
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+        logger.error(
+            "SafetyCheckerServer not available. All safety validations will pass. %s",
+            reason,
+        )
+
+    async def validate_takeoff(
+        self, takeoff_alt: float, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
+        return True, ""
+
+    async def validate_waypoint(
+        self, current: Coordinate, next_loc: Coordinate
+    ) -> Tuple[bool, str]:
+        return True, ""
+
+    async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+        return True, ""
+
+    async def validate_landing(
+        self, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
+        return True, ""
+
+
 class SafetyCheckerClient:
     """Async client for SafetyCheckerServer via ZMQ."""
 

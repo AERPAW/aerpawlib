@@ -210,7 +210,7 @@ class SITLManager:
         env["ARDUPILOT_HOME"] = str(ardupilot_home)
         env.setdefault("SIM_SPEEDUP", "5")
         # Prevent sim_vehicle's run_in_terminal_window.sh from opening a new Terminal window in GUI environments
-        env.pop("DISPLAY", None)
+        #env.pop("DISPLAY", None)
 
         cmd = [
             sys.executable,

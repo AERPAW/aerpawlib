@@ -57,6 +57,17 @@ class TestVectorNED:
         w = 2 * v
         assert w.north == 2 and w.east == 4 and w.down == 6
 
+    def test_cross_product(self):
+        a = VectorNED(1, 0, 0)
+        b = VectorNED(0, 1, 0)
+        c = a.cross_product(b)
+        assert abs(c.north) < 1e-9 and abs(c.east) < 1e-9 and abs(c.down + 1) < 1e-9
+
+    def test_cross_product_type_error(self):
+        v = VectorNED(1, 2, 3)
+        with pytest.raises(TypeError):
+            v.cross_product((1, 2, 3))
+
 
 class TestCoordinate:
     """Coordinate operations."""

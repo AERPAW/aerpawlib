@@ -187,16 +187,24 @@ def run_v2_experiment(
     Runner = getattr(api_module, "Runner")
     StateMachine = getattr(api_module, "StateMachine")
     BasicRunner = getattr(api_module, "BasicRunner")
+    ZmqStateMachine = getattr(api_module, "ZmqStateMachine", None)
 
     runner = None
+    flag_zmq_runner = False
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
         if not inspect.isclass(val):
             continue
         if not issubclass(val, Runner):
             continue
-        if val in [StateMachine, BasicRunner]:
+        exclude = [StateMachine, BasicRunner]
+        if ZmqStateMachine:
+            exclude.append(ZmqStateMachine)
+        if val in exclude:
             continue
+        if ZmqStateMachine and issubclass(val, ZmqStateMachine):
+            flag_zmq_runner = True
+            logger.debug(f"Found ZmqStateMachine: {name}")
         if runner:
             logger.error("Multiple Runner classes found in script")
             raise Exception("You can only define one runner")
@@ -227,18 +235,66 @@ def run_v2_experiment(
     logger.info("Starting experiment execution (v2)")
 
     async def run_experiment_async():
+        aerpaw_platform = AERPAW_Platform() if AERPAW_Platform else None
+        if aerpaw_platform:
+            aerpaw_platform.set_no_stdout(args.no_stdout)
+
+        from aerpawlib.v2.constants import DEFAULT_SAFETY_CHECKER_PORT
+        from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
+
+        is_aerpaw = aerpaw_platform._connected if aerpaw_platform else False
+        effective_port = (
+            args.safety_checker_port
+            if args.safety_checker_port is not None
+            else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
+        )
+        if effective_port is None:
+            safety_client = NoOpSafetyChecker(
+                "Not in AERPAW environment and --safety-checker-port not provided."
+            )
+        else:
+            safety_addr = "127.0.0.1"
+            try:
+                client = SafetyCheckerClient(safety_addr, effective_port)
+                ok, msg = await client.check_server_status()
+                if ok:
+                    safety_client = client
+                else:
+                    raise RuntimeError(msg or "SafetyCheckerServer check failed")
+            except Exception as e:
+                if is_aerpaw:
+                    logger.critical(
+                        "AERPAW environment requires SafetyCheckerServer. "
+                        "Connection to %s:%d failed: %s",
+                        safety_addr,
+                        effective_port,
+                        e,
+                    )
+                    sys.exit(1)
+                logger.error(
+                    "SafetyCheckerServer connection failed (%s:%d): %s. "
+                    "Using passthrough (all validations pass).",
+                    safety_addr,
+                    effective_port,
+                    e,
+                )
+                safety_client = NoOpSafetyChecker(
+                    f"Connection to {safety_addr}:{effective_port} failed: {e}"
+                )
+
         logger.info("Connecting to vehicle...")
         try:
             vehicle = await asyncio.wait_for(
-                vehicle_type.connect(args.conn, args.mavsdk_port),
+                vehicle_type.connect(
+                    args.conn,
+                    args.mavsdk_port,
+                    timeout=args.conn_timeout,
+                    safety=safety_client,
+                ),
                 timeout=args.conn_timeout,
             )
         except Exception as e:
             raise ConnectionError(f"Could not connect: {e}")
-
-        aerpaw_platform = AERPAW_Platform() if AERPAW_Platform else None
-        if aerpaw_platform:
-            aerpaw_platform.set_no_stdout(args.no_stdout)
 
         shutdown_event = asyncio.Event()
 
@@ -281,6 +337,19 @@ def run_v2_experiment(
         runner.initialize_args(unknown_args)
         if args.initialize and hasattr(vehicle, "_initialize_prearm"):
             await vehicle._initialize_prearm(args.initialize)
+
+        if flag_zmq_runner:
+            if not args.zmq_identifier or not args.zmq_server_addr:
+                logger.error(
+                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
+                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                )
+                raise ValueError(
+                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                )
+            runner._initialize_zmq_bindings(
+                args.zmq_identifier, args.zmq_server_addr
+            )
 
         success = False
         try:
@@ -621,8 +690,8 @@ def main():
     # Connection Handling Arguments
     conn_grp = parser.add_argument_group("Connection Tuning")
     conn_grp.add_argument(
-        "--conn-timeout",
-        help="connection timeout in seconds (default: 30)",
+        "--conn-timeout", "--connection-timeout",
+        help="initial connection timeout in seconds (default: 30)",
         type=float,
         default=30.0,
         dest="conn_timeout",
@@ -642,6 +711,14 @@ def main():
         type=int,
         default=50051,
         dest="mavsdk_port",
+    )
+    conn_grp.add_argument(
+        "--safety-checker-port",
+        help="Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to 14580; "
+        "outside AERPAW, optional. If connection fails: AERPAW=crash, non-AERPAW=passthrough.",
+        type=int,
+        default=None,
+        dest="safety_checker_port",
     )
 
     args, unknown_args = parser.parse_known_args(

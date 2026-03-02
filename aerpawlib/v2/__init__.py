@@ -35,6 +35,12 @@ from .exceptions import (
     TakeoffError,
 )
 from .geofence import do_intersect, inside, read_geofence
+from .plan import (
+    Waypoint,
+    get_location_from_waypoint,
+    read_from_plan,
+    read_from_plan_complete,
+)
 from .protocols import GPSProtocol, VehicleProtocol
 from .types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 from .zmqutil import check_zmq_proxy_reachable, run_zmq_proxy
@@ -53,7 +59,12 @@ def __getattr__(name: str):
     if name == "DummyVehicle":
         from .vehicle import DummyVehicle
         return DummyVehicle
-    if name in ("Runner", "BasicRunner", "StateMachine", "entrypoint", "state", "timed_state", "background", "at_init"):
+    if name in (
+        "Runner", "BasicRunner", "StateMachine", "ZmqStateMachine",
+        "entrypoint", "state", "timed_state", "background", "at_init",
+        "expose_zmq", "expose_field_zmq",
+        "BasicRunnerConfig", "StateMachineConfig", "ZmqStateMachineConfig", "StateSpec",
+    ):
         from . import runner
         return getattr(runner, name)
     if name == "AERPAW_Platform":
@@ -67,6 +78,7 @@ def __getattr__(name: str):
 
 __all__ = [
     "AerpawlibError",
+    "get_location_from_waypoint",
     "ArmError",
     "Attitude",
     "Battery",
@@ -94,6 +106,8 @@ __all__ = [
     "NoInitialStateError",
     "NotArmableError",
     "read_geofence",
+    "read_from_plan",
+    "read_from_plan_complete",
     "RTLError",
     "RunnerError",
     "Rover",
@@ -103,8 +117,16 @@ __all__ = [
     "timed_state",
     "background",
     "at_init",
+    "BasicRunnerConfig",
+    "StateMachineConfig",
+    "StateSpec",
+    "ZmqStateMachine",
+    "ZmqStateMachineConfig",
+    "expose_zmq",
+    "expose_field_zmq",
     "TakeoffError",
     "Vehicle",
     "VehicleProtocol",
     "VectorNED",
+    "Waypoint",
 ]

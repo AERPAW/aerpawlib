@@ -25,9 +25,13 @@ examples/
 │       └── README.md
 └── v2/                          # v2 API (modern, async-first)
     ├── basic_example.py
+    ├── basic_example.py
     ├── command_handle_example.py
+    ├── command_validation_example.py
     ├── enhanced_example.py
+    ├── plan_example.py
     ├── state_machine_example.py
+    ├── zmq_state_machine_example.py
     └── test_runner.py
 ```
 
@@ -45,6 +49,9 @@ examples/
 | `external_runner` | Spawn and interact with external processes |
 | `zmq_runner` | Leader/follower multi-vehicle coordination |
 | `zmq_preplanned_orbit` | Two drones: tracer + orbiter |
+| `plan_example` (v2) | Load waypoints from QGroundControl .plan file |
+| `command_validation_example` (v2) | can_takeoff / can_goto before commands |
+| `zmq_state_machine_example` (v2) | ZmqStateMachine with expose_zmq |
 
 ## Running Examples
 
@@ -93,6 +100,16 @@ aerpawlib --script examples.v1.zmq_runner.follower \
 ```
 
 See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_orbit/README.md](v1/zmq_preplanned_orbit/README.md) for ZMQ setup details.
+
+### ZMQ Multi-Vehicle (v2)
+
+```bash
+aerpawlib --run-proxy  # Terminal 1
+
+aerpawlib --api-version v2 --script examples.v2.zmq_state_machine_example \
+    --vehicle drone --conn udpin://127.0.0.1:14550 \
+    --zmq-identifier leader --zmq-proxy-server 127.0.0.1  # Terminal 2
+```
 
 
 ## Notable Examples

@@ -1,19 +1,17 @@
 """
-Enhanced v2 Example - SafetyMonitor, PreflightChecks, ConnectionHandler
+Enhanced v2 Example - PreflightChecks, command validation (can_takeoff, can_goto)
 
 Run with:
     aerpawlib --api-version v2 --script examples.v2.enhanced_example \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 
-import asyncio
-
 from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
-from aerpawlib.v2.safety import PreflightChecks, SafetyLimits, SafetyMonitor
+from aerpawlib.v2.safety import PreflightChecks
 
 
 class EnhancedMission(BasicRunner):
-    """Mission with safety monitor and preflight checks."""
+    """Mission with preflight checks and command validation."""
 
     @entrypoint
     async def run(self, drone: Drone):
@@ -23,19 +21,19 @@ class EnhancedMission(BasicRunner):
             print("[example] Preflight checks failed")
             return
 
-        # Safety monitor (warnings only)
-        limits = SafetyLimits(
-            max_altitude_m=50,
-            min_battery_percent=20,
-        )
-        monitor = SafetyMonitor(limits)
+        # Command validation before takeoff
+        ok, msg = await drone.can_takeoff(10)
+        if not ok:
+            print(f"[example] can_takeoff failed: {msg}")
+            return
 
-        async def on_violation(event_type: str, message: str):
-            print(f"[safety] {event_type}: {message}")
-
-        monitor.on_violation(on_violation)
+        target = drone.position + VectorNED(20, 0)
+        ok, msg = await drone.can_goto(target)
+        if not ok:
+            print(f"[example] can_goto failed: {msg}")
+            return
 
         await drone.takeoff(altitude=10)
-        await drone.goto_coordinates(drone.position + VectorNED(20, 0))
+        await drone.goto_coordinates(target)
         await drone.land()
         print("[example] Mission complete")

@@ -4,12 +4,12 @@ This guide provides an overview of supported workflows, features, and how to run
 
 ## Quick Start
 
-1. **Install aerpawlib**:
+1. Install aerpawlib:
    ```bash
    pip install -e .
    ```
 
-2. **Write a simple mission** (v1 API):
+2. Write a simple mission (v1 API):
    ```python
    # my_mission.py
    from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
@@ -23,7 +23,7 @@ This guide provides an overview of supported workflows, features, and how to run
            await vehicle.land()
    ```
 
-3. **Run with aerpawlib**:
+3. Run with aerpawlib:
    ```bash
    aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
    ```
@@ -34,8 +34,8 @@ This guide provides an overview of supported workflows, features, and how to run
 
 The simplest workflow: one vehicle, one script, linear execution.
 
-**Runner**: `BasicRunner` with `@entrypoint`  
-**Use case**: Simple waypoint missions, surveys, demos
+Runner: `BasicRunner` with `@entrypoint`  
+Use case: Simple waypoint missions, surveys, demos
 
 ```python
 from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
@@ -49,7 +49,7 @@ class SimpleMission(BasicRunner):
         await vehicle.land()
 ```
 
-**Run**:
+Run:
 ```bash
 aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
 ```
@@ -60,8 +60,8 @@ aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
 
 For missions with distinct phases, loops, or conditional transitions.
 
-**Runner**: `StateMachine` with `@state` decorators  
-**Use case**: Patrol patterns, multi-phase missions, dynamic routing
+Runner: `StateMachine` with `@state` decorators  
+Use case: Patrol patterns, multi-phase missions, dynamic routing
 
 ```python
 from aerpawlib.v1 import Drone, StateMachine, state
@@ -83,7 +83,7 @@ class PatrolMission(StateMachine):
         return None  # End
 ```
 
-**Run**: Same as basic mission.
+Run: Same as basic mission.
 
 ---
 
@@ -91,8 +91,8 @@ class PatrolMission(StateMachine):
 
 Run telemetry logging, monitoring, or other tasks in parallel with the state machine.
 
-**Runner**: `StateMachine` with `@background`  
-**Use case**: Logging, battery monitoring, external process coordination
+Runner: `StateMachine` with `@background`  
+Use case: Logging, battery monitoring, external process coordination
 
 ```python
 from aerpawlib.v1 import StateMachine, state, background
@@ -117,21 +117,21 @@ class LoggingMission(StateMachine):
 
 Coordinate multiple vehicles via ZMQ. One script per vehicle; a proxy relays messages.
 
-**Runner**: `ZmqStateMachine` with `@expose_zmq`  
-**Use case**: Leader/follower, swarm coordination, ground-air teams
+Runner: `ZmqStateMachine` with `@expose_zmq`  
+Use case: Leader/follower, swarm coordination, ground-air teams
 
-**Setup**:
+Setup:
 1. Start ZMQ proxy: `aerpawlib --run-proxy`
 2. Run each vehicle with `--zmq-identifier` and `--zmq-proxy-server`
 
-**Leader**:
+Leader:
 ```bash
 aerpawlib --script examples.v1.zmq_runner.leader \
   --conn udp://127.0.0.1:14550 --vehicle drone \
   --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 ```
 
-**Follower**:
+Follower:
 ```bash
 aerpawlib --script examples.v1.zmq_runner.follower \
   --conn udp://127.0.0.1:14551 --vehicle drone \
@@ -146,7 +146,7 @@ See [examples/v1/zmq_runner/README.md](../examples/v1/zmq_runner/README.md) and 
 
 Load waypoints from a QGroundControl `.plan` file.
 
-**Use case**: Pre-defined missions, survey grids from QGC
+Use case: Pre-defined missions, survey grids from QGC
 
 ```python
 from aerpawlib.v1 import read_from_plan, get_location_from_waypoint
@@ -157,7 +157,7 @@ for cmd, x, y, z, wp_id, speed in waypoints:
     await vehicle.goto_coordinates(coord)
 ```
 
-**Run**:
+Run:
 ```bash
 aerpawlib --script examples.v1.preplanned_trajectory \
   --conn udp://127.0.0.1:14550 --vehicle drone --plan mission.plan
@@ -169,14 +169,16 @@ aerpawlib --script examples.v1.preplanned_trajectory \
 
 Validate waypoints, takeoff, and speed against geofences before commanding the vehicle.
 
-**Components**: `SafetyCheckerServer` (separate process), `SafetyCheckerClient` (in script)
+Components: `SafetyCheckerServer` (separate process), `SafetyCheckerClient` (in script)
 
-**Setup**:
+**v1** Setup:
 1. Create YAML config and KML geofences (see [v1 Safety Checker](v1/safety_checker.md))
 2. Start server: `aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml`
 3. In script: create `SafetyCheckerClient`, call `validate_waypoint_command` before `goto_coordinates`
 
-See [v1/safety_checker.md](v1/safety_checker.md) for full details.
+**v2** Setup: Run with `--safety-checker-port 14580` (or let it default in AERPAW). aerpawlib auto-wires `vehicle.safety`. Use `can_takeoff`, `can_goto`, `can_land` before commands. See [v2 Safety](v2/safety.md) for behavior (AERPAW vs non-AERPAW, passthrough on failure).
+
+See [v1/safety_checker.md](v1/safety_checker.md) for v1 details.
 
 ---
 
@@ -184,7 +186,7 @@ See [v1/safety_checker.md](v1/safety_checker.md) for full details.
 
 Spawn and interact with external processes (e.g., radio scripts, sensors) from the mission.
 
-**Use case**: Radio experiments, sensor fusion, co-located tools
+Use case: Radio experiments, sensor fusion, co-located tools
 
 ```python
 from aerpawlib.v1 import ExternalProcess
@@ -202,10 +204,10 @@ await proc.wait_until_terminated()
 
 When running on AERPAW infrastructure:
 
-- **Safety pilot arming**: Script waits for safety pilot to arm; no auto-arm
-- **OEO logging**: `AERPAW_Platform.log_to_oeo("[aerpawlib] message")`
-- **Checkpoints**: `AERPAW_Platform.checkpoint_set("name")`, `checkpoint_check("name")`
-- **Abort**: `vehicle._abort()` triggers OEO log and stops movement
+- Safety pilot arming: Script waits for safety pilot to arm; no auto-arm
+- OEO logging: `AERPAW_Platform.log_to_oeo("[aerpawlib] message")`
+- Checkpoints: `AERPAW_Platform.checkpoint_set("name")`, `checkpoint_check("name")`
+- Abort: `vehicle._abort()` triggers OEO log and stops movement
 
 Standalone/SITL: vehicle auto-arms after armable state is reached.
 
@@ -219,17 +221,18 @@ Standalone/SITL: vehicle auto-arms after armable state is reached.
 aerpawlib --script <module> --conn <connection> --vehicle <type> [options]
 ```
 
-**Required**:
+Required:
 - `--script`: Python module path (e.g., `examples.v1.basic_example` or `my_mission`)
 - `--conn`: MAVLink connection string
 - `--vehicle`: `drone`, `rover`, or `none` (for DummyVehicle)
 
-**Common options**:
+Common options:
 - `--api-version v1` or `v2` (default: v1)
 - `--skip-init`: Skip pre-arm wait (use with caution)
 - `--skip-rtl`: Do not RTL/land at script end
 - `--debug-dump`: Enable verbose vehicle state logging
 - `--zmq-identifier`, `--zmq-proxy-server`: For ZMQ scripts
+- `--safety-checker-port` (v2 only): Port for SafetyCheckerServer. In AERPAW env defaults to 14580; outside AERPAW optional (passthrough on failure). See [v2 Safety](v2/safety.md).
 - `-v` / `--verbose` (DEBUG), `-q` / `--quiet` (WARNING): Logging level (default: INFO)
 
 ### Config File (beta)
@@ -256,36 +259,35 @@ CLI arguments override config file values.
 
 ## Examples Directory
 
-| Path | Description |
-|------|-------------|
-| `examples/v1/basic_example.py` | Simple square flight |
-| `examples/v1/figure_eight.py` | Figure-8 pattern |
-| `examples/v1/basic_runner.py` | Minimal BasicRunner |
-| `examples/v1/squareoff_logging.py` | StateMachine + background logging |
-| `examples/v1/preplanned_trajectory.py` | Load .plan file |
-| `examples/v1/zmq_runner/` | Leader/follower ZMQ |
-| `examples/v1/zmq_preplanned_orbit/` | Multi-drone orbit mission |
-| `examples/v2/` | v2 API examples |
+| Path                                   | Description                       |
+|----------------------------------------|-----------------------------------|
+| `examples/v1/basic_example.py`         | Simple square flight              |
+| `examples/v1/figure_eight.py`          | Figure-8 pattern                  |
+| `examples/v1/basic_runner.py`          | Minimal BasicRunner               |
+| `examples/v1/squareoff_logging.py`     | StateMachine + background logging |
+| `examples/v1/preplanned_trajectory.py` | Load .plan file                   |
+| `examples/v1/zmq_runner/`              | Leader/follower ZMQ               |
+| `examples/v1/zmq_preplanned_orbit/`    | Multi-drone orbit mission         |
+| `examples/v2/`                         | v2 API examples (TBA)             |
 
 ---
 
 ## Troubleshooting
 
-**Connection timeout**
+Connection timeout
 - Ensure SITL/vehicle is running and MAVLink port is correct
-- Try `udpin://` if `udp://` fails (OS-dependent)
 - Increase `--conn-timeout`
 
-**No Runner found**
+No Runner found
 - Script must define a class that subclasses `Runner` (or `BasicRunner`, `StateMachine`)
 - For BasicRunner: exactly one method must have `@entrypoint`
 - For StateMachine: exactly one state must have `first=True`
 
-**ZMQ scripts fail**
+ZMQ scripts fail
 - Start proxy first: `aerpawlib --run-proxy`
 - Pass `--zmq-identifier` and `--zmq-proxy-server` to each vehicle
 
-**Vehicle not armable**
+Vehicle not armable
 - Check GPS fix (3D required)
 - In AERPAW: wait for safety pilot to arm
 - In SITL: ensure home position is set (wait a few seconds after SITL start)

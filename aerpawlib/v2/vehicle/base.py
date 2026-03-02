@@ -9,7 +9,10 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..safety.checker import SafetyCheckerClient
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -132,7 +135,17 @@ class Vehicle:
         system: System,
         connection_string: str,
         mavsdk_server_port: int = 50051,
+        *,
+        safety: Optional[Any] = None,
     ) -> None:
+        """
+        Args:
+            system: MAVSDK System instance.
+            connection_string: MAVLink connection string.
+            mavsdk_server_port: gRPC port for mavsdk_server.
+            safety: SafetyCheckerClient or NoOpSafetyChecker for validation.
+                    None disables safety checks in can_takeoff/can_goto/can_land.
+        """
         self._system = system
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
@@ -145,6 +158,7 @@ class Vehicle:
         self._heartbeat_tick_cb: Optional[Callable[[], None]] = None
         self._mission_start_time: Optional[float] = None
         self._should_postarm_init: bool = True
+        self.safety: Optional[Any] = safety
 
     def set_heartbeat_tick_callback(self, cb: Callable[[], None]) -> None:
         """Set callback invoked when heartbeat/telemetry received."""
@@ -208,15 +222,87 @@ class Vehicle:
     def mode(self) -> str:
         return self._state.mode
 
+    @property
+    def armable(self) -> bool:
+        return self._state.armable
+
+    async def can_takeoff(
+        self, altitude: float, min_battery_percent: float = 10.0
+    ) -> Tuple[bool, str]:
+        """
+        Check if takeoff would succeed. Local checks plus optional SafetyCheckerClient.
+
+        Returns:
+            (ok, message) - ok is True if command would succeed.
+        """
+        if not self._state.armable:
+            return False, f"Vehicle not armable: {self._get_health_summary()}"
+        if self.gps.fix_type < 3:
+            return False, f"No 3D GPS fix (fix_type={self.gps.fix_type})"
+        if self.battery.level < min_battery_percent:
+            return False, f"Battery {self.battery.level}% below {min_battery_percent}%"
+        if self.safety is not None:
+            ok, msg = await self.safety.validate_takeoff(
+                altitude, self.position.lat, self.position.lon
+            )
+            if not ok:
+                return False, msg
+        return True, ""
+
+    async def can_goto(
+        self,
+        target: Coordinate,
+        tolerance: float = 2.0,
+    ) -> Tuple[bool, str]:
+        """
+        Check if goto would succeed. Local checks plus optional SafetyCheckerClient.
+
+        Returns:
+            (ok, message) - ok is True if command would succeed.
+        """
+        if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
+            return False, (
+                f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and "
+                f"{MAX_POSITION_TOLERANCE_M}m"
+            )
+        if self.safety is not None:
+            ok, msg = await self.safety.validate_waypoint(self.position, target)
+            if not ok:
+                return False, msg
+        return True, ""
+
+    async def can_land(self) -> Tuple[bool, str]:
+        """
+        Check if land would succeed. Optional SafetyCheckerClient only.
+
+        Returns:
+            (ok, message) - ok is True if command would succeed.
+        """
+        if self.safety is not None:
+            ok, msg = await self.safety.validate_landing(
+                self.position.lat, self.position.lon
+            )
+            if not ok:
+                return False, msg
+        return True, ""
+
     @classmethod
     async def connect(
         cls,
         connection_string: str,
         mavsdk_server_port: int = 50051,
+        *,
         timeout: float = CONNECTION_TIMEOUT_S,
+        safety: Optional[Any] = None,
     ) -> "Vehicle":
         """
         Connect to vehicle. Returns initialized instance.
+
+        Args:
+            connection_string: MAVLink connection string.
+            mavsdk_server_port: gRPC port for mavsdk_server.
+            timeout: Connection timeout in seconds.
+            safety: SafetyCheckerClient or NoOpSafetyChecker. None disables safety checks.
         """
         logger.info(
             f"Connecting to vehicle at {connection_string} "
@@ -243,7 +329,7 @@ class Vehicle:
                 )
 
         # Create instance and start telemetry
-        self = cls(system, connection_string, mavsdk_server_port)
+        self = cls(system, connection_string, mavsdk_server_port, safety=safety)
         await self._start_telemetry()
         logger.info("Vehicle connected and telemetry started")
         return self
@@ -446,7 +532,7 @@ class Vehicle:
 class DummyVehicle(Vehicle):
     """No-op vehicle for testing without hardware."""
 
-    def __init__(self) -> None:
+    def __init__(self, *, safety: Optional[Any] = None) -> None:
         # Skip parent init - no system
         self._state = VehicleState()
         self._state._position_lat = 35.727436
@@ -466,15 +552,18 @@ class DummyVehicle(Vehicle):
         self._ready_to_move = lambda _: True
         self._heartbeat_tick_cb = None
         self._mission_start_time = None
+        self.safety = safety
 
     @classmethod
     async def connect(
         cls,
         connection_string: str = "",
         mavsdk_server_port: int = 50051,
+        *,
         timeout: float = CONNECTION_TIMEOUT_S,
+        safety: Optional[Any] = None,
     ) -> "DummyVehicle":
-        return cls()
+        return cls(safety=safety)
 
     async def goto_coordinates(
         self,
