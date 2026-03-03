@@ -235,18 +235,24 @@ class Vehicle:
         Returns:
             (ok, message) - ok is True if command would succeed.
         """
+        logger.debug(f"can_takeoff: checking altitude={altitude}m battery>={min_battery_percent}%")
         if not self._state.armable:
+            logger.debug(f"can_takeoff: rejected (not armable) {self._get_health_summary()}")
             return False, f"Vehicle not armable: {self._get_health_summary()}"
         if self.gps.fix_type < 3:
+            logger.debug(f"can_takeoff: rejected (no 3D GPS fix_type={self.gps.fix_type})")
             return False, f"No 3D GPS fix (fix_type={self.gps.fix_type})"
         if self.battery.level < min_battery_percent:
+            logger.debug(f"can_takeoff: rejected (battery {self.battery.level}% < {min_battery_percent}%)")
             return False, f"Battery {self.battery.level}% below {min_battery_percent}%"
         if self.safety is not None:
             ok, msg = await self.safety.validate_takeoff(
                 altitude, self.position.lat, self.position.lon
             )
+            logger.debug(f"can_takeoff: safety check ok={ok} msg={msg!r}")
             if not ok:
                 return False, msg
+        logger.debug("can_takeoff: passed")
         return True, ""
 
     async def can_goto(
@@ -260,6 +266,7 @@ class Vehicle:
         Returns:
             (ok, message) - ok is True if command would succeed.
         """
+        logger.debug(f"can_goto: checking target=({target.lat:.6f},{target.lon:.6f}) tol={tolerance}m")
         if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
             return False, (
                 f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and "
@@ -267,8 +274,10 @@ class Vehicle:
             )
         if self.safety is not None:
             ok, msg = await self.safety.validate_waypoint(self.position, target)
+            logger.debug(f"can_goto: safety check ok={ok} msg={msg!r}")
             if not ok:
                 return False, msg
+        logger.debug("can_goto: passed")
         return True, ""
 
     async def can_land(self) -> Tuple[bool, str]:
@@ -278,12 +287,15 @@ class Vehicle:
         Returns:
             (ok, message) - ok is True if command would succeed.
         """
+        logger.debug(f"can_land: checking pos=({self.position.lat:.6f},{self.position.lon:.6f})")
         if self.safety is not None:
             ok, msg = await self.safety.validate_landing(
                 self.position.lat, self.position.lon
             )
+            logger.debug(f"can_land: safety check ok={ok} msg={msg!r}")
             if not ok:
                 return False, msg
+        logger.debug("can_land: passed")
         return True, ""
 
     @classmethod
@@ -338,7 +350,20 @@ class Vehicle:
         """Start telemetry subscriptions on same loop."""
         logger.debug("Starting telemetry subscriptions (position, attitude, velocity, gps, battery, mode, armed, health, home)")
 
+        # Throttle interval for periodic telemetry debug logs (seconds)
+        _telem_log_interval = 5.0
+
+        def _telem_log_throttle(last: list, interval: float = _telem_log_interval) -> bool:
+            """Return True if we should log (throttled). Mutates last[0]."""
+            now = time.monotonic()
+            if last[0] == 0 or (now - last[0]) >= interval:
+                last[0] = now
+                return True
+            return False
+
         async def _position_update() -> None:
+            first = [True]
+            last_log = [0.0]
             async for position in self._system.telemetry.position():
                 if not self._running:
                     return
@@ -349,8 +374,23 @@ class Vehicle:
                     position.absolute_altitude_m,
                 )
                 self._heartbeat_tick()
+                if first[0]:
+                    logger.info(
+                        "Telemetry: position stream active (lat=%.6f, lon=%.6f, alt=%.1fm)",
+                        position.latitude_deg, position.longitude_deg,
+                        position.relative_altitude_m,
+                    )
+                    first[0] = False
+                elif _telem_log_throttle(last_log):
+                    logger.debug(
+                        "Telemetry: position lat=%.6f lon=%.6f alt=%.1fm",
+                        position.latitude_deg, position.longitude_deg,
+                        position.relative_altitude_m,
+                    )
 
         async def _attitude_update() -> None:
+            first = [True]
+            last_log = [0.0]
             async for att in self._system.telemetry.attitude_euler():
                 if not self._running:
                     return
@@ -359,23 +399,62 @@ class Vehicle:
                     math.radians(att.pitch_deg),
                     math.radians(att.yaw_deg),
                 )
+                if first[0]:
+                    logger.info(
+                        "Telemetry: attitude stream active (roll=%.1f pitch=%.1f yaw=%.1f deg)",
+                        att.roll_deg, att.pitch_deg, att.yaw_deg,
+                    )
+                    first[0] = False
+                elif _telem_log_throttle(last_log):
+                    logger.debug(
+                        "Telemetry: attitude roll=%.1f pitch=%.1f yaw=%.1f deg",
+                        att.roll_deg, att.pitch_deg, att.yaw_deg,
+                    )
 
         async def _velocity_update() -> None:
+            first = [True]
+            last_log = [0.0]
             async for vel in self._system.telemetry.velocity_ned():
                 if not self._running:
                     return
                 self._state.update_velocity(
                     vel.north_m_s, vel.east_m_s, vel.down_m_s
                 )
+                if first[0]:
+                    logger.info(
+                        "Telemetry: velocity stream active (N=%.2f E=%.2f D=%.2f m/s)",
+                        vel.north_m_s, vel.east_m_s, vel.down_m_s,
+                    )
+                    first[0] = False
+                elif _telem_log_throttle(last_log):
+                    logger.debug(
+                        "Telemetry: velocity N=%.2f E=%.2f D=%.2f m/s",
+                        vel.north_m_s, vel.east_m_s, vel.down_m_s,
+                    )
 
         async def _gps_update() -> None:
+            first = [True]
+            last_log = [0.0]
             async for gps in self._system.telemetry.gps_info():
                 if not self._running:
                     return
                 fix = gps.fix_type.value if hasattr(gps.fix_type, "value") else gps.fix_type
                 self._state.update_gps(fix, gps.num_satellites)
+                if first[0]:
+                    logger.info(
+                        "Telemetry: gps stream active (fix_type=%s, sats=%d)",
+                        fix, gps.num_satellites,
+                    )
+                    first[0] = False
+                elif _telem_log_throttle(last_log):
+                    logger.debug(
+                        "Telemetry: gps fix_type=%s sats=%d",
+                        fix, gps.num_satellites,
+                    )
 
         async def _battery_update() -> None:
+            first = [True]
+            last_log = [0.0]
             async for bat in self._system.telemetry.battery():
                 if not self._running:
                     return
@@ -383,20 +462,51 @@ class Vehicle:
                 self._state.update_battery(
                     bat.voltage_v, current, int(bat.remaining_percent)
                 )
+                if first[0]:
+                    logger.info(
+                        "Telemetry: battery stream active (%.1fV, %d%%)",
+                        bat.voltage_v, int(bat.remaining_percent),
+                    )
+                    first[0] = False
+                elif _telem_log_throttle(last_log):
+                    logger.debug(
+                        "Telemetry: battery %.1fV %.1fA %d%%",
+                        bat.voltage_v, current, int(bat.remaining_percent),
+                    )
 
         async def _flight_mode_update() -> None:
+            first = [True]
+            prev_mode: list = [None]
             async for mode in self._system.telemetry.flight_mode():
                 if not self._running:
                     return
-                self._state.update_mode(mode.name)
+                mode_name = mode.name
+                self._state.update_mode(mode_name)
+                if first[0]:
+                    logger.info("Telemetry: flight_mode stream active (mode=%s)", mode_name)
+                    first[0] = False
+                    prev_mode[0] = mode_name
+                elif prev_mode[0] != mode_name:
+                    logger.info("Telemetry: flight_mode changed %s -> %s", prev_mode[0], mode_name)
+                    prev_mode[0] = mode_name
 
         async def _armed_update() -> None:
+            first = [True]
+            prev_armed: list = [None]
             async for armed in self._system.telemetry.armed():
                 if not self._running:
                     return
                 self._state.update_armed(armed)
+                if first[0]:
+                    logger.info("Telemetry: armed stream active (armed=%s)", armed)
+                    first[0] = False
+                    prev_armed[0] = armed
+                elif prev_armed[0] != armed:
+                    logger.info("Telemetry: armed changed %s -> %s", prev_armed[0], armed)
+                    prev_armed[0] = armed
 
         async def _health_update() -> None:
+            first = [True]
             async for health in self._system.telemetry.health():
                 if not self._running:
                     return
@@ -405,8 +515,15 @@ class Vehicle:
                     health.is_home_position_ok,
                     health.is_armable,
                 )
+                if first[0]:
+                    logger.info(
+                        "Telemetry: health stream active (armable=%s)",
+                        health.is_armable,
+                    )
+                    first[0] = False
 
         async def _home_update() -> None:
+            first = [True]
             async for home in self._system.telemetry.home():
                 if not self._running:
                     return
@@ -416,6 +533,13 @@ class Vehicle:
                     home.relative_altitude_m,
                     home.absolute_altitude_m,
                 )
+                if first[0]:
+                    logger.info(
+                        "Telemetry: home stream active (lat=%.6f lon=%.6f alt=%.1fm)",
+                        home.latitude_deg, home.longitude_deg,
+                        home.relative_altitude_m,
+                    )
+                    first[0] = False
 
         for coro in [
             _position_update,
@@ -446,12 +570,20 @@ class Vehicle:
             logger.debug("await_ready_to_move: vehicle not armed, running postarm init")
             await self._initialize_postarm()
         logger.debug("await_ready_to_move: waiting for done_moving")
-        await _wait_for_condition(
-            self.done_moving,
-            timeout=300.0,
-            poll_interval=0.05,
-            timeout_message="Vehicle did not report ready within timeout",
-        )
+        start = time.monotonic()
+        last_log = 0.0
+        while not self.done_moving():
+            elapsed = time.monotonic() - start
+            if elapsed > 300.0:
+                raise TimeoutError("Vehicle did not report ready within timeout")
+            now = time.monotonic()
+            if now - last_log >= 10.0:
+                logger.debug(
+                    "await_ready_to_move: still waiting (elapsed=%.0fs mode=%s armed=%s)",
+                    elapsed, self.mode, self.armed,
+                )
+                last_log = now
+            await asyncio.sleep(0.05)
         logger.debug("await_ready_to_move: vehicle ready")
 
     async def set_armed(self, value: bool) -> None:
@@ -481,6 +613,7 @@ class Vehicle:
             if value:
                 raise ArmError(str(e), original_error=e)
             raise DisarmError(str(e), original_error=e)
+        logger.debug(f"set_armed({value}) completed successfully")
 
     def _get_health_summary(self) -> str:
         """Human-readable health status."""

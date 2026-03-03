@@ -111,9 +111,11 @@ class Drone(Vehicle):
         if blocking:
             await self.await_ready_to_move()
         if heading is None:
+            logger.debug("Drone: set_heading(None) clearing heading lock")
             self._current_heading = None
             return
         heading = _normalize_heading(heading)
+        logger.debug(f"Drone: set_heading({heading:.1f} deg) blocking={blocking}")
         if lock_in:
             self._current_heading = heading
         if not blocking:
@@ -140,6 +142,8 @@ class Drone(Vehicle):
             await _wait_for_condition(lambda: self.done_moving())
         except (OffboardError, ActionError) as e:
             logger.warning(f"set_heading error: {e}")
+        else:
+            logger.debug(f"Drone: set_heading complete (heading={heading:.1f} deg)")
         finally:
             try:
                 await self._system.offboard.stop()
@@ -157,16 +161,27 @@ class Drone(Vehicle):
         time_since_arm = time.time() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
+            logger.debug(f"Drone: takeoff awaiting min arm delay ({delay:.1f}s)")
             await asyncio.sleep(delay)  # Justified: min arm-to-takeoff delay
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
         try:
+            logger.debug(f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()")
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
             self._ready_to_move = (
                 lambda s: s.position.alt >= altitude * min_alt_tolerance
             )
-            await _wait_for_condition(lambda: self.done_moving())
+            last_log = 0.0
+            while not self.done_moving():
+                now = time.monotonic()
+                if now - last_log >= 2.0:
+                    logger.debug(
+                        "Drone: takeoff climbing alt=%.1fm target=%.1fm",
+                        self.position.alt, altitude,
+                    )
+                    last_log = now
+                await asyncio.sleep(0.05)
             await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)  # Justified: stabilization
             logger.info(f"Drone: takeoff complete (altitude {altitude}m)")
         except ActionError as e:
@@ -178,11 +193,15 @@ class Drone(Vehicle):
         logger.info("Drone: land")
         await self.await_ready_to_move()
         try:
+            logger.debug("Drone: land sending land() command")
             await self._system.action.land()
-            await _wait_for_condition(
-                lambda: not self.armed,
-                poll_interval=0.05,
-            )
+            last_log = 0.0
+            while self.armed:
+                now = time.monotonic()
+                if now - last_log >= 5.0:
+                    logger.debug("Drone: land waiting for disarm (pos=%.6f,%.6f alt=%.1fm)", self.position.lat, self.position.lon, self.position.alt)
+                    last_log = now
+                await asyncio.sleep(0.05)
             logger.info("Drone: land complete (disarmed)")
         except ActionError as e:
             logger.error(f"Drone: land failed: {e}")
@@ -193,11 +212,15 @@ class Drone(Vehicle):
         logger.info("Drone: return_to_launch (RTL)")
         await self.await_ready_to_move()
         try:
+            logger.debug("Drone: return_to_launch sending RTL command")
             await self._system.action.return_to_launch()
-            await _wait_for_condition(
-                lambda: not self.armed,
-                poll_interval=0.05,
-            )
+            last_log = 0.0
+            while self.armed:
+                now = time.monotonic()
+                if now - last_log >= 5.0:
+                    logger.debug("Drone: RTL waiting for disarm (pos=%.6f,%.6f alt=%.1fm)", self.position.lat, self.position.lon, self.position.alt)
+                    last_log = now
+                await asyncio.sleep(0.05)
             logger.info("Drone: return_to_launch complete (disarmed)")
         except ActionError as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
@@ -230,6 +253,7 @@ class Drone(Vehicle):
             heading = 0.0
         target_alt = coordinates.alt + self.home_amsl
         try:
+            logger.debug("Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)", coordinates.lat, coordinates.lon, target_alt, heading)
             await self._system.action.goto_location(
                 coordinates.lat, coordinates.lon, target_alt, heading
             )
@@ -240,11 +264,21 @@ class Drone(Vehicle):
         self._current_heading = None
 
         if blocking:
-            await _wait_for_condition(
-                lambda: self.done_moving(),
-                timeout=timeout,
-                timeout_message=f"Goto timed out within {timeout}s",
-            )
+            start = time.monotonic()
+            last_log = 0.0
+            while not self.done_moving():
+                elapsed = time.monotonic() - start
+                if elapsed > timeout:
+                    raise TimeoutError(f"Goto timed out within {timeout}s")
+                now = time.monotonic()
+                if now - last_log >= 3.0:
+                    dist = coordinates.distance(self.position)
+                    logger.debug(
+                        "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                        dist, tolerance, elapsed,
+                    )
+                    last_log = now
+                await asyncio.sleep(0.05)
             logger.debug("Drone: goto_coordinates complete (blocking)")
             return None
 
@@ -275,6 +309,7 @@ class Drone(Vehicle):
                 handle.set_error(e)
 
         async def _progress_updater() -> None:
+            last_log = 0.0
             while not handle.is_done():
                 if handle.is_cancelled():
                     return
@@ -282,6 +317,10 @@ class Drone(Vehicle):
                 if initial_dist > 0:
                     p = 1.0 - (d / initial_dist)
                     handle.set_progress(max(0, min(1, p)))
+                now = time.monotonic()
+                if now - last_log >= 5.0:
+                    logger.debug("Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%", d, handle.progress * 100)
+                    last_log = now
                 await asyncio.sleep(0.2)  # Justified: progress polling interval
 
         t1 = asyncio.create_task(_wait_arrival())
@@ -323,6 +362,7 @@ class Drone(Vehicle):
                 try:
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
+                            logger.debug("Drone: set_velocity duration reached, stopping offboard")
                             self._velocity_loop_active = False
                             await self._system.offboard.set_velocity_ned(
                                 VelocityNedYaw(0, 0, 0, yaw)
@@ -331,6 +371,7 @@ class Drone(Vehicle):
                             await self._system.offboard.stop()
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                    logger.debug("Drone: set_velocity loop exited")
                 except Exception as e:
                     logger.error(f"Velocity loop error: {e}")
                     self._velocity_loop_active = False
@@ -345,6 +386,7 @@ class Drone(Vehicle):
             self._velocity_loop_active = True
             vel_task = asyncio.create_task(_velocity_loop())
             self._command_tasks.append(vel_task)
+            logger.debug("Drone: set_velocity offboard started, velocity loop active")
         except (OffboardError, ActionError) as e:
             raise VelocityError(str(e), original_error=e)
 

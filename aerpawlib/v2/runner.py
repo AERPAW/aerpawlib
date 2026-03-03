@@ -490,8 +490,10 @@ class StateMachine(Runner):
             if getattr(self, "_override_next_state_transition", False):
                 self._override_next_state_transition = False
                 self._current_state = getattr(self, "_next_state_overr", next_state)
+                logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
             else:
                 self._current_state = next_state
+                logger.info(f"StateMachine: state transition '{spec.name}' -> '{next_state}'")
             if next_state is None:
                 logger.info(f"StateMachine: completed (final state returned None)")
                 break

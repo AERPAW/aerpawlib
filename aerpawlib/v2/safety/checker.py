@@ -42,32 +42,40 @@ class NoOpSafetyChecker:
     Passthrough safety checker when SafetyCheckerServer is not available.
 
     All validations return (True, ""). Logs an error explaining that the
-    safety checker server is not connected/configured.
+    safety checker server is not connected/configured on init and on each validation call.
     """
 
     def __init__(self, reason: str) -> None:
         self._reason = reason
         logger.error(
-            "SafetyCheckerServer not available. All safety validations will pass. %s",
+            "SafetyCheckerServer not available. All safety validations through SafetyCheckerClient will pass. %s",
             reason,
         )
 
     async def validate_takeoff(
         self, takeoff_alt: float, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
+        logger.warning("NoOpSafetyChecker: "
+                       "validate_takeoff called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_waypoint(
         self, current: Coordinate, next_loc: Coordinate
     ) -> Tuple[bool, str]:
+        logger.warning("NoOpSafetyChecker: "
+                       "validate_waypoint called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+        logger.warning("NoOpSafetyChecker: "
+                       "validate_change_speed called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_landing(
         self, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
+        logger.warning("NoOpSafetyChecker: "
+                       "validate_landing called but no safety checker server available. Returning true.")
         return True, ""
 
 

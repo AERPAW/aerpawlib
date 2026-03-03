@@ -5,6 +5,7 @@ Rover vehicle for aerpawlib v2.
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Optional
 
 from mavsdk.action import ActionError
@@ -51,7 +52,7 @@ class Rover(Vehicle):
         except (ActionError, TimeoutError) as e:
             logger.warning(f"Rover: Could not set HOLD before goto: {e}")
         self._ready_to_move = lambda _: False
-        logger.debug("Rover: sending goto_location command")
+        logger.debug("Rover: sending goto_location(%.6f, %.6f) command", coordinates.lat, coordinates.lon)
         try:
             await self._system.action.goto_location(
                 coordinates.lat,
@@ -62,11 +63,21 @@ class Rover(Vehicle):
             self._ready_to_move = (
                 lambda s: coordinates.ground_distance(s.position) <= tolerance
             )
-            await _wait_for_condition(
-                lambda: self.done_moving(),
-                timeout=timeout,
-                timeout_message=f"Rover failed to reach destination within {timeout}s",
-            )
+            start = time.monotonic()
+            last_log = 0.0
+            while not self.done_moving():
+                elapsed = time.monotonic() - start
+                if elapsed > timeout:
+                    raise TimeoutError(f"Rover failed to reach destination within {timeout}s")
+                now = time.monotonic()
+                if now - last_log >= 3.0:
+                    dist = coordinates.ground_distance(self.position)
+                    logger.debug(
+                        "Rover: goto_coordinates progress ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                        dist, tolerance, elapsed,
+                    )
+                    last_log = now
+                await asyncio.sleep(0.05)
             logger.info("Rover: goto_coordinates complete")
         except ActionError as e:
             logger.error(f"Rover: goto_coordinates failed (ActionError): {e}")
