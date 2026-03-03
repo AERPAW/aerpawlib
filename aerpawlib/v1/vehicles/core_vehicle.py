@@ -606,6 +606,7 @@ class Vehicle:
             async for battery in self._system.telemetry.battery():
                 new_bat = _BatteryCompat()
                 new_bat.voltage = battery.voltage_v
+                new_bat.current = battery.current_battery_a
                 new_bat.level = int(battery.remaining_percent)
                 self._battery_val.set(new_bat)
 
@@ -717,6 +718,9 @@ class Vehicle:
 
     @property
     def armed(self) -> bool:
+        """
+        True if the vehicle is currently armed.
+        """
         return self._armed_state.get()
 
     @property
@@ -733,6 +737,11 @@ class Vehicle:
     @property
     def heading(self) -> float:
         return self._heading_deg.get()
+
+    @property
+    def mode(self) -> str:
+        """Get the current flight mode name (e.g. 'GUIDED', 'HOLD', 'AUTO')."""
+        return self._mode.get()
 
     @property
     def velocity(self) -> util.VectorNED:
@@ -1181,4 +1190,3 @@ class Vehicle:
             f"Fix: {self.gps.fix_type} ({self.gps.satellites_visible} sats)"
         )
         return summary
-

@@ -126,6 +126,8 @@ class SafetyCheckerClient:
                 block if server is down. Defaults to SAFETY_CHECKER_REQUEST_TIMEOUT_S.
         """
         self._timeout_s = timeout_s
+        self._addr = addr
+        self._port = port
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         timeout_ms = int(timeout_s * 1000)
@@ -137,6 +139,18 @@ class SafetyCheckerClient:
         """Close the ZMQ socket and context to free resources."""
         self.socket.close()
         self.context.term()
+
+    def _reconnect(self):
+        """Recreate the ZMQ REQ socket to restore a clean send state after an error."""
+        try:
+            self.socket.close()
+        except Exception:
+            pass
+        self.socket = self.context.socket(zmq.REQ)
+        timeout_ms = int(self._timeout_s * 1000)
+        self.socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
+        self.socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
+        self.socket.connect(f"tcp://{self._addr}:{self._port}")
 
     def __enter__(self):
         return self
@@ -164,6 +178,7 @@ class SafetyCheckerClient:
             self.socket.send(msg)
             raw_msg = self.socket.recv()
         except zmq.Again:
+            self._reconnect()
             raise TimeoutError(
                 f"Safety checker server did not respond within {self._timeout_s}s"
             )

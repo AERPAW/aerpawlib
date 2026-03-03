@@ -274,6 +274,11 @@ class Drone(Vehicle):
 
         try:
             target_alt = coordinates.alt + self.home_amsl
+            if self.home_amsl == 0.0 and self.home_coords is None:
+                logger.warning(
+                    "home_amsl is 0.0 and home position is not set; altitude may be "
+                    "incorrect. Use --skip-init only after home position is confirmed."
+                )
             logger.debug(
                 f"Goto: {coordinates.lat}, {coordinates.lon}, alt={target_alt}, heading={heading}"
             )

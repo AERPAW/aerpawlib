@@ -161,7 +161,7 @@ class AERPAW:
     # exception if they are run while not in the AERPAW platform, as there isn't a way
     # to "recover" while maintaining the function's API contract
 
-    def checkpoint_reset_server(self):
+    def checkpoint_reset_server(self) -> None:
         """
         Reset the AERPAW checkpoint server.
 
@@ -180,7 +180,7 @@ class AERPAW:
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
 
-    def checkpoint_set(self, checkpoint_name: str):
+    def checkpoint_set(self, checkpoint_name: str) -> None:
         """
         Set a boolean checkpoint in the AERPAW checkpoint system.
 
@@ -235,7 +235,7 @@ class AERPAW:
             f"malformed content in response from server: {response_content}"
         )
 
-    def checkpoint_increment_counter(self, counter_name: str):
+    def checkpoint_increment_counter(self, counter_name: str) -> None:
         """
         Increment an integer counter in the AERPAW checkpoint system.
 
@@ -289,7 +289,7 @@ class AERPAW:
                 f"malformed content in response from server: {response_content}"
             )
 
-    def checkpoint_set_string(self, string_name: str, value: str):
+    def checkpoint_set_string(self, string_name: str, value: str) -> None:
         """
         Set a string value in the AERPAW checkpoint system.
 
