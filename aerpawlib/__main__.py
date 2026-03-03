@@ -297,10 +297,13 @@ def run_v2_experiment(
             raise ConnectionError(f"Could not connect: {e}")
 
         shutdown_event = asyncio.Event()
+        _conn_handler_ref: list = [None]  # mutable ref so handle_shutdown can access it
 
         def handle_shutdown():
             logger.warning("Initiating graceful shutdown...")
             shutdown_event.set()
+            if _conn_handler_ref[0] is not None:
+                _conn_handler_ref[0].stop()
             if vehicle:
                 vehicle.close()
 
@@ -321,6 +324,7 @@ def run_v2_experiment(
                     else None
                 ),
             )
+            _conn_handler_ref[0] = conn_handler
             vehicle.set_heartbeat_tick_callback(conn_handler.heartbeat_tick)
             conn_handler.start()
             disconnect_future = conn_handler.get_disconnect_future()

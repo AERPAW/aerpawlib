@@ -13,16 +13,43 @@ def read_geofence(file_path: str) -> List[dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
+    Handles KML files with any nesting depth (Folder, multiple Placemarks, etc.).
+    Uses the first Polygon with an outerBoundaryIs/LinearRing found in the document.
+
     Returns:
         List of {'lat': ..., 'lon': ...} dicts.
+
+    Raises:
+        ValueError: If no Polygon with a LinearRing is found in the KML.
     """
     from pykml import parser
+    from lxml import etree
 
     with open(file_path, "rb") as f:
         root = parser.fromstring(f.read())
-    coords_str = (
-        root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
-    )
+
+    # Search the entire element tree for the first LinearRing coordinates
+    nsmap = {"kml": "http://www.opengis.net/kml/2.2"}
+    coords_el = None
+
+    # Try with the standard KML namespace first
+    for xpath in [
+        ".//{http://www.opengis.net/kml/2.2}outerBoundaryIs/"
+        "{http://www.opengis.net/kml/2.2}LinearRing/"
+        "{http://www.opengis.net/kml/2.2}coordinates",
+        ".//outerBoundaryIs/LinearRing/coordinates",
+    ]:
+        results = root.findall(xpath)
+        if results:
+            coords_el = results[0]
+            break
+
+    if coords_el is None or not coords_el.text:
+        raise ValueError(
+            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: {file_path}"
+        )
+
+    coords_str = coords_el.text.strip()
     polygon = []
     for s in coords_str.split():
         parts = s.split(",")
@@ -31,17 +58,21 @@ def read_geofence(file_path: str) -> List[dict]:
 
 
 def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
-    """Check if point (lon, lat) is inside polygon using ray-casting."""
+    """Check if point (lon, lat) is inside polygon using ray-casting.
+
+    Handles degenerate (horizontal) edges safely by skipping division-by-zero cases.
+    """
     n = len(geofence)
     inside_flag = False
     j = n - 1
     for i in range(n):
         loni, lati = geofence[i]["lon"], geofence[i]["lat"]
         lonj, latj = geofence[j]["lon"], geofence[j]["lat"]
-        if ((lati > lat) != (latj > lat)) and (
-            lon < (lonj - loni) * (lat - lati) / (latj - lati) + loni
-        ):
-            inside_flag = not inside_flag
+        # Skip horizontal edges (latj == lati) to avoid division by zero
+        if lati != latj and ((lati > lat) != (latj > lat)):
+            x_intersect = (lonj - loni) * (lat - lati) / (latj - lati) + loni
+            if lon < x_intersect:
+                inside_flag = not inside_flag
         j = i
     return inside_flag
 
