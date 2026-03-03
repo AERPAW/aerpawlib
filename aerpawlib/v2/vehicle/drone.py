@@ -24,7 +24,6 @@ from ..constants import (
 from ..exceptions import (
     LandingError,
     NavigationError,
-    NotArmableError,
     RTLError,
     TakeoffError,
     VelocityError,
@@ -286,7 +285,10 @@ class Drone(Vehicle):
         logger.debug("Drone: goto_coordinates returning non-blocking VehicleTask")
 
         async def _on_cancel() -> None:
-            await self.return_to_launch()
+            if not self._closed and self._system is not None:
+                await self.return_to_launch()
+            else:
+                logger.warning("Drone: _on_cancel skipped (vehicle closed)")
 
         handle.set_on_cancel(_on_cancel)
 
@@ -316,7 +318,7 @@ class Drone(Vehicle):
                 d = coordinates.distance(self.position)
                 if initial_dist > 0:
                     p = 1.0 - (d / initial_dist)
-                    handle.set_progress(max(0, min(1, p)))
+                    handle.set_progress(max(0.0, min(1.0, p)))
                 now = time.monotonic()
                 if now - last_log >= 5.0:
                     logger.debug("Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%", d, handle.progress * 100)
@@ -390,9 +392,21 @@ class Drone(Vehicle):
         except (OffboardError, ActionError) as e:
             raise VelocityError(str(e), original_error=e)
 
+    async def stop_velocity(self) -> None:
+        """Stop any active velocity command and exit offboard mode.
+
+        Call this to halt motion after :meth:`set_velocity` when no ``duration``
+        was specified, or to abort a velocity command early.
+        """
+        logger.info("Drone: stop_velocity")
+        await self._stop_offboard()
+
     async def _stop_offboard(self) -> None:
         """Stop offboard mode."""
         self._velocity_loop_active = False
+        if self._closed or self._system is None:
+            logger.debug("_stop_offboard: skipped (vehicle closed)")
+            return
         try:
             await self._system.offboard.set_velocity_ned(
                 VelocityNedYaw(0, 0, 0, self.heading)
