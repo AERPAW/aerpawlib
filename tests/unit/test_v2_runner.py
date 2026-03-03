@@ -46,17 +46,18 @@ class TestBasicRunner:
 
     @pytest.mark.asyncio
     async def test_multiple_entrypoints_raises(self):
-        class MultiEntry(BasicRunner):
-            @entrypoint
-            async def run1(self, vehicle):
-                pass
+        with pytest.raises(RuntimeError) as excinfo:
+            class MultiEntry(BasicRunner):
+                @entrypoint
+                async def run1(self, vehicle):
+                    pass
 
-            @entrypoint
-            async def run2(self, vehicle):
-                pass
+                @entrypoint
+                async def run2(self, vehicle):
+                    pass
 
-        with pytest.raises(RunnerError, match="Multiple @entrypoint"):
-            await MultiEntry().run(MockVehicle())
+        assert isinstance(excinfo.value.__cause__, RunnerError)
+        assert "Only one @entrypoint" in str(excinfo.value.__cause__)
 
 
 class TestStateMachine:
@@ -143,14 +144,14 @@ class TestStateMachine:
 
     @pytest.mark.asyncio
     async def test_multiple_initial_states_raises(self):
-        class SM(StateMachine):
-            @state(name="a", first=True)
-            async def a(self, vehicle):
-                return None
+        with pytest.raises(RuntimeError) as excinfo:
+            class SM(StateMachine):
+                @state(name="a", first=True)
+                async def a(self, vehicle):
+                    return None
 
-            @state(name="b", first=True)
-            async def b(self, vehicle):
-                return None
+                @state(name="b", first=True)
+                async def b(self, vehicle):
+                    return None
 
-        with pytest.raises(MultipleInitialStatesError):
-            await SM().run(MockVehicle())
+        assert isinstance(excinfo.value.__cause__, MultipleInitialStatesError)

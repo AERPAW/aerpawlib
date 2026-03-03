@@ -114,7 +114,11 @@ class _EntrypointDescriptor:
         if "config" in owner.__dict__ and isinstance(owner.config, BasicRunnerConfig):
             if owner.config.entrypoint != name:
                 from .exceptions import RunnerError
-                raise RunnerError("Multiple @entrypoint decorators found")
+                raise RunnerError(
+                    f"Only one @entrypoint is allowed per runner class. "
+                    f"Already registered '{owner.config.entrypoint}', "
+                    f"cannot also register '{name}'."
+                )
             return
         owner.config = BasicRunnerConfig(entrypoint=name)
 
