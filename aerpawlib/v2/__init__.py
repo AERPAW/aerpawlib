@@ -17,11 +17,13 @@ Usage:
 """
 
 from . import constants
+from .aerpaw import AERPAW_Platform
 from .exceptions import (
     AerpawlibError,
     ArmError,
     CommandError,
     ConnectionTimeoutError,
+    DisarmError,
     HeartbeatLostError,
     InvalidStateError,
     LandingError,
@@ -30,10 +32,12 @@ from .exceptions import (
     NoEntrypointError,
     NoInitialStateError,
     NotArmableError,
+    PlanError,
     RTLError,
     RunnerError,
     TakeoffError,
 )
+from .external import ExternalProcess
 from .geofence import do_intersect, inside, read_geofence
 from .plan import (
     Waypoint,
@@ -42,39 +46,27 @@ from .plan import (
     read_from_plan_complete,
 )
 from .protocols import GPSProtocol, VehicleProtocol
+from .runner import (
+    BasicRunner,
+    BasicRunnerConfig,
+    Runner,
+    StateMachine,
+    StateMachineConfig,
+    StateSpec,
+    ZmqStateMachine,
+    ZmqStateMachineConfig,
+    at_init,
+    background,
+    entrypoint,
+    expose_field_zmq,
+    expose_zmq,
+    state,
+    timed_state,
+)
 from .types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
+from .vehicle import Drone, DummyVehicle, Rover, Vehicle
+from .vehicle.base import VehicleTask
 from .zmqutil import check_zmq_proxy_reachable, run_zmq_proxy
-
-# Lazy imports for vehicle, runner, safety, aerpaw, external
-def __getattr__(name: str):
-    if name == "Drone":
-        from .vehicle import Drone
-        return Drone
-    if name == "Rover":
-        from .vehicle import Rover
-        return Rover
-    if name == "Vehicle":
-        from .vehicle import Vehicle
-        return Vehicle
-    if name == "DummyVehicle":
-        from .vehicle import DummyVehicle
-        return DummyVehicle
-    if name in (
-        "Runner", "BasicRunner", "StateMachine", "ZmqStateMachine",
-        "entrypoint", "state", "timed_state", "background", "at_init",
-        "expose_zmq", "expose_field_zmq",
-        "BasicRunnerConfig", "StateMachineConfig", "ZmqStateMachineConfig", "StateSpec",
-    ):
-        from . import runner
-        return getattr(runner, name)
-    if name == "AERPAW_Platform":
-        from . import aerpaw
-        return getattr(aerpaw, "AERPAW_Platform", None)
-    if name == "ExternalProcess":
-        from . import external
-        return getattr(external, "ExternalProcess")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
 
 __all__ = [
     "AerpawlibError",
@@ -89,6 +81,7 @@ __all__ = [
     "constants",
     "Coordinate",
     "ConnectionTimeoutError",
+    "DisarmError",
     "DummyVehicle",
     "Drone",
     "do_intersect",
@@ -105,6 +98,7 @@ __all__ = [
     "NoEntrypointError",
     "NoInitialStateError",
     "NotArmableError",
+    "PlanError",
     "read_geofence",
     "read_from_plan",
     "read_from_plan_complete",
@@ -127,6 +121,7 @@ __all__ = [
     "TakeoffError",
     "Vehicle",
     "VehicleProtocol",
+    "VehicleTask",
     "VectorNED",
     "Waypoint",
 ]

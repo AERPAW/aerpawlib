@@ -14,6 +14,7 @@ from .constants import (
     PLAN_CMD_RTL,
     PLAN_CMD_SPEED,
 )
+from .exceptions import PlanError
 from .types import Coordinate
 
 # Waypoint tuple: (command, x/lat, y/lon, z/alt, waypoint_id, speed)
@@ -40,7 +41,7 @@ def read_from_plan(
     with open(path) as f:
         data = json.load(f)
     if data["fileType"] != "Plan":
-        raise Exception("Wrong file type -- use a .plan file.")
+        raise PlanError(f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).")
     current_speed = default_speed
     for item in data["mission"]["items"]:
         command = item["command"]
@@ -85,7 +86,7 @@ def read_from_plan_complete(
     with open(path) as f:
         data = json.load(f)
     if data["fileType"] != "Plan":
-        raise Exception("Wrong file type -- use a .plan file.")
+        raise PlanError(f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).")
     current_speed = default_speed
     for item in data["mission"]["items"]:
         command = item["command"]

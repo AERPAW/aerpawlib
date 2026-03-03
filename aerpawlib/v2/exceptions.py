@@ -53,28 +53,32 @@ class AerpawConnectionError(AerpawlibError):
 class ConnectionTimeoutError(AerpawConnectionError):
     """Connection timed out."""
 
-    def __init__(self, timeout_seconds: float, message: Optional[str] = None):
+    def __init__(self, timeout_seconds: float, message: Optional[str] = None, **kwargs):
         self.timeout_seconds = timeout_seconds
+        kwargs.setdefault("code", "CONNECTION_TIMEOUT")
         msg = message or f"Connection timed out after {timeout_seconds}s"
-        super().__init__(msg, code="CONNECTION_TIMEOUT")
+        super().__init__(msg, **kwargs)
 
 
 class HeartbeatLostError(AerpawConnectionError):
     """Vehicle heartbeat lost."""
 
-    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None):
+    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None, **kwargs):
         self.last_heartbeat_age = last_heartbeat_age
+        kwargs.setdefault("code", "HEARTBEAT_LOST")
+        kwargs.setdefault("severity", "critical")
         msg = message or f"Heartbeat lost (last {last_heartbeat_age:.1f}s ago)"
-        super().__init__(msg, code="HEARTBEAT_LOST", severity="critical")
+        super().__init__(msg, **kwargs)
 
 
 class PortInUseError(AerpawConnectionError):
     """Port already in use."""
 
-    def __init__(self, port: int, message: Optional[str] = None):
+    def __init__(self, port: int, message: Optional[str] = None, **kwargs):
         self.port = port
+        kwargs.setdefault("code", "PORT_IN_USE")
         msg = message or f"Port {port} is already in use"
-        super().__init__(msg, code="PORT_IN_USE")
+        super().__init__(msg, **kwargs)
 
 
 # Command
@@ -131,13 +135,15 @@ class StateError(AerpawlibError):
 
 
 class NotArmableError(StateError):
-    def __init__(self, reason: str = "Vehicle not armable"):
-        super().__init__(f"Cannot arm: {reason}", code="NOT_ARMABLE")
+    def __init__(self, reason: str = "Vehicle not armable", **kwargs):
+        kwargs.setdefault("code", "NOT_ARMABLE")
+        super().__init__(f"Cannot arm: {reason}", **kwargs)
 
 
 class NotConnectedError(StateError):
-    def __init__(self, message: str = "Vehicle not connected"):
-        super().__init__(message, code="NOT_CONNECTED")
+    def __init__(self, message: str = "Vehicle not connected", **kwargs):
+        kwargs.setdefault("code", "NOT_CONNECTED")
+        super().__init__(message, **kwargs)
 
 
 # Runner
@@ -150,30 +156,43 @@ class RunnerError(AerpawlibError):
 
 
 class NoEntrypointError(RunnerError):
-    def __init__(self):
-        super().__init__("No @entrypoint declared", code="NO_ENTRYPOINT")
+    def __init__(self, **kwargs):
+        kwargs.setdefault("code", "NO_ENTRYPOINT")
+        super().__init__("No @entrypoint declared", **kwargs)
 
 
 class InvalidStateError(RunnerError):
-    def __init__(self, state_name: str, available_states: list):
+    def __init__(self, state_name: str, available_states: list, **kwargs):
         self.state_name = state_name
         self.available_states = available_states
+        kwargs.setdefault("code", "INVALID_STATE")
         super().__init__(
             f"Invalid state '{state_name}'. Available: {available_states}",
-            code="INVALID_STATE",
+            **kwargs,
         )
 
 
 class NoInitialStateError(RunnerError):
-    def __init__(self):
-        super().__init__("No initial state", code="NO_INITIAL_STATE")
+    def __init__(self, **kwargs):
+        kwargs.setdefault("code", "NO_INITIAL_STATE")
+        super().__init__("No initial state", **kwargs)
 
 
 class MultipleInitialStatesError(RunnerError):
-    def __init__(self):
-        super().__init__("Multiple initial states", code="MULTIPLE_INITIAL_STATES")
+    def __init__(self, **kwargs):
+        kwargs.setdefault("code", "MULTIPLE_INITIAL_STATES")
+        super().__init__("Multiple initial states", **kwargs)
 
 
 class InvalidStateNameError(RunnerError):
-    def __init__(self):
-        super().__init__("State name cannot be empty", code="INVALID_STATE_NAME")
+    def __init__(self, **kwargs):
+        kwargs.setdefault("code", "INVALID_STATE_NAME")
+        super().__init__("State name cannot be empty", **kwargs)
+
+
+class PlanError(AerpawlibError):
+    """Raised when a .plan file cannot be parsed."""
+
+    def __init__(self, message: str = "Plan file error", **kwargs):
+        kwargs.setdefault("code", "PLAN_ERROR")
+        super().__init__(message, **kwargs)
