@@ -181,229 +181,243 @@ def discover_runner(api_module, experimenter_script):
 
 
 def run_v2_experiment(
-    args, unknown_args, api_module, experimenter_script, start_time
+    args, unknown_args, api_module, experimenter_script, start_time=None
 ):
     """Run an experiment using the v2 API."""
-    runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
-    assert runner is not None  # discover_runner raises if no runner found
-    logger.debug(
-        f"Time after discover runner: {time.time() - start_time:.2f}s"
-    )
+    Runner = getattr(api_module, "Runner")
+    StateMachine = getattr(api_module, "StateMachine")
+    BasicRunner = getattr(api_module, "BasicRunner")
+    ZmqStateMachine = getattr(api_module, "ZmqStateMachine", None)
+
+    runner = None
+    flag_zmq_runner = False
+    logger.debug("Searching for Runner class in script...")
+    for name, val in inspect.getmembers(experimenter_script):
+        if not inspect.isclass(val):
+            continue
+        if not issubclass(val, Runner):
+            continue
+        exclude = [StateMachine, BasicRunner]
+        if ZmqStateMachine:
+            exclude.append(ZmqStateMachine)
+        if val in exclude:
+            continue
+        if ZmqStateMachine and issubclass(val, ZmqStateMachine):
+            flag_zmq_runner = True
+            logger.debug(f"Found ZmqStateMachine: {name}")
+        if runner:
+            logger.error("Multiple Runner classes found in script")
+            raise Exception("You can only define one runner")
+        logger.info(f"Found runner class: {name}")
+        runner = val()
+
+    if runner is None:
+        logger.error("No Runner class found in script")
+        raise Exception("No Runner class found in script")
 
     Vehicle = getattr(api_module, "Vehicle")
     Drone = getattr(api_module, "Drone")
     Rover = getattr(api_module, "Rover")
-    MockDrone = getattr(api_module, "MockDrone", None)
-    AERPAWPlatform = getattr(api_module, "AERPAWPlatform", None)
+    DummyVehicle = getattr(api_module, "DummyVehicle", None)
+    AERPAW_Platform = getattr(api_module, "AERPAW_Platform", None)
 
     vehicle_type = {
         "generic": Vehicle,
         "drone": Drone,
         "rover": Rover,
-        "none": MockDrone,
+        "none": DummyVehicle,
     }.get(args.vehicle, None)
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
         raise Exception("Please specify a valid vehicle type")
 
-    async def run_async():
-        experiment_success = False
-        connection_lost = False
+    logger.info("Starting experiment execution (v2)")
+    if args.debug_dump:
+        logger.warning("--debug-dump is not yet implemented for --api-version v2; flag ignored")
 
-        # MAVSDK uses gRPC, which can raise AioRpcError on disconnect
-        try:
-            from grpc.aio import AioRpcError
-        except ImportError:
+    async def run_experiment_async():
+        aerpaw_platform = AERPAW_Platform() if AERPAW_Platform else None
+        if aerpaw_platform:
+            aerpaw_platform.set_no_stdout(args.no_stdout)
 
-            class AioRpcError(Exception):
-                pass
+        from aerpawlib.v2.constants import DEFAULT_SAFETY_CHECKER_PORT
+        from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 
-        # AERPAW Platform init
-        aerpaw_platform = (
-            AERPAWPlatform(suppress_stdout=args.no_stdout)
-            if AERPAWPlatform
-            else None
+        is_aerpaw = aerpaw_platform._connected if aerpaw_platform else False
+        effective_port = (
+            args.safety_checker_port
+            if args.safety_checker_port is not None
+            else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
         )
-
-        # Connection
-        logger.info(f"Connecting to vehicle...")
-        logger.debug(f"Connection string: {args.conn}")
-        logger.debug(
-            f"Time before vehicle connection: {time.time() - start_time:.2f}s"
-        )
-
-        vehicle = vehicle_type(args.conn, oeo_platform=aerpaw_platform)
-
-        def handle_shutdown(signum, frame):
-            sig_name = signal.Signals(signum).name
-            logger.warning(
-                f"Received {sig_name}, initiating graceful shutdown..."
+        if effective_port is None:
+            safety_client = NoOpSafetyChecker(
+                "Not in AERPAW environment and --safety-checker-port not provided."
             )
-            # We can't easily await here in a synchronous signal handler
-            # In a single-loop asyncio application, it's better to let
-            # KeyboardInterrupt or CancelledError handle the cleanup, or
-            # use loop.add_signal_handler. For simplicity, we'll raise an error.
-            raise KeyboardInterrupt(f"Received signal {sig_name}")
-
-        signal.signal(signal.SIGINT, handle_shutdown)
-        signal.signal(signal.SIGTERM, handle_shutdown)
-
-        try:
-            await vehicle.connect(
-                timeout=args.conn_timeout,
-                retry_count=1,
-            )
-            logger.info("Vehicle connected successfully")
-            logger.debug(
-                f"Time after vehicle connection: {time.time() - start_time:.2f}s"
-            )
-
-            if args.debug_dump and hasattr(vehicle, "_verbose_logging"):
-                vehicle._verbose_logging = True
-
-            logger.debug("Initializing runner arguments...")
-            runner.initialize_args(unknown_args)
-
-            if flag_zmq_runner:
-                if not args.zmq_identifier or not args.zmq_server_addr:
-                    logger.error(
-                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
-                    )
-                    raise ValueError(
-                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
-                    )
-                if hasattr(runner, "_initialize_zmq_bindings"):
-                    runner._initialize_zmq_bindings(
-                        args.zmq_identifier, args.zmq_server_addr
-                    )
-                else:
-                    logger.warning(
-                        "Runner does not support ZMQ bindings in v2"
-                    )
-
-            logger.info("=" * 50)
-            logger.info("Starting experiment execution (v2)")
-            logger.info("=" * 50)
-
+        else:
+            safety_addr = "127.0.0.1"
             try:
-                await runner.run(vehicle)
-                experiment_success = True
-                logger.info("Experiment completed successfully")
-            except KeyboardInterrupt:
-                logger.warning("Experiment interrupted by user")
-                if vehicle.armed:
-                    logger.warning(
-                        "Vehicle is armed, attempting emergency landing..."
-                    )
-                    try:
-                        await vehicle._system.action.land()
-                        logger.info("Emergency landing command sent")
-                    except Exception as e:
-                        logger.error(f"Emergency landing failed: {e}")
-                        traceback.print_exc()
-            except (Exception, AioRpcError) as e:
-                # Catch AioRpcError and check for "Socket closed" which indicates
-                # the gRPC connection was severed (e.g. by MAVLink filter)
-                err_msg = str(e)
-                logger.error(f"Experiment failed: {err_msg}")
-                traceback.print_exc()
-
-                if (
-                    isinstance(e, AioRpcError)
-                    or "Socket closed" in err_msg
-                    or "UNAVAILABLE" in err_msg
-                ):
-                    connection_lost = True
+                client = SafetyCheckerClient(safety_addr, effective_port)
+                ok, msg = await client.check_server_status()
+                if ok:
+                    safety_client = client
+                else:
+                    raise RuntimeError(msg or "SafetyCheckerServer check failed")
+            except Exception as e:
+                if is_aerpaw:
                     logger.critical(
-                        "MAVLink connection severed! Experiment aborted."
+                        "AERPAW environment requires SafetyCheckerServer. "
+                        "Connection to %s:%d failed: %s",
+                        safety_addr,
+                        effective_port,
+                        e,
                     )
-                    if aerpaw_platform:
-                        try:
-                            await aerpaw_platform.log_connection_lost(err_msg)
-                        except:
-                            pass
-                elif isinstance(
+                    sys.exit(1)
+                logger.error(
+                    "SafetyCheckerServer connection failed (%s:%d): %s. "
+                    "Using passthrough (all validations pass).",
+                    safety_addr,
+                    effective_port,
                     e,
-                    (
-                        ConnectionResetError,
-                        BrokenPipeError,
-                        TimeoutError,
-                        asyncio.TimeoutError,
-                    ),
-                ):
-                    connection_lost = True
+                )
+                safety_client = NoOpSafetyChecker(
+                    f"Connection to {safety_addr}:{effective_port} failed: {e}"
+                )
 
-            # RTL/Cleanup if not connection lost
-            if vehicle and not connection_lost:
-                if vehicle.armed and args.rtl_at_end:
+        logger.info("Connecting to vehicle...")
+        try:
+            vehicle = await asyncio.wait_for(
+                vehicle_type.connect(
+                    args.conn,
+                    args.mavsdk_port,
+                    timeout=args.conn_timeout,
+                    safety=safety_client,
+                ),
+                timeout=args.conn_timeout,
+            )
+        except Exception as e:
+            raise ConnectionError(f"Could not connect: {e}")
+
+        shutdown_event = asyncio.Event()
+        _conn_handler_ref: list = [None]  # mutable ref so handle_shutdown can access it
+
+        def handle_shutdown():
+            logger.warning("Initiating graceful shutdown...")
+            shutdown_event.set()
+            if _conn_handler_ref[0] is not None:
+                _conn_handler_ref[0].stop()
+            if vehicle:
+                vehicle.close()
+
+        try:
+            from aerpawlib.v2.safety.connection import (
+                ConnectionHandler,
+                setup_signal_handlers,
+            )
+            loop = asyncio.get_running_loop()
+            conn_handler = ConnectionHandler(
+                vehicle,
+                heartbeat_timeout=args.heartbeat_timeout,
+                on_disconnect=lambda: (
+                    aerpaw_platform.log_to_oeo(
+                        "[aerpawlib] Connection lost", severity="CRITICAL"
+                    )
+                    if aerpaw_platform
+                    else None
+                ),
+            )
+            _conn_handler_ref[0] = conn_handler
+            vehicle.set_heartbeat_tick_callback(conn_handler.heartbeat_tick)
+            conn_handler.start()
+            disconnect_future = conn_handler.get_disconnect_future()
+            setup_signal_handlers(
+                loop,
+                on_sigint=handle_shutdown,
+                on_sigterm=handle_shutdown,
+            )
+        except (ImportError, NotImplementedError):
+            disconnect_future = None
+            signal.signal(signal.SIGINT, lambda s, f: handle_shutdown())
+            signal.signal(signal.SIGTERM, lambda s, f: handle_shutdown())
+
+        runner.initialize_args(unknown_args)
+        if args.initialize and hasattr(vehicle, "_initialize_prearm"):
+            await vehicle._initialize_prearm(args.initialize)
+
+        if flag_zmq_runner:
+            if not args.zmq_identifier or not args.zmq_server_addr:
+                logger.error(
+                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
+                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                )
+                raise ValueError(
+                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                )
+            runner._initialize_zmq_bindings(
+                args.zmq_identifier, args.zmq_server_addr
+            )
+
+        success = False
+        try:
+            run_task = asyncio.create_task(runner.run(vehicle))
+            shutdown_task = asyncio.create_task(shutdown_event.wait())
+            tasks = [run_task, shutdown_task]
+            if disconnect_future is not None:
+                tasks.append(disconnect_future)
+            done, pending = await asyncio.wait(
+                tasks,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for t in pending:
+                if hasattr(t, "cancel"):
+                    t.cancel()
+            if shutdown_event.is_set():
+                run_task.cancel()
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
+            elif disconnect_future is not None and disconnect_future in done:
+                run_task.cancel()
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
+                exc = disconnect_future.exception()
+                if exc is not None:
+                    raise exc
+            else:
+                await run_task
+                success = True
+        except Exception as e:
+            logger.error(f"Experiment failed: {e}")
+            traceback.print_exc()
+        finally:
+            if vehicle:
+                if (
+                    not vehicle.closed
+                    and vehicle.armed
+                    and args.rtl_at_end
+                ):
                     logger.warning("Vehicle still armed! RTLing...")
-                    if aerpaw_platform:
-                        try:
-                            await aerpaw_platform.log_to_oeo(
-                                "[aerpawlib] Vehicle still armed! RTLing..."
-                            )
-                        except:
-                            pass
                     try:
-                        await vehicle.rtl()
+                        if args.vehicle == "drone":
+                            await vehicle.return_to_launch()
+                        elif args.vehicle == "rover" and vehicle.home_coords:
+                            await vehicle.goto_coordinates(vehicle.home_coords)
                     except Exception as e:
                         logger.error(f"RTL failed: {e}")
                         traceback.print_exc()
+                vehicle.close()
+        return success
 
-                # Duration
-                try:
-                    if (
-                        hasattr(vehicle, "_mission_start_time")
-                        and vehicle._mission_start_time
-                    ):
-                        duration = int(
-                            time.time() - vehicle._mission_start_time
-                        )
-                        msg = f"Mission took {duration // 60:02d}:{duration % 60:02d}"
-                        logger.info(msg)
-                        if aerpaw_platform:
-                            try:
-                                await aerpaw_platform.log_to_oeo(
-                                    f"[aerpawlib] {msg}"
-                                )
-                            except:
-                                pass
-                except:
-                    pass
-        finally:
-            # Shield cleanup from further interruptions
-            try:
-                if vehicle:
-                    # In case of connection lost, disconnect might still raise AioRpcError
-                    try:
-                        await vehicle.disconnect()
-                    except (Exception, AioRpcError):
-                        pass
-            except Exception as e:
-                logger.debug(f"Error during vehicle disconnect: {e}")
-
-            try:
-                if aerpaw_platform:
-                    await aerpaw_platform.disconnect()
-            except Exception as e:
-                logger.debug(f"Error during platform disconnect: {e}")
-
-        return experiment_success
-
+    experiment_success = False
     try:
-        # Use asyncio.run() but wrap it to handle the loop cleanup
-        # This helps avoid "Task exception was never retrieved" logs
-        experiment_success = asyncio.run(run_async())
-    except KeyboardInterrupt:
-        experiment_success = False
+        experiment_success = asyncio.run(run_experiment_async())
     except Exception as e:
-        logger.error(f"Fatal error during mission: {e}")
+        logger.error(f"Fatal error during v2 execution: {e}")
         traceback.print_exc()
-        experiment_success = False
 
-    # Standard exit code handling
     sys.exit(0 if experiment_success else 1)
 
 
@@ -682,8 +696,8 @@ def main():
     # Connection Handling Arguments
     conn_grp = parser.add_argument_group("Connection Tuning")
     conn_grp.add_argument(
-        "--conn-timeout",
-        help="connection timeout in seconds (default: 30)",
+        "--conn-timeout", "--connection-timeout",
+        help="initial connection timeout in seconds (default: 30)",
         type=float,
         default=30.0,
         dest="conn_timeout",
@@ -703,6 +717,14 @@ def main():
         type=int,
         default=50051,
         dest="mavsdk_port",
+    )
+    conn_grp.add_argument(
+        "--safety-checker-port",
+        help="Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to 14580; "
+        "outside AERPAW, optional. If connection fails: AERPAW=crash, non-AERPAW=passthrough.",
+        type=int,
+        default=None,
+        dest="safety_checker_port",
     )
 
     args, unknown_args = parser.parse_known_args(
@@ -744,9 +766,17 @@ def main():
             f"Time to import API module: {time.time() - start_time:.2f}s"
         )
         # Inject into globals for backward compatibility in some scripts if needed
-        for name in dir(api_module):
-            if not name.startswith("_"):
+        # Use __all__ if defined, otherwise filter out standard modules
+        if hasattr(api_module, "__all__"):
+            for name in api_module.__all__:
                 globals()[name] = getattr(api_module, name)
+        else:
+            for name in dir(api_module):
+                if not name.startswith("_"):
+                    # Don't overwrite standard modules that we've already imported
+                    if name in ["logging", "os", "sys", "time", "asyncio", "json", "signal", "traceback"]:
+                        continue
+                    globals()[name] = getattr(api_module, name)
     except Exception as e:
         logger.error(f"Failed to import aerpawlib {api_version}: {e}")
         sys.exit(1)

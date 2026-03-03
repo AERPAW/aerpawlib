@@ -12,6 +12,9 @@ Welcome to the aerpawlib documentation. aerpawlib is a Python library for autono
 | [v2 API Reference](v2/README.md) | v2 users | v2 API documentation (modern, async-first) |
 | [v1 Safety Checker](v1/safety_checker.md) | v1 users | Geofence validation and safety server/client |
 | [v1 Architecture](v1/compromises.md) | Developers | v1 design tradeoffs and dual-loop architecture |
+| [v2 Safety](v2/safety.md) | v2 users | Command validation, vehicle.safety, SafetyCheckerClient |
+| [Migration Guide](MIGRATION.md) | Migrating users | v1 to v2 migration |
+| [Feature Parity](FEATURE_PARITY.md) | All | v1 vs v2 feature matrix |
 | [Roadmap](ROADMAP.md) | All | Planned features and improvements |
 
 

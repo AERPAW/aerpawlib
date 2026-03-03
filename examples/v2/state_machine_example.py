@@ -1,234 +1,66 @@
 """
-State machine example for aerpawlib v2 API.
+StateMachine v2 Example - States, timed_state, background
 
-This example demonstrates how to use the StateMachine pattern for
-complex missions with multiple states and background tasks.
+Run with:
+    aerpawlib --api-version v2 --script examples.v2.state_machine_example \
+        --vehicle drone --conn udpin://127.0.0.1:14550
 """
 
-import asyncio
-
 from aerpawlib.v2 import (
-    Coordinate,
     Drone,
     StateMachine,
-    at_init,
+    VectorNED,
     background,
-    sleep,
     state,
     timed_state,
-    # Logging
-    get_logger,
-    LogComponent,
 )
 
-# Get logger for user scripts (logging is configured by __main__.py)
-logger = get_logger(LogComponent.USER)
 
-
-class SurveyMission(StateMachine):
-    """
-    A survey mission using the StateMachine pattern.
-
-    States:
-    1. preflight - Check systems
-    2. takeoff - Take off to survey altitude
-    3. survey - Visit each waypoint
-    4. rtl - Return to launch
-
-    Background tasks:
-    - Log telemetry every second
-    - Monitor battery level
-    """
+class SquareStateMachine(StateMachine):
+    """State machine with timed state and background task."""
 
     def __init__(self):
         super().__init__()
-        self.waypoints = []
-        self.current_waypoint = 0
-        self.survey_altitude = 15.0
-        self.min_battery = 20.0  # Minimum battery percentage
-
-    @at_init
-    async def load_mission(self):
-        """Load waypoints before the mission starts."""
-        # In a real mission, you might load from a file:
-        # self.waypoints = read_waypoints_from_plan("survey.plan")
-
-        # For this example, we'll create waypoints manually
-        # These are offset from the home position
-        self.waypoints = [
-            Coordinate(35.7275, -78.6960, self.survey_altitude, "Point A"),
-            Coordinate(35.7280, -78.6960, self.survey_altitude, "Point B"),
-            Coordinate(35.7280, -78.6955, self.survey_altitude, "Point C"),
-            Coordinate(35.7275, -78.6955, self.survey_altitude, "Point D"),
+        self._legs = [
+            VectorNED(10, 0, 0),
+            VectorNED(0, 10, 0),
+            VectorNED(-10, 0, 0),
+            VectorNED(0, -10, 0),
         ]
-        logger.info(f"Loaded {len(self.waypoints)} survey waypoints")
+        self._current_leg = 0
 
     @background
-    async def log_telemetry(self, drone: Drone):
-        """Log telemetry data periodically."""
-        logger.debug(
-            f"[Telemetry] Alt: {drone.altitude:.1f}m, "
-            f"Speed: {drone.state.groundspeed:.1f}m/s, "
-            f"Heading: {drone.heading:.0f}°, "
-            f"Battery: {drone.battery.percentage:.0f}%"
-        )
-        await sleep(1)
+    async def log_position(self, drone: Drone):
+        """Background: log position every 2 seconds."""
+        import asyncio
+        while True:
+            pos = drone.position
+            print(f"[bg] Position: {pos.lat:.6f}, {pos.lon:.6f}, alt={pos.alt:.1f}m")
+            await asyncio.sleep(2)
 
-    @background
-    async def battery_monitor(self, drone: Drone):
-        """Monitor battery and trigger RTL if low."""
-        if drone.battery.percentage < self.min_battery:
-            logger.warning(
-                f"Battery low ({drone.battery.percentage:.0f}%)! Triggering RTL..."
-            )
-            self.transition_to("emergency_rtl")
-        await sleep(5)
+    @state(name="start", first=True)
+    async def start(self, drone: Drone):
+        print("[state] start -> take_off")
+        return "take_off"
 
-    @state("preflight", first=True)
-    async def preflight_check(self, drone: Drone):
-        """Perform pre-flight checks."""
-        logger.info("=== Pre-flight Checks ===")
-
-        # Check GPS
-        if not drone.gps.has_fix:
-            logger.info("  [WAITING] GPS fix...")
-            await sleep(1)
-            return "preflight"  # Stay in this state
-        logger.info(
-            f"  [OK] GPS: {drone.gps.quality} ({drone.gps.satellites} sats)"
-        )
-
-        # Check battery
-        if drone.battery.percentage < 30:
-            logger.error(
-                f"  [FAIL] Battery too low: {drone.battery.percentage:.0f}%"
-            )
-            return None  # Stop the mission
-        logger.info(f"  [OK] Battery: {drone.battery.percentage:.0f}%")
-
-        # Check if armable
-        if not drone.is_armable:
-            logger.info("  [WAITING] Vehicle not armable...")
-            await sleep(1)
-            return "preflight"
-        logger.info("  [OK] Vehicle is armable")
-
-        logger.info("Pre-flight checks passed!")
-        return "takeoff"
-
-    @state("takeoff")
-    async def takeoff_state(self, drone: Drone):
-        """Arm and takeoff."""
-        logger.info(f"=== Taking Off to {self.survey_altitude}m ===")
-
-        await drone.arm()
-        await drone.takeoff(altitude=self.survey_altitude)
-
-        logger.info(f"Takeoff complete! Altitude: {drone.altitude:.1f}m")
-        return "survey"
-
-    @state("survey")
-    async def survey_state(self, drone: Drone):
-        """Visit each survey waypoint."""
-        if self.current_waypoint >= len(self.waypoints):
-            logger.info("=== Survey Complete ===")
-            return "rtl"
-
-        waypoint = self.waypoints[self.current_waypoint]
-        logger.info(
-            f"=== Flying to {waypoint.name} ({self.current_waypoint + 1}/{len(self.waypoints)}) ==="
-        )
-
-        await drone.goto(coordinates=waypoint, tolerance=2.0)
-
-        # Simulate data collection
-        logger.info(f"  Collecting data at {waypoint.name}...")
-        await sleep(2)
-
-        self.current_waypoint += 1
-        return "survey"  # Continue to next waypoint
-
-    @state("rtl")
-    async def return_to_launch(self, drone: Drone):
-        """Return to launch position."""
-        logger.info("=== Returning to Launch ===")
-        await drone.rtl()
-        logger.info("Mission complete! Landed safely.")
-        return None  # Stop the state machine
-
-    @state("emergency_rtl")
-    async def emergency_return(self, drone: Drone):
-        """Emergency return due to low battery."""
-        logger.warning("=== EMERGENCY RTL ===")
-        await drone.rtl()
-        logger.info("Emergency landing complete.")
-        return None
-
-
-class OrbitMission(StateMachine):
-    """
-    Demonstrates timed_state for continuous operations like orbiting.
-    """
-
-    def __init__(
-        self, orbit_radius: float = 20.0, orbit_duration: float = 60.0
-    ):
-        super().__init__()
-        self.orbit_radius = orbit_radius
-        self.orbit_duration = orbit_duration
-        self.orbit_center = None
-
-    @state("setup", first=True)
-    async def setup(self, drone: Drone):
-        """Initial setup and takeoff."""
-        await drone.arm()
+    @state(name="take_off")
+    async def take_off(self, drone: Drone):
         await drone.takeoff(altitude=10)
-        self.orbit_center = drone.position
-        return "orbit"
+        print("[state] take_off -> at_position")
+        return "at_position"
 
-    @timed_state("orbit", duration=60.0, loop=True)
-    async def orbit_state(self, drone: Drone):
-        """Orbit around the center point for the specified duration."""
-        import math
+    @timed_state(name="at_position", duration=3)
+    async def at_position(self, drone: Drone):
+        start = drone.position
+        wp = start + self._legs[self._current_leg]
+        await drone.goto_coordinates(wp)
+        self._current_leg += 1
+        if self._current_leg >= len(self._legs):
+            return "land"
+        return "at_position"
 
-        # Calculate next position on the orbit circle
-        elapsed = drone.info.time_since_takeoff_ms / 1000.0
-        angle = (elapsed * 10) % 360  # 10 degrees per second
-
-        rad = math.radians(angle)
-        self.orbit_radius * math.cos(rad)
-        self.orbit_radius * math.sin(rad)
-
-        # Set velocity to orbit
-        from aerpawlib.v2 import VectorNED
-
-        velocity = VectorNED(
-            -self.orbit_radius * 0.5 * math.sin(rad),  # tangent velocity
-            self.orbit_radius * 0.5 * math.cos(rad),
-            0,
-        )
-
-        await drone.set_velocity(velocity, heading=angle + 90)
-        return "land"
-
-    @state("land")
-    async def land_state(self, drone: Drone):
-        """Land after orbit complete."""
+    @state(name="land")
+    async def land(self, drone: Drone):
         await drone.land()
+        print("[state] land -> done")
         return None
-
-
-async def main():
-    """Run the survey mission example."""
-    drone = Drone("udp://:14540")
-    await drone.connect()
-
-    # Run the survey mission
-    mission = SurveyMission()
-    await mission.run(drone)
-
-    await drone.disconnect()
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

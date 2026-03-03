@@ -1,95 +1,42 @@
 """
-Example demonstrating the aerpawlib v2 API.
+Basic v2 API Example - Square Pattern Flight
 
-This example shows how to use the new Pythonic API for drone control.
-To run this example, you need MAVSDK and a simulator (like PX4 SITL) running.
-
-Usage:
-    python -m examples.v2.basic_example
+Run with:
+    aerpawlib --api-version v2 --script examples.v2.basic_example \
+        --vehicle drone --conn udpin://127.0.0.1:14550
 """
-
-import asyncio
-
-from aerpawlib.v2 import (
-    BasicRunner,
-    Coordinate,
-    Drone,
-    entrypoint,
-    sleep,
-    # Logging
-    get_logger,
-    LogComponent,
-)
-
-# Get logger for user scripts (logging is configured by __main__.py)
-logger = get_logger(LogComponent.USER)
+from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 
 
-class SimpleSquareMission(BasicRunner):
-    """
-    A simple mission that flies a square pattern.
-
-    This demonstrates:
-    - Connection and arming
-    - Takeoff
-    - Navigation using coordinates
-    - Using drone state properties
-    - Landing
-    """
+class SquareFlight(BasicRunner):
+    """Fly in a square pattern."""
 
     @entrypoint
-    async def fly_square(self, drone: Drone):
-        # Connect to the drone
-        logger.info("Connecting to drone...")
-        await drone.connect()
-        logger.info(
-            f"Connected! GPS: {drone.gps.quality} ({drone.gps.satellites} satellites)"
-        )
+    async def run(self, drone: Drone):
+        takeoff_altitude = 10
+        square_size = 10
 
-        # Wait for GPS lock
-        while not drone.gps.has_fix:
-            logger.info("Waiting for GPS fix...")
-            await sleep(1)
+        print("[example] Starting square flight mission")
+        await drone.takeoff(altitude=takeoff_altitude)
+        print(f"[example] Takeoff complete, altitude: {drone.position.alt:.1f}m")
 
-        # Arm and takeoff
-        logger.info("Arming...")
-        await drone.arm()
-        logger.info(f"Armed: {drone.armed}")
-
-        logger.info("Taking off to 10m...")
-        await drone.takeoff(altitude=10)
-        logger.info(f"Current altitude: {drone.state.altitude:.1f}m")
-
-        # Get current position as starting point
-        start = drone.position
-        logger.info(f"Starting position: {start}")
-
-        # Define square corners (30m sides)
-        corners = [
-            start,  # Start
-            Coordinate(
-                start.latitude + 0.00027, start.longitude, 10
-            ),  # ~30m north
-            Coordinate(
-                start.latitude + 0.00027, start.longitude + 0.00036, 10
-            ),  # ~30m east
-            Coordinate(
-                start.latitude, start.longitude + 0.00036, 10
-            ),  # Back south
-            start,  # Return to start
+        start_position = drone.position
+        waypoints = [
+            ("North", VectorNED(square_size, 0, 0)),
+            ("East", VectorNED(0, square_size, 0)),
+            ("South", VectorNED(-square_size, 0, 0)),
+            ("West", VectorNED(0, -square_size, 0)),
         ]
 
-        # Fly the square
-        for i, corner in enumerate(corners):
-            logger.info(f"Flying to corner {i+1}: {corner}")
-            await drone.goto(coordinates=corner)
-            logger.info(
-                f"  Arrived! Heading: {drone.state.heading:.0f}°, "
-                f"Speed: {drone.state.groundspeed:.1f}m/s, "
-                f"Battery: {drone.battery.percentage:.0f}%"
-            )
+        current_position = start_position
+        for direction, offset in waypoints:
+            target = current_position + offset
+            print(f"[example] Flying {direction} to {target}")
+            await drone.goto_coordinates(target)
+            current_position = target
 
-        # Land
-        logger.info("Landing...")
+        print("[example] Returning to start...")
+        await drone.goto_coordinates(start_position)
+        print("[example] Landing...")
         await drone.land()
-        logger.info("Mission complete!")
+        print("[example] Mission complete!")
