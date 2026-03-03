@@ -233,6 +233,8 @@ def run_v2_experiment(
         raise Exception("Please specify a valid vehicle type")
 
     logger.info("Starting experiment execution (v2)")
+    if args.debug_dump:
+        logger.warning("--debug-dump is not yet implemented for --api-version v2; flag ignored")
 
     async def run_experiment_async():
         aerpaw_platform = AERPAW_Platform() if AERPAW_Platform else None

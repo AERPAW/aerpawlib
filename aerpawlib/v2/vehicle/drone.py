@@ -251,6 +251,12 @@ class Drone(Vehicle):
         if math.isnan(heading):
             heading = 0.0
         target_alt = coordinates.alt + self.home_amsl
+        if self.home_amsl == 0.0 and self._state.home_coords is None:
+            logger.warning(
+                "Drone: home AMSL altitude is 0.0 and home position not yet received. "
+                "goto_coordinates altitude may be incorrect (treating coordinates.alt as AMSL). "
+                "Use --skip-init only when the vehicle is already armed and home is set."
+            )
         try:
             logger.debug("Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)", coordinates.lat, coordinates.lon, target_alt, heading)
             await self._system.action.goto_location(

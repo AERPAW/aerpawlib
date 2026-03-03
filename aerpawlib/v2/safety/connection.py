@@ -41,7 +41,7 @@ class ConnectionHandler:
         self._heartbeat_timeout = heartbeat_timeout
         self._start_delay = start_delay
         self._on_disconnect = on_disconnect
-        self._last_tick: float = 0.0
+        self._last_tick: float = time.monotonic()
         self._monitor_started = False
         self._monitor_task: Optional[asyncio.Task] = None
         self._disconnected = False

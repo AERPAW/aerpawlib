@@ -575,7 +575,18 @@ class Vehicle:
         logger.debug("await_ready_to_move: vehicle ready")
 
     async def set_armed(self, value: bool) -> None:
-        """Arm or disarm."""
+        """
+        Arm or disarm the vehicle.
+
+        Args:
+            value: True to arm, False to disarm.
+
+        Raises:
+            RuntimeError: If the vehicle is closed.
+            NotArmableError: If the vehicle reports it cannot be armed.
+            ArmError: If the arm command fails.
+            DisarmError: If the disarm command fails.
+        """
         if self._closed or self._system is None:
             raise RuntimeError("Cannot set_armed: vehicle is closed")
         logger.info(f"set_armed({value})")

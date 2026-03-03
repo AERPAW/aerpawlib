@@ -99,14 +99,32 @@ class SafetyCheckerClient:
         self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
         self._socket.connect(f"tcp://{addr}:{port}")
 
+    def _reconnect(self) -> None:
+        """Recreate the REQ socket. Called after a send/recv error to recover from stuck state."""
+        logger.warning("SafetyCheckerClient: reconnecting socket after error")
+        try:
+            self._socket.close()
+        except Exception:
+            pass
+        self._socket = self._ctx.socket(zmq.REQ)
+        timeout_ms = int(self._timeout_s * 1000)
+        self._socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
+        self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
+        self._socket.connect(f"tcp://{self._addr}:{self._port}")
+
     def close(self) -> None:
         logger.debug("SafetyCheckerClient: closing connection")
         self._socket.close()
         self._ctx.term()
 
     async def _send_request(self, msg: bytes) -> Tuple[bool, str]:
-        await self._socket.send(msg)
-        raw = await self._socket.recv()
+        try:
+            await self._socket.send(msg)
+            raw = await self._socket.recv()
+        except Exception as e:
+            self._reconnect()
+            logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")
+            raise
         resp = _deserialize_response(raw)
         result, message = resp["result"], resp.get("message", "")
         logger.debug(f"SafetyCheckerClient: response result={result}, message={message}")
