@@ -27,6 +27,7 @@ from mavsdk.action import ActionError
 
 
 from aerpawlib.v1 import util
+from aerpawlib.v1.util import is_udp_port_in_use, is_tcp_port_in_use
 from aerpawlib.v1.aerpaw import AERPAW_Platform
 from aerpawlib.v1.constants import (
     ARMING_SEQUENCE_DELAY_S,
@@ -109,50 +110,6 @@ def _parse_udp_connection_port(connection_string: str) -> Optional[Tuple[str, in
     return (host, port)
 
 
-def is_udp_port_in_use(host: str, port: int) -> bool:
-    """
-    Check if a local UDP port is in use by trying to bind to it.
-
-    Args:
-        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0', or '::1').
-        port: The port number to check.
-
-    Returns:
-        True if the port is in use, False otherwise.
-    """
-    family = socket.AF_INET6 if ":" in host else socket.AF_INET
-    with socket.socket(family, socket.SOCK_DGRAM) as s:
-        try:
-            s.bind((host, port))
-            return False
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                return True
-            logger.warning("Port check failed: %s", e)
-            return True
-
-
-def is_tcp_port_in_use(host: str, port: int) -> bool:
-    """
-    Check if a local TCP port is in use by trying to bind to it.
-
-    Args:
-        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0').
-        port: The port number to check.
-
-    Returns:
-        True if the port is in use, False otherwise.
-    """
-    family = socket.AF_INET6 if ":" in host else socket.AF_INET
-    with socket.socket(family, socket.SOCK_STREAM) as s:
-        try:
-            s.bind((host, port))
-            return False
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                return True
-            logger.warning("TCP port check failed: %s", e)
-            return True
 
 
 class _BatteryCompat:

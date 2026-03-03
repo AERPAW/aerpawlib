@@ -8,7 +8,9 @@ Full SITL reset (disarm, clear mission, battery reset) runs between each test.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
+import logging
 import os
 import socket
 import subprocess
@@ -41,6 +43,28 @@ LAKE_WHEELER_LAT = 35.727436
 LAKE_WHEELER_LON = -78.696587
 
 
+def is_udp_port_in_use(host: str, port: int) -> bool:
+    """
+    Check if a local UDP port is in use by trying to bind to it.
+
+    Args:
+        host: The local IP address to bind to (e.g., '127.0.0.1', '0.0.0.0', or '::1').
+        port: The port number to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as s:
+        try:
+            s.bind((host, port))
+            return False
+        except OSError as e:
+            if e.errno == errno.EADDRINUSE:
+                return True
+            return True
+
+
 def _find_sim_vehicle() -> Optional[Path]:
     """Locate sim_vehicle.py from ARDUPILOT_HOME or common paths."""
     project_root = Path(__file__).resolve().parent.parent
@@ -62,16 +86,6 @@ def _find_sim_vehicle() -> Optional[Path]:
             return script
     return None
 
-
-def _port_available(host: str, port: int) -> bool:
-    """Check if a port is accepting connections."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(0.5)
-            s.connect((host, port))
-        return True
-    except (socket.error, OSError):
-        return False
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -111,7 +125,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
     """Pytest configuration."""
     configure_logging(level=LogLevel.DEBUG, root_name="aerpawlib")
+    # Grab the root aerpawlib logger
+    aerpaw_logger = logging.getLogger("aerpawlib")
 
+    # Strip away the custom stream handlers
+    aerpaw_logger.handlers.clear()
+
+    # Force the logs to flow up to pytest's root interceptor
+    aerpaw_logger.propagate = True
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     """Auto-apply markers based on test path."""
@@ -123,9 +144,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
             item.add_marker(pytest.mark.integration)
 
 
-# ---------------------------------------------------------------------------
 # Unit test fixtures (no SITL)
-# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -149,9 +168,7 @@ def zero_vector():
     return VectorNED(0, 0, 0)
 
 
-# ---------------------------------------------------------------------------
 # SITL management
-# ---------------------------------------------------------------------------
 
 
 class SITLManager:
@@ -193,7 +210,7 @@ class SITLManager:
         env["ARDUPILOT_HOME"] = str(ardupilot_home)
         env.setdefault("SIM_SPEEDUP", "5")
         # Prevent sim_vehicle's run_in_terminal_window.sh from opening a new Terminal window in GUI environments
-        env.pop("DISPLAY", None)
+        #env.pop("DISPLAY", None)
 
         cmd = [
             sys.executable,
@@ -228,7 +245,7 @@ class SITLManager:
         # Wait for MAVLink port
         start = time.monotonic()
         while time.monotonic() - start < SITL_STARTUP_TIMEOUT:
-            if _port_available("127.0.0.1", self.port):
+            if is_udp_port_in_use("127.0.0.1", self.port):
                 logger.info(f"SITL Ready on udpin://127.0.0.1:{self.port}")
                 return f"udpin://127.0.0.1:{self.port}"
 
@@ -344,13 +361,11 @@ def sitl_connection_string_rover(sitl_manager_rover: SITLManager) -> str:
     return sitl_manager_rover.connection_string()
 
 
-# ---------------------------------------------------------------------------
 # Full SITL reset (between each integration test)
-# ---------------------------------------------------------------------------
 
 
 async def _full_sitl_reset(vehicle) -> None:
-    """Disarm, clear mission, battery reset. Full clean state between tests."""
+    """Disarm, clear mission, battery reset. Full clean state between tests (v1)."""
     from mavsdk.mavlink_direct import MavlinkMessage
 
     system = getattr(vehicle, "_system", None)
@@ -399,6 +414,51 @@ async def _full_sitl_reset(vehicle) -> None:
         await asyncio.sleep(2)
     except Exception:
         pass
+
+
+async def _full_sitl_reset_v2(vehicle) -> None:
+    """Full SITL reset for v2 vehicles (direct await, no _run_on_mavsdk_loop)."""
+    from mavsdk.mavlink_direct import MavlinkMessage
+
+    system = getattr(vehicle, "_system", None)
+    if not system:
+        return
+
+    try:
+        await system.mission.clear_mission()
+    except Exception:
+        pass
+    try:
+        await system.geofence.clear_geofence()
+    except Exception:
+        pass
+    try:
+        await system.action.return_to_launch()
+        await asyncio.sleep(2)
+    except Exception:
+        pass
+    try:
+        fields = {
+            "target_system": 1, "target_component": 1,
+            "command": 42651, "confirmation": 0,
+            "param1": 1.0, "param2": 100.0,
+            "param3": 0.0, "param4": 0.0,
+            "param5": 0.0, "param6": 0.0, "param7": 0.0,
+        }
+        msg = MavlinkMessage(
+            system_id=1, component_id=1,
+            target_system_id=1, target_component_id=1,
+            message_name="COMMAND_LONG",
+            fields_json=json.dumps(fields),
+        )
+        await system.mavlink_direct.send_message(msg)
+    except Exception:
+        pass
+    try:
+        await system.action.disarm()
+    except Exception:
+        pass
+    await asyncio.sleep(2)
 
 
 async def _connect_and_wait_gps(
@@ -473,5 +533,70 @@ async def connected_rover(sitl_connection_string_rover: str) -> AsyncGenerator:
     yield rover
     try:
         await _full_sitl_reset(rover)
+    finally:
+        rover.close()
+
+
+async def _connect_and_wait_gps_v2(
+    vehicle_class,
+    connection_string: str,
+    mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT_DRONE,
+    timeout: int = SITL_GPS_TIMEOUT,
+):
+    """Connect v2 vehicle and wait for 3D GPS fix."""
+    from aerpawlib.v2.exceptions import ConnectionTimeoutError
+
+    try:
+        vehicle = await vehicle_class.connect(
+            connection_string,
+            mavsdk_server_port=mavsdk_server_port,
+            timeout=timeout,
+        )
+    except ConnectionTimeoutError:
+        pytest.fail(f"Connection timeout to {connection_string}")
+    except Exception as e:
+        pytest.fail(f"Vehicle init failed: {type(e).__name__}: {e}")
+
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        fix = vehicle.gps.fix_type
+        if fix >= 3:
+            return vehicle
+        await asyncio.sleep(1)
+
+    vehicle.close()
+    pytest.fail(f"No 3D GPS fix within {timeout}s")
+
+
+@pytest_asyncio.fixture
+async def connected_drone_v2(sitl_connection_string_drone: str) -> AsyncGenerator:
+    """v2 Drone connected to SITL. Full reset before each test."""
+    from aerpawlib.v2.vehicle import Drone
+
+    drone = await _connect_and_wait_gps_v2(
+        Drone,
+        sitl_connection_string_drone,
+        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_DRONE,
+    )
+    yield drone
+    try:
+        await _full_sitl_reset_v2(drone)
+    finally:
+        drone.close()
+
+
+@pytest_asyncio.fixture
+async def connected_rover_v2(sitl_connection_string_rover: str) -> AsyncGenerator:
+    """v2 Rover connected to SITL. Full reset before each test."""
+    from aerpawlib.v2.vehicle import Rover
+
+    rover = await _connect_and_wait_gps_v2(
+        Rover,
+        sitl_connection_string_rover,
+        mavsdk_server_port=DEFAULT_MAVSDK_SERVER_PORT_ROVER,
+    )
+    yield rover
+    try:
+        await _full_sitl_reset_v2(rover)
     finally:
         rover.close()
