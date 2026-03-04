@@ -848,6 +848,7 @@ class Vehicle:
                     )
                 log_output = self.debug_dump()
                 self._verbose_logging_file_writer.write(f"{log_output}\n")
+                self._verbose_logging_file_writer.flush()
                 self._verbose_logging_last_log_time = time.time()
 
     # Special things

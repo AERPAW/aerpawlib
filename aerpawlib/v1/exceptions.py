@@ -50,10 +50,6 @@ class AerpawConnectionError(AerpawlibError):
     pass
 
 
-# Backward-compatible alias (avoid shadowing built-in ConnectionError)
-ConnectionError = AerpawConnectionError
-
-
 class ConnectionTimeoutError(AerpawConnectionError):
     """Raised when connection to the vehicle times out."""
 

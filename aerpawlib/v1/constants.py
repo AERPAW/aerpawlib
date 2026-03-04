@@ -26,7 +26,7 @@ POLLING_DELAY_S = 0.01
 HEARTBEAT_CHECK_INTERVAL_S = 1.0
 
 # Maximum time since last heartbeat before considering vehicle disconnected (seconds)
-HEARTBEAT_TIMEOUT_S = 1.0
+HEARTBEAT_TIMEOUT_S = 5.0
 
 
 # Safety Initialization Constants

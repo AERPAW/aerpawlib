@@ -11,6 +11,7 @@ from typing import Optional
 
 from mavsdk.action import ActionError
 from mavsdk.mavlink_direct import MavlinkMessage
+from mavsdk.offboard import OffboardError, VelocityNedYaw
 from pymavlink import mavutil
 
 from ..constants import (
@@ -22,10 +23,11 @@ from ..constants import (
     POSITION_READY_TIMEOUT_S,
     ROVER_GUIDED_MODE,
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+    VELOCITY_UPDATE_DELAY_S,
 )
-from ..exceptions import NavigationError
+from ..exceptions import NavigationError, VelocityError
 from ..log import LogComponent, get_logger
-from ..types import Coordinate
+from ..types import Coordinate, VectorNED
 from .base import Vehicle, VehicleTask, _validate_tolerance, _wait_for_condition
 
 logger = get_logger(LogComponent.ROVER)
@@ -258,3 +260,85 @@ class Rover(Vehicle):
         t2 = asyncio.create_task(_progress_updater())
         self._command_tasks.extend([t1, t2])
         return handle
+
+    _velocity_loop_active: bool = False
+
+    async def set_velocity(
+        self,
+        velocity_vector: VectorNED,
+        global_relative: bool = True,
+        duration: Optional[float] = None,
+    ) -> None:
+        """Set rover velocity using MAVSDK offboard mode.
+
+        ArduRover supports velocity control in GUIDED mode via offboard
+        SET_POSITION_TARGET_LOCAL_NED. The vertical component is always zeroed
+        since rovers are ground vehicles.
+
+        Args:
+            velocity_vector: Desired velocity as a NED vector (m/s). Down
+                component is ignored.
+            global_relative: If True (default), the vector is in the global NED
+                frame. If False, the vector is rotated by the rover's heading
+                before being sent.
+            duration: Hold velocity for this many seconds then stop. If None,
+                the velocity loop runs until the next movement command.
+
+        Raises:
+            VelocityError: If offboard mode cannot be started.
+        """
+        await self.await_ready_to_move()
+        self._velocity_loop_active = False
+        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.05)
+
+        if not global_relative:
+            velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
+
+        try:
+            await self._system.offboard.set_velocity_ned(
+                VelocityNedYaw(
+                    velocity_vector.north,
+                    velocity_vector.east,
+                    0,  # Rovers don't fly
+                    0,
+                )
+            )
+            try:
+                await self._system.offboard.start()
+            except OffboardError:
+                pass
+
+            self._ready_to_move = lambda _: True
+            self._velocity_loop_active = True
+            target_end = (
+                time.monotonic() + duration if duration is not None else None
+            )
+
+            async def _velocity_helper() -> None:
+                try:
+                    while self._velocity_loop_active:
+                        if target_end and time.monotonic() > target_end:
+                            self._velocity_loop_active = False
+                            try:
+                                await self._system.offboard.set_velocity_ned(
+                                    VelocityNedYaw(0, 0, 0, 0)
+                                )
+                                await asyncio.sleep(0.1)
+                                await self._system.offboard.stop()
+                            except Exception as e:
+                                logger.debug(
+                                    "Rover velocity stop cleanup failed: %s", e
+                                )
+                            return
+                        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                except Exception as e:
+                    logger.error("Rover velocity helper error: %s", e)
+                    try:
+                        await self._system.offboard.stop()
+                    except Exception:
+                        pass
+
+            asyncio.ensure_future(_velocity_helper())
+
+        except (OffboardError, ActionError) as e:
+            raise VelocityError(str(e), original_error=e)

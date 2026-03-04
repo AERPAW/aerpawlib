@@ -5,6 +5,7 @@ External process utilities for aerpawlib v2.
 from __future__ import annotations
 
 import asyncio
+import re
 from typing import List, Optional
 
 
@@ -47,3 +48,45 @@ class ExternalProcess:
         if not line:
             return None
         return line.decode("ascii", errors="replace").rstrip()
+
+    async def send_input(self, data: str) -> None:
+        """Send a string to the process's stdin.
+
+        Args:
+            data: The data to send.
+
+        Raises:
+            RuntimeError: If stdin is not available (e.g. redirected to a file).
+        """
+        if self.process is None or self.process.stdin is None:
+            raise RuntimeError(
+                "Cannot send input: stdin is not available "
+                "(was it redirected to a file?)"
+            )
+        self.process.stdin.write(data.encode())
+        await self.process.stdin.drain()
+
+    async def wait_until_terminated(self) -> None:
+        """Wait until the process exits."""
+        if self.process is None:
+            return
+        await self.process.wait()
+
+    async def wait_until_output(self, output_regex: str) -> List[str]:
+        """Block until a stdout line matches the given regex.
+
+        Args:
+            output_regex: Regular expression to search for in each output line.
+
+        Returns:
+            All lines read up to and including the matching line, or all lines
+            collected if the process ends before a match is found.
+        """
+        buff: List[str] = []
+        while True:
+            out = await self.read_line()
+            if out is None:
+                return buff
+            buff.append(out)
+            if re.search(output_regex, out):
+                return buff

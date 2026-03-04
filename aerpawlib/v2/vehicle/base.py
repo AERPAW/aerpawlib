@@ -642,6 +642,19 @@ class Vehicle:
         """Stop background movement."""
         self._ready_to_move = lambda _: True
 
+    async def set_groundspeed(self, velocity: float) -> None:
+        """Set the maximum ground speed of the vehicle.
+
+        Args:
+            velocity: Maximum speed in m/s.
+        """
+        if self._closed or self._system is None:
+            raise RuntimeError("Cannot set_groundspeed: vehicle is closed")
+        try:
+            await self._system.action.set_maximum_speed(velocity)
+        except Exception as e:
+            logger.warning("set_groundspeed failed: %s", e)
+
     def close(self) -> None:
         """Clean up. Cancels all telemetry and command tasks."""
         if self._closed:
@@ -657,8 +670,13 @@ class Vehicle:
         self._telemetry_tasks.clear()
         if hasattr(self, "_command_tasks"):
             self._command_tasks.clear()
-        self._system = None
+        # Null the system reference only after tasks are cancelled to prevent
+        # telemetry callbacks from hitting AttributeError during teardown.
+        asyncio.get_event_loop().call_soon(self._clear_system)
         logger.info("Vehicle connection closed")
+
+    def _clear_system(self) -> None:
+        self._system = None
 
     async def goto_coordinates(
         self,
@@ -676,13 +694,11 @@ class DummyVehicle(Vehicle):
     def __init__(self, *, safety: Optional[Any] = None) -> None:
         # Skip parent init - no system
         self._state = VehicleState()
-        self._state._position_lat = 35.727436
-        self._state._position_lon = -78.696587
-        self._state._position_alt = 0.0
-        self._state._gps = GPSInfo(3, 10)
-        self._state._battery = Battery(12.6, 0.0, 100)
-        self._state._home = Coordinate(35.727436, -78.696587, 0)
-        self._state._armable = True
+        self._state.update_position(35.727436, -78.696587, 0.0, 0.0)
+        self._state.update_gps(3, 10)
+        self._state.update_battery(12.6, 0.0, 100)
+        self._state.update_home(35.727436, -78.696587, 0.0, 0.0)
+        self._state.update_armable(True, True, True)
         self._system = None
         self._connection_string = ""
         self._mavsdk_server_port = 50051

@@ -195,13 +195,12 @@ class Drone(Vehicle):
             logger.debug("Drone: land sending land() command")
             await self._system.action.land()
             self._expecting_disarm = True
-            last_log = 0.0
-            while self.armed:
-                now = time.monotonic()
-                if now - last_log >= 5.0:
-                    logger.debug("Drone: land waiting for disarm (pos=%.6f,%.6f alt=%.1fm)", self.position.lat, self.position.lon, self.position.alt)
-                    last_log = now
-                await asyncio.sleep(0.05)
+            await _wait_for_condition(
+                lambda: not self.armed,
+                poll_interval=0.05,
+                timeout=300.0,
+                timeout_message="Drone: land timed out waiting for disarm",
+            )
             logger.info("Drone: land complete (disarmed)")
         except ActionError as e:
             logger.error(f"Drone: land failed: {e}")
@@ -217,13 +216,12 @@ class Drone(Vehicle):
             logger.debug("Drone: return_to_launch sending RTL command")
             await self._system.action.return_to_launch()
             self._expecting_disarm = True
-            last_log = 0.0
-            while self.armed:
-                now = time.monotonic()
-                if now - last_log >= 5.0:
-                    logger.debug("Drone: RTL waiting for disarm (pos=%.6f,%.6f alt=%.1fm)", self.position.lat, self.position.lon, self.position.alt)
-                    last_log = now
-                await asyncio.sleep(0.05)
+            await _wait_for_condition(
+                lambda: not self.armed,
+                poll_interval=0.05,
+                timeout=300.0,
+                timeout_message="Drone: return_to_launch timed out waiting for disarm",
+            )
             logger.info("Drone: return_to_launch complete (disarmed)")
         except ActionError as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
@@ -265,6 +263,7 @@ class Drone(Vehicle):
             )
         try:
             logger.debug("Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)", coordinates.lat, coordinates.lon, target_alt, heading)
+            self._ready_to_move = lambda _: False
             await self._system.action.goto_location(
                 coordinates.lat, coordinates.lon, target_alt, heading
             )
