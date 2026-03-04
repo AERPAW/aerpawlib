@@ -552,9 +552,9 @@ class ZmqStateMachine(StateMachine):
         try:
             while self._running:
                 message = await socket.recv_pyobj()
-                if message["identifier"] != self._zmq_identifier:
+                if message.get("identifier") != self._zmq_identifier:
                     continue
-                asyncio.create_task(self._zmq_handle_request(vehicle, message))
+                await self._zmq_handle_request(vehicle, message)
         finally:
             socket.close()
 
@@ -562,24 +562,45 @@ class ZmqStateMachine(StateMachine):
         """
         Handle an incoming ZMQ request.
 
+        Called inline (not as a spawned task) so handlers run sequentially and
+        shared state mutations on _override_next_state_transition / _next_state_overr
+        are race-free.
+
         Args:
             vehicle: The vehicle instance.
             message (dict): The received message object.
         """
-        if message["msg_type"] == ZMQ_TYPE_TRANSITION:
-            next_state = message["next_state"]
+        msg_type = message.get("msg_type")
+
+        if msg_type == ZMQ_TYPE_TRANSITION:
+            next_state = message.get("next_state")
+            if not next_state:
+                logger.warning("ZmqStateMachine: TRANSITION message missing 'next_state'")
+                return
             self._next_state_overr = next_state
             self._override_next_state_transition = True
-        elif message["msg_type"] == ZMQ_TYPE_FIELD_REQUEST:
-            field = message["field"]
+            logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
+        elif msg_type == ZMQ_TYPE_FIELD_REQUEST:
+            field = message.get("field")
+            sender = message.get("from")
+            if not field or not sender:
+                logger.warning(
+                    "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')"
+                )
+                return
             return_val = None
             if field in self._exported_fields:
                 return_val = await self._exported_fields[field](vehicle)
-            await self._reply_queried_field(message["from"], field, return_val)
-        elif message["msg_type"] == ZMQ_TYPE_FIELD_CALLBACK:
-            field = message["field"]
-            value = message["value"]
-            msg_from = message["from"]
+            await self._reply_queried_field(sender, field, return_val)
+        elif msg_type == ZMQ_TYPE_FIELD_CALLBACK:
+            field = message.get("field")
+            msg_from = message.get("from")
+            if not field or msg_from is None:
+                logger.warning(
+                    "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')"
+                )
+                return
+            value = message.get("value")
             if msg_from not in self._zmq_received_fields:
                 self._zmq_received_fields[msg_from] = {}
             self._zmq_received_fields[msg_from][field] = value
