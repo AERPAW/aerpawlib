@@ -428,7 +428,6 @@ class StateMachine(Runner):
         logger.debug(f"StateMachine: entering state '{spec.name}'")
         if spec.duration <= 0:
             next_state = await method(vehicle)
-            logger.debug(f"StateMachine: state '{spec.name}' -> '{next_state}'")
             return next_state
         # Timed state
         running = True
@@ -454,7 +453,6 @@ class StateMachine(Runner):
         await asyncio.sleep(spec.duration)
         running = False
         next_state = await task
-        logger.debug(f"StateMachine: timed_state '{spec.name}' -> '{next_state}'")
         return next_state
 
     async def run(self, vehicle: Any) -> None:

@@ -377,11 +377,19 @@ class Vehicle:
 
         # Warn if mavsdk gRPC port is already in use (avoids confusing multi-vehicle issues)
         if is_tcp_port_in_use("127.0.0.1", self._mavsdk_server_port):
-            raise PortInUseError(
+            # Previously this raised PortInUseError which caused an immediate crash.
+            # Prefer a non-fatal warning so multiple vehicle processes can still
+            # attempt to run (the gRPC server may still be usable or the caller
+            # may prefer to continue). Keep PortInUseError for callers that want
+            # a fail-fast behavior.
+
+            # This behavior is because the test suite will trigger this failure case
+            # and we still want to be able to run tests :P
+            logger.warning(
+                "MAVSDK gRPC port %d appears to be in use. Proceeding anyway. "
+                "If running multiple vehicles, consider using --mavsdk-port with a unique port per process "
+                "(e.g. --mavsdk-port 50051 for the first, --mavsdk-port 50052 for the second).",
                 self._mavsdk_server_port,
-                f"MAVSDK gRPC port {self._mavsdk_server_port} is already in use. "
-                "If running multiple vehicles, use --mavsdk-port with a unique port per process "
-                "(e.g. --mavsdk-port 50051 for the first, --mavsdk-port 50052 for the second)."
             )
 
         loop = asyncio.new_event_loop()

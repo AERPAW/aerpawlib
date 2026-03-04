@@ -43,7 +43,7 @@ class TestDroneConnection:
 
     @pytest.mark.asyncio
     async def test_home_coords_set_after_guided(self, connected_drone_v2):
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         home = connected_drone_v2.home_coords
         assert home is not None
         assert -90 <= home.lat <= 90
@@ -55,7 +55,7 @@ class TestDroneArming:
 
     @pytest.mark.asyncio
     async def test_arms_on_takeoff(self, connected_drone_v2):
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(5)
         assert connected_drone_v2.armed is True
         await connected_drone_v2.land()
@@ -66,7 +66,7 @@ class TestDroneTakeoff:
 
     @pytest.mark.asyncio
     async def test_takeoff_reaches_altitude(self, connected_drone_v2):
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(10)
         assert connected_drone_v2.position.alt >= 9
         await connected_drone_v2.land()
@@ -79,7 +79,7 @@ class TestDroneNavigation:
     async def test_goto_coordinates(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         target = start + VectorNED(30, 0, 0)
@@ -94,7 +94,7 @@ class TestDroneLanding:
 
     @pytest.mark.asyncio
     async def test_land_disarms(self, connected_drone_v2):
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(10)
         await connected_drone_v2.land()
         assert connected_drone_v2.armed is False
@@ -107,7 +107,7 @@ class TestDroneRTL:
     async def test_rtl_returns_home(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(10)
         home = connected_drone_v2.home_coords
         target = connected_drone_v2.position + VectorNED(40, 0, 0)
@@ -123,7 +123,7 @@ class TestDroneVehicleTask:
     async def test_goto_non_blocking_returns_handle(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        await connected_drone_v2._initialize_prearm(should_postarm_init=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         target = start + VectorNED(15, 0, 0)

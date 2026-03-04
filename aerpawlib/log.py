@@ -9,6 +9,7 @@ Shared by v1 and tests.
 
 from __future__ import annotations
 
+import datetime
 import logging
 import sys
 import time
@@ -94,7 +95,7 @@ class ColoredFormatter(logging.Formatter):
             parts = name.split(".")
             name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
-        timestamp = time.strftime("%H:%M:%S", time.localtime(record.created))
+        timestamp = datetime.datetime.fromtimestamp(record.created).strftime("%H:%M:%S.%f")
         level_letter = record.levelname[0]
 
         if record.levelno >= logging.WARNING:
@@ -102,10 +103,10 @@ class ColoredFormatter(logging.Formatter):
         else:
             prefix = f"{color}[{name}]{reset}"
 
-        if record.levelno == logging.DEBUG:
-            return f"{prefix} {color}{timestamp}{reset} {record.getMessage()}"
-        else:
-            return f"{prefix} {record.getMessage()}"
+        timestamp_display = (
+            f"{color}{timestamp}{reset}" if self.use_colors else timestamp
+        )
+        return f"{prefix} {timestamp_display} {record.getMessage()}"
 
 
 # Global state
