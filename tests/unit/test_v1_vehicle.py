@@ -151,6 +151,12 @@ class TestDummyVehicleUnit:
         v.close()
         v.close()  # Second call should not raise
 
+    def test_close_sets_closed_flag(self):
+        v = DummyVehicle()
+        assert not v._closed
+        v.close()
+        assert v._closed
+
     def test_preflight_wait_noop(self):
         v = DummyVehicle()
         v._preflight_wait(should_arm=True)
@@ -240,3 +246,67 @@ class TestVehicleValidationUnit:
         drone = Drone("udp://:14540")
         with pytest.raises(ValueError, match="at least"):
             await Drone.goto_coordinates(drone, Coordinate(0, 0), tolerance=0.0)
+
+
+class TestHeartbeatMonitoring:
+    """Unit tests for Vehicle heartbeat / connection-loss detection."""
+
+    def _make_vehicle(self):
+        """Return a Vehicle with _connect_sync stubbed out."""
+        from aerpawlib.v1.vehicles.core_vehicle import Vehicle
+        with patch.object(Vehicle, "_connect_sync", return_value=None):
+            v = Vehicle.__new__(Vehicle)
+            v._has_heartbeat = True
+            v._last_heartbeat_time = 0.0
+            v._verbose_logging = False
+            v._verbose_log_lock = __import__("threading").Lock()
+            v._verbose_logging_file_writer = None
+            v._verbose_logging_last_log_time = 0.0
+            v._verbose_logging_delay = 999.0
+            return v
+
+    def test_connected_true_when_heartbeat_set(self):
+        v = self._make_vehicle()
+        v._has_heartbeat = True
+        assert v.connected is True
+
+    def test_connected_false_when_heartbeat_cleared(self):
+        v = self._make_vehicle()
+        v._has_heartbeat = False
+        assert v.connected is False
+
+    def test_internal_update_clears_heartbeat_on_timeout(self):
+        import time
+        from aerpawlib.v1.constants import HEARTBEAT_TIMEOUT_S
+        v = self._make_vehicle()
+        # Simulate a stale last_heartbeat_time
+        v._last_heartbeat_time = time.time() - HEARTBEAT_TIMEOUT_S - 1.0
+        v._has_heartbeat = True
+        v._internal_update()
+        assert v._has_heartbeat is False
+
+    def test_internal_update_keeps_heartbeat_when_fresh(self):
+        import time
+        v = self._make_vehicle()
+        v._last_heartbeat_time = time.time()
+        v._has_heartbeat = True
+        v._internal_update()
+        assert v._has_heartbeat is True
+
+    def test_internal_update_no_op_when_heartbeat_already_false(self):
+        """Timeout check should not flip an already-False heartbeat."""
+        import time
+        from aerpawlib.v1.constants import HEARTBEAT_TIMEOUT_S
+        v = self._make_vehicle()
+        v._last_heartbeat_time = time.time() - HEARTBEAT_TIMEOUT_S - 5.0
+        v._has_heartbeat = False
+        v._internal_update()
+        assert v._has_heartbeat is False
+
+    def test_internal_update_no_op_when_no_heartbeat_received_yet(self):
+        """Before any connection event, _last_heartbeat_time == 0; timeout must not fire."""
+        v = self._make_vehicle()
+        v._last_heartbeat_time = 0.0
+        v._has_heartbeat = False
+        v._internal_update()
+        assert v._has_heartbeat is False

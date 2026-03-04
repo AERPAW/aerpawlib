@@ -41,6 +41,7 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     VERBOSE_LOG_FILE_PREFIX,
     VERBOSE_LOG_DELAY_S,
+    HEARTBEAT_TIMEOUT_S,
 )
 from aerpawlib.v1.exceptions import (
     ConnectionTimeoutError,
@@ -218,10 +219,10 @@ class DummyVehicle:
     """
 
     def __init__(self):
-        pass
+        self._closed = False
 
     def close(self):
-        pass
+        self._closed = True
 
     def _preflight_wait(self, should_arm):
         pass
@@ -534,6 +535,16 @@ class Vehicle:
                     logger.error(
                         f"Telemetry stream '{name}' failed after {max_retries} retries"
                     )
+                    # Critical streams failing permanently means we can no
+                    # longer trust vehicle state — mark as disconnected.
+                    _critical = ("position", "armed", "connection")
+                    if name in _critical and self._has_heartbeat:
+                        logger.warning(
+                            "Critical telemetry stream '%s' permanently failed; "
+                            "marking vehicle as disconnected",
+                            name,
+                        )
+                        self._has_heartbeat = False
 
     async def _start_telemetry(self):
         """
@@ -610,6 +621,20 @@ class Vehicle:
                 ))
                 self._home_abs_alt.set(home.absolute_altitude_m)
 
+        async def _connection_state_update():
+            async for state in self._system.core.connection_state():
+                if state.is_connected:
+                    self._last_heartbeat_time = time.time()
+                    if not self._has_heartbeat:
+                        logger.info("Vehicle connection restored")
+                        self._has_heartbeat = True
+                else:
+                    if self._has_heartbeat:
+                        logger.warning(
+                            "Vehicle heartbeat lost (MAVSDK reports disconnected)"
+                        )
+                        self._has_heartbeat = False
+
         # Start all telemetry tasks
         telemetry_defs = [
             ("position", lambda: _position_update()),
@@ -621,6 +646,7 @@ class Vehicle:
             ("armed", lambda: _armed_update()),
             ("health", lambda: _health_update()),
             ("home", lambda: _home_update()),
+            ("connection", lambda: _connection_state_update()),
         ]
 
         for name, factory in telemetry_defs:
@@ -785,8 +811,24 @@ class Vehicle:
         """
         Perform a single iteration of internal updates.
 
-        Handles verbose logging if enabled.
+        Handles verbose logging and heartbeat timeout detection.
         """
+        # Secondary heartbeat check: if the connection stream hasn't fired a
+        # "connected" event within the timeout window, assume the link is lost.
+        # This acts as a safety net in case the MAVSDK connection_state
+        # subscription itself stops delivering events.
+        if (
+            self._last_heartbeat_time > 0
+            and self._has_heartbeat
+            and time.time() - self._last_heartbeat_time > HEARTBEAT_TIMEOUT_S
+        ):
+            logger.warning(
+                "Heartbeat timeout: no connection event for %.1fs; "
+                "marking vehicle as disconnected",
+                time.time() - self._last_heartbeat_time,
+            )
+            self._has_heartbeat = False
+
         # Called regularly at some given frequency by an internal update loop
         if self._verbose_logging and (
             self._verbose_logging_last_log_time + self._verbose_logging_delay

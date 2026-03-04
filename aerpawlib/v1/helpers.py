@@ -10,6 +10,7 @@ import asyncio
 from typing import Callable, Optional, TypeVar, Any
 
 from .constants import POLLING_DELAY_S, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M
+from .exceptions import InvalidToleranceError
 
 
 
@@ -109,12 +110,12 @@ def validate_tolerance(
     """
 
     if tolerance < MIN_POSITION_TOLERANCE_M:
-        raise ValueError(
-            f"{param_name} must be at least {MIN_POSITION_TOLERANCE_M}m, got {tolerance}m"
+        raise InvalidToleranceError(
+            tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
         )
     if tolerance > MAX_POSITION_TOLERANCE_M:
-        raise ValueError(
-            f"{param_name} must be at most {MAX_POSITION_TOLERANCE_M}m, got {tolerance}m"
+        raise InvalidToleranceError(
+            tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
         )
     return tolerance
 

@@ -261,13 +261,20 @@ class ValidationError(AerpawlibError):
     pass
 
 
-class InvalidToleranceError(ValidationError):
+class InvalidToleranceError(ValidationError, ValueError):
     """Raised when an invalid tolerance value is provided."""
 
-    def __init__(self, value: float, min_val: float, max_val: float):
-        super().__init__(
-            f"Invalid tolerance {value}: must be between {min_val} and {max_val}"
-        )
+    def __init__(self, value: float, min_val: float, max_val: float,
+                 param_name: str = "tolerance"):
+        if value < min_val:
+            msg = (
+                f"{param_name} must be at least {min_val}m, got {value}m"
+            )
+        else:
+            msg = (
+                f"{param_name} must be at most {max_val}m, got {value}m"
+            )
+        super().__init__(msg)
         self.value = value
         self.min_val = min_val
         self.max_val = max_val

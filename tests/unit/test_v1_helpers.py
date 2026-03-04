@@ -5,6 +5,7 @@ import threading
 
 import pytest
 
+from aerpawlib.v1.exceptions import InvalidToleranceError
 from aerpawlib.v1.helpers import (
     ThreadSafeValue,
     heading_difference,
@@ -142,8 +143,16 @@ class TestValidateTolerance:
         with pytest.raises(ValueError, match="at least"):
             validate_tolerance(0.05)
 
+    def test_too_small_raises_invalid_tolerance_error(self):
+        with pytest.raises(InvalidToleranceError):
+            validate_tolerance(0.05)
+
     def test_too_large_raises(self):
         with pytest.raises(ValueError, match="at most"):
+            validate_tolerance(150)
+
+    def test_too_large_raises_invalid_tolerance_error(self):
+        with pytest.raises(InvalidToleranceError):
             validate_tolerance(150)
 
     def test_param_name_in_error_too_small(self):
@@ -161,6 +170,11 @@ class TestValidateTolerance:
 
     def test_boundary_exactly_max(self):
         assert validate_tolerance(100.0) == 100.0
+
+    def test_invalid_tolerance_error_is_value_error(self):
+        """InvalidToleranceError must be catchable as ValueError for backward compat."""
+        with pytest.raises(ValueError):
+            validate_tolerance(0.0)
 
 
 class TestNormalizeHeading:

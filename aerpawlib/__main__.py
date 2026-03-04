@@ -293,24 +293,44 @@ def run_v2_experiment(
             signal.signal(signal.SIGTERM, lambda s, f: handle_shutdown())
 
         runner.initialize_args(unknown_args)
-        if args.initialize and hasattr(vehicle, "_preflight_wait"):
-            await vehicle._preflight_wait(args.initialize)
-
-        if flag_zmq_runner:
-            if not args.zmq_identifier or not args.zmq_server_addr:
-                logger.error(
-                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
-                )
-                raise ValueError(
-                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
-                )
-            runner._initialize_zmq_bindings(
-                args.zmq_identifier, args.zmq_server_addr
-            )
 
         success = False
         try:
+            if args.initialize and hasattr(vehicle, "_preflight_wait"):
+                preflight_task = asyncio.create_task(
+                    vehicle._preflight_wait(args.initialize)
+                )
+                if disconnect_future is not None:
+                    done, _ = await asyncio.wait(
+                        [preflight_task, disconnect_future],
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if preflight_task not in done:
+                        preflight_task.cancel()
+                        try:
+                            await preflight_task
+                        except asyncio.CancelledError:
+                            pass
+                    if disconnect_future in done:
+                        exc = disconnect_future.exception()
+                        if exc is not None:
+                            raise exc
+                else:
+                    await preflight_task
+
+            if flag_zmq_runner:
+                if not args.zmq_identifier or not args.zmq_server_addr:
+                    logger.error(
+                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
+                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                    )
+                    raise ValueError(
+                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                    )
+                runner._initialize_zmq_bindings(
+                    args.zmq_identifier, args.zmq_server_addr
+                )
+
             run_task = asyncio.create_task(runner.run(vehicle))
             shutdown_task = asyncio.create_task(shutdown_event.wait())
             tasks = [run_task, shutdown_task]
@@ -346,10 +366,17 @@ def run_v2_experiment(
             traceback.print_exc()
         finally:
             if vehicle:
+                heartbeat_lost = (
+                    disconnect_future is not None
+                    and disconnect_future.done()
+
+                    and disconnect_future.exception() is not None
+                )
                 if (
                     not vehicle.closed
                     and vehicle.armed
                     and args.rtl_at_end
+                    and not heartbeat_lost
                 ):
                     logger.warning("Vehicle still armed! RTLing...")
                     try:

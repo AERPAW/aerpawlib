@@ -75,6 +75,10 @@ class ConnectionHandler:
         await asyncio.sleep(self._start_delay)  # Justified: avoid false "heartbeat lost"
         logger.debug("ConnectionHandler: monitor active, checking heartbeat")
         while not self._disconnected:
+            if not self._monitor_started:
+                # No telemetry tick received yet; keep the baseline current so
+                # the timeout doesn't fire before the first message arrives.
+                self._last_tick = time.monotonic()
             now = time.monotonic()
             age = now - self._last_tick
             if age > self._heartbeat_timeout:
@@ -112,8 +116,6 @@ def setup_signal_handlers(
     Use loop.add_signal_handler for async-safe SIGINT/SIGTERM.
     Avoid raising from sync signal handlers.
     """
-    if sys.platform == "win32":
-        return
     try:
         if on_sigint:
 
