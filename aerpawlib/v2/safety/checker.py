@@ -94,9 +94,6 @@ class SafetyCheckerClient:
         logger.info(f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)")
         self._ctx = zmq.asyncio.Context()
         self._socket = self._ctx.socket(zmq.REQ)
-        timeout_ms = int(timeout_s * 1000)
-        self._socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
         self._socket.connect(f"tcp://{addr}:{port}")
 
     def _reconnect(self) -> None:
@@ -107,9 +104,6 @@ class SafetyCheckerClient:
         except Exception:
             pass
         self._socket = self._ctx.socket(zmq.REQ)
-        timeout_ms = int(self._timeout_s * 1000)
-        self._socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        self._socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
         self._socket.connect(f"tcp://{self._addr}:{self._port}")
 
     def close(self) -> None:
@@ -119,8 +113,15 @@ class SafetyCheckerClient:
 
     async def _send_request(self, msg: bytes) -> Tuple[bool, str]:
         try:
-            await self._socket.send(msg)
-            raw = await self._socket.recv()
+            await asyncio.wait_for(self._socket.send(msg), timeout=self._timeout_s)
+            raw = await asyncio.wait_for(self._socket.recv(), timeout=self._timeout_s)
+        except asyncio.TimeoutError as e:
+            self._reconnect()
+            timeout_err = TimeoutError(
+                f"SafetyCheckerServer did not respond within {self._timeout_s}s"
+            )
+            logger.error(f"SafetyCheckerClient: request timed out; socket reset")
+            raise timeout_err from e
         except Exception as e:
             self._reconnect()
             logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")

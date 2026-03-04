@@ -117,10 +117,12 @@ class BasicRunner(Runner):
 
     async def run(self, vehicle: Vehicle):
         self._build()
-        if self._entry is not None:
-            await self._entry.__func__(self, vehicle)
-        else:
+        if self._entry is None:
             raise NoEntrypointError()
+        try:
+            await self._entry.__func__(self, vehicle)
+        finally:
+            self.cleanup()
 
 
 class _StateType(Enum):
@@ -420,7 +422,8 @@ class StateMachine(Runner):
         """
         if build_before_running:
             self._build()
-        assert self._entrypoint
+        if not self._entrypoint:
+            raise NoInitialStateError()
         self._current_state = self._entrypoint
         self._override_next_state_transition = False
         self._next_state_overr = ""

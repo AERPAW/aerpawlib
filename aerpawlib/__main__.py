@@ -162,7 +162,7 @@ def discover_runner(api_module, experimenter_script):
             continue
         if not issubclass(val, Runner):
             continue
-        if val in [StateMachine, BasicRunner, ZmqStateMachine]:
+        if val in [Runner, StateMachine, BasicRunner, ZmqStateMachine]:
             continue
         if ZmqStateMachine and issubclass(val, ZmqStateMachine):
             flag_zmq_runner = True
@@ -197,7 +197,7 @@ def run_v2_experiment(
             continue
         if not issubclass(val, Runner):
             continue
-        exclude = [StateMachine, BasicRunner]
+        exclude = [Runner, StateMachine, BasicRunner]
         if ZmqStateMachine:
             exclude.append(ZmqStateMachine)
         if val in exclude:

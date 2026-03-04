@@ -112,7 +112,10 @@ class VehicleTask:
                 if asyncio.iscoroutine(result):
                     loop.create_task(result)
             except RuntimeError:
-                pass
+                logger.warning(
+                    "VehicleTask.cancel() called outside an async context; "
+                    "on_cancel callback will not run. The vehicle may continue its current task."
+                )
 
     def is_cancelled(self) -> bool:
         return self._cancelled

@@ -81,11 +81,17 @@ class ConnectionHandler:
                 self._disconnected = True
                 logger.error(f"Heartbeat lost (last {age:.1f}s ago)")
                 if self._on_disconnect:
-                    self._on_disconnect()
+                    # _on_disconnect may be a blocking call; run in executor to
+                    # avoid blocking the event loop.
+                    loop = asyncio.get_running_loop()
+                    try:
+                        await loop.run_in_executor(None, self._on_disconnect)
+                    except Exception as e:
+                        logger.warning(f"ConnectionHandler: on_disconnect callback raised: {e}")
                 err = HeartbeatLostError(last_heartbeat_age=age)
                 if self._disconnect_future and not self._disconnect_future.done():
                     self._disconnect_future.set_exception(err)
-                raise err
+                return
             await asyncio.sleep(1.0)  # Justified: heartbeat check interval
 
     def stop(self) -> None:

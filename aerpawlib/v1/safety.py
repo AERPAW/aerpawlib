@@ -211,7 +211,7 @@ class SafetyCheckerClient:
         Returns:
             Tuple[bool, str]: A tuple containing (True, "") if server is up.
         """
-        msg = serialize_request(SERVER_STATUS_REQ, None)
+        msg = serialize_request(SERVER_STATUS_REQ, [])
         resp = self.send_request(msg)
         return self.parse_response(resp)
 

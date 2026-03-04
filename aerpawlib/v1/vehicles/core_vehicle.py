@@ -283,6 +283,7 @@ class Vehicle:
 
     # Safety initialization state
     _initialization_complete: bool = False
+    _postarm_init_in_progress: bool = False
     _skip_init: bool = False  # Set via CLI --skip-init flag
     _skip_rtl: bool = False  # Set via CLI --skip-rtl flag
 
@@ -314,6 +315,7 @@ class Vehicle:
 
         # Safety initialization state
         self._initialization_complete = False
+        self._postarm_init_in_progress = False
         self._skip_init = False
         self._skip_rtl = False
         self._was_already_armed_on_connect = False
@@ -578,6 +580,9 @@ class Vehicle:
                 self._armed_telemetry_received.set(True)
                 if armed and not old_armed:
                     self._last_arm_time.set(time.time())
+                elif old_armed and not armed:
+                    # Vehicle disarmed; allow re-initialization on next guided command
+                    self._initialization_complete = False
 
         async def _health_update():
             async for health in self._system.telemetry.health():
@@ -980,84 +985,101 @@ class Vehicle:
         """
         if not self._should_postarm_init:
             logger.debug("Skipping postarm init (disabled)")
+            self._initialization_complete = True
             return
 
-        logger.debug("_initialize_postarm() called")
-
-        # Check if we're in AERPAW environment
-        is_aerpaw = AERPAW_Platform._is_aerpaw_environment()
-
-        if is_aerpaw:
-            # In AERPAW environment, wait for safety pilot to arm
-            AERPAW_Platform.log_to_oeo(
-                "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm"
-            )
-            logger.info("Waiting for safety pilot to arm vehicle...")
-
+        # Re-entrance guard: if another coroutine is already initializing, wait
+        if self._postarm_init_in_progress:
+            logger.debug("_initialize_postarm: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: self._is_armable_state.get(),
+                lambda: self._initialization_complete or not self._postarm_init_in_progress,
                 poll_interval=POLLING_DELAY_S,
             )
-            await wait_for_condition(
-                lambda: self.armed, poll_interval=POLLING_DELAY_S
-            )
-        else:
-            # In standalone/SITL, auto-arm the vehicle
-            logger.info("Standalone mode: auto-arming vehicle...")
+            return
 
-            # Wait for armable state with timeout
-            try:
+        self._postarm_init_in_progress = True
+        try:
+            logger.debug("_initialize_postarm() called")
+
+            # Check if we're in AERPAW environment
+            is_aerpaw = AERPAW_Platform._is_aerpaw_environment()
+
+            if is_aerpaw:
+                # log_to_oeo is blocking, run in thread (E6)
+                threading.Thread(
+                    target=AERPAW_Platform.log_to_oeo,
+                    args=("[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",),
+                    daemon=True,
+                ).start()
+                logger.info("Waiting for safety pilot to arm vehicle...")
+
                 await wait_for_condition(
                     lambda: self._is_armable_state.get(),
-                    timeout=CONNECTION_TIMEOUT_S,
                     poll_interval=POLLING_DELAY_S,
-                    timeout_message=f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions",
                 )
-            except TimeoutError as e:
-                health_summary = self._get_health_status_summary()
-                msg = f"{str(e)}. Status: {health_summary}"
-                logger.error(msg)
-                raise NotArmableError(msg)
-
-            # Wait for GPS 3D fix explicitly. MAVSDK's is_global_position_ok can report
-            # true before the autopilot has valid position for GUIDED mode (e.g. when
-            # SITL is still starting up). Without this, takeoff fails with
-            # "Mode change to GUIDED failed: requires position".
-            logger.debug("Waiting for GPS 3D fix (position ready for GUIDED)...")
-            try:
                 await wait_for_condition(
-                    lambda: self.gps.fix_type >= 3,
-                    timeout=POSITION_READY_TIMEOUT_S,
-                    poll_interval=POLLING_DELAY_S,
-                    timeout_message=f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started",
+                    lambda: self.armed, poll_interval=POLLING_DELAY_S
                 )
-            except TimeoutError as e:
-                health_summary = self._get_health_status_summary()
-                msg = f"{str(e)}. Status: {health_summary}"
-                logger.error(msg)
-                raise NotArmableError(msg)
+            else:
+                # In standalone/SITL, auto-arm the vehicle
+                logger.info("Standalone mode: auto-arming vehicle...")
 
-            logger.debug("Vehicle is armable, sending arm command...")
+                # Wait for armable state with timeout
+                try:
+                    await wait_for_condition(
+                        lambda: self._is_armable_state.get(),
+                        timeout=CONNECTION_TIMEOUT_S,
+                        poll_interval=POLLING_DELAY_S,
+                        timeout_message=f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions",
+                    )
+                except TimeoutError as e:
+                    health_summary = self._get_health_status_summary()
+                    msg = f"{str(e)}. Status: {health_summary}"
+                    logger.error(msg)
+                    raise NotArmableError(msg)
 
-            # Arm the vehicle
-            await self.set_armed(True)
-            logger.info("Vehicle armed successfully")
+                # Wait for GPS 3D fix explicitly. MAVSDK's is_global_position_ok can report
+                # true before the autopilot has valid position for GUIDED mode (e.g. when
+                # SITL is still starting up). Without this, takeoff fails with
+                # "Mode change to GUIDED failed: requires position".
+                logger.debug("Waiting for GPS 3D fix (position ready for GUIDED)...")
+                try:
+                    await wait_for_condition(
+                        lambda: self.gps.fix_type >= 3,
+                        timeout=POSITION_READY_TIMEOUT_S,
+                        poll_interval=POLLING_DELAY_S,
+                        timeout_message=f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started",
+                    )
+                except TimeoutError as e:
+                    health_summary = self._get_health_status_summary()
+                    msg = f"{str(e)}. Status: {health_summary}"
+                    logger.error(msg)
+                    raise NotArmableError(msg)
 
-        await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+                logger.debug("Vehicle is armable, sending arm command...")
 
-        self._abortable = True
+                # Arm the vehicle
+                await self.set_armed(True)
+                logger.info("Vehicle armed successfully")
 
-        # Wait for home position to be populated from telemetry (up to 5s)
-        logger.debug("Waiting for auto-set home position...")
-        await wait_for_condition(
-            lambda: self._home_position.get() is not None,
-            timeout=5.0,
-            poll_interval=POLLING_DELAY_S,
-            timeout_message="Home position not available within 5s",
-        )
+            await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
-        self._home_location = self.home_coords
-        logger.debug(f"Home location set to: {self._home_location}")
+            self._abortable = True
+
+            # Wait for home position to be populated from telemetry (up to 5s)
+            logger.debug("Waiting for auto-set home position...")
+            await wait_for_condition(
+                lambda: self._home_position.get() is not None,
+                timeout=5.0,
+                poll_interval=POLLING_DELAY_S,
+                timeout_message="Home position not available within 5s",
+            )
+
+            self._home_location = self.home_coords
+            logger.debug(f"Home location set to: {self._home_location}")
+            self._initialization_complete = True
+        finally:
+            self._postarm_init_in_progress = False
 
     async def goto_coordinates(
         self,

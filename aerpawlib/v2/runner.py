@@ -164,10 +164,31 @@ class _StateDescriptor:
 
     def __set_name__(self, owner: type, attr_name: str) -> None:
         if "config" not in owner.__dict__ or not isinstance(owner.config, StateMachineConfig):
+            # Find nearest parent config to inherit from (shallow-copy so the
+            # child class doesn't accidentally share the parent's state list).
+            parent_cfg: Optional[StateMachineConfig] = None
+            for base in owner.__mro__[1:]:
+                if "config" in base.__dict__ and isinstance(
+                    base.__dict__["config"], StateMachineConfig
+                ):
+                    parent_cfg = base.__dict__["config"]
+                    break
             if _is_zmq_state_machine_subclass(owner):
-                owner.config = ZmqStateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[], exposed_states={}, exposed_fields={})
+                owner.config = ZmqStateMachineConfig(
+                    initial_state=parent_cfg.initial_state if parent_cfg else "",
+                    states=list(parent_cfg.states) if parent_cfg else [],
+                    backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
+                    at_init=list(parent_cfg.at_init) if parent_cfg else [],
+                    exposed_states=dict(getattr(parent_cfg, "exposed_states", {})),
+                    exposed_fields=dict(getattr(parent_cfg, "exposed_fields", {})),
+                )
             else:
-                owner.config = StateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[])
+                owner.config = StateMachineConfig(
+                    initial_state=parent_cfg.initial_state if parent_cfg else "",
+                    states=list(parent_cfg.states) if parent_cfg else [],
+                    backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
+                    at_init=list(parent_cfg.at_init) if parent_cfg else [],
+                )
         cfg = owner.config
         if self.first:
             if cfg.initial_state:
@@ -368,6 +389,8 @@ class BasicRunner(Runner):
         except Exception as e:
             logger.error(f"BasicRunner: entrypoint '{name}' failed: {e}")
             raise
+        finally:
+            self.cleanup()
 
 
 class StateMachine(Runner):
