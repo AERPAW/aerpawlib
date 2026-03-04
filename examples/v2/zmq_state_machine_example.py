@@ -22,8 +22,8 @@ class RemoteMission(ZmqStateMachine):
         print("[example] In start state, transitioning to fly")
         return "fly"
 
-    @expose_zmq("fly")
     @state(name="fly")
+    @expose_zmq("fly")
     async def fly(self, drone: Drone):
         print("[example] Flying - takeoff and hover")
         await drone.takeoff(altitude=5)

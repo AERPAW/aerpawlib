@@ -527,7 +527,6 @@ class ZmqStateMachine(StateMachine):
         # Pre-initialise queues/dicts so they are available before
         # the @background tasks have had a chance to start.
         self._zmq_messages_sending = asyncio.Queue()
-        self._zmq_messages_handling = asyncio.Queue()
         self._zmq_received_fields = {}  # indexed by [identifier][field]
 
     @background
@@ -578,6 +577,8 @@ class ZmqStateMachine(StateMachine):
             field = message["field"]
             value = message["value"]
             msg_from = message["from"]
+            if msg_from not in self._zmq_received_fields:
+                self._zmq_received_fields[msg_from] = {}
             self._zmq_received_fields[msg_from][field] = value
 
     @background
