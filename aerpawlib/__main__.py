@@ -29,6 +29,8 @@ import traceback
 from argparse import ArgumentParser
 from typing import Optional
 
+from aerpawlib.log import ColoredFormatter
+
 
 # Configure logging
 def setup_logging(
@@ -69,57 +71,7 @@ def setup_logging(
     # Console handler with colored output
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(level)
-
-    # Custom formatter with colors and aerpawlib prefix
-    class AerpawFormatter(logging.Formatter):
-        """Custom formatter with colors for different log levels."""
-
-        COLORS = {
-            logging.DEBUG: "\033[36m",  # Cyan
-            logging.INFO: "\033[32m",  # Green
-            logging.WARNING: "\033[33m",  # Yellow
-            logging.ERROR: "\033[31m",  # Red
-            logging.CRITICAL: "\033[35m",  # Magenta
-        }
-        RESET = "\033[0m"
-        BOLD = "\033[1m"
-
-        def format(self, record):
-            # Add color based on level
-            color = self.COLORS.get(record.levelno, self.RESET)
-
-            # Format timestamp
-            timestamp = time.strftime(
-                "%H:%M:%S", time.localtime(record.created)
-            )
-
-            # Determine logger name prefix
-            name = record.name
-            if name == "root":
-                name = "aerpawlib"
-            elif name.startswith("aerpawlib."):
-                # Shorten aerpawlib.v1.vehicle -> v1.vehicle
-                name = name[10:]  # Remove "aerpawlib."
-            elif "." in name:
-                # For user scripts, show last two parts: examples.v1.basic_runner -> v1.basic_runner
-                parts = name.split(".")
-                name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
-
-            level_name = record.levelname[0]  # Single letter: D, I, W, E, C
-
-            if record.levelno >= logging.WARNING:
-                prefix = f"{color}{self.BOLD}[{name} {level_name}]{self.RESET}"
-            else:
-                prefix = f"{color}[{name}]{self.RESET}"
-
-            # Include timestamp for debug level
-            if record.levelno == logging.DEBUG:
-                return f"{prefix} {color}{timestamp}{self.RESET} {record.getMessage()}"
-            else:
-                return f"{prefix} {record.getMessage()}"
-
-
-    console_handler.setFormatter(AerpawFormatter())
+    console_handler.setFormatter(ColoredFormatter(use_colors=True))
     root_logger.addHandler(console_handler)
 
     # Suppress noisy external logs

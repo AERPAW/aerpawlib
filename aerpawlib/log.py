@@ -84,12 +84,15 @@ class ColoredFormatter(logging.Formatter):
         bold = self.BOLD if self.use_colors else ""
 
         name = record.name
-        if name.startswith("aerpawlib.v1."):
-            name = "v1." + name[13:]
-        elif name == "aerpawlib.v1":
-            name = "v1"
+        if name == "root":
+            name = "aerpawlib"
         elif name.startswith("aerpawlib."):
-            name = name[10:]  # "aerpawlib.sitl" -> "sitl"
+            name = name[10:]  # "aerpawlib.v1.vehicle" -> "v1.vehicle"
+        elif "." in name:
+            # User scripts: show last two parts for context
+            # e.g. "examples.v1.basic_runner" -> "v1.basic_runner"
+            parts = name.split(".")
+            name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
         timestamp = time.strftime("%H:%M:%S", time.localtime(record.created))
         level_letter = record.levelname[0]
