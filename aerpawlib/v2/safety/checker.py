@@ -12,6 +12,7 @@ from typing import Tuple
 
 import zmq
 import zmq.asyncio
+import asyncio
 
 from ..constants import (
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
