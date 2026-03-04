@@ -274,39 +274,3 @@ class TestHeartbeatMonitoring:
         v = self._make_vehicle()
         v._has_heartbeat = False
         assert v.connected is False
-
-    def test_internal_update_clears_heartbeat_on_timeout(self):
-        import time
-        from aerpawlib.v1.constants import HEARTBEAT_TIMEOUT_S
-        v = self._make_vehicle()
-        # Simulate a stale last_heartbeat_time
-        v._last_heartbeat_time = time.time() - HEARTBEAT_TIMEOUT_S - 1.0
-        v._has_heartbeat = True
-        v._internal_update()
-        assert v._has_heartbeat is False
-
-    def test_internal_update_keeps_heartbeat_when_fresh(self):
-        import time
-        v = self._make_vehicle()
-        v._last_heartbeat_time = time.time()
-        v._has_heartbeat = True
-        v._internal_update()
-        assert v._has_heartbeat is True
-
-    def test_internal_update_no_op_when_heartbeat_already_false(self):
-        """Timeout check should not flip an already-False heartbeat."""
-        import time
-        from aerpawlib.v1.constants import HEARTBEAT_TIMEOUT_S
-        v = self._make_vehicle()
-        v._last_heartbeat_time = time.time() - HEARTBEAT_TIMEOUT_S - 5.0
-        v._has_heartbeat = False
-        v._internal_update()
-        assert v._has_heartbeat is False
-
-    def test_internal_update_no_op_when_no_heartbeat_received_yet(self):
-        """Before any connection event, _last_heartbeat_time == 0; timeout must not fire."""
-        v = self._make_vehicle()
-        v._last_heartbeat_time = 0.0
-        v._has_heartbeat = False
-        v._internal_update()
-        assert v._has_heartbeat is False

@@ -294,29 +294,35 @@ def run_v2_experiment(
 
         runner.initialize_args(unknown_args)
 
+        # Create shutdown_task early so it can be included in both the
+        # preflight wait and the run wait below.
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
+
         success = False
         try:
             if args.initialize and hasattr(vehicle, "_preflight_wait"):
                 preflight_task = asyncio.create_task(
                     vehicle._preflight_wait(args.initialize)
                 )
+                preflight_waits = [preflight_task, shutdown_task]
                 if disconnect_future is not None:
-                    done, _ = await asyncio.wait(
-                        [preflight_task, disconnect_future],
-                        return_when=asyncio.FIRST_COMPLETED,
-                    )
-                    if preflight_task not in done:
-                        preflight_task.cancel()
-                        try:
-                            await preflight_task
-                        except asyncio.CancelledError:
-                            pass
-                    if disconnect_future in done:
-                        exc = disconnect_future.exception()
-                        if exc is not None:
-                            raise exc
-                else:
-                    await preflight_task
+                    preflight_waits.append(disconnect_future)
+                done, _ = await asyncio.wait(
+                    preflight_waits,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if preflight_task not in done:
+                    preflight_task.cancel()
+                    try:
+                        await preflight_task
+                    except asyncio.CancelledError:
+                        pass
+                if shutdown_event.is_set():
+                    return success  # finally block handles vehicle.close()
+                if disconnect_future is not None and disconnect_future in done:
+                    exc = None if disconnect_future.cancelled() else disconnect_future.exception()
+                    if exc is not None:
+                        raise exc
 
             if flag_zmq_runner:
                 if not args.zmq_identifier or not args.zmq_server_addr:
@@ -332,7 +338,6 @@ def run_v2_experiment(
                 )
 
             run_task = asyncio.create_task(runner.run(vehicle))
-            shutdown_task = asyncio.create_task(shutdown_event.wait())
             tasks = [run_task, shutdown_task]
             if disconnect_future is not None:
                 tasks.append(disconnect_future)
@@ -355,7 +360,7 @@ def run_v2_experiment(
                     await run_task
                 except asyncio.CancelledError:
                     pass
-                exc = disconnect_future.exception()
+                exc = None if disconnect_future.cancelled() else disconnect_future.exception()
                 if exc is not None:
                     raise exc
             else:
@@ -369,7 +374,7 @@ def run_v2_experiment(
                 heartbeat_lost = (
                     disconnect_future is not None
                     and disconnect_future.done()
-
+                    and not disconnect_future.cancelled()
                     and disconnect_future.exception() is not None
                 )
                 if (

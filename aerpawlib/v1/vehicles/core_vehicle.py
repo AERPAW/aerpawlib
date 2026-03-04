@@ -41,7 +41,6 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     VERBOSE_LOG_FILE_PREFIX,
     VERBOSE_LOG_DELAY_S,
-    HEARTBEAT_TIMEOUT_S,
 )
 from aerpawlib.v1.exceptions import (
     ConnectionTimeoutError,
@@ -811,25 +810,10 @@ class Vehicle:
         """
         Perform a single iteration of internal updates.
 
-        Handles verbose logging and heartbeat timeout detection.
+        Handles verbose logging. Connection loss is detected exclusively via
+        the MAVSDK connection_state() subscription in _connection_state_update,
+        which fires reliably when the heartbeat is actually lost.
         """
-        # Secondary heartbeat check: if the connection stream hasn't fired a
-        # "connected" event within the timeout window, assume the link is lost.
-        # This acts as a safety net in case the MAVSDK connection_state
-        # subscription itself stops delivering events.
-        if (
-            self._last_heartbeat_time > 0
-            and self._has_heartbeat
-            and time.time() - self._last_heartbeat_time > HEARTBEAT_TIMEOUT_S
-        ):
-            logger.warning(
-                "Heartbeat timeout: no connection event for %.1fs; "
-                "marking vehicle as disconnected",
-                time.time() - self._last_heartbeat_time,
-            )
-            self._has_heartbeat = False
-
-        # Called regularly at some given frequency by an internal update loop
         if self._verbose_logging and (
             self._verbose_logging_last_log_time + self._verbose_logging_delay
             < time.time()

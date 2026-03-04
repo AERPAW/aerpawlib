@@ -202,7 +202,7 @@ class Drone(Vehicle):
                 timeout_message="Drone: land timed out waiting for disarm",
             )
             logger.info("Drone: land complete (disarmed)")
-        except ActionError as e:
+        except (ActionError, TimeoutError) as e:
             logger.error(f"Drone: land failed: {e}")
             raise LandingError(str(e), original_error=e)
         finally:
@@ -223,7 +223,7 @@ class Drone(Vehicle):
                 timeout_message="Drone: return_to_launch timed out waiting for disarm",
             )
             logger.info("Drone: return_to_launch complete (disarmed)")
-        except ActionError as e:
+        except (ActionError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
             raise RTLError(str(e), original_error=e)
         finally:
@@ -269,6 +269,7 @@ class Drone(Vehicle):
             )
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")
+            self._ready_to_move = lambda _: True  # reset so next command isn't blocked
             raise NavigationError(str(e), original_error=e)
         finally:
             self._current_heading = None

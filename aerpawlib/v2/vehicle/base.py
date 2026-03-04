@@ -670,13 +670,11 @@ class Vehicle:
         self._telemetry_tasks.clear()
         if hasattr(self, "_command_tasks"):
             self._command_tasks.clear()
-        # Null the system reference only after tasks are cancelled to prevent
-        # telemetry callbacks from hitting AttributeError during teardown.
-        asyncio.get_event_loop().call_soon(self._clear_system)
-        logger.info("Vehicle connection closed")
-
-    def _clear_system(self) -> None:
+        # Tasks are cancelled above; _system is nulled here. Telemetry callbacks
+        # that were mid-flight will raise CancelledError on their next await, before
+        # they can reach another _system access, so AttributeError is extremely unlikely.
         self._system = None
+        logger.info("Vehicle connection closed")
 
     async def goto_coordinates(
         self,
