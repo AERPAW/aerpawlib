@@ -223,10 +223,10 @@ class DummyVehicle:
     def close(self):
         pass
 
-    def _initialize_prearm(self, should_postarm_init):
+    def _preflight_wait(self, should_arm):
         pass
 
-    async def _initialize_postarm(self):
+    async def _arm_vehicle(self):
         pass
 
 
@@ -310,7 +310,7 @@ class Vehicle:
         self._connection_error: Optional[BaseException] = None
         self._closed = False
         self._verbose_log_lock = threading.Lock()
-        self._should_postarm_init = True
+        self._will_arm = True
         self._mission_start_time: Optional[float] = None
 
         # Safety initialization state
@@ -829,7 +829,7 @@ class Vehicle:
         Ensures the vehicle is armed and the previous movement has finished.
         """
         if not self.armed:
-            await self._initialize_postarm()
+            await self._arm_vehicle()
 
         await wait_for_condition(
             self.done_moving,
@@ -947,15 +947,15 @@ class Vehicle:
             else:
                 raise DisarmError(str(e), original_error=e)
 
-    def _initialize_prearm(self, should_postarm_init: bool) -> None:
+    def _preflight_wait(self, should_arm: bool) -> None:
         """
         Wait for pre-arm conditions (GPS fix, etc.) to be satisfied.
 
         Args:
-            should_postarm_init (bool): Whether to perform post-arm initialization later.
+            should_arm (bool): Whether to perform arming later.
         """
         logger.debug(
-            f"_initialize_prearm(should_postarm_init={should_postarm_init}) called"
+            f"_preflight_wait(should_arm={should_arm}) called"
         )
         start = time.time()
         last_log = 0.0
@@ -981,9 +981,9 @@ class Vehicle:
                 f"Vehicle may not be fully ready to arm. Status: {self._get_health_status_summary()}"
             )
 
-        self._should_postarm_init = should_postarm_init
+        self._will_arm = should_arm
 
-    async def _initialize_postarm(self) -> None:
+    async def _arm_vehicle(self) -> None:
         """
         Generic pre-mission manipulation of the vehicle into a state that is
         acceptable. MUST be called before anything else.
@@ -991,14 +991,14 @@ class Vehicle:
         In AERPAW environment: waits for safety pilot to arm
         In standalone/SITL: auto-arms the vehicle
         """
-        if not self._should_postarm_init:
+        if not self._will_arm:
             logger.debug("Skipping postarm init (disabled)")
             self._initialization_complete = True
             return
 
         # Re-entrance guard: if another coroutine is already initializing, wait
         if self._postarm_init_in_progress:
-            logger.debug("_initialize_postarm: init already in progress, waiting...")
+            logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
                 lambda: self._initialization_complete or not self._postarm_init_in_progress,
                 poll_interval=POLLING_DELAY_S,
@@ -1007,7 +1007,7 @@ class Vehicle:
 
         self._postarm_init_in_progress = True
         try:
-            logger.debug("_initialize_postarm() called")
+            logger.debug("_arm_vehicle() called")
 
             # Check if we're in AERPAW environment
             is_aerpaw = AERPAW_Platform._is_aerpaw_environment()

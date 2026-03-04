@@ -190,6 +190,13 @@ class InvalidStateNameError(RunnerError):
         super().__init__("State name cannot be empty", **kwargs)
 
 
+class UnexpectedDisarmError(StateError):
+    def __init__(self, message: str = "Vehicle disarmed unexpectedly during experiment", **kwargs):
+        kwargs.setdefault("code", "UNEXPECTED_DISARM")
+        kwargs.setdefault("severity", "critical")
+        super().__init__(message, **kwargs)
+
+
 class PlanError(AerpawlibError):
     """Raised when a .plan file cannot be parsed."""
 

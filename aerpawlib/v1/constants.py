@@ -68,6 +68,12 @@ DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE = 0.95
 # Slightly larger than drone default due to rover GPS accuracy
 DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 
+# ArduPilot Rover GUIDED mode number (required before arming via MAVLink)
+ROVER_GUIDED_MODE = 15
+
+# Seconds to wait for GUIDED mode switch confirmation before continuing
+ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0
+
 # Default timeout for goto / navigation commands (seconds)
 # Used by both drones and rovers when waiting to reach a target coordinate
 DEFAULT_GOTO_TIMEOUT_S = 300.0

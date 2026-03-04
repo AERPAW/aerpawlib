@@ -151,24 +151,24 @@ class TestDummyVehicleUnit:
         v.close()
         v.close()  # Second call should not raise
 
-    def test_initialize_prearm_noop(self):
+    def test_preflight_wait_noop(self):
         v = DummyVehicle()
-        v._initialize_prearm(should_postarm_init=True)
+        v._preflight_wait(should_arm=True)
 
-    def test_initialize_prearm_multiple_times(self):
+    def test_preflight_wait_multiple_times(self):
         v = DummyVehicle()
-        v._initialize_prearm(should_postarm_init=False)
-        v._initialize_prearm(should_postarm_init=True)
-
-    @pytest.mark.asyncio
-    async def test_initialize_postarm_noop(self):
-        v = DummyVehicle()
-        await v._initialize_postarm()
+        v._preflight_wait(should_arm=False)
+        v._preflight_wait(should_arm=True)
 
     @pytest.mark.asyncio
-    async def test_initialize_postarm_is_async(self):
+    async def test_arm_vehicle_noop(self):
         v = DummyVehicle()
-        result = await v._initialize_postarm()
+        await v._arm_vehicle()
+
+    @pytest.mark.asyncio
+    async def test_arm_vehicle_is_async(self):
+        v = DummyVehicle()
+        result = await v._arm_vehicle()
         assert result is None  # noop, just must not raise
 
 

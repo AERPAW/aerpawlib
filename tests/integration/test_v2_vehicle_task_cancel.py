@@ -14,7 +14,7 @@ class TestVehicleTaskCancel:
     async def test_cancel_triggers_rtl(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         target = start + VectorNED(50, 0, 0)

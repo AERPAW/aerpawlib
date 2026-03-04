@@ -14,7 +14,7 @@ class TestDroneVelocity:
     async def test_set_velocity_verify_movement(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._initialize_prearm(should_postarm_init=True)
+        connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         await connected_drone_v2.set_velocity(VectorNED(2, 0, 0), duration=2.0)

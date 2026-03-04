@@ -41,6 +41,7 @@ from .exceptions import (
     RunnerError,
     StateError,
     TakeoffError,
+    UnexpectedDisarmError,
     VelocityError,
 )
 from .external import ExternalProcess
@@ -115,6 +116,7 @@ __all__ = [
     "StateMachineConfig",
     "StateSpec",
     "TakeoffError",
+    "UnexpectedDisarmError",
     "Vehicle",
     "VehicleProtocol",
     "VehicleTask",

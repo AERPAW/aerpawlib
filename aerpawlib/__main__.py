@@ -293,8 +293,8 @@ def run_v2_experiment(
             signal.signal(signal.SIGTERM, lambda s, f: handle_shutdown())
 
         runner.initialize_args(unknown_args)
-        if args.initialize and hasattr(vehicle, "_initialize_prearm"):
-            await vehicle._initialize_prearm(args.initialize)
+        if args.initialize and hasattr(vehicle, "_preflight_wait"):
+            await vehicle._preflight_wait(args.initialize)
 
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:
@@ -437,8 +437,8 @@ def run_v1_experiment(
             AERPAW_Platform._no_stdout = args.no_stdout
 
         runner.initialize_args(unknown_args)
-        if args.initialize and hasattr(vehicle, "_initialize_prearm"):
-            vehicle._initialize_prearm(args.initialize)
+        if args.initialize and hasattr(vehicle, "_preflight_wait"):
+            vehicle._preflight_wait(args.initialize)
 
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:

@@ -98,6 +98,56 @@ class Runner:
         """Cleanup on exit."""
         pass
 
+    async def _run_with_disarm_guard(self, vehicle: Any, coro) -> None:
+        """Run *coro* but raise UnexpectedDisarmError if the vehicle disarms unexpectedly.
+
+        Uses ``asyncio.wait(FIRST_COMPLETED)`` to race the main coroutine against the
+        vehicle's unexpected-disarm event.  If the event fires first the main task is
+        cancelled and ``UnexpectedDisarmError`` is raised so the experiment terminates
+        cleanly.  If the vehicle object has no ``_unexpected_disarm_event`` attribute
+        (e.g. DummyVehicle in tests) the coro is awaited directly without the guard.
+        """
+        disarm_event = getattr(vehicle, "_unexpected_disarm_event", None)
+        if disarm_event is None:
+            await coro
+            return
+
+        from .exceptions import UnexpectedDisarmError
+
+        main_task = asyncio.ensure_future(coro)
+
+        async def _watch_disarm() -> None:
+            await disarm_event.wait()
+
+        disarm_task = asyncio.ensure_future(_watch_disarm())
+
+        try:
+            done, pending = await asyncio.wait(
+                [main_task, disarm_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+        except asyncio.CancelledError:
+            main_task.cancel()
+            disarm_task.cancel()
+            raise
+
+        # Cancel whichever task is still running
+        for task in pending:
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        if disarm_task in done and not main_task.done():
+            raise UnexpectedDisarmError()
+
+        # Propagate any exception from the main task
+        if main_task.done() and not main_task.cancelled():
+            exc = main_task.exception()
+            if exc is not None:
+                raise exc
+
 
 # --- Descriptor-based decorators ---
 
@@ -384,7 +434,7 @@ class BasicRunner(Runner):
             raise NoEntrypointError()
         logger.info(f"BasicRunner: starting entrypoint '{name}'")
         try:
-            await method(vehicle)
+            await self._run_with_disarm_guard(vehicle, method(vehicle))
             logger.info(f"BasicRunner: entrypoint '{name}' completed")
         except Exception as e:
             logger.error(f"BasicRunner: entrypoint '{name}' failed: {e}")
@@ -464,72 +514,76 @@ class StateMachine(Runner):
             f"(states: {list(states.keys())})"
         )
 
-        # Run at_init tasks
-        at_init_list = self._get_at_init()
-        if at_init_list:
-            logger.debug(f"StateMachine: running {len(at_init_list)} at_init task(s)")
-        for name in at_init_list:
-            logger.debug(f"StateMachine: at_init '{name}'")
-            method = getattr(self, name)
-            await method(vehicle)
+        async def _main_loop() -> None:
+            # Run at_init tasks
+            at_init_list = self._get_at_init()
+            if at_init_list:
+                logger.debug(f"StateMachine: running {len(at_init_list)} at_init task(s)")
+            for name in at_init_list:
+                logger.debug(f"StateMachine: at_init '{name}'")
+                method = getattr(self, name)
+                await method(vehicle)
 
-        # Start background tasks
-        backgrounds = self._get_backgrounds()
-        if backgrounds:
-            logger.info(f"StateMachine: starting {len(backgrounds)} background task(s)")
-        for name in backgrounds:
-            method = getattr(self, name)
+            # Start background tasks
+            backgrounds = self._get_backgrounds()
+            if backgrounds:
+                logger.info(f"StateMachine: starting {len(backgrounds)} background task(s)")
+            for name in backgrounds:
+                method = getattr(self, name)
 
-            async def _bg_task(task, _name=name):
-                while self._running:
-                    try:
-                        await task(vehicle)
-                    except asyncio.CancelledError:
-                        return
-                    except Exception as e:
-                        logger.error(
-                            f"Background task '{_name}' failed: {e}",
-                            exc_info=True,
-                        )
-                        await asyncio.sleep(0.5)
+                async def _bg_task(task, _name=name):
+                    while self._running:
+                        try:
+                            await task(vehicle)
+                        except asyncio.CancelledError:
+                            return
+                        except Exception as e:
+                            logger.error(
+                                f"Background task '{_name}' failed: {e}",
+                                exc_info=True,
+                            )
+                            await asyncio.sleep(0.5)
 
-            fut = asyncio.create_task(_bg_task(method))
-            self._background_futures.append(fut)
+                fut = asyncio.create_task(_bg_task(method))
+                self._background_futures.append(fut)
 
-        # Main state loop
-        while self._running:
-            if self._current_state not in states:
-                logger.error(
-                    f"StateMachine: invalid state '{self._current_state}' "
-                    f"(valid: {list(states.keys())})"
+            # Main state loop
+            while self._running:
+                if self._current_state not in states:
+                    logger.error(
+                        f"StateMachine: invalid state '{self._current_state}' "
+                        f"(valid: {list(states.keys())})"
+                    )
+                    raise InvalidStateError(
+                        self._current_state, list(states.keys())
+                    )
+                spec = states[self._current_state]
+                next_state = await self._run_state(spec, vehicle)
+                if getattr(self, "_override_next_state_transition", False):
+                    self._override_next_state_transition = False
+                    self._current_state = getattr(self, "_next_state_overr", next_state)
+                    logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
+                else:
+                    self._current_state = next_state
+                    logger.info(f"StateMachine: state transition '{spec.name}' -> '{next_state}'")
+                if self._current_state is None:
+                    logger.info(f"StateMachine: completed (final state returned None)")
+                    break
+                await asyncio.sleep(STATE_MACHINE_DELAY_S)
+
+        try:
+            await self._run_with_disarm_guard(vehicle, _main_loop())
+        finally:
+            self._running = False
+            logger.info("StateMachine: stopping")
+
+            for fut in self._background_futures:
+                fut.cancel()
+            if self._background_futures:
+                await asyncio.gather(
+                    *self._background_futures, return_exceptions=True
                 )
-                raise InvalidStateError(
-                    self._current_state, list(states.keys())
-                )
-            spec = states[self._current_state]
-            next_state = await self._run_state(spec, vehicle)
-            if getattr(self, "_override_next_state_transition", False):
-                self._override_next_state_transition = False
-                self._current_state = getattr(self, "_next_state_overr", next_state)
-                logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
-            else:
-                self._current_state = next_state
-                logger.info(f"StateMachine: state transition '{spec.name}' -> '{next_state}'")
-            if self._current_state is None:
-                logger.info(f"StateMachine: completed (final state returned None)")
-                break
-            await asyncio.sleep(STATE_MACHINE_DELAY_S)
-
-        self._running = False
-        logger.info("StateMachine: stopping")
-
-        for fut in self._background_futures:
-            fut.cancel()
-        if self._background_futures:
-            await asyncio.gather(
-                *self._background_futures, return_exceptions=True
-            )
-        self.cleanup()
+            self.cleanup()
 
     def stop(self) -> None:
         """Stop the state machine after current state."""

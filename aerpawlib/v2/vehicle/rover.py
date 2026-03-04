@@ -5,10 +5,13 @@ Rover vehicle for aerpawlib v2.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from typing import Optional
 
 from mavsdk.action import ActionError
+from mavsdk.mavlink_direct import MavlinkMessage
+from pymavlink import mavutil
 
 from ..constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
@@ -17,6 +20,8 @@ from ..constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
+    ROVER_GUIDED_MODE,
+    ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
 )
 from ..exceptions import NavigationError
 from ..log import LogComponent, get_logger
@@ -32,10 +37,11 @@ DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 class Rover(Vehicle):
     """Rover implementation for ground vehicles."""
 
-    async def _initialize_prearm(self, should_postarm_init: bool = True) -> None:
+    async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Wait for pre-arm conditions (GPS fix, armable). Call before run."""
-        self._should_postarm_init = should_postarm_init
-        logger.info("Rover: _initialize_prearm started (waiting for armable)")
+        self._will_arm = should_arm
+        logger.info("Rover: _preflight_wait started (waiting for armable)")
+        await self._set_guided_mode()
         start = time.monotonic()
         last_log = 0.0
         while not self._state.armable:
@@ -49,14 +55,71 @@ class Rover(Vehicle):
                 logger.debug(f"Rover: waiting for armable... {self._get_health_summary()}")
                 last_log = time.monotonic()
             await asyncio.sleep(POLLING_DELAY_S)
-        logger.info("Rover: _initialize_prearm done (armable or timeout)")
+        logger.info("Rover: _preflight_wait done (armable or timeout)")
 
-    async def _initialize_postarm(self) -> None:
-        """Arm and prepare rover for mission (auto-arm after GPS fix)."""
-        if not self._should_postarm_init:
-            logger.debug("Rover: _initialize_postarm skipped (_should_postarm_init=False)")
+    async def _set_guided_mode(self) -> None:
+        """Switch to GUIDED mode before arming.
+
+        ArduPilot Rover requires GUIDED mode to accept arm commands via
+        MAVLink. MAVSDK does not expose a direct flight-mode setter for
+        ArduPilot due to incompatibility with its custom mode system, so
+        we send the raw MAV_CMD_DO_SET_MODE command via mavlink_passthrough.
+        """
+        if self.mode == "OFFBOARD":
+            logger.debug("Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch")
             return
-        logger.info("Rover: _initialize_postarm (waiting for armable, GPS fix, arming)")
+        logger.info(f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})")
+        try:
+            # Build the payload dictionary using your original constants
+            fields = {
+                "target_system": 1,
+                "target_component": 1,
+                "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                "confirmation": 0,
+                "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+                "param2": float(ROVER_GUIDED_MODE),
+                "param3": 0.0,
+                "param4": 0.0,
+                "param5": 0.0,
+                "param6": 0.0,
+                "param7": 0.0,
+            }
+
+            # Package into the MavlinkMessage object
+            msg = MavlinkMessage(
+                system_id=1,
+                component_id=1,
+                target_system_id=1,
+                target_component_id=1,
+                message_name="COMMAND_LONG",
+                fields_json=json.dumps(fields),
+            )
+
+            # Send the serialized message directly to the flight controller
+            await self._system.mavlink_direct.send_message(msg)
+        except Exception as e:
+            logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            return
+
+        try:
+            await _wait_for_condition(
+                lambda: self.mode == "OFFBOARD",
+                timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+                timeout_message=f"Rover did not enter GUIDED (OFFBOARD) mode within {ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s",
+            )
+            logger.info("Rover: GUIDED (OFFBOARD) mode confirmed")
+        except TimeoutError:
+            logger.warning(
+                f"Rover: mode switch timeout (current mode={self.mode!r}); "
+                "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode"
+            )
+
+    async def _arm_vehicle(self) -> None:
+        """Arm and prepare rover for mission (auto-arm after GPS fix)."""
+        if not self._will_arm:
+            logger.debug("Rover: _arm_vehicle skipped (_will_arm=False)")
+            return
+        logger.info("Rover: _arm_vehicle (waiting for armable, GPS fix, arming)")
         await _wait_for_condition(
             lambda: self._state.armable,
             timeout=30.0,
@@ -74,7 +137,7 @@ class Rover(Vehicle):
             timeout=5.0,
             timeout_message="Rover: home position not available",
         )
-        logger.info("Rover: _initialize_postarm done (armed, home position set)")
+        logger.info("Rover: _arm_vehicle done (armed, home position set)")
 
     async def goto_coordinates(
         self,
@@ -102,15 +165,6 @@ class Rover(Vehicle):
         )
         _validate_tolerance(tolerance, "tolerance")
         await self.await_ready_to_move()
-        try:
-            await self._system.action.hold()
-            await _wait_for_condition(
-                lambda: self.mode == "HOLD",
-                timeout=5.0,
-                timeout_message="HOLD mode did not engage",
-            )
-        except (ActionError, TimeoutError) as e:
-            logger.warning(f"Rover: Could not set HOLD before goto: {e}")
         self._ready_to_move = lambda _: False
         logger.debug("Rover: sending goto_location(%.6f, %.6f) command", coordinates.lat, coordinates.lon)
         try:

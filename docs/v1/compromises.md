@@ -32,7 +32,7 @@ DroneKit allowed for static, blocking initialization (`connect("...")`). MAVSDK'
 *   The `v1.Vehicle` constructor calls `_connect_sync()`, which blocks the caller's thread while it spins up the background loop, establishes the MAVLink heartbeat, and waits for the initial telemetry stream to populate.
 *   Allows legacy scripts to remain "flat" without needing to be wrapped in an `async def main()` at the entry point level (though most `aerpawlib` scripts are eventually run via `asyncio.run` in the runner).
 
-## 6. Attribute Compatibility Wrappers
+## Attribute Compatibility Wrappers
 DroneKit objects (Battery, GPSInfo, Attitude) were classes with specific attributes, whereas MAVSDK returns named tuples or protobuf-like objects.
 
 *   The `v1` API uses "Compat" classes (`_BatteryCompat`, `_GPSInfoCompat`, etc.) that mimic the exact attribute names and structures of the original DroneKit objects.

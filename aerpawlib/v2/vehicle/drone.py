@@ -52,10 +52,10 @@ class Drone(Vehicle):
         self._current_heading: Optional[float] = None
         self._velocity_loop_active = False
 
-    async def _initialize_prearm(self, should_postarm_init: bool = True) -> None:
+    async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Wait for pre-arm conditions. Call before run."""
-        self._should_postarm_init = should_postarm_init
-        logger.info("Drone: _initialize_prearm started (waiting for armable)")
+        self._will_arm = should_arm
+        logger.info("Drone: _preflight_wait started (waiting for armable)")
         from ..constants import ARMABLE_TIMEOUT_S, ARMABLE_STATUS_LOG_INTERVAL_S, POLLING_DELAY_S
 
         start = time.monotonic()
@@ -71,16 +71,16 @@ class Drone(Vehicle):
                 logger.debug(f"Waiting for armable... {self._get_health_summary()}")
                 last_log = time.monotonic()
             await asyncio.sleep(POLLING_DELAY_S)
-        logger.info("Drone: _initialize_prearm done (armable or timeout)")
+        logger.info("Drone: _preflight_wait done (armable or timeout)")
 
-    async def _initialize_postarm(self) -> None:
+    async def _arm_vehicle(self) -> None:
         """Arm and prepare for mission (SITL/standalone: auto-arm)."""
         from ..constants import ARMING_SEQUENCE_DELAY_S, POSITION_READY_TIMEOUT_S
 
-        if not self._should_postarm_init:
-            logger.debug("Drone: _initialize_postarm skipped (_should_postarm_init=False)")
+        if not self._will_arm:
+            logger.debug("Drone: _arm_vehicle skipped (_will_arm=False)")
             return
-        logger.info("Drone: _initialize_postarm (waiting for armable, GPS fix, arming)")
+        logger.info("Drone: _arm_vehicle (waiting for armable, GPS fix, arming)")
         await _wait_for_condition(
             lambda: self._state.armable,
             timeout=30.0,
@@ -98,7 +98,7 @@ class Drone(Vehicle):
             timeout=5.0,
             timeout_message="Home position not available",
         )
-        logger.info("Drone: _initialize_postarm done (armed, home position set)")
+        logger.info("Drone: _arm_vehicle done (armed, home position set)")
 
     async def set_heading(
         self,
@@ -194,6 +194,7 @@ class Drone(Vehicle):
         try:
             logger.debug("Drone: land sending land() command")
             await self._system.action.land()
+            self._expecting_disarm = True
             last_log = 0.0
             while self.armed:
                 now = time.monotonic()
@@ -205,6 +206,8 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Drone: land failed: {e}")
             raise LandingError(str(e), original_error=e)
+        finally:
+            self._expecting_disarm = False
 
     async def return_to_launch(self) -> None:
         """RTL and wait for disarm."""
@@ -213,6 +216,7 @@ class Drone(Vehicle):
         try:
             logger.debug("Drone: return_to_launch sending RTL command")
             await self._system.action.return_to_launch()
+            self._expecting_disarm = True
             last_log = 0.0
             while self.armed:
                 now = time.monotonic()
@@ -224,6 +228,8 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
             raise RTLError(str(e), original_error=e)
+        finally:
+            self._expecting_disarm = False
 
     async def goto_coordinates(
         self,

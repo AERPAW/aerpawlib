@@ -3,6 +3,7 @@ Rover vehicle implementation.
 """
 
 import asyncio
+import json
 
 from aerpawlib.log import get_logger, LogComponent
 import time
@@ -13,11 +14,16 @@ try:
 except ImportError:
     ActionError = Exception
 
+from mavsdk.mavlink_direct import MavlinkMessage
+from pymavlink import mavutil
+
 from aerpawlib.v1 import util
 from aerpawlib.v1.constants import (
     POLLING_DELAY_S,
     DEFAULT_ROVER_POSITION_TOLERANCE_M,
     DEFAULT_GOTO_TIMEOUT_S,
+    ROVER_GUIDED_MODE,
+    ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
 )
 from aerpawlib.v1.exceptions import (
     NavigationError,
@@ -54,6 +60,72 @@ class Rover(Vehicle):
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
 
+    def _set_guided_mode(self) -> None:
+        """Switch to GUIDED mode before arming.
+
+        ArduPilot Rover requires GUIDED mode to accept arm commands via
+        MAVLink. We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
+        then poll until the flight controller confirms the mode change.
+        """
+        if self._mode.get() == "OFFBOARD":
+            logger.debug(
+                "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch"
+            )
+            return
+        logger.info(
+            f"Rover: switching to GUIDED (OFFBOARD) mode "
+            f"(current mode={self._mode.get()!r})"
+        )
+        fields = {
+            "target_system": 1,
+            "target_component": 1,
+            "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+            "confirmation": 0,
+            "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+            "param2": float(ROVER_GUIDED_MODE),
+            "param3": 0.0,
+            "param4": 0.0,
+            "param5": 0.0,
+            "param6": 0.0,
+            "param7": 0.0,
+        }
+        msg = MavlinkMessage(
+            system_id=1,
+            component_id=1,
+            target_system_id=1,
+            target_component_id=1,
+            message_name="COMMAND_LONG",
+            fields_json=json.dumps(fields),
+        )
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                self._system.mavlink_direct.send_message(msg),
+                self._mavsdk_loop,
+            )
+            future.result(timeout=5.0)
+        except Exception as e:
+            logger.warning(
+                f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}"
+            )
+            return
+
+        start = time.time()
+        while self._mode.get() != "OFFBOARD":
+            if time.time() - start > ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S:
+                logger.warning(
+                    f"Rover: mode switch timeout "
+                    f"(current mode={self._mode.get()!r}); "
+                    "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode"
+                )
+                return
+            time.sleep(POLLING_DELAY_S)
+        logger.info("Rover: GUIDED (OFFBOARD) mode confirmed")
+
+    def _preflight_wait(self, should_arm: bool) -> None:
+        """Wait for pre-arm conditions, setting GUIDED mode first."""
+        self._set_guided_mode()
+        super()._preflight_wait(should_arm)
+
     async def goto_coordinates(
         self,
         coordinates: util.Coordinate,
@@ -81,17 +153,6 @@ class Rover(Vehicle):
             f"tolerance={tolerance}, target_heading={target_heading}) called"
         )
         await self.await_ready_to_move()
-
-        try:
-            await self._run_on_mavsdk_loop(self._system.action.hold())
-            await wait_for_condition(
-                lambda: self.mode == "HOLD",
-                timeout=5.0,
-                poll_interval=POLLING_DELAY_S,
-                timeout_message="HOLD mode did not engage within 5s",
-            )
-        except (ActionError, TimeoutError) as e:
-            logger.warning(f"Could not set HOLD mode: {e}")
 
         self._ready_to_move = lambda _: False
 

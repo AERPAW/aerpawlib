@@ -16,11 +16,11 @@ class TestDummyVehicle:
         v = DummyVehicle()
         v.close()
 
-    def test_initialize_prearm_noop(self):
+    def test_preflight_wait_noop(self):
         v = DummyVehicle()
-        v._initialize_prearm(should_postarm_init=True)
+        v._preflight_wait(should_arm=True)
 
     @pytest.mark.asyncio
-    async def test_initialize_postarm_noop(self):
+    async def test_arm_vehicle_noop(self):
         v = DummyVehicle()
-        await v._initialize_postarm()
+        await v._arm_vehicle()

@@ -53,7 +53,7 @@ class TestRoverNavigation:
     async def test_goto_coordinates(self, connected_rover):
         from aerpawlib.v1.util import VectorNED
 
-        connected_rover._initialize_prearm(should_postarm_init=True)
+        connected_rover._preflight_wait(should_arm=True)
         start = connected_rover.position
         target = start + VectorNED(20, 0)
         await connected_rover.goto_coordinates(target, tolerance=3)
@@ -67,7 +67,7 @@ class TestRoverMultiWaypoint:
     @pytest.mark.asyncio
     async def test_two_sequential_waypoints(self, connected_rover):
         from aerpawlib.v1.util import VectorNED
-        connected_rover._initialize_prearm(should_postarm_init=True)
+        connected_rover._preflight_wait(should_arm=True)
         start = connected_rover.position
         wp1 = start + VectorNED(15, 0)
         wp2 = start + VectorNED(15, 15)
@@ -80,7 +80,7 @@ class TestRoverMultiWaypoint:
     async def test_goto_with_target_heading_does_not_error(self, connected_rover):
         """Rover ignores target_heading but should not raise an error."""
         from aerpawlib.v1.util import VectorNED
-        connected_rover._initialize_prearm(should_postarm_init=True)
+        connected_rover._preflight_wait(should_arm=True)
         start = connected_rover.position
         target = start + VectorNED(10, 0)
         # Should complete without error even though heading is ignored for rovers

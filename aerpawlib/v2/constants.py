@@ -47,6 +47,10 @@ VALIDATE_CHANGE_SPEED_REQ = "validate_change_speed_req"
 VALIDATE_TAKEOFF_REQ = "validate_takeoff_req"
 VALIDATE_LANDING_REQ = "validate_landing_req"
 
+# Rover
+ROVER_GUIDED_MODE = 15  # ArduPilot Rover GUIDED mode number
+ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0  # Seconds to wait for mode change
+
 # Waypoint and plan (QGroundControl .plan files)
 DEFAULT_WAYPOINT_SPEED = 5
 PLAN_CMD_TAKEOFF = 22

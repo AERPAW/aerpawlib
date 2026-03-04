@@ -159,7 +159,9 @@ class Vehicle:
         self._ready_to_move: Callable[["Vehicle"], bool] = lambda _: True
         self._heartbeat_tick_cb: Optional[Callable[[], None]] = None
         self._mission_start_time: Optional[float] = None
-        self._should_postarm_init: bool = True
+        self._will_arm: bool = True
+        self._expecting_disarm: bool = False
+        self._unexpected_disarm_event: asyncio.Event = asyncio.Event()
         self.safety: Optional[Any] = safety
 
     def set_heartbeat_tick_callback(self, cb: Callable[[], None]) -> None:
@@ -493,6 +495,12 @@ class Vehicle:
                     prev_armed[0] = armed
                 elif prev_armed[0] != armed:
                     logger.info(f"Telemetry: armed changed {prev_armed[0]} -> {armed}")
+                    if prev_armed[0] is True and not armed and not self._expecting_disarm:
+                        logger.warning(
+                            "Vehicle disarmed unexpectedly! "
+                            "Signalling experiment termination."
+                        )
+                        self._unexpected_disarm_event.set()
                     prev_armed[0] = armed
 
         async def _health_update() -> None:
@@ -547,17 +555,17 @@ class Vehicle:
         """True if ready for next command."""
         return self._ready_to_move(self)
 
-    async def _initialize_postarm(self) -> None:
-        """Arm and prepare for mission. Override in Drone for full logic."""
+    async def _arm_vehicle(self) -> None:
+        """Arm and prepare for mission. Override in Drone/Rover."""
         raise NotImplementedError("Override in subclass")
 
     async def await_ready_to_move(self) -> None:
         """Wait until vehicle is ready for next command."""
         if self._closed:
             raise RuntimeError("Cannot await_ready_to_move: vehicle is closed")
-        if self._should_postarm_init and not self.armed:
-            logger.debug("await_ready_to_move: vehicle not armed, running postarm init")
-            await self._initialize_postarm()
+        if self._will_arm and not self.armed:
+            logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
+            await self._arm_vehicle()
         logger.debug("await_ready_to_move: waiting for done_moving")
         start = time.monotonic()
         last_log = 0.0
@@ -598,6 +606,8 @@ class Vehicle:
             raise NotArmableError(
                 f"Vehicle not armable: {self._get_health_summary()}"
             )
+        if not value:
+            self._expecting_disarm = True
         try:
             if value:
                 await self._system.action.arm()
@@ -615,6 +625,9 @@ class Vehicle:
             if value:
                 raise ArmError(str(e), original_error=e)
             raise DisarmError(str(e), original_error=e)
+        finally:
+            if not value:
+                self._expecting_disarm = False
         logger.debug(f"set_armed({value}) completed successfully")
 
     def _get_health_summary(self) -> str:
@@ -680,7 +693,9 @@ class DummyVehicle(Vehicle):
         self._ready_to_move = lambda _: True
         self._heartbeat_tick_cb = None
         self._mission_start_time = None
-        self._should_postarm_init = False
+        self._will_arm = False
+        self._expecting_disarm = False
+        self._unexpected_disarm_event = asyncio.Event()
         self.safety = safety
 
     @classmethod

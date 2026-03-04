@@ -56,7 +56,7 @@ class TestDroneConnection:
     @pytest.mark.asyncio
     async def test_home_coords_set_after_guided(self, connected_drone):
         """Home coordinates should be set once the vehicle is in guided mode."""
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         # Home is set as part of prearm initialization
         home = connected_drone.home_coords
         assert home is not None
@@ -69,7 +69,7 @@ class TestDroneArming:
 
     @pytest.mark.asyncio
     async def test_arms_on_takeoff(self, connected_drone):
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(5)
         assert connected_drone.armed is True
         await connected_drone.land()
@@ -80,7 +80,7 @@ class TestDroneTakeoff:
 
     @pytest.mark.asyncio
     async def test_takeoff_reaches_altitude(self, connected_drone):
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         assert connected_drone.position.alt >= 9
         await connected_drone.land()
@@ -93,7 +93,7 @@ class TestDroneNavigation:
     async def test_goto_coordinates(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
 
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         start = connected_drone.position
         target = start + VectorNED(30, 0, 0)
@@ -108,7 +108,7 @@ class TestDroneLanding:
 
     @pytest.mark.asyncio
     async def test_land_disarms(self, connected_drone):
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         await connected_drone.land()
         assert connected_drone.armed is False
@@ -121,7 +121,7 @@ class TestDroneRTL:
     async def test_rtl_returns_home(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
 
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         home = connected_drone.home_coords
         target = connected_drone.position + VectorNED(40, 0, 0)
@@ -135,7 +135,7 @@ class TestDroneHeading:
 
     @pytest.mark.asyncio
     async def test_set_heading(self, connected_drone):
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         await connected_drone.set_heading(90)
         h = connected_drone.heading
@@ -150,7 +150,7 @@ class TestDroneHeadingNonBlocking:
     async def test_set_heading_non_blocking_returns_quickly(self, connected_drone):
         """set_heading(blocking=False) should return without waiting."""
         import time
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         start = time.time()
         await connected_drone.set_heading(180, blocking=False)
@@ -162,7 +162,7 @@ class TestDroneHeadingNonBlocking:
     @pytest.mark.asyncio
     async def test_set_heading_none_clears_heading(self, connected_drone):
         """set_heading(None) should clear the locked heading."""
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         await connected_drone.set_heading(90)
         assert connected_drone._current_heading == 90
@@ -177,7 +177,7 @@ class TestDroneGotoWithHeading:
     @pytest.mark.asyncio
     async def test_goto_with_target_heading(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         start = connected_drone.position
         target = start + VectorNED(20, 0, 0)
@@ -193,7 +193,7 @@ class TestDroneMultiWaypoint:
     @pytest.mark.asyncio
     async def test_two_sequential_goto(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         pos0 = connected_drone.position
         wp1 = pos0 + VectorNED(20, 0, 0)
@@ -213,7 +213,7 @@ class TestDroneVelocityControl:
         """Commanding a northward velocity should move the drone north."""
         import asyncio as _asyncio
         from aerpawlib.v1.util import VectorNED
-        connected_drone._initialize_prearm(should_postarm_init=True)
+        connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         pos_before = connected_drone.position
         await connected_drone.set_velocity(VectorNED(2, 0, 0))

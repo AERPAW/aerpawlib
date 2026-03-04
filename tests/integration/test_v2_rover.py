@@ -32,7 +32,7 @@ class TestRoverConnection:
 
     @pytest.mark.asyncio
     async def test_home_coords_set_after_guided(self, connected_rover_v2):
-        await connected_rover_v2._initialize_prearm(should_postarm_init=True)
+        await connected_rover_v2._preflight_wait(should_arm=True)
         home = connected_rover_v2.home_coords
         assert home is not None
         assert -90 <= home.lat <= 90
@@ -46,7 +46,7 @@ class TestRoverNavigation:
     async def test_goto_coordinates(self, connected_rover_v2):
         from aerpawlib.v2.types import VectorNED
 
-        await connected_rover_v2._initialize_prearm(should_postarm_init=True)
+        await connected_rover_v2._preflight_wait(should_arm=True)
         start = connected_rover_v2.position
         target = start + VectorNED(15, 0, 0)
         await connected_rover_v2.goto_coordinates(target, tolerance=3)
