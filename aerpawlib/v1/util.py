@@ -549,7 +549,7 @@ def is_udp_port_in_use(host: str, port: int) -> bool:
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
                 return True
-            return True
+            raise
 
 
 def is_tcp_port_in_use(host: str, port: int) -> bool:
@@ -571,4 +571,4 @@ def is_tcp_port_in_use(host: str, port: int) -> bool:
         except OSError as e:
             if e.errno == errno.EADDRINUSE:
                 return True
-            return True
+            raise

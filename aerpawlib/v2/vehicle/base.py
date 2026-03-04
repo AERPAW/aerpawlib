@@ -677,6 +677,7 @@ class DummyVehicle(Vehicle):
         self._ready_to_move = lambda _: True
         self._heartbeat_tick_cb = None
         self._mission_start_time = None
+        self._should_postarm_init = False
         self.safety = safety
 
     @classmethod

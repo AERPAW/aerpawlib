@@ -47,7 +47,7 @@ class NoOpSafetyChecker:
 
     def __init__(self, reason: str) -> None:
         self._reason = reason
-        logger.error(
+        logger.warning(
             "SafetyCheckerServer not available. All safety validations through SafetyCheckerClient will pass. %s",
             reason,
         )

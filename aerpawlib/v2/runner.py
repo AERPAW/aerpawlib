@@ -463,7 +463,7 @@ class StateMachine(Runner):
         for name in backgrounds:
             method = getattr(self, name)
 
-            async def _bg_task(task):
+            async def _bg_task(task, _name=name):
                 while self._running:
                     try:
                         await task(vehicle)
@@ -471,7 +471,7 @@ class StateMachine(Runner):
                         return
                     except Exception as e:
                         logger.error(
-                            f"Background task '{name}' failed: {e}",
+                            f"Background task '{_name}' failed: {e}",
                             exc_info=True,
                         )
                         await asyncio.sleep(0.5)
@@ -614,6 +614,14 @@ class ZmqStateMachine(StateMachine):
         finally:
             sock.close()
 
+    def _get_backgrounds(self) -> List[str]:
+        base = list(super()._get_backgrounds())
+        if "_zmq_bg_sub" not in base:
+            base.insert(0, "_zmq_bg_sub")
+        if "_zmq_bg_pub" not in base:
+            base.insert(1, "_zmq_bg_pub")
+        return base
+
     async def run(self, vehicle: Any) -> None:
         """Run with ZMQ. Requires _initialize_zmq_bindings first."""
         if self._zmq_identifier is None or self._zmq_proxy_server is None:
@@ -622,11 +630,6 @@ class ZmqStateMachine(StateMachine):
                 "ZmqStateMachine requires _initialize_zmq_bindings before run. "
                 "Pass --zmq-identifier and --zmq-proxy-server."
             )
-        cfg = self._get_zmq_config()
-        if "_zmq_bg_sub" not in cfg.backgrounds:
-            cfg.backgrounds.insert(0, "_zmq_bg_sub")
-        if "_zmq_bg_pub" not in cfg.backgrounds:
-            cfg.backgrounds.insert(1, "_zmq_bg_pub")
         await super().run(vehicle)
 
     async def transition_runner(self, identifier: str, state_name: str) -> None:

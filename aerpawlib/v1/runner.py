@@ -363,6 +363,7 @@ class StateMachine(Runner):
         self._background_tasks = []
         self._initialization_tasks = []
         self._background_task_futures = []
+        _found_initial = False
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
                 continue
@@ -370,15 +371,16 @@ class StateMachine(Runner):
                 self._states[method._state_name] = _State(
                     method, method._state_name
                 )
-                if method._state_first and not hasattr(self, "_entrypoint"):
+                if method._state_first:
+                    if _found_initial:
+                        raise MultipleInitialStatesError()
                     self._entrypoint = method._state_name
-                elif method._state_first and hasattr(self, "_entrypoint"):
-                    raise MultipleInitialStatesError()
+                    _found_initial = True
             if hasattr(method, "_is_background"):
                 self._background_tasks.append(method)
             if hasattr(method, "_run_at_init"):
                 self._initialization_tasks.append(method)
-        if not hasattr(self, "_entrypoint") or not self._entrypoint:
+        if not _found_initial:
             raise NoInitialStateError()
 
     async def _start_background_tasks(self, vehicle: Vehicle):
@@ -550,7 +552,7 @@ class ZmqStateMachine(StateMachine):
                 message = await socket.recv_pyobj()
                 if message["identifier"] != self._zmq_identifier:
                     continue
-                asyncio.ensure_future(self._zmq_handle_request(vehicle, message))
+                asyncio.create_task(self._zmq_handle_request(vehicle, message))
         finally:
             socket.close()
 

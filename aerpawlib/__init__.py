@@ -29,4 +29,7 @@ def __getattr__(name):
             _v1_loaded = True
         finally:
             _loading = False
-    return globals().get(name)
+    value = globals().get(name)
+    if value is None and name not in globals():
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+    return value

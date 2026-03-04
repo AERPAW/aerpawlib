@@ -265,8 +265,9 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")
             raise NavigationError(str(e), original_error=e)
+        finally:
+            self._current_heading = None
         self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
-        self._current_heading = None
 
         if blocking:
             start = time.monotonic()
