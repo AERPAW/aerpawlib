@@ -323,6 +323,8 @@ def read_from_plan(
     for item in data["mission"]["items"]:
         command = item["command"]
         if command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
+            if len(item.get("params", [])) < 7:
+                raise ValueError(f"Plan item has fewer than 7 params: {item}")
             x, y, z = item["params"][4:7]
             waypoint_id = item["doJumpId"]
             waypoints.append((command, x, y, z, waypoint_id, current_speed))
@@ -370,6 +372,8 @@ def read_from_plan_complete(
         if command in [PLAN_CMD_SPEED]:
             current_speed = item["params"][1]
         elif command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
+            if len(item.get("params", [])) < 7:
+                raise ValueError(f"Plan item has fewer than 7 params: {item}")
             x, y, z = item["params"][4:7]
             waypoint_id = item["doJumpId"]
             delay = item["params"][0]
