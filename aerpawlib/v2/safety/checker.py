@@ -47,6 +47,12 @@ class NoOpSafetyChecker:
     """
 
     def __init__(self, reason: str) -> None:
+        """Initialise the no-op checker and log a warning.
+
+        Args:
+            reason: Human-readable explanation of why the real checker is
+                unavailable (used in the warning log message).
+        """
         self._reason = reason
         logger.warning(
             "SafetyCheckerServer not available. All safety validations through SafetyCheckerClient will pass. %s",
@@ -56,27 +62,59 @@ class NoOpSafetyChecker:
     async def validate_takeoff(
         self, takeoff_alt: float, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
-        logger.warning("NoOpSafetyChecker: "
-                       "validate_takeoff called but no safety checker server available. Returning true.")
+        """Passthrough takeoff validation — always returns True.
+
+        Args:
+            takeoff_alt: Requested takeoff altitude in metres.
+            current_lat: Current latitude in degrees.
+            current_lon: Current longitude in degrees.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        logger.warning("NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_waypoint(
         self, current: Coordinate, next_loc: Coordinate
     ) -> Tuple[bool, str]:
-        logger.warning("NoOpSafetyChecker: "
-                       "validate_waypoint called but no safety checker server available. Returning true.")
+        """Passthrough waypoint validation — always returns True.
+
+        Args:
+            current: Current vehicle position.
+            next_loc: Target waypoint coordinate.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        logger.warning("NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
-        logger.warning("NoOpSafetyChecker: "
-                       "validate_change_speed called but no safety checker server available. Returning true.")
+        """Passthrough speed validation — always returns True.
+
+        Args:
+            new_speed: Requested new speed in m/s.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        logger.warning("NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true.")
         return True, ""
 
     async def validate_landing(
         self, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
-        logger.warning("NoOpSafetyChecker: "
-                       "validate_landing called but no safety checker server available. Returning true.")
+        """Passthrough landing validation — always returns True.
+
+        Args:
+            current_lat: Current latitude in degrees.
+            current_lon: Current longitude in degrees.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        logger.warning("NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true.")
         return True, ""
 
 
@@ -89,6 +127,13 @@ class SafetyCheckerClient:
         port: int,
         timeout_s: float = SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     ) -> None:
+        """Connect the ZMQ REQ socket to the safety checker server.
+
+        Args:
+            addr: Hostname or IP address of the SafetyCheckerServer.
+            port: TCP port the server is listening on.
+            timeout_s: Per-request send/receive timeout in seconds.
+        """
         self._addr = addr
         self._port = port
         self._timeout_s = timeout_s
@@ -98,7 +143,7 @@ class SafetyCheckerClient:
         self._socket.connect(f"tcp://{addr}:{port}")
 
     def _reconnect(self) -> None:
-        """Recreate the REQ socket. Called after a send/recv error to recover from stuck state."""
+        """Recreate the REQ socket after a send/recv error to recover from a stuck state."""
         logger.warning("SafetyCheckerClient: reconnecting socket after error")
         try:
             self._socket.close()
@@ -108,11 +153,23 @@ class SafetyCheckerClient:
         self._socket.connect(f"tcp://{self._addr}:{self._port}")
 
     def close(self) -> None:
+        """Close the ZMQ socket and terminate the context."""
         logger.debug("SafetyCheckerClient: closing connection")
         self._socket.close()
         self._ctx.term()
 
     async def _send_request(self, msg: bytes) -> Tuple[bool, str]:
+        """Send a serialised request and await the response.
+
+        Args:
+            msg: Compressed request payload produced by _serialize_request.
+
+        Returns:
+            Tuple of (result, message) from the server response.
+
+        Raises:
+            TimeoutError: If the server does not respond within timeout_s.
+        """
         try:
             await asyncio.wait_for(self._socket.send(msg), timeout=self._timeout_s)
             raw = await asyncio.wait_for(self._socket.recv(), timeout=self._timeout_s)
@@ -133,12 +190,26 @@ class SafetyCheckerClient:
         return result, message
 
     async def check_server_status(self) -> Tuple[bool, str]:
+        """Query the server status endpoint.
+
+        Returns:
+            Tuple of (ok, message) indicating whether the server is healthy.
+        """
         msg = _serialize_request(SERVER_STATUS_REQ, [])
         return await self._send_request(msg)
 
     async def validate_waypoint(
         self, current: Coordinate, next_loc: Coordinate
     ) -> Tuple[bool, str]:
+        """Validate a waypoint navigation command with the server.
+
+        Args:
+            current: Current vehicle position.
+            next_loc: Target waypoint coordinate.
+
+        Returns:
+            Tuple of (ok, message). ok is False if the server rejects the waypoint.
+        """
         logger.debug(
             f"SafetyCheckerClient: validate_waypoint current=({current.lat:.6f},{current.lon:.6f}) "
             f"next=({next_loc.lat:.6f},{next_loc.lon:.6f})"
@@ -150,12 +221,30 @@ class SafetyCheckerClient:
         return await self._send_request(msg)
 
     async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+        """Validate a speed change command with the server.
+
+        Args:
+            new_speed: Requested new speed in m/s.
+
+        Returns:
+            Tuple of (ok, message). ok is False if the server rejects the speed.
+        """
         msg = _serialize_request(VALIDATE_CHANGE_SPEED_REQ, [new_speed])
         return await self._send_request(msg)
 
     async def validate_takeoff(
         self, takeoff_alt: float, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
+        """Validate a takeoff command with the server.
+
+        Args:
+            takeoff_alt: Requested takeoff altitude in metres.
+            current_lat: Current latitude in degrees.
+            current_lon: Current longitude in degrees.
+
+        Returns:
+            Tuple of (ok, message). ok is False if the server rejects the takeoff.
+        """
         msg = _serialize_request(
             VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon]
         )
@@ -164,5 +253,14 @@ class SafetyCheckerClient:
     async def validate_landing(
         self, current_lat: float, current_lon: float
     ) -> Tuple[bool, str]:
+        """Validate a landing command with the server.
+
+        Args:
+            current_lat: Current latitude in degrees.
+            current_lon: Current longitude in degrees.
+
+        Returns:
+            Tuple of (ok, message). ok is False if the server rejects the landing.
+        """
         msg = _serialize_request(VALIDATE_LANDING_REQ, [current_lat, current_lon])
         return await self._send_request(msg)

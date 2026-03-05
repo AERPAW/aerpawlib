@@ -54,6 +54,12 @@ class ConnectionTimeoutError(AerpawConnectionError):
     """Connection timed out."""
 
     def __init__(self, timeout_seconds: float, message: Optional[str] = None, **kwargs):
+        """Initialize with the timeout duration.
+
+        Args:
+            timeout_seconds: How many seconds elapsed before the timeout.
+            message: Optional custom message; defaults to a standard timeout description.
+        """
         self.timeout_seconds = timeout_seconds
         kwargs.setdefault("code", "CONNECTION_TIMEOUT")
         msg = message or f"Connection timed out after {timeout_seconds}s"
@@ -64,6 +70,12 @@ class HeartbeatLostError(AerpawConnectionError):
     """Vehicle heartbeat lost."""
 
     def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None, **kwargs):
+        """Initialize with the age of the last received heartbeat.
+
+        Args:
+            last_heartbeat_age: Seconds since the last heartbeat was received.
+            message: Optional custom message; defaults to a standard description.
+        """
         self.last_heartbeat_age = last_heartbeat_age
         kwargs.setdefault("code", "HEARTBEAT_LOST")
         kwargs.setdefault("severity", "critical")
@@ -75,6 +87,12 @@ class PortInUseError(AerpawConnectionError):
     """Port already in use."""
 
     def __init__(self, port: int, message: Optional[str] = None, **kwargs):
+        """Initialize with the conflicting port number.
+
+        Args:
+            port: The port number that is already in use.
+            message: Optional custom message; defaults to a standard description.
+        """
         self.port = port
         kwargs.setdefault("code", "PORT_IN_USE")
         msg = message or f"Port {port} is already in use"
@@ -163,6 +181,12 @@ class NoEntrypointError(RunnerError):
 
 class InvalidStateError(RunnerError):
     def __init__(self, state_name: str, available_states: list, **kwargs):
+        """Initialize with the invalid state name and the list of valid states.
+
+        Args:
+            state_name: The state name that was not found.
+            available_states: List of valid state names for this runner.
+        """
         self.state_name = state_name
         self.available_states = available_states
         kwargs.setdefault("code", "INVALID_STATE")

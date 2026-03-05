@@ -49,7 +49,7 @@ class Drone(Vehicle):
     navigation, and velocity control.
 
     Attributes:
-        _velocity_loop_active (bool): Whether a background velocity command loop is running.
+        _velocity_loop_active: Whether a background velocity command loop is running.
     """
 
     _velocity_loop_active: bool = False
@@ -59,8 +59,8 @@ class Drone(Vehicle):
         Initialize the drone and check for startup constraints.
 
         Args:
-            connection_string (str): MAVLink connection string.
-            mavsdk_server_port (int): Port for the embedded mavsdk_server gRPC interface.
+            connection_string: MAVLink connection string.
+            mavsdk_server_port: Port for the embedded mavsdk_server gRPC interface.
                 Each Vehicle instance should use a unique port to avoid conflicts.
                 Defaults to 50051.
 
@@ -90,11 +90,11 @@ class Drone(Vehicle):
         Command the drone to turn to a specific heading.
 
         Args:
-            heading (float, optional): Target heading in degrees (0-360).
+            heading: Target heading in degrees (0-360).
                 If None, clears any locked heading.
-            blocking (bool, optional): Whether to wait for the drone to finish turning.
+            blocking: Whether to wait for the drone to finish turning.
                 Defaults to True.
-            lock_in (bool, optional): If True, internal state will track this heading
+            lock_in: If True, internal state will track this heading
                 for future combined commands. Defaults to True.
         """
         if blocking:
@@ -165,8 +165,8 @@ class Drone(Vehicle):
         Perform a takeoff to the target altitude.
 
         Args:
-            target_alt (float): Target altitude Above Ground Level (meters).
-            min_alt_tolerance (float, optional): Fraction of target altitude
+            target_alt: Target altitude Above Ground Level (meters).
+            min_alt_tolerance: Fraction of target altitude
                 to reach before continuing. Defaults to DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE.
 
         Raises:
@@ -209,8 +209,8 @@ class Drone(Vehicle):
 
         Args:
             coro: The MAVSDK coroutine to run.
-            name (str): Label for logging.
-            exc_cls (Type[Exception]): Exception class to raise on failure.
+            name: Label for logging.
+            exc_cls: Exception class to raise on failure.
         """
         await self.await_ready_to_move()
         self._abortable = False
@@ -321,10 +321,10 @@ class Drone(Vehicle):
         Set the drone's velocity in NED frame.
 
         Args:
-            velocity_vector (VectorNED): Target velocity.
-            global_relative (bool, optional): If True, north/east are world-aligned.
+            velocity_vector: Target velocity.
+            global_relative: If True, north/east are world-aligned.
                 If False, they are relative to current heading. Defaults to True.
-            duration (float, optional): How long to maintain this velocity.
+            duration: How long to maintain this velocity.
                 If None, maintains it until stopped or changed.
 
         Raises:

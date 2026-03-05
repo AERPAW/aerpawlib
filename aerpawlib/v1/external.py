@@ -18,33 +18,33 @@ class ExternalProcess:
     and dynamic passing of command-line arguments.
 
     Attributes:
-        _executable (str): Path to the executable.
-        _params (list): List of command-line arguments.
-        _stdin (str, optional): Path to a file to use for stdin redirection.
-        _stdout (str, optional): Path to a file to use for stdout redirection.
-        process (asyncio.subprocess.Process): The underlying process object.
+        _executable: Path to the executable.
+        _params: List of command-line arguments.
+        _stdin: Path to a file to use for stdin redirection.
+        _stdout: Path to a file to use for stdout redirection.
+        process: The underlying process object.
     """
 
     def __init__(
-        self, executable: str, params=None, stdin: str = None, stdout: str = None
-    ):
+        self, executable: str, params: Optional[List[str]] = None, stdin: Optional[str] = None, stdout: Optional[str] = None
+    ) -> None:
         """
         Prepare external process for execution.
 
         Does NOT execute process immediately; call `start()` to run it.
 
         Args:
-            executable (str): The executable path or command.
-            params (list, optional): Parameters to pass to the process. Defaults to None.
-            stdin (str, optional): Filename for stdin redirection. Defaults to None.
-            stdout (str, optional): Filename for stdout redirection. Defaults to None.
+            executable: The executable path or command.
+            params: Parameters to pass to the process. Defaults to None.
+            stdin: Filename for stdin redirection. Defaults to None.
+            stdout: Filename for stdout redirection. Defaults to None.
         """
         self._executable = executable
         self._params = params if params is not None else []
         self._stdin = stdin
         self._stdout = stdout
 
-    async def start(self):
+    async def start(self) -> None:
         """
         Start the executable in an asynchronous process.
         """
@@ -78,12 +78,12 @@ class ExternalProcess:
             return None
         return out.decode("ascii").rstrip()
 
-    async def send_input(self, data: str):
+    async def send_input(self, data: str) -> None:
         """
         Send a string to the process's stdin.
 
         Args:
-            data (str): The data to send.
+            data: The data to send.
 
         Raises:
             RuntimeError: If stdin is not available (e.g. redirected to a file).
@@ -96,7 +96,7 @@ class ExternalProcess:
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
 
-    async def wait_until_terminated(self):
+    async def wait_until_terminated(self) -> None:
         """
         Wait until the process is complete.
         """
@@ -109,7 +109,7 @@ class ExternalProcess:
         Only works if stdout is not redirected to a file.
 
         Args:
-            output_regex (str): The regular expression to search for.
+            output_regex: The regular expression to search for.
 
         Returns:
             List[str]: All lines read from stdout up to and including the matching line.

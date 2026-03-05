@@ -21,6 +21,14 @@ class MockVehicle:
         armed: bool = False,
         connected: bool = True,
     ):
+        """Initialize the mock vehicle with optional pre-set state.
+
+        Args:
+            position: Initial position; defaults to NCSU coordinates at ground level.
+            home: Home coordinate; defaults to the initial position.
+            armed: Whether the vehicle starts armed.
+            connected: Whether the vehicle starts in a connected state.
+        """
         self._position = position or Coordinate(35.727436, -78.696587, 0)
         self._home = home or self._position
         self._armed = armed
@@ -58,4 +66,5 @@ class MockVehicle:
         return self._heading
 
     def heartbeat_tick(self) -> None:
+        """No-op heartbeat tick required by VehicleProtocol."""
         pass

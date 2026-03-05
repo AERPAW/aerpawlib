@@ -11,7 +11,7 @@ This is the v1 API runner module, now using MAVSDK internally.
 import asyncio
 import inspect
 from enum import Enum, auto
-from typing import Callable, Dict, List
+from typing import Any, Callable, Dict, List
 
 import zmq
 import zmq.asyncio
@@ -50,7 +50,7 @@ class Runner:
     by the aerpawlib infrastructure.
     """
 
-    async def run(self, _: Vehicle):
+    async def run(self, _: Vehicle) -> None:
         """
         Core logic of the script.
 
@@ -62,7 +62,7 @@ class Runner:
         """
         pass
 
-    def initialize_args(self, _: List[str]):
+    def initialize_args(self, _: List[str]) -> None:
         """
         Parse and handle additional command-line arguments.
 
@@ -71,7 +71,7 @@ class Runner:
         """
         pass
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         """
         Perform cleanup tasks when the script exits.
         """
@@ -115,7 +115,7 @@ class BasicRunner(Runner):
                     )
                 self._entry = method
 
-    async def run(self, vehicle: Vehicle):
+    async def run(self, vehicle: Vehicle) -> None:
         self._build()
         if self._entry is None:
             raise NoEntrypointError()
@@ -135,8 +135,8 @@ class _State:
     Internal representation of a state in a StateMachine.
 
     Attributes:
-        _name (str): The name of the state.
-        _func (_Runnable): The function to be executed for this state.
+        _name: The name of the state.
+        _func: The function to be executed for this state.
     """
 
     _name: str
@@ -189,8 +189,8 @@ def state(name: str, first: bool = False):
     Decorator to specify a state in a StateMachine.
 
     Args:
-        name (str): The name of the state.
-        first (bool, optional): Whether this is the initial state of the machine.
+        name: The name of the state.
+        first: Whether this is the initial state of the machine.
             Defaults to False.
 
     Returns:
@@ -212,16 +212,16 @@ def state(name: str, first: bool = False):
     return decorator
 
 
-def timed_state(name: str, duration: float, loop=False, first: bool = False):
+def timed_state(name: str, duration: float, loop: bool = False, first: bool = False):
     """
     Decorator for a state that runs for a fixed duration.
 
     Args:
-        name (str): The name of the state.
-        duration (float): Minimum duration in seconds for this state.
-        loop (bool, optional): Whether to repeatedly call the decorated function
+        name: The name of the state.
+        duration: Minimum duration in seconds for this state.
+        loop: Whether to repeatedly call the decorated function
             during the duration. Defaults to False.
-        first (bool, optional): Whether this is the initial state. Defaults to False.
+        first: Whether this is the initial state. Defaults to False.
 
     Returns:
         Callable: The decorated function.
@@ -249,7 +249,7 @@ def expose_zmq(name: str):
     Decorator to expose a state for remote control via ZMQ.
 
     Args:
-        name (str): The name of the state to expose.
+        name: The name of the state to expose.
 
     Returns:
         Callable: The decorated function.
@@ -273,7 +273,7 @@ def expose_field_zmq(name: str):
     Decorator to make a field requestable via ZMQ.
 
     Args:
-        name (str): The name of the field to expose.
+        name: The name of the field to expose.
 
     Returns:
         Callable: The decorated function.
@@ -336,12 +336,12 @@ class StateMachine(Runner):
     Supports background tasks and initialization tasks.
 
     Attributes:
-        _states (Dict[str, _State]): Mapping of state names to _State objects.
-        _background_tasks (List[_BackgroundTask]): List of background functions to run.
-        _initialization_tasks (List[_InitializationTask]): Functions to run at init.
-        _entrypoint (str): The name of the initial state.
-        _current_state (str): The name of the state currently being executed.
-        _running (bool): Whether the state machine is active.
+        _states: Mapping of state names to _State objects.
+        _background_tasks: List of background functions to run.
+        _initialization_tasks: Functions to run at init.
+        _entrypoint: The name of the initial state.
+        _current_state: The name of the state currently being executed.
+        _running: Whether the state machine is active.
     """
 
     _states: Dict[str, _State]
@@ -408,13 +408,13 @@ class StateMachine(Runner):
             future = asyncio.ensure_future(_task_runner())
             self._background_task_futures.append(future)
 
-    async def run(self, vehicle: Vehicle, build_before_running=True):
+    async def run(self, vehicle: Vehicle, build_before_running: bool = True) -> None:
         """
         Execute the state machine logic.
 
         Args:
-            vehicle (Vehicle): The vehicle instance.
-            build_before_running (bool): Whether to call _build() first.
+            vehicle: The vehicle instance.
+            build_before_running: Whether to call _build() first.
                 Defaults to True.
 
         Raises:
@@ -463,7 +463,7 @@ class StateMachine(Runner):
 
         self.cleanup()
 
-    def stop(self):
+    def stop(self) -> None:
         """
         Call `stop` to stop the execution of the `StateMachine` after
         completion of the current state. This is equivalent to returning `None`
@@ -477,10 +477,10 @@ class ZmqStateMachine(StateMachine):
     A StateMachine that can be controlled remotely via ZMQ.
 
     Attributes:
-        _exported_states (Dict[str, _State]): States exposed for ZMQ transitions.
-        _exported_fields (Dict[str, Callable]): Fields exposed for ZMQ queries.
-        _zmq_identifier (str): Unique name for this machine in the ZMQ network.
-        _zmq_proxy_server (str): Address of the ZMQ proxy.
+        _exported_states: States exposed for ZMQ transitions.
+        _exported_fields: Fields exposed for ZMQ queries.
+        _zmq_identifier: Unique name for this machine in the ZMQ network.
+        _zmq_proxy_server: Address of the ZMQ proxy.
     """
 
     _exported_states: Dict[str, _State]
@@ -515,8 +515,8 @@ class ZmqStateMachine(StateMachine):
         Use run_zmq_proxy() in a separate process, then start the runners.
 
         Args:
-            vehicle_identifier (str): The identifier for this vehicle.
-            proxy_server_addr (str): The address of the ZMQ proxy server.
+            vehicle_identifier: The identifier for this vehicle.
+            proxy_server_addr: The address of the ZMQ proxy server.
         """
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
@@ -568,7 +568,7 @@ class ZmqStateMachine(StateMachine):
 
         Args:
             vehicle: The vehicle instance.
-            message (dict): The received message object.
+            message: The received message object.
         """
         msg_type = message.get("msg_type")
 
@@ -626,13 +626,13 @@ class ZmqStateMachine(StateMachine):
         finally:
             socket.close()
 
-    async def run(self, vehicle: Vehicle, zmq_proxy=False):
+    async def run(self, vehicle: Vehicle, zmq_proxy: bool = False) -> None:
         """
         Execute the ZMQ-enabled state machine.
 
         Args:
-            vehicle (Vehicle): The vehicle instance.
-            zmq_proxy (bool): Unused, for compatibility.
+            vehicle: The vehicle instance.
+            zmq_proxy: Unused, for compatibility.
 
         Raises:
             StateMachineError: If ZMQ bindings were not initialized.
@@ -653,7 +653,7 @@ class ZmqStateMachine(StateMachine):
 
         await super().run(vehicle, build_before_running=False)
 
-    async def transition_runner(self, identifier: str, state: str):
+    async def transition_runner(self, identifier: str, state: str) -> None:
         """
         Use zmq to transition a runner within the network specified by `identifier`.
         The state to be transitioned to is specified with `state`
@@ -671,14 +671,14 @@ class ZmqStateMachine(StateMachine):
         identifier: str,
         field: str,
         timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
-    ):
+    ) -> Any:
         """
         Query a field from another ZMQ runner.
 
         Args:
-            identifier (str): Identifier of the target runner.
-            field (str): Name of the field to query.
-            timeout (float): Max seconds to wait for reply (default: ZMQ_QUERY_FIELD_TIMEOUT_S).
+            identifier: Identifier of the target runner.
+            field: Name of the field to query.
+            timeout: Max seconds to wait for reply (default: ZMQ_QUERY_FIELD_TIMEOUT_S).
 
         Returns:
             Any: The value returned by the target runner.
@@ -712,9 +712,9 @@ class ZmqStateMachine(StateMachine):
         Send a reply to a field query.
 
         Args:
-            identifier (str): Identifier of the runner that requested the field.
-            field (str): Name of the field.
-            value (Any): Value of the field.
+            identifier: Identifier of the runner that requested the field.
+            field: Name of the field.
+            value: Value of the field.
         """
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,

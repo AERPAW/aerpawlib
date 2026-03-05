@@ -58,9 +58,18 @@ def read_geofence(file_path: str) -> List[dict]:
 
 
 def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
-    """Check if point (lon, lat) is inside polygon using ray-casting.
+    """Check if point (lon, lat) is inside the polygon using ray-casting.
 
-    Handles degenerate (horizontal) edges safely by skipping division-by-zero cases.
+    Handles degenerate (horizontal) edges safely by skipping
+    division-by-zero cases.
+
+    Args:
+        lon: Longitude of the point to test.
+        lat: Latitude of the point to test.
+        geofence: List of {'lat': ..., 'lon': ...} dicts defining the polygon.
+
+    Returns:
+        True if the point is inside the polygon.
     """
     n = len(geofence)
     inside_flag = False
@@ -78,7 +87,16 @@ def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
 
 
 def _lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
-    """Check if Q lies on segment PR."""
+    """Return True if point Q lies on segment PR.
+
+    Args:
+        px: X coordinate of point P.
+        py: Y coordinate of point P.
+        qx: X coordinate of point Q (candidate).
+        qy: Y coordinate of point Q (candidate).
+        rx: X coordinate of point R.
+        ry: Y coordinate of point R.
+    """
     return (
         (qx <= max(px, rx))
         and (qx >= min(px, rx))
@@ -88,7 +106,19 @@ def _lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: 
 
 
 def _orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> int:
-    """Orientation of (p, q, r): 0 colinear, 1 clockwise, 2 counterclockwise."""
+    """Return the orientation of the ordered triple (P, Q, R).
+
+    Args:
+        px: X coordinate of P.
+        py: Y coordinate of P.
+        qx: X coordinate of Q.
+        qy: Y coordinate of Q.
+        rx: X coordinate of R.
+        ry: Y coordinate of R.
+
+    Returns:
+        0 if collinear, 1 if clockwise, 2 if counterclockwise.
+    """
     val = (qy - py) * (rx - qx) - (qx - px) * (ry - qy)
     if val > 0:
         return 1
@@ -101,7 +131,21 @@ def do_intersect(
     px: float, py: float, qx: float, qy: float,
     rx: float, ry: float, sx: float, sy: float,
 ) -> bool:
-    """Check if segment PQ intersects segment RS."""
+    """Return True if segment PQ intersects segment RS.
+
+    Args:
+        px: X coordinate of P (start of first segment).
+        py: Y coordinate of P.
+        qx: X coordinate of Q (end of first segment).
+        qy: Y coordinate of Q.
+        rx: X coordinate of R (start of second segment).
+        ry: Y coordinate of R.
+        sx: X coordinate of S (end of second segment).
+        sy: Y coordinate of S.
+
+    Returns:
+        True if the two segments intersect (including touching endpoints).
+    """
     o1 = _orientation(px, py, qx, qy, rx, ry)
     o2 = _orientation(px, py, qx, qy, sx, sy)
     o3 = _orientation(rx, ry, sx, sy, px, py)
@@ -122,7 +166,15 @@ def do_intersect(
 def polygon_edges(
     polygon: List[dict],
 ) -> Generator[Tuple[dict, dict], None, None]:
-    """Yield consecutive (p1, p2) edge pairs for polygon."""
+    """Yield consecutive edge pairs (p1, p2) for the given polygon.
+
+    Args:
+        polygon: Ordered list of {'lat': ..., 'lon': ...} vertex dicts.
+
+    Yields:
+        Pairs of adjacent vertex dicts representing each polygon edge,
+        wrapping from the last vertex back to the first.
+    """
     n = len(polygon)
     for i in range(n):
         yield polygon[i], polygon[(i + 1) % n]

@@ -37,6 +37,18 @@ class ConnectionHandler:
         start_delay: float = HEARTBEAT_START_DELAY_S,
         on_disconnect: Optional[Callable[[], None]] = None,
     ) -> None:
+        """Initialise the heartbeat monitor.
+
+        Args:
+            vehicle: Vehicle-like object used for heartbeat tracking (must satisfy
+                VehicleProtocol).
+            heartbeat_timeout: Seconds without a tick before the connection is
+                considered lost.
+            start_delay: Seconds to wait after the first telemetry before
+                enabling the timeout check, to avoid false positives on startup.
+            on_disconnect: Optional zero-argument callback invoked (in a thread
+                executor) when heartbeat is lost.
+        """
         self._vehicle = vehicle
         self._heartbeat_timeout = heartbeat_timeout
         self._start_delay = start_delay
@@ -48,13 +60,18 @@ class ConnectionHandler:
         self._disconnect_future: Optional[asyncio.Future] = None
 
     def heartbeat_tick(self) -> None:
-        """Called by vehicle when telemetry received."""
+        """Record a heartbeat tick and enable the monitor if this is the first tick."""
         self._last_tick = time.monotonic()
         if not self._monitor_started:
             self._monitor_started = True
 
     def start(self) -> asyncio.Task:
-        """Start heartbeat monitor. Returns the monitor task for awaiting."""
+        """Start the heartbeat monitor task.
+
+        Returns:
+            The asyncio.Task running the monitor loop; await it to detect
+            disconnect or call stop() to cancel it cleanly.
+        """
         logger.info(
             f"ConnectionHandler: starting heartbeat monitor "
             f"(timeout={self._heartbeat_timeout}s, start_delay={self._start_delay}s)"
@@ -64,7 +81,13 @@ class ConnectionHandler:
         return self._monitor_task
 
     def get_disconnect_future(self) -> asyncio.Future:
-        """Return a future that completes (with exception) when heartbeat is lost."""
+        """Return a Future that completes with HeartbeatLostError when heartbeat is lost.
+
+        Returns:
+            asyncio.Future that will have its exception set if the heartbeat
+            times out; can be used with asyncio.wait for racing against other
+            coroutines.
+        """
         if self._disconnect_future is None:
             self._disconnect_future = asyncio.get_running_loop().create_future()
         return self._disconnect_future
@@ -112,9 +135,15 @@ def setup_signal_handlers(
     on_sigint: Optional[Callable[[], None]] = None,
     on_sigterm: Optional[Callable[[], None]] = None,
 ) -> None:
-    """
-    Use loop.add_signal_handler for async-safe SIGINT/SIGTERM.
-    Avoid raising from sync signal handlers.
+    """Register async-safe SIGINT and SIGTERM handlers on the event loop.
+
+    Uses loop.add_signal_handler instead of signal.signal to avoid raising
+    exceptions from synchronous signal handlers and breaking the async loop.
+
+    Args:
+        loop: The running asyncio event loop to register handlers on.
+        on_sigint: Optional zero-argument callback invoked on SIGINT (Ctrl-C).
+        on_sigterm: Optional zero-argument callback invoked on SIGTERM.
     """
     try:
         if on_sigint:

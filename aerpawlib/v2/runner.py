@@ -87,11 +87,19 @@ class Runner:
     """Base execution framework for aerpawlib v2 scripts."""
 
     async def run(self, vehicle: V) -> None:
-        """Core logic. Override in subclasses."""
+        """Execute the runner's core logic.
+
+        Args:
+            vehicle: The connected vehicle instance.
+        """
         pass
 
     def initialize_args(self, args: List[str]) -> None:
-        """Parse additional CLI args."""
+        """Parse additional CLI arguments.
+
+        Args:
+            args: List of unrecognised argument strings passed from the CLI.
+        """
         pass
 
     def cleanup(self) -> None:
@@ -179,7 +187,16 @@ class _EntrypointDescriptor:
 
 
 def entrypoint(func: Callable) -> _EntrypointDescriptor:
-    """Mark method as BasicRunner entry point."""
+    """Mark a method as the BasicRunner entry point.
+
+    Exactly one method per runner class may be decorated with this.
+
+    Args:
+        func: The async method to use as the entry point.
+
+    Returns:
+        An _EntrypointDescriptor that registers the method on the class.
+    """
     return _EntrypointDescriptor(func)
 
 
@@ -261,7 +278,15 @@ class _StateDescriptor:
 
 
 def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescriptor]:
-    """Decorator for StateMachine state."""
+    """Decorate a method as a named StateMachine state.
+
+    Args:
+        name: Unique state name used for transitions.
+        first: If True, this state is the initial state of the machine.
+
+    Returns:
+        Decorator that registers the method as the named state.
+    """
 
     def decorator(func: Callable) -> _StateDescriptor:
         desc = _StateDescriptor(name, first=first, state_type=_StateType.STANDARD)
@@ -277,7 +302,22 @@ def timed_state(
     loop: bool = False,
     first: bool = False,
 ) -> Callable[[Callable], _StateDescriptor]:
-    """Decorator for timed state."""
+    """Decorate a method as a timed StateMachine state.
+
+    The decorated method is called and then the runner waits for ``duration``
+    seconds before advancing to the next state.  If ``loop`` is True the method
+    is called repeatedly until the duration expires.
+
+    Args:
+        name: Unique state name used for transitions.
+        duration: How long to remain in this state (seconds).
+        loop: If True, re-invoke the method every state-machine tick within
+            the duration window.
+        first: If True, this state is the initial state of the machine.
+
+    Returns:
+        Decorator that registers the method as the named timed state.
+    """
 
     def decorator(func: Callable) -> _StateDescriptor:
         desc = _StateDescriptor(
@@ -316,7 +356,17 @@ class _BackgroundDescriptor:
 
 
 def background(func: Callable) -> _BackgroundDescriptor:
-    """Mark method as background task."""
+    """Mark a method to run as a background task throughout the state machine.
+
+    The decorated coroutine is started before the first state and runs
+    concurrently until the runner finishes.
+
+    Args:
+        func: Async method to run as a background task.
+
+    Returns:
+        A _BackgroundDescriptor that registers the method on the class.
+    """
     return _BackgroundDescriptor(func)
 
 
@@ -343,7 +393,14 @@ class _AtInitDescriptor:
 
 
 def at_init(func: Callable) -> _AtInitDescriptor:
-    """Mark method to run at init (before arm)."""
+    """Mark a method to run once at initialisation, before arming.
+
+    Args:
+        func: Async method to call during the init phase.
+
+    Returns:
+        An _AtInitDescriptor that registers the method on the class.
+    """
     return _AtInitDescriptor(func)
 
 
@@ -374,7 +431,16 @@ class _ExposeZmqDescriptor:
 
 
 def expose_zmq(name: str) -> Callable[[Any], _ExposeZmqDescriptor]:
-    """Expose state for remote ZMQ transition. Must wrap a @state descriptor."""
+    """Expose a state for remote ZMQ transition commands.
+
+    Must wrap a ``@state`` descriptor.
+
+    Args:
+        name: ZMQ message name that triggers a transition to this state.
+
+    Returns:
+        Decorator that wraps a ``@state`` descriptor and registers the ZMQ name.
+    """
 
     def decorator(state_desc: Any) -> _ExposeZmqDescriptor:
         return _ExposeZmqDescriptor(name, state_desc)
@@ -410,7 +476,14 @@ class _ExposeFieldZmqDescriptor:
 
 
 def expose_field_zmq(name: str) -> Callable[[Callable], _ExposeFieldZmqDescriptor]:
-    """Expose field for ZMQ query."""
+    """Expose a field method for ZMQ query from another runner.
+
+    Args:
+        name: ZMQ field name that remote runners use in query_field calls.
+
+    Returns:
+        Decorator that registers the method as a queryable ZMQ field.
+    """
 
     def decorator(func: Callable) -> _ExposeFieldZmqDescriptor:
         desc = _ExposeFieldZmqDescriptor(name)
@@ -425,6 +498,14 @@ class BasicRunner(Runner):
     """Single entry point runner."""
 
     async def run(self, vehicle: Any) -> None:
+        """Run the decorated entrypoint method.
+
+        Args:
+            vehicle: The connected vehicle instance passed to the entrypoint.
+
+        Raises:
+            NoEntrypointError: If no @entrypoint was declared on the class.
+        """
         config = getattr(self.__class__, "config", None)
         if not isinstance(config, BasicRunnerConfig):
             raise NoEntrypointError()
@@ -452,28 +533,68 @@ class StateMachine(Runner):
         self._background_futures: List[asyncio.Future] = []
 
     def _get_config(self) -> StateMachineConfig:
+        """Return the StateMachineConfig for this class.
+
+        Raises:
+            NoInitialStateError: If no config is present.
+        """
         config = getattr(self.__class__, "config", None)
         if not isinstance(config, StateMachineConfig):
             raise NoInitialStateError()
         return config
 
     def _get_states(self) -> Dict[str, StateSpec]:
+        """Return a mapping of state name to StateSpec for this runner.
+
+        Returns:
+            Dict mapping state name strings to their StateSpec metadata.
+        """
         cfg = self._get_config()
         return {s.name: s for s in cfg.states}
 
     def _get_initial_state(self) -> str:
+        """Return the name of the initial state.
+
+        Returns:
+            Name of the state marked with first=True.
+
+        Raises:
+            NoInitialStateError: If no initial state was declared.
+        """
         cfg = self._get_config()
         if not cfg.initial_state:
             raise NoInitialStateError()
         return cfg.initial_state
 
     def _get_backgrounds(self) -> List[str]:
+        """Return method names registered as background tasks.
+
+        Returns:
+            List of method name strings for @background-decorated methods.
+        """
         return self._get_config().backgrounds
 
     def _get_at_init(self) -> List[str]:
+        """Return method names registered to run at initialisation.
+
+        Returns:
+            List of method name strings for @at_init-decorated methods.
+        """
         return self._get_config().at_init
 
     async def _run_state(self, spec: StateSpec, vehicle: Any) -> str:
+        """Execute a single state and return the name of the next state.
+
+        For timed states the method runs (optionally in a loop) for ``spec.duration``
+        seconds before the next state name is returned.
+
+        Args:
+            spec: Metadata describing the state to run.
+            vehicle: The vehicle instance passed to the state method.
+
+        Returns:
+            Name of the next state, or an empty string / None to stop the machine.
+        """
         method = getattr(self, spec.method_name)
         logger.debug(f"StateMachine: entering state '{spec.name}'")
         if spec.duration <= 0:
@@ -506,6 +627,18 @@ class StateMachine(Runner):
         return next_state
 
     async def run(self, vehicle: Any) -> None:
+        """Run the state machine from the initial state to completion.
+
+        Executes at_init tasks, starts background tasks, then iterates
+        through states until a state returns None or stop() is called.
+
+        Args:
+            vehicle: The connected vehicle instance passed to each state method.
+
+        Raises:
+            NoInitialStateError: If no initial state was declared.
+            InvalidStateError: If a state transition targets an unknown state.
+        """
         states = self._get_states()
         self._current_state = self._get_initial_state()
         self._running = True
@@ -646,7 +779,11 @@ class ZmqStateMachine(StateMachine):
         return cfg
 
     async def _zmq_recv_loop(self, vehicle: Any) -> None:
-        """Subscribe to ZMQ proxy and handle messages sequentially."""
+        """Subscribe to the ZMQ proxy and handle messages sequentially.
+
+        Args:
+            vehicle: The vehicle instance, passed to field-request handlers.
+        """
         ctx = self._zmq_context
         if ctx is None or self._zmq_proxy_server is None:
             return
@@ -669,7 +806,11 @@ class ZmqStateMachine(StateMachine):
             sock.close()
 
     async def _zmq_send_loop(self, vehicle: Any) -> None:
-        """Publish ZMQ messages from the send queue."""
+        """Publish ZMQ messages from the internal send queue.
+
+        Args:
+            vehicle: Unused; present for background-task signature compatibility.
+        """
         ctx = self._zmq_context
         if ctx is None or self._zmq_proxy_server is None:
             return
@@ -765,7 +906,12 @@ class ZmqStateMachine(StateMachine):
                 self._zmq_context = None
 
     async def transition_runner(self, identifier: str, state_name: str) -> None:
-        """Send a ZMQ state-transition command to another runner."""
+        """Send a ZMQ state-transition command to another runner.
+
+        Args:
+            identifier: ZMQ identifier of the target runner.
+            state_name: Name of the state to transition the target runner into.
+        """
         if self._zmq_send_queue is None:
             return
         await self._zmq_send_queue.put({
@@ -778,11 +924,22 @@ class ZmqStateMachine(StateMachine):
     async def query_field(
         self, identifier: str, field: str, timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S
     ) -> Any:
-        """
-        Query a field from another ZMQ runner and return the value.
+        """Query a field from another ZMQ runner and return the value.
 
         Uses asyncio.Event to block until the reply arrives (no busy-poll).
-        Raises asyncio.TimeoutError if the reply doesn't arrive within `timeout`.
+
+        Args:
+            identifier: ZMQ identifier of the target runner.
+            field: Name of the exposed field to query.
+            timeout: Maximum seconds to wait for a reply.
+
+        Returns:
+            The value returned by the remote runner's @expose_field_zmq method.
+
+        Raises:
+            RuntimeError: If ZMQ has not been initialised via
+                _initialize_zmq_bindings.
+            asyncio.TimeoutError: If the reply does not arrive within timeout.
         """
         if self._zmq_send_queue is None:
             raise RuntimeError("ZMQ not initialized; call _initialize_zmq_bindings first")
@@ -804,7 +961,13 @@ class ZmqStateMachine(StateMachine):
         return self._zmq_pending_fields[identifier][field]
 
     async def _zmq_send_reply(self, identifier: str, field: str, value: Any) -> None:
-        """Send a field-query reply to `identifier`."""
+        """Send a field-query reply to the requesting runner.
+
+        Args:
+            identifier: ZMQ identifier of the requesting runner.
+            field: The field name that was queried.
+            value: The value to send back.
+        """
         if self._zmq_send_queue is None:
             return
         await self._zmq_send_queue.put({

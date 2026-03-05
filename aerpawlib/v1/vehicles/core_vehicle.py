@@ -246,11 +246,11 @@ class Vehicle:
     - Supports configurable auto-RTL or landing upon script termination.
 
     Attributes:
-        _system (System): The MAVSDK system instance.
-        _has_heartbeat (bool): Whether a heartbeat has been received.
-        _home_location (Coordinate): The captured home position.
-        _armed_state (ThreadSafeValue): Current arm status.
-        _mode (ThreadSafeValue): Current flight mode name.
+        _system: The MAVSDK system instance.
+        _has_heartbeat: Whether a heartbeat has been received.
+        _home_location: The captured home position.
+        _armed_state: Current arm status.
+        _mode: Current flight mode name.
     """
 
     _system: Optional[System]
@@ -295,8 +295,8 @@ class Vehicle:
         Initialize the vehicle and connect to the autopilot.
 
         Args:
-            connection_string (str): MAVLink connection string (e.g., 'udp://:14540').
-            mavsdk_server_port (int): Port for the embedded mavsdk_server gRPC interface.
+            connection_string: MAVLink connection string (e.g., 'udp://:14540').
+            mavsdk_server_port: Port for the embedded mavsdk_server gRPC interface.
                 Each Vehicle instance should use a unique port to avoid conflicts.
                 Defaults to 50051.
 
@@ -979,7 +979,7 @@ class Vehicle:
         Wait for pre-arm conditions (GPS fix, etc.) to be satisfied.
 
         Args:
-            should_arm (bool): Whether to perform arming later.
+            should_arm: Whether to perform arming later.
         """
         logger.debug(
             f"_preflight_wait(should_arm={should_arm}) called"

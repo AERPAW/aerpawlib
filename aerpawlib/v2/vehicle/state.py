@@ -14,7 +14,11 @@ from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 
 
 class VehicleState:
-    """Mutable state updated by telemetry subscriptions."""
+    """Mutable telemetry state updated by MAVSDK subscription callbacks.
+
+    All attributes are updated in-place on the single asyncio event loop;
+    no locking is required.
+    """
 
     def __init__(self) -> None:
         # Position
@@ -43,80 +47,130 @@ class VehicleState:
 
     @property
     def position(self) -> Coordinate:
+        """Return the current position as a Coordinate (relative altitude)."""
         return Coordinate(
             self._position_lat, self._position_lon, self._position_alt
         )
 
     @property
     def home_coords(self) -> Optional[Coordinate]:
+        """Return the home coordinate, or None if not yet received."""
         return self._home
 
     @property
     def home_amsl(self) -> float:
+        """Return the home position altitude above mean sea level (AMSL) in metres."""
         return self._home_abs_alt
 
     @property
     def velocity(self) -> VectorNED:
+        """Return the current velocity as a NED vector (m/s)."""
         return self._velocity_ned
 
     @property
     def heading(self) -> float:
+        """Return the current heading in degrees, normalised to [0, 360)."""
         return self._heading_deg % 360
 
     @property
     def attitude(self) -> Attitude:
+        """Return the current attitude (roll, pitch, yaw in radians)."""
         return self._attitude
 
     @property
     def battery(self) -> Battery:
+        """Return the latest battery telemetry."""
         return self._battery
 
     @property
     def gps(self) -> GPSInfo:
+        """Return the latest GPS telemetry."""
         return self._gps
 
     @property
     def armed(self) -> bool:
+        """Return True if the vehicle is currently armed."""
         return self._armed
 
     @property
     def armable(self) -> bool:
+        """Return True if the vehicle reports it can be armed."""
         return self._armable
 
     @property
     def mode(self) -> str:
+        """Return the current flight mode name (e.g. 'GUIDED', 'OFFBOARD')."""
         return self._mode
 
     @property
     def last_arm_time(self) -> float:
+        """Return the monotonic timestamp of the last arm event (0.0 if never armed)."""
         return self._last_arm_time
 
     def update_position(
         self, lat: float, lon: float, rel_alt: float, abs_alt: float
     ) -> None:
-        self._position_lat = lat
+        """Update position from a telemetry message.
+
+        Args:
+            lat: Latitude in degrees.
+            lon: Longitude in degrees.
+            rel_alt: Relative altitude in metres (above home).
+            abs_alt: Absolute altitude (AMSL) in metres.
+        """
         self._position_lon = lon
         self._position_alt = rel_alt
         self._position_abs_alt = abs_alt
 
     def update_attitude(self, roll: float, pitch: float, yaw: float) -> None:
-        self._attitude = Attitude(roll, pitch, yaw)
+        """Update attitude and derive heading from yaw.
+
+        Args:
+            roll: Roll angle in radians.
+            pitch: Pitch angle in radians.
+            yaw: Yaw angle in radians.
+        """
         self._heading_deg = math.degrees(yaw) % 360
 
     def update_velocity(self, north: float, east: float, down: float) -> None:
-        self._velocity_ned = VectorNED(north, east, down)
+        """Update the NED velocity vector.
+
+        Args:
+            north: North component in m/s.
+            east: East component in m/s.
+            down: Down component in m/s.
+        """
 
     def update_gps(self, fix_type: int, satellites: int) -> None:
-        self._gps = GPSInfo(fix_type, satellites)
+        """Update GPS status.
+
+        Args:
+            fix_type: MAVSDK GPS fix type integer (0–3+).
+            satellites: Number of satellites visible.
+        """
 
     def update_battery(self, voltage: float, current: float, level: int) -> None:
-        self._battery = Battery(voltage, current, level)
+        """Update battery telemetry.
+
+        Args:
+            voltage: Battery voltage in volts.
+            current: Battery current draw in amperes.
+            level: Remaining charge as an integer percentage (0–100).
+        """
 
     def update_mode(self, mode: str) -> None:
-        self._mode = mode
+        """Update the current flight mode name.
+
+        Args:
+            mode: Flight mode string as reported by MAVSDK (e.g. 'OFFBOARD').
+        """
 
     def update_armed(self, armed: bool) -> None:
-        old = self._armed
+        """Update the armed state and record arm timestamp on transition to armed.
+
+        Args:
+            armed: True if the vehicle is now armed.
+        """
         self._armed = armed
         self._armed_telemetry_received = True
         if armed and not old:
@@ -128,8 +182,23 @@ class VehicleState:
         home_ok: bool,
         armable: bool,
     ) -> None:
-        self._armable = global_ok and home_ok and armable
+        """Update the armable flag from health telemetry.
+
+        The vehicle is considered armable only when all three conditions are True.
+
+        Args:
+            global_ok: True if global position estimate is OK.
+            home_ok: True if home position is set.
+            armable: True if the vehicle's own health check passes.
+        """
 
     def update_home(self, lat: float, lon: float, rel_alt: float, abs_alt: float) -> None:
-        self._home = Coordinate(lat, lon, rel_alt)
+        """Update the home position.
+
+        Args:
+            lat: Home latitude in degrees.
+            lon: Home longitude in degrees.
+            rel_alt: Home relative altitude in metres (typically 0).
+            abs_alt: Home absolute altitude (AMSL) in metres.
+        """
         self._home_abs_alt = abs_alt

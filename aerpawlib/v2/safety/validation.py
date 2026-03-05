@@ -17,7 +17,14 @@ class PreflightChecks:
 
     @staticmethod
     async def check_gps_fix(vehicle: VehicleProtocol) -> bool:
-        """Require 3D GPS fix."""
+        """Check that the vehicle has a 3D GPS fix.
+
+        Args:
+            vehicle: Vehicle to inspect.
+
+        Returns:
+            True if fix_type >= 3, False otherwise.
+        """
         if vehicle.gps.fix_type >= 3:
             logger.debug(f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})")
             return True
@@ -26,7 +33,15 @@ class PreflightChecks:
 
     @staticmethod
     async def check_battery(vehicle: VehicleProtocol, min_percent: float = 10.0) -> bool:
-        """Require minimum battery."""
+        """Check that the vehicle battery is above the minimum threshold.
+
+        Args:
+            vehicle: Vehicle to inspect.
+            min_percent: Minimum acceptable battery percentage (default 10.0).
+
+        Returns:
+            True if battery level >= min_percent, False otherwise.
+        """
         if vehicle.battery.level >= min_percent:
             logger.debug(f"Preflight: Battery OK ({vehicle.battery.level}% >= {min_percent}%)")
             return True
@@ -35,7 +50,14 @@ class PreflightChecks:
 
     @staticmethod
     async def run_all(vehicle: VehicleProtocol) -> bool:
-        """Run all preflight checks. Returns True if all pass."""
+        """Run all preflight checks and return True only if every check passes.
+
+        Args:
+            vehicle: Vehicle to run checks against.
+
+        Returns:
+            True if all checks pass, False if any check fails.
+        """
         logger.info("PreflightChecks: running all checks")
         gps_ok = await PreflightChecks.check_gps_fix(vehicle)
         bat_ok = await PreflightChecks.check_battery(vehicle)

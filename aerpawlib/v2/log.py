@@ -6,6 +6,7 @@ Wraps aerpawlib.log with v2-specific component names.
 
 from __future__ import annotations
 
+import logging
 from typing import Union
 
 from aerpawlib.log import (
@@ -29,7 +30,14 @@ class LogComponent:
 
 
 def get_logger(component: Union[LogComponent, str] = LogComponent.ROOT):
-    """Get logger for v2 component."""
+    """Return a logger for the specified v2 component.
+
+    Args:
+        component: A LogComponent constant or a dotted logger name string.
+
+    Returns:
+        A standard Python logger configured for the given component.
+    """
     name = component if isinstance(component, str) else component.value
     return _get_logger(name)
 

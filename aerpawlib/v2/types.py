@@ -23,27 +23,56 @@ class VectorNED:
     down: float = 0.0
 
     def rotate_by_angle(self, angle_deg: float) -> "VectorNED":
-        """Rotate by angle in degrees (counterclockwise from above)."""
+        """Rotate the vector by the given angle.
+
+        Args:
+            angle_deg: Rotation angle in degrees, counterclockwise when viewed
+                from above.
+
+        Returns:
+            New VectorNED rotated by angle_deg.
+        """
         rads = angle_deg / 180 * math.pi
         east = self.east * math.cos(rads) - self.north * math.sin(rads)
         north = self.east * math.sin(rads) + self.north * math.cos(rads)
         return VectorNED(north, east, self.down)
 
     def hypot(self, ignore_down: bool = False) -> float:
-        """Magnitude in meters."""
+        """Return the magnitude of the vector in meters.
+
+        Args:
+            ignore_down: If True, compute only the horizontal (2D) magnitude.
+
+        Returns:
+            Euclidean norm, optionally ignoring the down component.
+        """
         if ignore_down:
             return math.hypot(self.north, self.east)
         return math.sqrt(self.north**2 + self.east**2 + self.down**2)
 
     def norm(self) -> "VectorNED":
-        """Unit vector in same direction."""
+        """Return the unit vector in the same direction.
+
+        Returns:
+            Normalised VectorNED, or VectorNED(0, 0, 0) if magnitude is zero.
+        """
         h = self.hypot()
         if h == 0:
             return VectorNED(0, 0, 0)
         return VectorNED(self.north / h, self.east / h, self.down / h)
 
     def cross_product(self, other: "VectorNED") -> "VectorNED":
-        """Cross product of self and other (self x other)."""
+        """Return the cross product of self and other (self × other).
+
+        Args:
+            other: The right-hand operand.
+
+        Returns:
+            New VectorNED representing the cross product.
+
+        Raises:
+            TypeError: If other is not a VectorNED.
+        """
         if not isinstance(other, VectorNED):
             raise TypeError()
         return VectorNED(
@@ -79,14 +108,37 @@ class Coordinate:
     alt: float = 0.0
 
     def ground_distance(self, other: "Coordinate") -> float:
-        """Horizontal distance in meters."""
+        """Return the horizontal (2D) distance to another coordinate in meters.
+
+        Args:
+            other: Target coordinate.
+
+        Returns:
+            Ground distance in metres, ignoring altitude difference.
+
+        Raises:
+            TypeError: If other is not a Coordinate.
+        """
         if not isinstance(other, Coordinate):
             raise TypeError()
         other = Coordinate(other.lat, other.lon, self.alt)
         return self.distance(other)
 
     def distance(self, other: "Coordinate") -> float:
-        """3D distance in meters (Haversine + altitude)."""
+        """Return the 3D distance to another coordinate in meters.
+
+        Uses the Haversine formula for ground distance then combines with
+        the altitude difference via Pythagoras.
+
+        Args:
+            other: Target coordinate.
+
+        Returns:
+            3D distance in metres.
+
+        Raises:
+            TypeError: If other is not a Coordinate.
+        """
         if not isinstance(other, Coordinate):
             raise TypeError()
         d2r = math.pi / 180
@@ -103,7 +155,18 @@ class Coordinate:
         return math.hypot(d_ground, other.alt - self.alt)
 
     def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
-        """Bearing to other in degrees."""
+        """Return the bearing from this coordinate to another in degrees.
+
+        Args:
+            other: Target coordinate.
+            wrap_360: If True (default), wrap the result to [0, 360).
+
+        Returns:
+            Bearing in degrees.
+
+        Raises:
+            TypeError: If other is not a Coordinate.
+        """
         if not isinstance(other, Coordinate):
             raise TypeError()
         d_lat = other.lat - self.lat
@@ -147,7 +210,11 @@ class Coordinate:
         raise TypeError()
 
     def to_json(self) -> str:
-        """JSON representation."""
+        """Return a JSON string representation of the coordinate.
+
+        Returns:
+            JSON string with lat, lon, and alt fields.
+        """
         return json.dumps({"lat": self.lat, "lon": self.lon, "alt": self.alt})
 
 

@@ -11,7 +11,7 @@ import json
 import socket
 
 import math
-from typing import List, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
 from pykml import parser
 
@@ -31,26 +31,26 @@ class VectorNED:
     Makes use of the NED (North, East, Down) scheme, with units in meters.
 
     Attributes:
-        north (float): Displacement in the North direction (meters).
-        east (float): Displacement in the East direction (meters).
-        down (float): Displacement in the Down direction (meters).
+        north: Displacement in the North direction (meters).
+        east: Displacement in the East direction (meters).
+        down: Displacement in the Down direction (meters).
     """
 
     north: float
     east: float
     down: float
 
-    def __init__(self, north: float, east: float, down: float = 0):
+    def __init__(self, north: float, east: float, down: float = 0) -> None:
         self.north = north
         self.east = east
         self.down = down
 
-    def rotate_by_angle(self, angle: float):
+    def rotate_by_angle(self, angle: float) -> "VectorNED":
         """
         Rotate the vector by a given angle in the horizontal plane.
 
         Args:
-            angle (float): The rotation angle in degrees (counterclockwise
+            angle: The rotation angle in degrees (counterclockwise
                 when viewed from above).
 
         Returns:
@@ -63,12 +63,12 @@ class VectorNED:
 
         return VectorNED(north, east, self.down)
 
-    def cross_product(self, o):
+    def cross_product(self, o: "VectorNED") -> "VectorNED":
         """
         Calculate the cross product of this vector and another.
 
         Args:
-            o (VectorNED): The other vector.
+            o: The other vector.
 
         Returns:
             VectorNED: The cross product result (self x o).
@@ -84,12 +84,12 @@ class VectorNED:
             self.north * o.east - self.east * o.north,
         )
 
-    def hypot(self, ignore_down: bool = False):
+    def hypot(self, ignore_down: bool = False) -> float:
         """
         Calculate the magnitude (length) of the vector.
 
         Args:
-            ignore_down (bool, optional): If True, calculate only the 2D ground
+            ignore_down: If True, calculate only the 2D ground
                 distance (North/East). Defaults to False.
 
         Returns:
@@ -100,7 +100,7 @@ class VectorNED:
         else:
             return math.sqrt(self.north**2 + self.east**2 + self.down**2)
 
-    def norm(self):
+    def norm(self) -> "VectorNED":
         """
         Returns a unit vector in the same direction as this vector.
 
@@ -113,21 +113,21 @@ class VectorNED:
             return VectorNED(0, 0, 0)
         return (1 / hypot) * self
 
-    def __add__(self, o):
+    def __add__(self, o: "VectorNED") -> "VectorNED":
         if not isinstance(o, VectorNED):
             raise TypeError()
         return VectorNED(
             self.north + o.north, self.east + o.east, self.down + o.down
         )
 
-    def __sub__(self, o):
+    def __sub__(self, o: "VectorNED") -> "VectorNED":
         if not isinstance(o, VectorNED):
             raise TypeError()
         return VectorNED(
             self.north - o.north, self.east - o.east, self.down - o.down
         )
 
-    def __mul__(self, o):
+    def __mul__(self, o: Union[float, int]) -> "VectorNED":
         if not (isinstance(o, float) or isinstance(o, int)):
             raise TypeError()
         return VectorNED(self.north * o, self.east * o, self.down * o)
@@ -145,26 +145,26 @@ class Coordinate:
     An absolute point in WGS84 space.
 
     Attributes:
-        lat (float): Latitude in degrees.
-        lon (float): Longitude in degrees.
-        alt (float): Altitude in meters relative to home location.
+        lat: Latitude in degrees.
+        lon: Longitude in degrees.
+        alt: Altitude in meters relative to home location.
     """
 
     lat: float
     lon: float
     alt: float
 
-    def __init__(self, lat: float, lon: float, alt: float = 0):
+    def __init__(self, lat: float, lon: float, alt: float = 0) -> None:
         self.lat = lat
         self.lon = lon
         self.alt = alt
 
-    def ground_distance(self, other) -> float:
+    def ground_distance(self, other: "Coordinate") -> float:
         """
         Calculate the horizontal distance to another coordinate.
 
         Args:
-            other (Coordinate): The target coordinate.
+            other: The target coordinate.
 
         Returns:
             float: Ground distance in meters.
@@ -178,14 +178,14 @@ class Coordinate:
         other = Coordinate(other.lat, other.lon, self.alt)
         return self.distance(other)
 
-    def distance(self, other) -> float:
+    def distance(self, other: "Coordinate") -> float:
         """
         Calculate the 3D distance to another coordinate.
 
         Uses the Haversine formula for ground distance and accounts for altitude.
 
         Args:
-            other (Coordinate): The target coordinate.
+            other: The target coordinate.
 
         Returns:
             float: 3D distance in meters.
@@ -207,13 +207,13 @@ class Coordinate:
         d = 6378.137 * c  # WGS84 equatorial radius in km
         return math.hypot(d * 1000, other.alt - self.alt)
 
-    def bearing(self, other, wrap_360: bool = True) -> float:
+    def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
         """
         Calculate the bearing (compass angle) to another coordinate.
 
         Args:
-            other (Coordinate): The target coordinate.
-            wrap_360 (bool, optional): Whether to wrap the result to [0, 360).
+            other: The target coordinate.
+            wrap_360: Whether to wrap the result to [0, 360).
                 Defaults to True.
 
         Returns:
@@ -237,7 +237,7 @@ class Coordinate:
             bearing %= 360
         return bearing
 
-    def __add__(self, o):
+    def __add__(self, o: "VectorNED") -> "Coordinate":
         if isinstance(o, VectorNED):
             north = o.north
             east = o.east
@@ -275,10 +275,10 @@ class Coordinate:
         else:
             raise TypeError()
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.lat},{self.lon},{self.alt})"
 
-    def to_json(self):
+    def to_json(self) -> str:
         """
         Serialize the coordinate to a JSON string.
 
@@ -287,7 +287,7 @@ class Coordinate:
         """
         return json.dumps(self, default=lambda o: o.__dict__)
 
-    def toJson(self):
+    def toJson(self) -> str:
         return self.to_json()
 
 
@@ -304,8 +304,8 @@ def read_from_plan(
     Parse a QGroundControl .plan file into a list of Waypoints.
 
     Args:
-        path (str): Path to the .plan file.
-        default_speed (float, optional): Speed to use if none specified in plan.
+        path: Path to the .plan file.
+        default_speed: Speed to use if none specified in plan.
             Defaults to DEFAULT_WAYPOINT_SPEED.
 
     Returns:
@@ -336,7 +336,7 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
     Extract a Coordinate object from a Waypoint tuple.
 
     Args:
-        waypoint (Waypoint): The waypoint tuple.
+        waypoint: The waypoint tuple.
 
     Returns:
         Coordinate: The extracted location.
@@ -346,15 +346,15 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
 
 def read_from_plan_complete(
     path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
-):
+) -> List[Dict]:
     """
     Read a .plan file and return detailed waypoint dictionaries.
 
     Includes additional fields like wait_for delay.
 
     Args:
-        path (str): Path to the .plan file.
-        default_speed (float, optional): Default speed in m/s.
+        path: Path to the .plan file.
+        default_speed: Default speed in m/s.
 
     Returns:
         List[dict]: List of waypoint data dictionaries.
@@ -385,12 +385,12 @@ def read_from_plan_complete(
     return waypoints
 
 
-def read_geofence(filePath):
+def read_geofence(filePath: str) -> List[Dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
     Args:
-        filePath (str): Path to the KML file.
+        filePath: Path to the KML file.
 
     Returns:
         List[dict]: Points as [{'lat': ..., 'lon': ...}, ...].
@@ -411,18 +411,18 @@ def read_geofence(filePath):
     return polygon
 
 
-def readGeofence(filePath):
+def readGeofence(filePath: str) -> List[Dict]:
     return read_geofence(filePath)
 
 
-def inside(lon, lat, geofence):
+def inside(lon: float, lat: float, geofence: List[Dict]) -> bool:
     """
     Determine if a point is inside a polygon using ray-casting.
 
     Args:
-        lon (float): Longitude of point.
-        lat (float): Latitude of point.
-        geofence (list): List of {'lat': ..., 'lon': ...} points.
+        lon: Longitude of point.
+        lat: Latitude of point.
+        geofence: List of {'lat': ..., 'lon': ...} points.
 
     Returns:
         bool: True if inside, False otherwise.
@@ -448,7 +448,7 @@ def inside(lon, lat, geofence):
     return inside
 
 
-def lies_on_segment(px, py, qx, qy, rx, ry):
+def lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
     """
     Check if point Q lies on line segment PR.
 
@@ -470,11 +470,11 @@ def lies_on_segment(px, py, qx, qy, rx, ry):
     return False
 
 
-def liesOnSegment(px, py, qx, qy, rx, ry):
+def liesOnSegment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
     return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
-def orientation(px, py, qx, qy, rx, ry):
+def orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> int:
     """
     Find the orientation of an ordered triplet (p, q, r).
 
@@ -493,7 +493,7 @@ def orientation(px, py, qx, qy, rx, ry):
         return 0  # Colinear
 
 
-def do_intersect(px, py, qx, qy, rx, ry, sx, sy):
+def do_intersect(px: float, py: float, qx: float, qy: float, rx: float, ry: float, sx: float, sy: float) -> bool:
     """
     Check if line segment PQ intersects with segment RS.
 
@@ -526,7 +526,7 @@ def do_intersect(px, py, qx, qy, rx, ry, sx, sy):
     return False
 
 
-def doIntersect(px, py, qx, qy, rx, ry, sx, sy):
+def doIntersect(px: float, py: float, qx: float, qy: float, rx: float, ry: float, sx: float, sy: float) -> bool:
     return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
 
 

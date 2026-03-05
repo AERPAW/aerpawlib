@@ -46,6 +46,11 @@ class AERPAW_Platform:
             self._initialized = True
 
     def _attach(self) -> bool:
+        """Attempt to connect to the AERPAW forward server.
+
+        Returns:
+            True if the forward server responded, False otherwise.
+        """
         try:
             requests.post(
                 f"http://{self._forw_addr}:{self._forw_port}/ping",
@@ -58,10 +63,15 @@ class AERPAW_Platform:
             return False
 
     def _is_aerpaw_environment(self) -> bool:
+        """Return True if the AERPAW forward server is reachable."""
         return self._connected
 
     def set_no_stdout(self, value: bool) -> None:
-        """Suppress stdout when True."""
+        """Suppress stdout logging when True.
+
+        Args:
+            value: If True, log messages are not printed to stdout.
+        """
         self._no_stdout = value
 
     def log_to_oeo(
@@ -70,7 +80,17 @@ class AERPAW_Platform:
         severity: str = OEO_MSG_SEV_INFO,
         agent_id: Optional[str] = None,
     ) -> None:
-        """Send message to OEO console."""
+        """Send a message to the OEO console.
+
+        Logs locally according to severity, then forwards to the OEO forward
+        server if connected.
+
+        Args:
+            msg: Human-readable message to send.
+            severity: One of the OEO_MSG_SEV_* constants (INFO, WARNING, ERROR,
+                CRITICAL).
+            agent_id: Optional agent identifier appended to the request URL.
+        """
         if not self._no_stdout:
             if severity == OEO_MSG_SEV_CRIT:
                 logger.critical(msg)

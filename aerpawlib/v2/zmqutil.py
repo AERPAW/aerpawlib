@@ -13,11 +13,14 @@ logger = get_logger(LogComponent.ZMQ)
 
 
 def check_zmq_proxy_reachable(proxy_addr: str, timeout_s: float = 2.0) -> bool:
-    """
-    Check if ZMQ proxy is reachable before starting a runner.
+    """Check if the ZMQ proxy is reachable before starting a runner.
+
+    Args:
+        proxy_addr: Hostname or IP address of the ZMQ proxy.
+        timeout_s: Connection attempt timeout in seconds.
 
     Returns:
-        True if proxy port accepts connections.
+        True if the proxy port accepts TCP connections within the timeout.
     """
     try:
         with socket.create_connection(
@@ -29,10 +32,10 @@ def check_zmq_proxy_reachable(proxy_addr: str, timeout_s: float = 2.0) -> bool:
 
 
 def run_zmq_proxy() -> None:
-    """
-    Start ZMQ forwarder (XSUB/XPUB proxy). Blocking.
+    """Start a ZMQ XSUB/XPUB forwarder proxy. Blocking.
 
-    Start proxy before runners that use ZMQ bindings.
+    Start this proxy in a separate process before launching any runners that
+    use ZMQ bindings (ZmqStateMachine).
     """
     import zmq
 

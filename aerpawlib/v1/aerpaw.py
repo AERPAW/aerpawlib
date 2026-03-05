@@ -38,11 +38,11 @@ class AERPAW:
     This class provides methods for logging to the AERPAW OEO-Console and using the AERPAW checkpoint system.
 
     Attributes:
-        _forw_addr (str): The IP address of the forward server.
-        _forw_port (int): The port of the forward server service.
-        _connected (bool): Whether the object is successfully connected to the AERPAW platform.
-        _connection_warning_displayed (bool): Whether the connection warning has been shown.
-        _no_stdout (bool): If True, suppresses printing to standard output.
+        _forw_addr: The IP address of the forward server.
+        _forw_port: The port of the forward server service.
+        _connected: Whether the object is successfully connected to the AERPAW platform.
+        _connection_warning_displayed: Whether the connection warning has been shown.
+        _no_stdout: If True, suppresses printing to standard output.
     """
 
     _forw_addr: str
@@ -56,8 +56,8 @@ class AERPAW:
         Initialize the AERPAW platform interface.
 
         Args:
-            forw_addr (str): The IP address of the forward server. Defaults to DEFAULT_FORWARD_SERVER_IP.
-            forw_port (int): The port of the forward server service. Defaults to DEFAULT_FORWARD_SERVER_PORT.
+            forw_addr: The IP address of the forward server. Defaults to DEFAULT_FORWARD_SERVER_IP.
+            forw_port: The port of the forward server service. Defaults to DEFAULT_FORWARD_SERVER_PORT.
         """
         self._forw_addr = forw_addr
         self._forw_port = forw_port
@@ -96,16 +96,16 @@ class AERPAW:
             logger.info("the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment")
         self._connection_warning_displayed = True
 
-    def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID):
+    def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID) -> None:
         """
         Send a message to the OEO console, if connected.
 
         Prints the message to stdout regardless of connection status, unless _no_stdout is True.
 
         Args:
-            msg (str): The message to log.
-            severity (str): The severity level of the message. Defaults to OEO_MSG_SEV_INFO.
-            agent_id (str): The ID of the agent sending the message. Defaults to DEFAULT_HUMAN_READABLE_AGENT_ID.
+            msg: The message to log.
+            severity: The severity level of the message. Defaults to OEO_MSG_SEV_INFO.
+            agent_id: The ID of the agent sending the message. Defaults to DEFAULT_HUMAN_READABLE_AGENT_ID.
 
         Raises:
             Exception: If the provided severity is not supported.
@@ -149,8 +149,8 @@ class AERPAW:
         Builds a checkpoint request URL.
 
         Args:
-            var_type (str): The type of the checkpoint variable ('bool', 'int', or 'string').
-            var_name (str): The name of the checkpoint variable.
+            var_type: The type of the checkpoint variable ('bool', 'int', or 'string').
+            var_name: The name of the checkpoint variable.
 
         Returns:
             str: The full URL for the checkpoint request.
@@ -185,7 +185,7 @@ class AERPAW:
         Set a boolean checkpoint in the AERPAW checkpoint system.
 
         Args:
-            checkpoint_name (str): The name of the checkpoint to set.
+            checkpoint_name: The name of the checkpoint to set.
 
         Raises:
             Exception: If not in an AERPAW environment or if the server returns an error.
@@ -207,7 +207,7 @@ class AERPAW:
         Check if a boolean checkpoint has been set.
 
         Args:
-            checkpoint_name (str): The name of the checkpoint to check.
+            checkpoint_name: The name of the checkpoint to check.
 
         Returns:
             bool: True if the checkpoint is set, False otherwise.
@@ -240,7 +240,7 @@ class AERPAW:
         Increment an integer counter in the AERPAW checkpoint system.
 
         Args:
-            counter_name (str): The name of the counter to increment.
+            counter_name: The name of the counter to increment.
 
         Raises:
             Exception: If not in an AERPAW environment or if the server returns an error.
@@ -262,7 +262,7 @@ class AERPAW:
         Get the current value of an integer counter.
 
         Args:
-            counter_name (str): The name of the counter to check.
+            counter_name: The name of the counter to check.
 
         Returns:
             int: The current value of the counter. Defaults to 0 if never incremented.
@@ -294,8 +294,8 @@ class AERPAW:
         Set a string value in the AERPAW checkpoint system.
 
         Args:
-            string_name (str): The key for the string value.
-            value (str): The string value to store.
+            string_name: The key for the string value.
+            value: The string value to store.
 
         Raises:
             Exception: If not in an AERPAW environment or if the server returns an error.
@@ -318,7 +318,7 @@ class AERPAW:
         Get a string value from the AERPAW checkpoint system.
 
         Args:
-            string_name (str): The key for the string value.
+            string_name: The key for the string value.
 
         Returns:
             str: The stored string value.

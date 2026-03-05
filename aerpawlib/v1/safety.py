@@ -32,13 +32,13 @@ logger = get_logger(LogComponent.SAFETY)
 
 
 # serialize a safety checker request
-def serialize_request(request_function: str, params: list):
+def serialize_request(request_function: str, params: list) -> bytes:
     """
     Serialize a safety checker request into a compressed JSON format.
 
     Args:
-        request_function (str): The name of the function to request on the server.
-        params (list): List of parameters for the request function.
+        request_function: The name of the function to request on the server.
+        params: List of parameters for the request function.
 
     Returns:
         bytes: Compressed byte string of the serialized JSON.
@@ -53,14 +53,14 @@ def serialize_request(request_function: str, params: list):
 
 
 # serialize a safety checker response
-def serialize_response(request_function: str, result: bool, message: str = ""):
+def serialize_response(request_function: str, result: bool, message: str = "") -> bytes:
     """
     Serialize a safety checker response into a compressed JSON format.
 
     Args:
-        request_function (str): The name of the function that was requested.
-        result (bool): Whether the request was successful/valid.
-        message (str, optional): Additional information or error reason. Defaults to "".
+        request_function: The name of the function that was requested.
+        result: Whether the request was successful/valid.
+        message: Additional information or error reason. Defaults to "".
 
     Returns:
         bytes: Compressed byte string of the serialized JSON.
@@ -75,12 +75,12 @@ def serialize_response(request_function: str, result: bool, message: str = ""):
     return serialize_msg(raw_msg)
 
 
-def serialize_msg(raw_json):
+def serialize_msg(raw_json: str) -> bytes:
     """
     Compress JSON message using zlib.
 
     Args:
-        raw_json (str): The JSON string to compress.
+        raw_json: The JSON string to compress.
 
     Returns:
         bytes: Compressed data.
@@ -89,12 +89,12 @@ def serialize_msg(raw_json):
     return compressed_msg
 
 
-def deserialize_msg(compressed_msg):
+def deserialize_msg(compressed_msg: bytes) -> Dict:
     """
     Decompress and parse a JSON message using zlib.
 
     Args:
-        compressed_msg (bytes): The compressed data to decompress.
+        compressed_msg: The compressed data to decompress.
 
     Returns:
         dict: The parsed JSON message as a dictionary.
@@ -109,8 +109,8 @@ class SafetyCheckerClient:
     A client for communicating with the SafetyCheckerServer via ZMQ.
 
     Attributes:
-        context (zmq.Context): The ZMQ context.
-        socket (zmq.Socket): The REQ socket for sending requests.
+        context: The ZMQ context.
+        socket: The REQ socket for sending requests.
     """
 
     def __init__(
@@ -120,9 +120,9 @@ class SafetyCheckerClient:
         Initialize the safety checker client.
 
         Args:
-            addr (str): The IP address of the safety checker server.
-            port (int): The port the server is listening on.
-            timeout_s (float): Timeout for send/recv in seconds. Prevents indefinite
+            addr: The IP address of the safety checker server.
+            port: The port the server is listening on.
+            timeout_s: Timeout for send/recv in seconds. Prevents indefinite
                 block if server is down. Defaults to SAFETY_CHECKER_REQUEST_TIMEOUT_S.
         """
         self._timeout_s = timeout_s
@@ -135,7 +135,7 @@ class SafetyCheckerClient:
         self.socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
         self.socket.connect(f"tcp://{addr}:{port}")
 
-    def close(self):
+    def close(self) -> None:
         """Close the ZMQ socket and context to free resources."""
         self.socket.close()
         self.context.term()
@@ -152,21 +152,21 @@ class SafetyCheckerClient:
         self.socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
         self.socket.connect(f"tcp://{self._addr}:{self._port}")
 
-    def __enter__(self):
+    def __enter__(self) -> "SafetyCheckerClient":
         return self
 
-    def __exit__(self, *_exc):
+    def __exit__(self, *_exc) -> bool:
         self.close()
         return False
 
-    def send_request(self, msg):
+    def send_request(self, msg: bytes) -> Dict:
         """
         Generic function to send a request to the safety checker server.
 
         Sends the provided raw message, then deserializes the response.
 
         Args:
-            msg (bytes): The serialized request message.
+            msg: The serialized request message.
 
         Returns:
             dict: The deserialized response from the server.
@@ -186,25 +186,25 @@ class SafetyCheckerClient:
         logger.debug(f"Received reply [{message}]")
         return message
 
-    def sendRequest(self, msg):
+    def sendRequest(self, msg: bytes) -> Dict:
         return self.send_request(msg)
 
-    def parse_response(self, response):
+    def parse_response(self, response: Dict) -> Tuple[bool, str]:
         """
         Parse a response dictionary from the safety checker server.
 
         Args:
-            response (dict): The response dictionary to parse.
+            response: The response dictionary to parse.
 
         Returns:
             Tuple[bool, str]: A tuple containing (result, message).
         """
         return response["result"], response["message"]
 
-    def parseResponse(self, response):
+    def parseResponse(self, response: Dict) -> Tuple[bool, str]:
         return self.parse_response(response)
 
-    def check_server_status(self):
+    def check_server_status(self) -> Tuple[bool, str]:
         """
         Verify the safety checker server is reachable and active.
 
@@ -215,10 +215,10 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def checkServerStatus(self):
+    def checkServerStatus(self) -> Tuple[bool, str]:
         return self.check_server_status()
 
-    def validate_waypoint_command(self, current_location: Coordinate, next_location: Coordinate):
+    def validate_waypoint_command(self, current_location: Coordinate, next_location: Coordinate) -> Tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside geofence and avoids no-go zones.
         Returns a tuple (bool, str)
@@ -230,10 +230,10 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateWaypointCommand(self, curLoc: Coordinate, nextLoc: Coordinate):
+    def validateWaypointCommand(self, curLoc: Coordinate, nextLoc: Coordinate) -> Tuple[bool, str]:
         return self.validate_waypoint_command(curLoc, nextLoc)
 
-    def validate_change_speed_command(self, new_speed):
+    def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
         """
         Makes sure the provided new_speed lies within the configured vehicle constraints
         Returns (False, <error message>) if the speed violates constraints, else (True, "").
@@ -242,10 +242,10 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateChangeSpeedCommand(self, newSpeed):
+    def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
         return self.validate_change_speed_command(newSpeed)
 
-    def validate_takeoff_command(self, takeoff_alt, current_lat, current_lon):
+    def validate_takeoff_command(self, takeoff_alt: float, current_lat: float, current_lon: float) -> Tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints
         Returns (False, <error message>) if the altitude violates constraints, else (True, "").
@@ -256,10 +256,10 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateTakeoffCommand(self, takeoffAlt, currentLat, currentLon):
+    def validateTakeoffCommand(self, takeoffAlt: float, currentLat: float, currentLon: float) -> Tuple[bool, str]:
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
-    def validate_landing_command(self, current_lat, current_lon):
+    def validate_landing_command(self, current_lat: float, current_lon: float) -> Tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff location
         Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
@@ -268,7 +268,7 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateLandingCommand(self, currentLat, currentLon):
+    def validateLandingCommand(self, currentLat: float, currentLon: float) -> Tuple[bool, str]:
         return self.validate_landing_command(currentLat, currentLon)
 
 
@@ -278,7 +278,7 @@ def _polygon_edges(polygon):
     closing edge from the last vertex back to the first.
 
     Args:
-        polygon (list): List of {'lat': ..., 'lon': ...} points.
+        polygon: List of {'lat': ..., 'lon': ...} points.
 
     Yields:
         Tuple[dict, dict]: Pairs of adjacent vertices.
@@ -294,15 +294,15 @@ class SafetyCheckerServer:
     A server that validates vehicle commands against geofences and constraints.
 
     Attributes:
-        REQUEST_FUNCTIONS (dict): Mapping of request types to handler methods.
-        vehicle_type (str): Type of vehicle ('copter' or 'rover').
-        include_geofences (list): List of allowed regions.
-        exclude_geofences (list): List of no-go zones.
-        max_speed (float): Maximum allowed speed (m/s).
-        min_speed (float): Minimum allowed speed (m/s).
-        max_alt (float, optional): Maximum allowed altitude for copters.
-        min_alt (float, optional): Minimum allowed altitude for copters.
-        takeoff_location (Coordinate): The location where takeoff was performed.
+        REQUEST_FUNCTIONS: Mapping of request types to handler methods.
+        vehicle_type: Type of vehicle ('copter' or 'rover').
+        include_geofences: List of allowed regions.
+        exclude_geofences: List of no-go zones.
+        max_speed: Maximum allowed speed (m/s).
+        min_speed: Minimum allowed speed (m/s).
+        max_alt: Maximum allowed altitude for copters.
+        min_alt: Minimum allowed altitude for copters.
+        takeoff_location: The location where takeoff was performed.
     """
 
     # valid vehicle types
@@ -323,8 +323,8 @@ class SafetyCheckerServer:
         Initialize the safety checker server and start listening.
 
         Args:
-            vehicle_config_filename (str): Path to the YAML configuration file.
-            server_port (int, optional): Port to bind the server to. Defaults to 14580.
+            vehicle_config_filename: Path to the YAML configuration file.
+            server_port: Port to bind the server to. Defaults to 14580.
         """
         # Construct map between function request strings and functions
         self.REQUEST_FUNCTIONS = {
@@ -363,12 +363,12 @@ class SafetyCheckerServer:
         # start server BLOCKING
         self.start_server(server_port)
 
-    def start_server(self, port):
+    def start_server(self, port: int) -> None:
         """
         Start the ZMQ server loop. Blocks until the program is terminated.
 
         Args:
-            port (int): The port to bind to.
+            port: The port to bind to.
         """
         context = zmq.Context()
         socket = context.socket(zmq.REP)
@@ -407,13 +407,13 @@ class SafetyCheckerServer:
                 socket.send(error_resp)
                 # Do NOT re-raise — keep the server running
 
-    def validate_config(self, config: Dict, vehicle_config_filename: str):
+    def validate_config(self, config: Dict, vehicle_config_filename: str) -> None:
         """
         Ensures that the provided config dict contains all necessary parameters.
 
         Args:
-            config (Dict): The configuration dictionary loaded from YAML.
-            vehicle_config_filename (str): Filename for error reporting.
+            config: The configuration dictionary loaded from YAML.
+            vehicle_config_filename: Filename for error reporting.
 
         Raises:
             Exception: If the configuration is invalid or missing required keys.
@@ -517,7 +517,7 @@ class SafetyCheckerServer:
     ) -> Tuple[bool, str]:
         return self.validate_waypoint_command(curLoc, nextLoc)
 
-    def validate_change_speed_command(self, new_speed) -> Tuple[bool, str]:
+    def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
         """
         Makes sure the provided newSpeed lies within the configured vehicle constraints
         Returns (False, <error message>) if the speed violates constraints, else (True, "").
@@ -537,10 +537,10 @@ class SafetyCheckerServer:
         # New speed is valid
         return True, ""
 
-    def validateChangeSpeedCommand(self, newSpeed) -> Tuple[bool, str]:
+    def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
         return self.validate_change_speed_command(newSpeed)
 
-    def validate_takeoff_command(self, takeoff_alt, current_lat, current_lon):
+    def validate_takeoff_command(self, takeoff_alt: float, current_lat: float, current_lon: float) -> Tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints
         Returns (False, <error message>) if the altitude violates constraints, else (True, "").
@@ -557,10 +557,10 @@ class SafetyCheckerServer:
         # Takeoff command is valid
         return True, ""
 
-    def validateTakeoffCommand(self, takeoffAlt, currentLat, currentLon):
+    def validateTakeoffCommand(self, takeoffAlt: float, currentLat: float, currentLon: float) -> Tuple[bool, str]:
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
-    def validate_landing_command(self, current_lat, current_lon):
+    def validate_landing_command(self, current_lat: float, current_lon: float) -> Tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff location
         Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
@@ -583,11 +583,11 @@ class SafetyCheckerServer:
         # Landing command is valid
         return True, ""
 
-    def validateLandingCommand(self, currentLat, currentLon):
+    def validateLandingCommand(self, currentLat: float, currentLon: float) -> Tuple[bool, str]:
         return self.validate_landing_command(currentLat, currentLon)
 
     # Client Request Handlers
-    def server_status_handler(self, *_params):
+    def server_status_handler(self, *_params) -> bytes:
         """
         Handler for server status requests.
 
@@ -599,16 +599,16 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def serverStatusHandler(self, *_params):
+    def serverStatusHandler(self, *_params) -> bytes:
         return self.server_status_handler(*_params)
 
-    def validate_waypoint_handler(self, current_json_location, next_json_location, *_params):
+    def validate_waypoint_handler(self, current_json_location: str, next_json_location: str, *_params) -> bytes:
         """
         Handler for waypoint validation requests.
 
         Args:
-            current_json_location (str): JSON string representing the current Coordinate.
-            next_json_location (str): JSON string representing the target Coordinate.
+            current_json_location: JSON string representing the current Coordinate.
+            next_json_location: JSON string representing the target Coordinate.
 
         Returns:
             bytes: Serialized validation response.
@@ -632,15 +632,15 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateWaypointHandler(self, curLocJSON, nextLocJSON, *_params):
+    def validateWaypointHandler(self, curLocJSON: str, nextLocJSON: str, *_params) -> bytes:
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
 
-    def validate_change_speed_handler(self, new_speed, *_params):
+    def validate_change_speed_handler(self, new_speed: float, *_params) -> bytes:
         """
         Handler for speed change validation requests.
 
         Args:
-            new_speed (float): The requested new speed.
+            new_speed: The requested new speed.
 
         Returns:
             bytes: Serialized validation response.
@@ -653,19 +653,19 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateChangeSpeedHandler(self, newSpeed, *_params):
+    def validateChangeSpeedHandler(self, newSpeed: float, *_params) -> bytes:
         return self.validate_change_speed_handler(newSpeed, *_params)
 
     def validate_takeoff_handler(
-        self, takeoff_alt, current_lat, current_lon, *_params
-    ):
+        self, takeoff_alt: float, current_lat: float, current_lon: float, *_params
+    ) -> bytes:
         """
         Handler for takeoff validation requests.
 
         Args:
-            takeoff_alt (float): The requested takeoff altitude.
-            current_lat (float): Current latitude.
-            current_lon (float): Current longitude.
+            takeoff_alt: The requested takeoff altitude.
+            current_lat: Current latitude.
+            current_lon: Current longitude.
 
         Returns:
             bytes: Serialized validation response.
@@ -681,19 +681,19 @@ class SafetyCheckerServer:
         return msg
 
     def validateTakeoffHandler(
-        self, takeoffAlt, currentLat, currentLon, *_params
-    ):
+        self, takeoffAlt: float, currentLat: float, currentLon: float, *_params
+    ) -> bytes:
         return self.validate_takeoff_handler(
             takeoffAlt, currentLat, currentLon, *_params
         )
 
-    def validate_landing_handler(self, current_lat, current_lon, *_params):
+    def validate_landing_handler(self, current_lat: float, current_lon: float, *_params) -> bytes:
         """
         Handler for landing validation requests.
 
         Args:
-            current_lat (float): Current latitude.
-            current_lon (float): Current longitude.
+            current_lat: Current latitude.
+            current_lon: Current longitude.
 
         Returns:
             bytes: Serialized validation response.
@@ -706,7 +706,7 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateLandingHandler(self, currentLat, currentLon, *_params):
+    def validateLandingHandler(self, currentLat: float, currentLon: float, *_params) -> bytes:
         return self.validate_landing_handler(currentLat, currentLon, *_params)
 
 

@@ -48,6 +48,7 @@ class Drone(Vehicle):
     """Drone implementation for multirotors."""
 
     def __init__(self, *args, **kwargs) -> None:
+        """Initialise the Drone, forwarding all arguments to Vehicle."""
         super().__init__(*args, **kwargs)
         self._current_heading: Optional[float] = None
         self._velocity_loop_active = False
@@ -106,7 +107,16 @@ class Drone(Vehicle):
         blocking: bool = True,
         lock_in: bool = True,
     ) -> None:
-        """Command heading. None clears locked heading."""
+        """Command the drone to face a given heading.
+
+        Args:
+            heading: Target heading in degrees (0–360). Pass None to clear
+                the currently locked heading.
+            blocking: If True (default), wait until the heading is reached
+                before returning.
+            lock_in: If True (default), store the heading so subsequent
+                goto_coordinates commands maintain it.
+        """
         if blocking:
             await self.await_ready_to_move()
         if heading is None:
@@ -154,7 +164,16 @@ class Drone(Vehicle):
         altitude: float,
         min_alt_tolerance: float = DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
     ) -> None:
-        """Takeoff to altitude (m)."""
+        """Command the drone to take off to the given altitude.
+
+        Args:
+            altitude: Target relative altitude in metres above the home point.
+            min_alt_tolerance: Fraction of the target altitude that must be
+                reached before takeoff is considered complete (default 0.95).
+
+        Raises:
+            TakeoffError: If the MAVSDK takeoff command fails.
+        """
         logger.info(f"Drone: takeoff to {altitude}m (min_alt_tolerance={min_alt_tolerance})")
         await self.await_ready_to_move()
         time_since_arm = time.time() - self._state.last_arm_time
@@ -188,7 +207,11 @@ class Drone(Vehicle):
             raise TakeoffError(str(e), original_error=e)
 
     async def land(self) -> None:
-        """Land and wait for disarm."""
+        """Command the drone to land and wait for disarm.
+
+        Raises:
+            LandingError: If the land command fails or times out.
+        """
         logger.info("Drone: land")
         await self.await_ready_to_move()
         try:
@@ -209,7 +232,11 @@ class Drone(Vehicle):
             self._expecting_disarm = False
 
     async def return_to_launch(self) -> None:
-        """RTL and wait for disarm."""
+        """Command Return-to-Launch (RTL) and wait for disarm.
+
+        Raises:
+            RTLError: If the RTL command fails or times out.
+        """
         logger.info("Drone: return_to_launch (RTL)")
         await self.await_ready_to_move()
         try:
@@ -237,7 +264,24 @@ class Drone(Vehicle):
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
     ) -> Optional[VehicleTask]:
-        """Goto coordinates. If blocking=False, returns VehicleTask."""
+        """Fly to the given coordinates.
+
+        Args:
+            coordinates: Target position (lat, lon, relative alt in metres).
+            tolerance: Arrival radius in metres (default 2 m).
+            target_heading: Optional heading to face before navigating.
+            timeout: Maximum seconds to wait when blocking (default 300 s).
+            blocking: If True (default), await arrival before returning.
+                If False, return a VehicleTask handle immediately.
+
+        Returns:
+            None when blocking=True; a VehicleTask handle when blocking=False.
+
+        Raises:
+            NavigationError: If the goto_location MAVSDK call fails.
+            TimeoutError: If blocking=True and the drone does not arrive within
+                timeout.
+        """
         logger.info(
             f"Drone: goto_coordinates ({coordinates.lat:.6f}, {coordinates.lon:.6f}, "
             f"alt={coordinates.alt}m) tolerance={tolerance}m, blocking={blocking}"
@@ -349,7 +393,22 @@ class Drone(Vehicle):
         global_relative: bool = True,
         duration: Optional[float] = None,
     ) -> None:
-        """Set velocity in NED frame."""
+        """Set the drone's velocity in the NED frame.
+
+        Enters offboard mode and sends the velocity setpoint. The velocity loop
+        runs until the next movement command or until duration expires.
+
+        Args:
+            velocity: Desired velocity as a NED vector (m/s).
+            global_relative: If True (default), the vector is in the global NED
+                frame. If False, the vector is rotated by the drone's current
+                heading before being sent.
+            duration: If given, hold the velocity for this many seconds then
+                stop. If None, the velocity runs until the next command.
+
+        Raises:
+            VelocityError: If offboard mode cannot be started.
+        """
         logger.info(
             f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, "
             f"{velocity.down:.2f}) m/s, duration={duration}s"
@@ -415,7 +474,7 @@ class Drone(Vehicle):
         await self._stop_offboard()
 
     async def _stop_offboard(self) -> None:
-        """Stop offboard mode."""
+        """Stop offboard mode and zero velocity setpoint."""
         self._velocity_loop_active = False
         if self._closed or self._system is None:
             logger.debug("_stop_offboard: skipped (vehicle closed)")

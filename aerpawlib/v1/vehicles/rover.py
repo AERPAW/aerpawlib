@@ -61,8 +61,8 @@ class Rover(Vehicle):
         Initialize the rover.
 
         Args:
-            connection_string (str): MAVLink connection string.
-            mavsdk_server_port (int): Port for the embedded mavsdk_server gRPC interface.
+            connection_string: MAVLink connection string.
+            mavsdk_server_port: Port for the embedded mavsdk_server gRPC interface.
                 Each Vehicle instance should use a unique port to avoid conflicts.
                 Defaults to 50051.
         """

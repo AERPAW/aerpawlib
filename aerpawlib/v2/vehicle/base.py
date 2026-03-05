@@ -35,7 +35,19 @@ logger = get_logger(LogComponent.VEHICLE)
 
 
 def _validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:
-    """Validate tolerance is within bounds."""
+    """Validate that tolerance is within acceptable bounds.
+
+    Args:
+        tolerance: Tolerance value in metres to validate.
+        param_name: Name of the parameter (used in error messages).
+
+    Returns:
+        The validated tolerance value (unchanged).
+
+    Raises:
+        ValueError: If tolerance is outside [MIN_POSITION_TOLERANCE_M,
+            MAX_POSITION_TOLERANCE_M].
+    """
     if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
         raise ValueError(
             f"{param_name} must be between {MIN_POSITION_TOLERANCE_M} and "
@@ -50,7 +62,21 @@ async def _wait_for_condition(
     poll_interval: float = 0.05,
     timeout_message: str = "Operation timed out",
 ) -> bool:
-    """Wait for condition. Uses minimal poll_interval to yield to event loop."""
+    """Wait until a condition callable returns True.
+
+    Args:
+        condition: Zero-argument callable; returns True when the wait is over.
+        timeout: Maximum seconds to wait. None means wait indefinitely.
+        poll_interval: Seconds between condition checks; also yields the
+            event loop between checks.
+        timeout_message: Message used in the TimeoutError if the wait expires.
+
+    Returns:
+        True when the condition becomes True.
+
+    Raises:
+        TimeoutError: If timeout is reached before the condition is satisfied.
+    """
     start = time.monotonic()
     while not condition():
         if timeout is not None and (time.monotonic() - start) > timeout:
@@ -118,6 +144,7 @@ class VehicleTask:
                 )
 
     def is_cancelled(self) -> bool:
+        """Return True if cancel() has been called."""
         return self._cancelled
 
     async def wait_done(self) -> None:
@@ -165,7 +192,11 @@ class Vehicle:
         self.safety: Optional[Any] = safety
 
     def set_heartbeat_tick_callback(self, cb: Callable[[], None]) -> None:
-        """Set callback invoked when heartbeat/telemetry received."""
+        """Set a callback invoked whenever telemetry is received.
+
+        Args:
+            cb: Zero-argument callable; typically ConnectionHandler.heartbeat_tick.
+        """
         self._heartbeat_tick_cb = cb
 
     def _heartbeat_tick(self) -> None:
@@ -179,6 +210,7 @@ class Vehicle:
 
     @property
     def connected(self) -> bool:
+        """Return True if the vehicle is running and not closed."""
         return self._running and not self._closed
 
     @property
@@ -311,14 +343,20 @@ class Vehicle:
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Optional[Any] = None,
     ) -> "Vehicle":
-        """
-        Connect to vehicle. Returns initialized instance.
+        """Connect to vehicle and start telemetry.
 
         Args:
-            connection_string: MAVLink connection string.
-            mavsdk_server_port: gRPC port for mavsdk_server.
+            connection_string: MAVLink connection string (e.g. ``udp://:14550``).
+            mavsdk_server_port: gRPC port for the mavsdk_server process.
             timeout: Connection timeout in seconds.
-            safety: SafetyCheckerClient or NoOpSafetyChecker. None disables safety checks.
+            safety: SafetyCheckerClient or NoOpSafetyChecker. None disables
+                safety checks in can_takeoff/can_goto/can_land.
+
+        Returns:
+            Initialised and connected Vehicle instance with telemetry running.
+
+        Raises:
+            ConnectionTimeoutError: If no heartbeat is received within timeout.
         """
         logger.info(
             f"Connecting to vehicle at {connection_string} "
@@ -552,7 +590,7 @@ class Vehicle:
         logger.debug(f"Started {len(self._telemetry_tasks)} telemetry tasks")
 
     def done_moving(self) -> bool:
-        """True if ready for next command."""
+        """Return True if the vehicle is ready to accept the next command."""
         return self._ready_to_move(self)
 
     async def _arm_vehicle(self) -> None:
@@ -631,7 +669,12 @@ class Vehicle:
         logger.debug(f"set_armed({value}) completed successfully")
 
     def _get_health_summary(self) -> str:
-        """Human-readable health status."""
+        """Return a human-readable summary of current health/GPS/armable status.
+
+        Returns:
+            Short string describing GPS fix type, satellites visible, and
+            armable flag.
+        """
         return (
             f"GPS fix: {self._state.gps.fix_type}, "
             f"sats: {self._state.gps.satellites_visible}, "
@@ -682,7 +725,18 @@ class Vehicle:
         tolerance: float = 2.0,
         target_heading: Optional[float] = None,
     ) -> None:
-        """Override in subclass."""
+        """Navigate to the given coordinates.
+
+        Override in Drone and Rover subclasses.
+
+        Args:
+            coordinates: Target position.
+            tolerance: Arrival tolerance in metres.
+            target_heading: Optional heading to face at the destination.
+
+        Raises:
+            NotImplementedError: Always; must be overridden in a subclass.
+        """
         raise NotImplementedError("Generic Vehicle cannot navigate")
 
 
@@ -690,7 +744,11 @@ class DummyVehicle(Vehicle):
     """No-op vehicle for testing without hardware."""
 
     def __init__(self, *, safety: Optional[Any] = None) -> None:
-        # Skip parent init - no system
+        """Initialise a no-op vehicle with default state suitable for dry-runs.
+
+        Args:
+            safety: Optional safety checker; defaults to None (no safety checks).
+        """
         self._state = VehicleState()
         self._state.update_position(35.727436, -78.696587, 0.0, 0.0)
         self._state.update_gps(3, 10)
@@ -721,6 +779,17 @@ class DummyVehicle(Vehicle):
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Optional[Any] = None,
     ) -> "DummyVehicle":
+        """Return a DummyVehicle without opening any real connection.
+
+        Args:
+            connection_string: Ignored.
+            mavsdk_server_port: Ignored.
+            timeout: Ignored.
+            safety: Passed to the DummyVehicle constructor.
+
+        Returns:
+            A new DummyVehicle instance.
+        """
         return cls(safety=safety)
 
     async def goto_coordinates(
