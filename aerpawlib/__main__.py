@@ -786,6 +786,10 @@ def main():
             module_name = os.path.splitext(os.path.basename(script_path))[0]
             spec = importlib.util.spec_from_file_location(module_name, script_path)
             experimenter_script = importlib.util.module_from_spec(spec)
+            if spec.loader is None:
+                raise ImportError(
+                    f"Cannot load module from {script_path}: no loader available"
+                )
             spec.loader.exec_module(experimenter_script)
         else:
             experimenter_script = importlib.import_module(script_arg)
