@@ -2,7 +2,7 @@
 Geofence v2 Example - Validate waypoints with read_geofence, inside, do_intersect.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.geofence_example \
+    aerpawlib --api-version v2 --script examples/v2/geofence_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

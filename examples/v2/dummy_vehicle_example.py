@@ -2,7 +2,7 @@
 DummyVehicle v2 Example - BasicRunner with DummyVehicle for dry-run / CI.
 
 Run with (no SITL required):
-    aerpawlib --api-version v2 --script examples.v2.dummy_vehicle_example \
+    aerpawlib --api-version v2 --script examples/v2/dummy_vehicle_example.py \
         --vehicle none --conn ""
 """
 

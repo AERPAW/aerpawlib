@@ -2,7 +2,7 @@
 StateMachine v2 Example - States, timed_state, background
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.state_machine_example \
+    aerpawlib --api-version v2 --script examples/v2/state_machine_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

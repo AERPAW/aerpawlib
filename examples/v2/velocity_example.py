@@ -2,7 +2,7 @@
 Velocity control v2 Example - Drone using set_velocity for manual flight.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.velocity_example \
+    aerpawlib --api-version v2 --script examples/v2/velocity_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

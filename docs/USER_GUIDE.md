@@ -25,7 +25,7 @@ This guide provides an overview of supported workflows, features, and how to run
 
 3. Run with aerpawlib:
    ```bash
-   aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
+   aerpawlib --script my_mission.py --conn udp://127.0.0.1:14550 --vehicle drone
    ```
 
 ## Supported Workflows
@@ -51,7 +51,7 @@ class SimpleMission(BasicRunner):
 
 Run:
 ```bash
-aerpawlib --script my_mission --conn udp://127.0.0.1:14550 --vehicle drone
+aerpawlib --script my_mission.py --conn udp://127.0.0.1:14550 --vehicle drone
 ```
 
 ---
@@ -126,14 +126,14 @@ Setup:
 
 Leader:
 ```bash
-aerpawlib --script examples.v1.zmq_runner.leader \
+aerpawlib --script examples/v1/zmq_runner/leader.py \
   --conn udp://127.0.0.1:14550 --vehicle drone \
   --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 ```
 
 Follower:
 ```bash
-aerpawlib --script examples.v1.zmq_runner.follower \
+aerpawlib --script examples/v1/zmq_runner/follower.py \
   --conn udp://127.0.0.1:14551 --vehicle drone \
   --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
@@ -159,7 +159,7 @@ for cmd, x, y, z, wp_id, speed in waypoints:
 
 Run:
 ```bash
-aerpawlib --script examples.v1.preplanned_trajectory \
+aerpawlib --script examples/v1/preplanned_trajectory.py \
   --conn udp://127.0.0.1:14550 --vehicle drone --plan mission.plan
 ```
 
@@ -218,11 +218,11 @@ Standalone/SITL: vehicle auto-arms after armable state is reached.
 ### Command-Line Interface
 
 ```bash
-aerpawlib --script <module> --conn <connection> --vehicle <type> [options]
+aerpawlib --script <path/to/script.py> --conn <connection> --vehicle <type> [options]
 ```
 
 Required:
-- `--script`: Python module path (e.g., `examples.v1.basic_example` or `my_mission`)
+- `--script`: Path to the Python script file (e.g., `my_mission.py` or `examples/v1/basic_example.py`)
 - `--conn`: MAVLink connection string
 - `--vehicle`: `drone`, `rover`, or `none` (for DummyVehicle)
 
@@ -241,7 +241,7 @@ Use `--config` to load options from JSON:
 
 ```json
 {
-  "script": "examples.v1.basic_example",
+  "script": "examples/v1/basic_example.py",
   "conn": "udp://127.0.0.1:14550",
   "vehicle": "drone",
   "verbose": true

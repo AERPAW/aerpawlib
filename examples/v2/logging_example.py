@@ -2,7 +2,7 @@
 Logging v2 Example - Structured logging with get_logger and LogComponent.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.logging_example \
+    aerpawlib --api-version v2 --script examples/v2/logging_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

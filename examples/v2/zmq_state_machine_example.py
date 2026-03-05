@@ -6,7 +6,7 @@ Run with:
     aerpawlib --run-proxy
 
     # Terminal 2: run this script
-    aerpawlib --api-version v2 --script examples.v2.zmq_state_machine_example \
+    aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550 \
         --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 """

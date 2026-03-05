@@ -2,7 +2,7 @@
 at_init v2 Example - StateMachine with @at_init for pre-arm setup.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.at_init_example \
+    aerpawlib --api-version v2 --script examples/v2/at_init_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

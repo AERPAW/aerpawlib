@@ -59,28 +59,28 @@ examples/
 
 ```bash
 # Basic examples
-aerpawlib --api-version v1 --script examples.v1.basic_example \
+aerpawlib --api-version v1 --script examples/v1/basic_example.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 
-aerpawlib --api-version v1 --script examples.v1.basic_runner \
+aerpawlib --api-version v1 --script examples/v1/basic_runner.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 
-aerpawlib --api-version v1 --script examples.v1.figure_eight \
+aerpawlib --api-version v1 --script examples/v1/figure_eight.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 
 # State machine examples
-aerpawlib --script examples.v1.circle \
+aerpawlib --script examples/v1/circle.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 
-aerpawlib --script examples.v1.squareoff_logging \
+aerpawlib --script examples/v1/squareoff_logging.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 
 # Preplanned trajectory (requires .plan file)
-aerpawlib --script examples.v1.preplanned_trajectory \
+aerpawlib --script examples/v1/preplanned_trajectory.py \
     --vehicle drone --conn udp://127.0.0.1:14550 --file mission.plan
 
 # External process
-aerpawlib --script examples.v1.external_runner \
+aerpawlib --script examples/v1/external_runner.py \
     --vehicle drone --conn udp://127.0.0.1:14550
 ```
 
@@ -90,11 +90,11 @@ Requires `aerpawlib --run-proxy` in a separate terminal first.
 
 ```bash
 # Leader/follower
-aerpawlib --script examples.v1.zmq_runner.leader \
+aerpawlib --script examples/v1/zmq_runner/leader.py \
     --conn udp://127.0.0.1:14550 --vehicle drone \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 
-aerpawlib --script examples.v1.zmq_runner.follower \
+aerpawlib --script examples/v1/zmq_runner/follower.py \
     --conn udp://127.0.0.1:14551 --vehicle drone \
     --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
@@ -106,7 +106,7 @@ See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_or
 ```bash
 aerpawlib --run-proxy  # Terminal 1
 
-aerpawlib --api-version v2 --script examples.v2.zmq_state_machine_example \
+aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
     --vehicle drone --conn udpin://127.0.0.1:14550 \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1  # Terminal 2
 ```

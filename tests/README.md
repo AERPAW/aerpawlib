@@ -72,7 +72,6 @@ pytest tests/integration/ -v --no-sitl
 | `--sitl-port-drone PORT` | UDP port for ArduCopter SITL (default: 14550)                                     |
 | `--sitl-port-rover PORT` | UDP port for ArduRover SITL (default: 14560)                                      |
 | `--no-sitl`              | Do not start SITL; use externally running instance                                |
-| `--no-sitl-manage`       | Pytest does not start/stop SITL; use external SITL (default: pytest manages SITL) |
 
 ### Log files
 

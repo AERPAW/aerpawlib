@@ -2,7 +2,7 @@
 Rover v2 Example - BasicRunner with Rover: 2D waypoints, no takeoff/land.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.rover_example \
+    aerpawlib --api-version v2 --script examples/v2/rover_example.py \
         --vehicle rover --conn udpin://127.0.0.1:14560
 """
 

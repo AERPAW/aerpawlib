@@ -151,7 +151,7 @@ See [tests/README.md](../tests/README.md) for full details.
 ### Verbose Vehicle State
 
 ```bash
-aerpawlib --script my_mission --conn ... --vehicle drone --debug-dump
+aerpawlib --script my_mission.py --conn ... --vehicle drone --debug-dump
 ```
 
 Writes CSV of vehicle state to `aerpawlib_vehicle_dump_*.csv`.
@@ -159,9 +159,9 @@ Writes CSV of vehicle state to `aerpawlib_vehicle_dump_*.csv`.
 ### Log Level
 
 ```bash
-aerpawlib --script my_mission ... --debug   # DEBUG
-aerpawlib --script my_mission ... -v       # INFO
-aerpawlib --script my_mission ... -q       # WARNING only
+aerpawlib --script my_mission.py ... --debug   # DEBUG
+aerpawlib --script my_mission.py ... -v       # INFO
+aerpawlib --script my_mission.py ... -q       # WARNING only
 ```
 
 ### SITL Verbosity

@@ -5,7 +5,7 @@ Requires a .plan file (e.g. from QGroundControl). Create mission.plan in the scr
 or pass path via --file.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.plan_example \
+    aerpawlib --api-version v2 --script examples/v2/plan_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

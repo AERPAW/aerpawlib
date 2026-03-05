@@ -57,10 +57,10 @@ The passthrough checker (`NoOpSafetyChecker`) always returns success for all val
 
 ```bash
 # Non-AERPAW: optional, uses passthrough if not provided or connection fails
-aerpawlib --api-version v2 --script my_script --vehicle drone --conn ... --safety-checker-port 14580
+aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn ... --safety-checker-port 14580
 
 # AERPAW: defaults to 14580; must succeed or program exits
-aerpawlib --api-version v2 --script my_script --vehicle drone --conn ...
+aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn ...
 ```
 
 ## SafetyCheckerClient

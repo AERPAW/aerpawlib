@@ -2,7 +2,7 @@
 Enhanced v2 Example - PreflightChecks, command validation (can_takeoff, can_goto)
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.enhanced_example \
+    aerpawlib --api-version v2 --script examples/v2/enhanced_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

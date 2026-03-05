@@ -2,7 +2,7 @@
 Basic v2 API Example - Square Pattern Flight
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.basic_example \
+    aerpawlib --api-version v2 --script examples/v2/basic_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint

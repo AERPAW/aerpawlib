@@ -7,7 +7,7 @@ This script demonstrates the v1 API with a simple mission:
 3. Return to start and land
 
 Run with:
-    aerpawlib --api-version v1 --script examples.v1.basic_example \
+    aerpawlib --api-version v1 --script examples/v1/basic_example.py \
         --vehicle drone --conn udp:127.0.0.1:14550
 """
 

@@ -111,14 +111,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--no-sitl",
         action="store_true",
-        help="Skip SITL-managed integration tests (SITL must be running externally)",
-    )
-    parser.addoption(
-        "--no-sitl-manage",
-        action="store_false",
-        dest="sitl_manage",
-        default=True,
-        help="Pytest does not start/stop SITL; use external SITL (default: pytest manages SITL)",
+        help="Do not start/stop SITL; use an externally running SITL instance",
     )
 
 
@@ -316,7 +309,7 @@ def sitl_manager_drone(request: pytest.FixtureRequest) -> SITLManager:
     """Session-scoped ArduCopter SITL manager for drone tests."""
     port = _get_sitl_port_drone(request.config)
     no_sitl = request.config.getoption("--no-sitl", default=False)
-    manage = request.config.getoption("sitl_manage", default=True) and not no_sitl
+    manage = not no_sitl
 
     manager = SITLManager(
         port=port,
@@ -335,7 +328,7 @@ def sitl_manager_rover(request: pytest.FixtureRequest) -> SITLManager:
     """Session-scoped Rover SITL manager for rover tests."""
     port = _get_sitl_port_rover(request.config)
     no_sitl = request.config.getoption("--no-sitl", default=False)
-    manage = request.config.getoption("sitl_manage", default=True) and not no_sitl
+    manage = not no_sitl
 
     manager = SITLManager(
         port=port,

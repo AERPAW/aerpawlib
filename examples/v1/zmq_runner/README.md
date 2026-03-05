@@ -16,7 +16,7 @@ transitions.
 
    ```bash
    aerpawlib \
-     --script examples.v1.zmq_runner.leader \
+     --script examples/v1/zmq_runner/leader.py \
      --conn udp:127.0.0.1:14550 \
      --vehicle drone \
      --zmq-identifier leader \
@@ -27,7 +27,7 @@ transitions.
 
    ```bash
    aerpawlib \
-     --script examples.v1.zmq_runner.follower \
+     --script examples/v1/zmq_runner/follower.py \
      --conn udp:127.0.0.1:14551 \
      --vehicle drone \
      --zmq-identifier follower \

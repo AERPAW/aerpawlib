@@ -2,14 +2,14 @@
 Tool used to run aerpawlib scripts that make use of a Runner class.
 
 usage:
-    aerpawlib --script <script import path> --conn <connection string> \
+    aerpawlib --script <script path> --conn <connection string> \
             --vehicle <vehicle type>
 
 example:
-    aerpawlib --script experimenter_script --conn /dev/ttyACM0 \
+    aerpawlib --script my_mission.py --conn /dev/ttyACM0 \
             --vehicle drone
 
-    aerpawlib --script experimenter_script --conn udp:127.0.0.1:14550 \
+    aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 \
             --vehicle drone
 """
 
@@ -18,6 +18,7 @@ example:
 
 import asyncio
 import importlib
+import importlib.util
 import inspect
 import json
 import logging
@@ -595,7 +596,7 @@ def main():
     # Core Arguments
     core_grp = parser.add_argument_group("Core Arguments")
     core_grp.add_argument(
-        "--script", help="experimenter script", required=not proxy_mode
+        "--script", help="path to experimenter script (e.g. my_mission.py)", required=not proxy_mode
     )
     core_grp.add_argument(
         "--conn", "--connection", help="connection string", required=not proxy_mode
@@ -776,7 +777,17 @@ def main():
     # import script
     logger.debug(f"Loading experimenter script: {args.script}")
     try:
-        experimenter_script = importlib.import_module(args.script)
+        script_arg = args.script
+        # Accept file paths (e.g. "my_mission.py", "examples/v1/basic_example.py")
+        # or dotted module names (legacy, e.g. "examples.v1.basic_example")
+        if os.sep in script_arg or "/" in script_arg or script_arg.endswith(".py"):
+            script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
+            module_name = os.path.splitext(os.path.basename(script_path))[0]
+            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            experimenter_script = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(experimenter_script)
+        else:
+            experimenter_script = importlib.import_module(script_arg)
         logger.debug(
             f"Time to import experimenter script: {time.time() - start_time:.2f}s"
         )

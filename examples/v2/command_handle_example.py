@@ -2,7 +2,7 @@
 VehicleTask v2 Example - Non-blocking goto with progress and cancel
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.command_handle_example \
+    aerpawlib --api-version v2 --script examples/v2/command_handle_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 

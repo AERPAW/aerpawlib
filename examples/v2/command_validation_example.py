@@ -2,7 +2,7 @@
 Command validation v2 Example - Use can_takeoff and can_goto before commands.
 
 Run with:
-    aerpawlib --api-version v2 --script examples.v2.command_validation_example \
+    aerpawlib --api-version v2 --script examples/v2/command_validation_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 
