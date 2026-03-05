@@ -118,6 +118,7 @@ class VehicleState:
             rel_alt: Relative altitude in metres (above home).
             abs_alt: Absolute altitude (AMSL) in metres.
         """
+        self._position_lat = lat
         self._position_lon = lon
         self._position_alt = rel_alt
         self._position_abs_alt = abs_alt
@@ -131,6 +132,7 @@ class VehicleState:
             yaw: Yaw angle in radians.
         """
         self._heading_deg = math.degrees(yaw) % 360
+        self._attitude = Attitude(roll, pitch, yaw)
 
     def update_velocity(self, north: float, east: float, down: float) -> None:
         """Update the NED velocity vector.
@@ -140,6 +142,7 @@ class VehicleState:
             east: East component in m/s.
             down: Down component in m/s.
         """
+        self._velocity_ned = VectorNED(north, east, down)
 
     def update_gps(self, fix_type: int, satellites: int) -> None:
         """Update GPS status.
@@ -148,6 +151,7 @@ class VehicleState:
             fix_type: MAVSDK GPS fix type integer (0–3+).
             satellites: Number of satellites visible.
         """
+        self._gps = GPSInfo(fix_type, satellites)
 
     def update_battery(self, voltage: float, current: float, level: int) -> None:
         """Update battery telemetry.
@@ -157,6 +161,7 @@ class VehicleState:
             current: Battery current draw in amperes.
             level: Remaining charge as an integer percentage (0–100).
         """
+        self._battery = Battery(voltage, current, level)
 
     def update_mode(self, mode: str) -> None:
         """Update the current flight mode name.
@@ -164,6 +169,7 @@ class VehicleState:
         Args:
             mode: Flight mode string as reported by MAVSDK (e.g. 'OFFBOARD').
         """
+        self._mode = mode
 
     def update_armed(self, armed: bool) -> None:
         """Update the armed state and record arm timestamp on transition to armed.
@@ -171,10 +177,11 @@ class VehicleState:
         Args:
             armed: True if the vehicle is now armed.
         """
+        old = self._armed
         self._armed = armed
         self._armed_telemetry_received = True
         if armed and not old:
-            self._last_arm_time = time.time()
+            self._last_arm_time = time.monotonic()
 
     def update_armable(
         self,
@@ -191,6 +198,7 @@ class VehicleState:
             home_ok: True if home position is set.
             armable: True if the vehicle's own health check passes.
         """
+        self._armable = global_ok and home_ok and armable
 
     def update_home(self, lat: float, lon: float, rel_alt: float, abs_alt: float) -> None:
         """Update the home position.
@@ -202,3 +210,4 @@ class VehicleState:
             abs_alt: Home absolute altitude (AMSL) in metres.
         """
         self._home_abs_alt = abs_alt
+        self._home = Coordinate(lat, lon, rel_alt)
