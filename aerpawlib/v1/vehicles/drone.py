@@ -49,10 +49,8 @@ class Drone(Vehicle):
     navigation, and velocity control.
 
     Attributes:
-        _velocity_loop_active: Whether a background velocity command loop is running.
+        _velocity_generation: Generation counter to detect stale velocity loops.
     """
-
-    _velocity_loop_active: bool = False
 
     def __init__(self, connection_string: str, mavsdk_server_port: int = 50051):
         """
@@ -68,6 +66,7 @@ class Drone(Vehicle):
             NotArmableError: If the vehicle is already armed (safety check).
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
+        self._velocity_generation: int = 0
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._armed_telemetry_received.get():
@@ -136,8 +135,8 @@ class Drone(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
-            except OffboardError:
-                pass
+            except OffboardError as e:
+                logger.warning("Failed to start offboard mode: %s", e)
 
             self._ready_to_move = (
                 lambda s: heading_difference(heading, s.heading)
@@ -331,8 +330,8 @@ class Drone(Vehicle):
             VelocityError: If offboard mode cannot be started.
         """
         await self.await_ready_to_move()
-        self._velocity_loop_active = False
-        # Brief wait for previous velocity loop to observe flag and exit
+        self._velocity_generation += 1
+        # Brief wait for previous velocity loop to observe change and exit
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
 
         if not global_relative:
@@ -358,19 +357,19 @@ class Drone(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
-            except OffboardError:
-                pass
+            except OffboardError as e:
+                logger.warning("Failed to start offboard mode: %s", e)
 
             self._ready_to_move = lambda _: True
             target_end = (
                 time.monotonic() + duration if duration is not None else None
             )
+            gen = self._velocity_generation
 
             async def _velocity_helper():
                 try:
-                    while self._velocity_loop_active:
+                    while self._velocity_generation == gen:
                         if target_end and time.monotonic() > target_end:
-                            self._velocity_loop_active = False
                             # Zero velocity before stopping offboard to prevent
                             # the flight controller from holding the last
                             # commanded velocity vector
@@ -395,7 +394,6 @@ class Drone(Vehicle):
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                 except Exception as e:
                     logger.error(f"Velocity helper error: {e}")
-                    self._velocity_loop_active = False
                     try:
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.set_velocity_ned(
@@ -408,14 +406,14 @@ class Drone(Vehicle):
                     except Exception as e:
                         logger.debug("Velocity helper cleanup failed: %s", e)
 
-            self._velocity_loop_active = True
-            asyncio.ensure_future(_velocity_helper())
+            task = asyncio.create_task(_velocity_helper())
+            self._command_tasks.append(task)
         except (OffboardError, ActionError) as e:
             raise VelocityError(str(e), original_error=e)
 
     async def _stop(self) -> None:
         await super()._stop()
-        self._velocity_loop_active = False
+        self._velocity_generation += 1
         # Explicitly zero velocity and exit offboard mode to ensure clean
         # state transition between velocity and position commands
         try:

@@ -22,6 +22,7 @@ from ..constants import (
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_LANDING_REQ,
 )
+from ..exceptions import AerpawlibError
 from ..log import LogComponent, get_logger
 from ..types import Coordinate
 
@@ -34,8 +35,22 @@ def _serialize_request(request_function: str, params: list) -> bytes:
 
 
 def _deserialize_response(data: bytes) -> dict:
-    raw = zlib.decompress(data).decode("utf-8")
-    return json.loads(raw)
+    try:
+        raw = zlib.decompress(data)
+    except zlib.error as e:
+        raise AerpawlibError(
+            "Failed to decompress safety checker response",
+            code="SAFETY_CHECKER_DECODE_ERROR",
+            original_error=e,
+        ) from e
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except json.JSONDecodeError as e:
+        raise AerpawlibError(
+            "Failed to parse safety checker response as JSON",
+            code="SAFETY_CHECKER_DECODE_ERROR",
+            original_error=e,
+        ) from e
 
 
 class NoOpSafetyChecker:
@@ -138,9 +153,16 @@ class SafetyCheckerClient:
         self._port = port
         self._timeout_s = timeout_s
         logger.info(f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)")
-        self._ctx = zmq.asyncio.Context()
-        self._socket = self._ctx.socket(zmq.REQ)
-        self._socket.connect(f"tcp://{addr}:{port}")
+        try:
+            self._ctx = zmq.asyncio.Context()
+            self._socket = self._ctx.socket(zmq.REQ)
+            self._socket.connect(f"tcp://{addr}:{port}")
+        except zmq.ZMQError as e:
+            raise AerpawlibError(
+                f"Failed to connect SafetyCheckerClient to {addr}:{port}",
+                code="SAFETY_CHECKER_CONNECT_ERROR",
+                original_error=e,
+            ) from e
 
     def _reconnect(self) -> None:
         """Recreate the REQ socket after a send/recv error to recover from a stuck state."""
@@ -185,7 +207,15 @@ class SafetyCheckerClient:
             logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")
             raise
         resp = _deserialize_response(raw)
-        result, message = resp["result"], resp.get("message", "")
+        try:
+            result = resp["result"]
+        except KeyError as e:
+            raise AerpawlibError(
+                f"Safety checker response missing 'result' key: {resp!r}",
+                code="SAFETY_CHECKER_RESPONSE_ERROR",
+                original_error=e,
+            ) from e
+        message = resp.get("message", "")
         logger.debug(f"SafetyCheckerClient: response result={result}, message={message}")
         return result, message
 

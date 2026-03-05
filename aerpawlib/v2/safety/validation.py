@@ -16,7 +16,7 @@ class PreflightChecks:
     """Preflight checks run before arm/takeoff."""
 
     @staticmethod
-    async def check_gps_fix(vehicle: VehicleProtocol) -> bool:
+    def check_gps_fix(vehicle: VehicleProtocol) -> bool:
         """Check that the vehicle has a 3D GPS fix.
 
         Args:
@@ -32,7 +32,7 @@ class PreflightChecks:
         return False
 
     @staticmethod
-    async def check_battery(vehicle: VehicleProtocol, min_percent: float = 10.0) -> bool:
+    def check_battery(vehicle: VehicleProtocol, min_percent: float = 10.0) -> bool:
         """Check that the vehicle battery is above the minimum threshold.
 
         Args:
@@ -59,8 +59,8 @@ class PreflightChecks:
             True if all checks pass, False if any check fails.
         """
         logger.info("PreflightChecks: running all checks")
-        gps_ok = await PreflightChecks.check_gps_fix(vehicle)
-        bat_ok = await PreflightChecks.check_battery(vehicle)
+        gps_ok = PreflightChecks.check_gps_fix(vehicle)
+        bat_ok = PreflightChecks.check_battery(vehicle)
         passed = gps_ok and bat_ok
         logger.info(f"PreflightChecks: gps={gps_ok}, battery={bat_ok}, all_pass={passed}")
         return passed

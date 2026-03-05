@@ -601,17 +601,17 @@ class StateMachine(Runner):
             next_state = await method(vehicle)
             return next_state
         # Timed state
-        running = True
+        stop_event = asyncio.Event()
         last_state = ""
 
         async def _bg() -> str:
-            nonlocal running, last_state
-            while running:
+            nonlocal last_state
+            while not stop_event.is_set():
                 last_state = await method(vehicle)
-                if not running:
+                if stop_event.is_set():
                     break
                 if not spec.loop:
-                    running = False
+                    stop_event.set()
                     break
                 await asyncio.sleep(STATE_MACHINE_DELAY_S)
             return last_state
@@ -622,7 +622,7 @@ class StateMachine(Runner):
             f"(duration={spec.duration}s, loop={spec.loop})"
         )
         await asyncio.sleep(spec.duration)
-        running = False
+        stop_event.set()
         next_state = await task
         return next_state
 
@@ -661,21 +661,35 @@ class StateMachine(Runner):
             backgrounds = self._get_backgrounds()
             if backgrounds:
                 logger.info(f"StateMachine: starting {len(backgrounds)} background task(s)")
+            MAX_BACKGROUND_RETRIES = 10
             for name in backgrounds:
                 method = getattr(self, name)
 
                 async def _bg_task(task, _name=name):
+                    consecutive_failures = 0
                     while self._running:
                         try:
                             await task(vehicle)
+                            consecutive_failures = 0
                         except asyncio.CancelledError:
                             return
                         except Exception as e:
+                            consecutive_failures += 1
+                            if consecutive_failures >= MAX_BACKGROUND_RETRIES:
+                                logger.error(
+                                    f"Background task '{_name}' exceeded max retries "
+                                    f"({MAX_BACKGROUND_RETRIES}), stopping.",
+                                    exc_info=True,
+                                )
+                                return
+                            backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
                             logger.error(
-                                f"Background task '{_name}' failed: {e}",
+                                f"Background task '{_name}' failed (attempt "
+                                f"{consecutive_failures}/{MAX_BACKGROUND_RETRIES}), "
+                                f"retrying in {backoff:.1f}s: {e}",
                                 exc_info=True,
                             )
-                            await asyncio.sleep(0.5)
+                            await asyncio.sleep(backoff)
 
                 fut = asyncio.create_task(_bg_task(method))
                 self._background_futures.append(fut)

@@ -176,7 +176,7 @@ class Drone(Vehicle):
         """
         logger.info(f"Drone: takeoff to {altitude}m (min_alt_tolerance={min_alt_tolerance})")
         await self.await_ready_to_move()
-        time_since_arm = time.time() - self._state.last_arm_time
+        time_since_arm = time.monotonic() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
             logger.debug(f"Drone: takeoff awaiting min arm delay ({delay:.1f}s)")
@@ -446,6 +446,8 @@ class Drone(Vehicle):
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                     logger.debug("Drone: set_velocity loop exited")
+                except asyncio.CancelledError:
+                    raise
                 except Exception as e:
                     logger.error(f"Velocity loop error: {e}")
                     self._velocity_loop_active = False

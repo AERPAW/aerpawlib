@@ -62,8 +62,7 @@ class ConnectionHandler:
     def heartbeat_tick(self) -> None:
         """Record a heartbeat tick and enable the monitor if this is the first tick."""
         self._last_tick = time.monotonic()
-        if not self._monitor_started:
-            self._monitor_started = True
+        self._monitor_started = True
 
     def start(self) -> asyncio.Task:
         """Start the heartbeat monitor task.
@@ -117,7 +116,10 @@ class ConnectionHandler:
                         logger.warning(f"ConnectionHandler: on_disconnect callback raised: {e}")
                 err = HeartbeatLostError(last_heartbeat_age=age)
                 if self._disconnect_future and not self._disconnect_future.done():
-                    self._disconnect_future.set_exception(err)
+                    try:
+                        self._disconnect_future.set_exception(err)
+                    except asyncio.InvalidStateError:
+                        pass
                 return
             await asyncio.sleep(1.0)  # Justified: heartbeat check interval
 

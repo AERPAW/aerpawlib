@@ -713,11 +713,8 @@ class Vehicle:
         self._telemetry_tasks.clear()
         if hasattr(self, "_command_tasks"):
             self._command_tasks.clear()
-        # Tasks are cancelled above; _system is nulled here. Telemetry callbacks
-        # that were mid-flight will raise CancelledError on their next await, before
-        # they can reach another _system access, so AttributeError is extremely unlikely.
-        self._system = None
         logger.info("Vehicle connection closed")
+        self._system = None
 
     async def goto_coordinates(
         self,

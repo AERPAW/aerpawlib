@@ -99,8 +99,13 @@ def deserialize_msg(compressed_msg: bytes) -> Dict:
     Returns:
         dict: The parsed JSON message as a dictionary.
     """
-    raw_msg = zlib.decompress(compressed_msg).decode("utf-8")
-    msg = json.loads(raw_msg)
+    try:
+        raw_msg = zlib.decompress(compressed_msg).decode("utf-8")
+        msg = json.loads(raw_msg)
+    except zlib.error as e:
+        raise ValueError(f"Failed to decompress message: {e}") from e
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse message JSON: {e}") from e
     return msg
 
 
@@ -355,6 +360,8 @@ class SafetyCheckerServer:
         self.max_speed = config["max_speed"]
         self.min_speed = config["min_speed"]
 
+        self.takeoff_location = None
+
         # Only max altitude for copters
         if self.vehicle_type == "copter":
             self.max_alt = config["max_alt"]
@@ -376,36 +383,40 @@ class SafetyCheckerServer:
 
         logger.info("waiting for messages")
 
-        while True:
-            raw_msg = socket.recv()
-            message = deserialize_msg(raw_msg)
-            logger.debug(f"Received request: {message}")
-            try:
-                function_name = message.get("request_function", "unknown")
-                req_function = self.REQUEST_FUNCTIONS[function_name]
-                params = message.get("params")
-                if params is None:
-                    response = req_function(None)
-                else:
-                    response = req_function(*params)
-                socket.send(response)
-            except KeyError as e:
-                fn = message.get("request_function", "unknown")
-                error_resp = serialize_response(
-                    request_function=str(e),
-                    result=False,
-                    message=f"Unimplemented or missing function request <{fn}>",
-                )
-                socket.send(error_resp)
-            except Exception as e:
-                logger.debug("Safety checker server handler error: %s", e)
-                error_resp = serialize_response(
-                    request_function="unknown",
-                    result=False,
-                    message=f"Server error: {e}",
-                )
-                socket.send(error_resp)
-                # Do NOT re-raise — keep the server running
+        try:
+            while True:
+                raw_msg = socket.recv()
+                message = deserialize_msg(raw_msg)
+                logger.debug(f"Received request: {message}")
+                try:
+                    function_name = message.get("request_function", "unknown")
+                    req_function = self.REQUEST_FUNCTIONS[function_name]
+                    params = message.get("params")
+                    if params is None:
+                        response = req_function()
+                    else:
+                        response = req_function(*params)
+                    socket.send(response)
+                except KeyError as e:
+                    fn = message.get("request_function", "unknown")
+                    error_resp = serialize_response(
+                        request_function=fn,
+                        result=False,
+                        message=f"Unimplemented or missing function request <{fn}>",
+                    )
+                    socket.send(error_resp)
+                except Exception as e:
+                    logger.debug("Safety checker server handler error: %s", e)
+                    error_resp = serialize_response(
+                        request_function="unknown",
+                        result=False,
+                        message=f"Server error: {e}",
+                    )
+                    socket.send(error_resp)
+                    # Do NOT re-raise — keep the server running
+        finally:
+            socket.close()
+            context.term()
 
     def validate_config(self, config: Dict, vehicle_config_filename: str) -> None:
         """

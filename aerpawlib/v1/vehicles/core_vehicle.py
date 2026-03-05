@@ -56,6 +56,10 @@ from aerpawlib.v1.helpers import (
     ThreadSafeValue,
 )
 
+# Named timeouts (L4/L5)
+_MAVSDK_LOOP_TIMEOUT_S = 30.0
+_HOME_WAIT_TIMEOUT_S = 5.0
+
 # Configure module logger
 logger = get_logger(LogComponent.VEHICLE)
 
@@ -347,6 +351,7 @@ class Vehicle:
 
         # Track active futures for cancellation in close()
         self._pending_mavsdk_futures = set()
+        self._pending_mavsdk_lock = threading.Lock()
 
         # Telemetry tasks
         self._telemetry_tasks: List[asyncio.Task] = []
@@ -465,13 +470,16 @@ class Vehicle:
                 raise RuntimeError("MAVSDK loop is not running")
 
         future = asyncio.run_coroutine_threadsafe(coro, self._mavsdk_loop)
-        self._pending_mavsdk_futures.add(future)
+        with self._pending_mavsdk_lock:
+            self._pending_mavsdk_futures.add(future)
         try:
-            return await asyncio.wait_for(asyncio.wrap_future(future), timeout=30.0)
+            return await asyncio.wait_for(
+                asyncio.wrap_future(future), timeout=_MAVSDK_LOOP_TIMEOUT_S
+            )
         except asyncio.TimeoutError:
             future.cancel()
             raise RuntimeError(
-                "MAVSDK operation timed out after 30s — "
+                f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s — "
                 "the MAVSDK event loop may have crashed"
             )
         except (AioRpcError, Exception) as e:
@@ -479,7 +487,8 @@ class Vehicle:
                 raise AerpawConnectionError(f"MAVSDK gRPC error: {e}")
             raise
         finally:
-            self._pending_mavsdk_futures.discard(future)
+            with self._pending_mavsdk_lock:
+                self._pending_mavsdk_futures.discard(future)
 
     async def _connect_async(self):
         """
@@ -819,21 +828,27 @@ class Vehicle:
             < time.time()
         ):
             with self._verbose_log_lock:
-                if self._verbose_logging_file_writer is None:
-                    self._verbose_logging_file_writer = open(
-                        f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
-                        "w",
-                    )
-                    # Write header row (F4)
-                    self._verbose_logging_file_writer.write(
-                        "timestamp_ns,armed,attitude,autopilot_info,battery,gps,"
-                        "heading,home_coords,position,velocity,mode,nav_output,"
-                        "mission_item\n"
-                    )
-                log_output = self.debug_dump()
-                self._verbose_logging_file_writer.write(f"{log_output}\n")
-                self._verbose_logging_file_writer.flush()
-                self._verbose_logging_last_log_time = time.time()
+                try:
+                    if self._verbose_logging_file_writer is None:
+                        self._verbose_logging_file_writer = open(
+                            f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
+                            "w",
+                        )
+                        # Write header row (F4)
+                        self._verbose_logging_file_writer.write(
+                            "timestamp_ns,armed,attitude,autopilot_info,battery,gps,"
+                            "heading,home_coords,position,velocity,mode,nav_output,"
+                            "mission_item\n"
+                        )
+                    log_output = self.debug_dump()
+                    self._verbose_logging_file_writer.write(f"{log_output}\n")
+                    self._verbose_logging_file_writer.flush()
+                    self._verbose_logging_last_log_time = time.time()
+                except Exception:
+                    if self._verbose_logging_file_writer is not None:
+                        self._verbose_logging_file_writer.close()
+                        self._verbose_logging_file_writer = None
+                    raise
 
     # Special things
     def done_moving(self) -> bool:
@@ -891,7 +906,9 @@ class Vehicle:
         self._running.set(False)
 
         # Cancel pending MAVSDK operations
-        for future in list(self._pending_mavsdk_futures):
+        with self._pending_mavsdk_lock:
+            pending = list(self._pending_mavsdk_futures)
+        for future in pending:
             try:
                 future.cancel()
             except Exception as e:
@@ -1105,9 +1122,9 @@ class Vehicle:
             logger.debug("Waiting for auto-set home position...")
             await wait_for_condition(
                 lambda: self._home_position.get() is not None,
-                timeout=5.0,
+                timeout=_HOME_WAIT_TIMEOUT_S,
                 poll_interval=POLLING_DELAY_S,
-                timeout_message="Home position not available within 5s",
+                timeout_message=f"Home position not available within {_HOME_WAIT_TIMEOUT_S}s",
             )
 
             self._home_location = self.home_coords

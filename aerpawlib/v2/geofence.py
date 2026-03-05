@@ -8,6 +8,10 @@ from __future__ import annotations
 
 from typing import Generator, List, Tuple
 
+from .log import LogComponent, get_logger
+
+logger = get_logger(LogComponent.VEHICLE)
+
 
 def read_geofence(file_path: str) -> List[dict]:
     """
@@ -53,7 +57,16 @@ def read_geofence(file_path: str) -> List[dict]:
     polygon = []
     for s in coords_str.split():
         parts = s.split(",")
-        polygon.append({"lon": float(parts[0]), "lat": float(parts[1])})
+        if len(parts) < 2:
+            logger.warning(f"Skipping malformed KML coordinate entry: {s!r}")
+            continue
+        try:
+            lon = float(parts[0])
+            lat = float(parts[1])
+        except ValueError:
+            logger.warning(f"Skipping KML coordinate with non-numeric value: {s!r}")
+            continue
+        polygon.append({"lon": lon, "lat": lat})
     return polygon
 
 
@@ -72,6 +85,8 @@ def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
         True if the point is inside the polygon.
     """
     n = len(geofence)
+    if n < 3:
+        return False
     inside_flag = False
     j = n - 1
     for i in range(n):

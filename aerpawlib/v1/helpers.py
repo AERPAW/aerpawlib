@@ -7,6 +7,9 @@ Common patterns extracted to reduce code duplication and improve maintainability
 """
 
 import asyncio
+import math
+import threading
+import time
 from typing import Callable, Optional, TypeVar, Any
 
 from .constants import POLLING_DELAY_S, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M
@@ -42,10 +45,7 @@ async def wait_for_condition(
     Raises:
         TimeoutError: If timeout is specified and exceeded
     """
-    import time
-
     start_time = time.time()
-
     while not condition():
         if timeout is not None and (time.time() - start_time) > timeout:
             raise TimeoutError(timeout_message)
@@ -109,6 +109,10 @@ def validate_tolerance(
         ValueError: If tolerance is out of acceptable range
     """
 
+    if math.isnan(tolerance) or math.isinf(tolerance):
+        raise ValueError(
+            f"Tolerance must be a finite number, got {tolerance}"
+        )
     if tolerance < MIN_POSITION_TOLERANCE_M:
         raise InvalidToleranceError(
             tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
@@ -157,8 +161,6 @@ class ThreadSafeValue:
     """
 
     def __init__(self, initial_value: Any = None):
-        import threading
-
         self._value = initial_value
         self._lock = threading.Lock()
 

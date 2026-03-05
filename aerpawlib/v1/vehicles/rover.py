@@ -67,6 +67,7 @@ class Rover(Vehicle):
                 Defaults to 50051.
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
+        self._velocity_generation: int = 0
 
     def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode before arming.
@@ -203,8 +204,6 @@ class Rover(Vehicle):
             logger.error(f"Goto timed out: {e}")
             raise NavigationError(str(e), original_error=e)
 
-    _velocity_loop_active: bool = False
-
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
@@ -231,7 +230,7 @@ class Rover(Vehicle):
             VelocityError: If offboard mode cannot be started.
         """
         await self.await_ready_to_move()
-        self._velocity_loop_active = False
+        self._velocity_generation += 1
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.05)
 
         if not global_relative:
@@ -250,20 +249,19 @@ class Rover(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
-            except OffboardError:
-                pass
+            except OffboardError as e:
+                logger.warning("Failed to start offboard mode: %s", e)
 
             self._ready_to_move = lambda _: True
-            self._velocity_loop_active = True
+            gen = self._velocity_generation
             target_end = (
                 time.monotonic() + duration if duration is not None else None
             )
 
             async def _velocity_helper() -> None:
                 try:
-                    while self._velocity_loop_active:
+                    while self._velocity_generation == gen:
                         if target_end and time.monotonic() > target_end:
-                            self._velocity_loop_active = False
                             try:
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.set_velocity_ned(
@@ -289,7 +287,8 @@ class Rover(Vehicle):
                     except Exception:
                         pass
 
-            asyncio.ensure_future(_velocity_helper())
+            task = asyncio.create_task(_velocity_helper())
+            self._command_tasks.append(task)
 
         except (OffboardError, ActionError) as e:
             raise VelocityError(str(e), original_error=e)

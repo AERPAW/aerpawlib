@@ -430,9 +430,15 @@ class StateMachine(Runner):
         self._running = True
 
         if len(self._initialization_tasks) != 0:
-            await asyncio.gather(
-                *[f(vehicle) for f in self._initialization_tasks]
-            )
+            try:
+                await asyncio.gather(
+                    *[f(vehicle) for f in self._initialization_tasks]
+                )
+            except Exception as e:
+                logger.error(f"StateMachine: at_init task failed: {e}", exc_info=True)
+                for future in self._background_task_futures:
+                    future.cancel()
+                raise
 
         await self._start_background_tasks(vehicle)
 
