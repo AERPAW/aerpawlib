@@ -776,10 +776,11 @@ def main():
 
     # import script
     logger.debug(f"Loading experimenter script: {args.script}")
+    start_time = time.time()  # reset timer for script import
     try:
         script_arg = args.script
-        # Accept file paths (e.g. "my_mission.py", "examples/v1/basic_example.py")
-        # or dotted module names (legacy, e.g. "examples.v1.basic_example")
+        # Accept file paths (e.g. "my_mission.py", "examples/v1/basic_example.py", "examples/v1/basic_example")
+        # or dotted module names (e.g. "examples.v1.basic_example")
         if os.sep in script_arg or "/" in script_arg or script_arg.endswith(".py"):
             script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
             module_name = os.path.splitext(os.path.basename(script_path))[0]
