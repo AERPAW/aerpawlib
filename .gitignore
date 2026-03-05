@@ -1,7 +1,6 @@
+# Python bytecode files
 __pycache__/
 *egg-info/
 
-# ArduPilot SITL (installed by install_ardupilot.sh)
+# Ignore ArduPilot build files
 /ardupilot/
-/ardupilot-venv/
-/activate-ardupilot.sh
