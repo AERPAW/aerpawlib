@@ -707,10 +707,14 @@ class ZmqStateMachine(StateMachine):
             while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
                 await asyncio.sleep(0.01)
 
-        await asyncio.wait_for(
-            _wait_for_reply(),
-            timeout=timeout,
-        )
+        try:
+            await asyncio.wait_for(
+                _wait_for_reply(),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            self._zmq_received_fields[identifier].pop(field, None)
+            raise
         return self._zmq_received_fields[identifier][field]
 
     async def _reply_queried_field(self, identifier: str, field: str, value):

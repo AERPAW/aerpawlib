@@ -139,6 +139,10 @@ class Runner:
             disarm_task.cancel()
             raise
 
+        # Record whether the disarm fired and main task was still pending
+        # BEFORE we cancel tasks (cancellation makes main_task.done() True).
+        disarm_triggered = disarm_task in done and main_task in pending
+
         # Cancel whichever task is still running
         for task in pending:
             task.cancel()
@@ -147,7 +151,7 @@ class Runner:
             except (asyncio.CancelledError, Exception):
                 pass
 
-        if disarm_task in done and not main_task.done():
+        if disarm_triggered:
             raise UnexpectedDisarmError()
 
         # Propagate any exception from the main task

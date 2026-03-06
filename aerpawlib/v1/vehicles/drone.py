@@ -67,6 +67,7 @@ class Drone(Vehicle):
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
         self._velocity_generation: int = 0
+        self._offboard_active: bool = False
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._armed_telemetry_received.get():
@@ -135,6 +136,7 @@ class Drone(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
+                self._offboard_active = True
             except OffboardError as e:
                 logger.warning("Failed to start offboard mode: %s", e)
 
@@ -145,6 +147,7 @@ class Drone(Vehicle):
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
             )
         except (OffboardError, ActionError) as e:
             logger.warning(f"set_heading error: {e}")
@@ -152,6 +155,7 @@ class Drone(Vehicle):
             # Ensure offboard mode is stopped
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.stop())
+                self._offboard_active = False
             except (OffboardError, ActionError):
                 pass
 
@@ -302,6 +306,7 @@ class Drone(Vehicle):
             logger.debug(f"Arrived at destination")
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
+            self._ready_to_move = lambda _: True
             raise NavigationError(str(e), original_error=e)
         except TimeoutError as e:
             logger.error(f"Goto timed out: {e}")
@@ -357,6 +362,7 @@ class Drone(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
+                self._offboard_active = True
             except OffboardError as e:
                 logger.warning("Failed to start offboard mode: %s", e)
 
@@ -386,6 +392,7 @@ class Drone(Vehicle):
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.stop()
                                 )
+                                self._offboard_active = False
                             except (OffboardError, ActionError):
                                 logger.warning(
                                     "Failed to stop offboard mode cleanly"
@@ -403,6 +410,7 @@ class Drone(Vehicle):
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.stop()
                         )
+                        self._offboard_active = False
                     except Exception as e:
                         logger.debug("Velocity helper cleanup failed: %s", e)
 
@@ -414,14 +422,19 @@ class Drone(Vehicle):
     async def _stop(self) -> None:
         await super()._stop()
         self._velocity_generation += 1
-        # Explicitly zero velocity and exit offboard mode to ensure clean
-        # state transition between velocity and position commands
-        try:
-            await self._run_on_mavsdk_loop(
-                self._system.offboard.set_velocity_ned(
-                    VelocityNedYaw(0, 0, 0, self.heading)
+        # Only exit offboard mode if we were actually running it.
+        # Calling offboard.stop() when not in offboard mode causes ArduPilot
+        # to switch to LOITER, which creates unnecessary GUIDED→LOITER→GUIDED
+        # churn on every waypoint transition.
+        if self._offboard_active:
+            try:
+                await self._run_on_mavsdk_loop(
+                    self._system.offboard.set_velocity_ned(
+                        VelocityNedYaw(0, 0, 0, self.heading)
+                    )
                 )
-            )
-            await self._run_on_mavsdk_loop(self._system.offboard.stop())
-        except Exception as e:
-            logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)
+                await self._run_on_mavsdk_loop(self._system.offboard.stop())
+            except Exception as e:
+                logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)
+            finally:
+                self._offboard_active = False

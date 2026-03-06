@@ -148,7 +148,9 @@ class Drone(Vehicle):
             self._ready_to_move = (
                 lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             )
-            await _wait_for_condition(lambda: self.done_moving())
+            await _wait_for_condition(
+                lambda: self.done_moving(), timeout=DEFAULT_GOTO_TIMEOUT_S
+            )
         except (OffboardError, ActionError) as e:
             logger.warning(f"set_heading error: {e}")
         else:

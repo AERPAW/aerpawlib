@@ -24,6 +24,7 @@ from ..constants import (
     MAX_POSITION_TOLERANCE_M,
 )
 from ..exceptions import (
+    AerpawConnectionError,
     ConnectionTimeoutError,
     NotArmableError,
 )
@@ -32,6 +33,32 @@ from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 from .state import VehicleState
 
 logger = get_logger(LogComponent.VEHICLE)
+
+_MAVSDK_VALID_SCHEMES = frozenset(
+    ("udpin", "tcpin",  "serial", "tcp", "udp")
+)
+
+
+def _validate_connection_string(conn_str: str) -> None:
+    """Raise AerpawConnectionError immediately if conn_str is malformed.
+
+    Prevents spawning mavsdk_server with an invalid URL, which would otherwise
+    cause a silent timeout hang instead of a fast, clear error.
+    """
+    s = conn_str.strip()
+    if "://" not in s:
+        raise AerpawConnectionError(
+            f"Invalid connection string {conn_str!r}: missing '://'. "
+            "Expected format e.g. 'udpin://0.0.0.0:14550', "
+            "'udpout://host:port', 'tcpin://host:port', "
+            "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
+        )
+    scheme = s.split("://")[0].lower()
+    if scheme not in _MAVSDK_VALID_SCHEMES:
+        raise AerpawConnectionError(
+            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
+            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}."
+        )
 
 
 def _validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:
@@ -99,6 +126,7 @@ class VehicleTask:
         self._progress: float = 0.0
         self._error: Optional[Exception] = None
         self._on_cancel: Optional[Callable[[], object]] = None
+        self._cancel_tasks: List[asyncio.Task] = []
 
     @property
     def progress(self) -> float:
@@ -136,7 +164,8 @@ class VehicleTask:
                 loop = asyncio.get_running_loop()
                 result = self._on_cancel()
                 if asyncio.iscoroutine(result):
-                    loop.create_task(result)
+                    t = loop.create_task(result)
+                    self._cancel_tasks.append(t)
             except RuntimeError:
                 logger.warning(
                     "VehicleTask.cancel() called outside an async context; "
@@ -362,25 +391,29 @@ class Vehicle:
             f"Connecting to vehicle at {connection_string} "
             f"(port={mavsdk_server_port}, timeout={timeout}s)"
         )
+        _validate_connection_string(connection_string)
         system = System(port=mavsdk_server_port)
         await asyncio.wait_for(
             system.connect(system_address=connection_string),
             timeout=timeout,
         )
         logger.debug("MAVSDK connect() returned, waiting for connection state")
-        # Wait for connection state
-        start = time.monotonic()
-        async for state in system.core.connection_state():
-            if state.is_connected:
-                break
-            if time.monotonic() - start > timeout:
-                logger.error(
-                    f"Connection timeout: no heartbeat within {timeout}s"
-                )
-                raise ConnectionTimeoutError(
-                    timeout,
-                    "Connection established but no heartbeat within timeout",
-                )
+
+        # Wrap in wait_for so an invalid connection string doesn't hang forever
+        # (the async generator may never yield if MAVSDK gets no heartbeat).
+        async def _wait_for_heartbeat() -> None:
+            async for state in system.core.connection_state():
+                if state.is_connected:
+                    return
+
+        try:
+            await asyncio.wait_for(_wait_for_heartbeat(), timeout=timeout)
+        except asyncio.TimeoutError:
+            logger.error(f"Connection timeout: no heartbeat within {timeout}s")
+            raise ConnectionTimeoutError(
+                timeout,
+                "Connection established but no heartbeat within timeout",
+            )
 
         # Create instance and start telemetry
         self = cls(system, connection_string, mavsdk_server_port, safety=safety)

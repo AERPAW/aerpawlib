@@ -338,7 +338,8 @@ class Rover(Vehicle):
                     except Exception:
                         pass
 
-            asyncio.ensure_future(_velocity_helper())
+            vel_task = asyncio.ensure_future(_velocity_helper())
+            self._command_tasks.append(vel_task)
 
         except (OffboardError, ActionError) as e:
             raise VelocityError(str(e), original_error=e)

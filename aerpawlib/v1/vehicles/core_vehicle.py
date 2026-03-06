@@ -114,6 +114,31 @@ def _parse_udp_connection_port(connection_string: str) -> Optional[Tuple[str, in
     return (host, port)
 
 
+_MAVSDK_VALID_SCHEMES = frozenset(
+    ("udpin", "udpout", "tcpin", "tcpout", "serial", "tcp", "udp")
+)
+
+
+def _validate_connection_string(conn_str: str) -> None:
+    """Raise AerpawConnectionError immediately if conn_str is malformed.
+
+    This prevents spawning mavsdk_server with an invalid URL, which would
+    otherwise cause a silent 30-second hang before ConnectionTimeoutError.
+    """
+    s = conn_str.strip()
+    if "://" not in s:
+        raise AerpawConnectionError(
+            f"Invalid connection string {conn_str!r}: missing '://'. "
+            "Expected format e.g. 'udpin://0.0.0.0:14550', "
+            "'udpout://host:port', 'tcpin://host:port', "
+            "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
+        )
+    scheme = s.split("://")[0].lower()
+    if scheme not in _MAVSDK_VALID_SCHEMES:
+        raise AerpawConnectionError(
+            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
+            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}."
+        )
 
 
 class _BatteryCompat:
@@ -353,8 +378,9 @@ class Vehicle:
         self._pending_mavsdk_futures = set()
         self._pending_mavsdk_lock = threading.Lock()
 
-        # Telemetry tasks
+        # Telemetry and command tasks
         self._telemetry_tasks: List[asyncio.Task] = []
+        self._command_tasks: List[asyncio.Task] = []
         self._running = ThreadSafeValue(True)
 
         # Event loop for MAVSDK operations (runs in background thread)
@@ -369,6 +395,10 @@ class Vehicle:
 
         This is a synchronous wrapper around asynchronous connection logic.
         """
+        # Validate the connection string before spawning mavsdk_server so we
+        # get an immediate, clear error instead of a 30-second timeout hang.
+        _validate_connection_string(self._connection_string)
+
         # Fail fast if UDP port from connection string is already in use (avoids hanging)
         parsed = _parse_udp_connection_port(self._connection_string)
         if parsed is not None:
@@ -499,17 +529,21 @@ class Vehicle:
             self._system.connect(system_address=self._connection_string),
             timeout=CONNECTION_TIMEOUT_S,
         )
-        # Wait for connection state with timeout
-        start = time.time()
-        async for state in self._system.core.connection_state():
-            if state.is_connected:
-                self._has_heartbeat = True
-                break
-            if time.time() - start > CONNECTION_TIMEOUT_S:
-                raise ConnectionTimeoutError(
-                    CONNECTION_TIMEOUT_S,
-                    message="Connection established but no heartbeat received within timeout",
-                )
+        # Wait for connection state with timeout; wrap in wait_for so the
+        # async generator doesn't block forever on an invalid connection string.
+        async def _wait_for_heartbeat():
+            async for state in self._system.core.connection_state():
+                if state.is_connected:
+                    self._has_heartbeat = True
+                    return
+
+        try:
+            await asyncio.wait_for(_wait_for_heartbeat(), timeout=CONNECTION_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            raise ConnectionTimeoutError(
+                CONNECTION_TIMEOUT_S,
+                message="Connection established but no heartbeat received within timeout",
+            )
 
         # Start telemetry subscriptions
         await self._start_telemetry()
@@ -914,9 +948,9 @@ class Vehicle:
             except Exception as e:
                 logger.debug("Error cancelling MAVSDK future: %s", e)
 
-        # Cancel telemetry tasks on their own event loop (thread-safe)
+        # Cancel telemetry and command tasks on their own event loop (thread-safe)
         if self._mavsdk_loop is not None and self._mavsdk_loop.is_running():
-            for task in self._telemetry_tasks:
+            for task in self._telemetry_tasks + self._command_tasks:
                 try:
                     self._mavsdk_loop.call_soon_threadsafe(task.cancel)
                 except RuntimeError:

@@ -68,6 +68,7 @@ class Rover(Vehicle):
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
         self._velocity_generation: int = 0
+        self._offboard_active: bool = False
 
     def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode before arming.
@@ -249,6 +250,7 @@ class Rover(Vehicle):
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
+                self._offboard_active = True
             except OffboardError as e:
                 logger.warning("Failed to start offboard mode: %s", e)
 
@@ -272,6 +274,7 @@ class Rover(Vehicle):
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.stop()
                                 )
+                                self._offboard_active = False
                             except Exception as e:
                                 logger.debug(
                                     "Rover velocity stop cleanup failed: %s", e
@@ -284,6 +287,7 @@ class Rover(Vehicle):
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.stop()
                         )
+                        self._offboard_active = False
                     except Exception:
                         pass
 
