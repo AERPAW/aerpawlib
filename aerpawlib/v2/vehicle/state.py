@@ -44,6 +44,7 @@ class VehicleState:
         self._mode: str = "UNKNOWN"
         self._last_arm_time: float = 0.0
         self._armed_telemetry_received: bool = False
+        self._prearm_checks_ok: bool = False
 
     @property
     def position(self) -> Coordinate:
@@ -186,19 +187,30 @@ class VehicleState:
     def update_armable(
         self,
         global_ok: bool,
+        local_ok: bool,
         home_ok: bool,
         armable: bool,
     ) -> None:
         """Update the armable flag from health telemetry.
 
-        The vehicle is considered armable only when all three conditions are True.
+        The vehicle is considered armable only when all conditions are True.
 
         Args:
             global_ok: True if global position estimate is OK.
+            local_ok: True if local position estimate is OK.
             home_ok: True if home position is set.
             armable: True if the vehicle's own health check passes.
         """
-        self._armable = global_ok and home_ok and armable
+        self._armable = global_ok and local_ok and home_ok and armable and self._prearm_checks_ok
+
+
+    def update_prearm_bits(self, ok: bool) -> None:
+        """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.
+
+        Args:
+            ok: True if the bit is set.
+        """
+        self._prearm_checks_ok = ok
 
     def update_home(self, lat: float, lon: float, rel_alt: float, abs_alt: float) -> None:
         """Update the home position.

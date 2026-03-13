@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Any, Callable, List, Optional, TYPE_CHECKING, Tuple
+import json
 
 import math
 
@@ -22,6 +23,7 @@ from ..constants import (
     CONNECTION_TIMEOUT_S,
     MIN_POSITION_TOLERANCE_M,
     MAX_POSITION_TOLERANCE_M,
+    MAV_SYS_STATUS_PREARM_CHECK
 )
 from ..exceptions import (
     AerpawConnectionError,
@@ -581,6 +583,7 @@ class Vehicle:
                     return
                 self._state.update_armable(
                     health.is_global_position_ok,
+                    health.is_local_position_ok,
                     health.is_home_position_ok,
                     health.is_armable,
                 )
@@ -607,6 +610,17 @@ class Vehicle:
                     )
                     first[0] = False
 
+        async def _mavlink_status_update() -> None:
+            async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
+                if not self._running:
+                    return
+                try:
+                    fields = json.loads(msg.fields_json)
+                    health = fields.get("onboard_control_sensors_health", 0)
+                    self._state.update_prearm_bits((health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK)
+                except Exception as e:
+                    logger.debug(f"Error parsing SYS_STATUS: {e}")
+
         for coro in [
             _position_update,
             _attitude_update,
@@ -617,6 +631,7 @@ class Vehicle:
             _armed_update,
             _health_update,
             _home_update,
+            _mavlink_status_update,
         ]:
             task = asyncio.create_task(coro())
             self._telemetry_tasks.append(task)

@@ -210,7 +210,7 @@ class SITLManager:
             str(sim_vehicle),
             "-v", self.vehicle_type,
             "-I", str(self.instance_id),
-            "--out", f"udp:127.0.0.1:{self.port}",
+            "--out", f"127.0.0.1:{self.port}",
             "-w",
         ]
 

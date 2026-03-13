@@ -363,6 +363,7 @@ class Vehicle:
         self._velocity_ned = ThreadSafeValue([0.0, 0.0, 0.0])
         self._home_position = ThreadSafeValue(None)
         self._home_abs_alt = ThreadSafeValue(0.0)
+        self._prearm_checks_ok = ThreadSafeValue(False)
 
         # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
         self._battery_val = ThreadSafeValue(_BatteryCompat())
@@ -650,9 +651,22 @@ class Vehicle:
                 self._health_val.set(health) # Used to provide information when arming fails
                 self._is_armable_state.set(
                     health.is_global_position_ok
+                    and health.is_local_position_ok
                     and health.is_home_position_ok
                     and health.is_armable
+                    and self._prearm_checks_ok.get()
                 )
+
+        async def _mavlink_status_update():
+            import json
+            from aerpawlib.v1.constants import MAV_SYS_STATUS_PREARM_CHECK
+            async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
+                try:
+                    fields = json.loads(msg.fields_json)
+                    health = fields.get("onboard_control_sensors_health", 0)
+                    self._prearm_checks_ok.set((health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK)
+                except Exception as e:
+                    logger.debug(f"Error parsing SYS_STATUS: {e}")
 
         async def _home_update():
             async for home in self._system.telemetry.home():
@@ -687,6 +701,7 @@ class Vehicle:
             ("flight_mode", lambda: _flight_mode_update()),
             ("armed", lambda: _armed_update()),
             ("health", lambda: _health_update()),
+            ("mavlink_status", lambda: _mavlink_status_update()),
             ("home", lambda: _home_update()),
             ("connection", lambda: _connection_state_update()),
         ]
@@ -1248,6 +1263,7 @@ class Vehicle:
             f"Global: {'OK' if health.is_global_position_ok else 'FAIL'}, "
             f"Home: {'OK' if health.is_home_position_ok else 'FAIL'}, "
             f"Local: {'OK' if health.is_local_position_ok else 'FAIL'}, "
+            f"Pre-arm: {'OK' if self._prearm_checks_ok.get() else 'FAIL'}, "
             f"Armable: {'OK' if health.is_armable else 'FAIL'}, "
             f"Gyro: {'OK' if health.is_gyrometer_calibration_ok else 'FAIL'}, "
             f"Accel: {'OK' if health.is_accelerometer_calibration_ok else 'FAIL'}, "

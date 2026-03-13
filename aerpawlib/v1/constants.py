@@ -78,6 +78,10 @@ ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0
 # Used by both drones and rovers when waiting to reach a target coordinate
 DEFAULT_GOTO_TIMEOUT_S = 300.0
 
+# MAVLink Flags
+# Flag for system health: indicates if pre-arm checks are passing
+MAV_SYS_STATUS_PREARM_CHECK = 0x01
+
 
 # Timing Constants
 

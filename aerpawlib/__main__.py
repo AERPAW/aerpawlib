@@ -190,9 +190,27 @@ def run_v2_experiment(
         logger.warning("--debug-dump is not yet implemented for --api-version v2; flag ignored")
 
     async def run_experiment_async():
-        aerpaw_platform = AERPAW_Platform() if AERPAW_Platform else None
-        if aerpaw_platform:
+        no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
+
+        if no_aerpaw_env:
+            aerpaw_platform = None
+            logger.info(
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
+                "running in standalone mode."
+            )
+        elif AERPAW_Platform:
+            aerpaw_platform = AERPAW_Platform()
             aerpaw_platform.set_no_stdout(args.no_stdout)
+            if not aerpaw_platform._connected:
+                logger.critical(
+                    "It seems like we're in standalone mode but "
+                    "--no-aerpaw-environment was not passed. "
+                    "Pass --no-aerpaw-environment to run outside the AERPAW "
+                    "environment."
+                )
+                sys.exit(1)
+        else:
+            aerpaw_platform = None
 
         from aerpawlib.v2.constants import DEFAULT_SAFETY_CHECKER_PORT
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
@@ -466,8 +484,26 @@ def run_v1_experiment(
         signal.signal(signal.SIGINT, handle_shutdown)
         signal.signal(signal.SIGTERM, handle_shutdown)
 
-        if AERPAW_Platform:
+        no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
+        if no_aerpaw_env:
+            logger.info(
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
+                "running in standalone mode."
+            )
+            if AERPAW_Platform:
+                AERPAW_Platform._no_stdout = args.no_stdout
+        elif AERPAW_Platform:
             AERPAW_Platform._no_stdout = args.no_stdout
+            # Force eager initialisation of the lazy proxy so _connected is set
+            _attempt_connect = AERPAW_Platform._connected
+            if not AERPAW_Platform._connected:
+                logger.critical(
+                    "It seems like we're in standalone mode but "
+                    "--no-aerpaw-environment was not passed. "
+                    "Pass --no-aerpaw-environment to run outside the AERPAW "
+                    "environment."
+                )
+                sys.exit(1)
 
         runner.initialize_args(unknown_args)
         if args.initialize and hasattr(vehicle, "_preflight_wait"):
@@ -640,6 +676,14 @@ def main():
         action="store_true",
         dest="no_stdout",
     )
+    exec_grp.add_argument(
+        "--no-aerpaw-environment",
+        help="run in standalone/SITL mode: skip AERPAW platform connection and "
+        "allow the vehicle to arm itself. Without this flag, a failed AERPAW "
+        "connection is treated as a fatal error.",
+        action="store_true",
+        dest="no_aerpaw_environment",
+    )
 
     # ZMQ Proxy Arguments
     zmq_grp = parser.add_argument_group("ZMQ Proxy")
@@ -741,6 +785,7 @@ def main():
     logger.debug(f"Vehicle type: {args.vehicle}")
     logger.debug(f"Connection string: {args.conn}")
     logger.debug(f"Additional arguments: {unknown_args}")
+    logger.debug(f"No AERPAW environment: {args.no_aerpaw_environment}")
 
     # Dynamically import API module
     api_version = args.api_version

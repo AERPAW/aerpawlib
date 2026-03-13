@@ -545,15 +545,15 @@ def is_udp_port_in_use(host: str, port: int) -> bool:
     Returns:
         True if the port is in use, False otherwise.
     """
-    family = socket.AF_INET6 if ":" in host else socket.AF_INET
-    with socket.socket(family, socket.SOCK_DGRAM) as s:
+    # Create a UDP socket using IPv4
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         try:
+            # Attempt to bind to the specified host and port
             s.bind((host, port))
             return False
-        except OSError as e:
-            if e.errno == errno.EADDRINUSE:
-                return True
-            raise
+        except OSError:
+            # An OSError typically means the address is already in use
+            return True
 
 
 def is_tcp_port_in_use(host: str, port: int) -> bool:

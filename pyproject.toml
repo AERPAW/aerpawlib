@@ -74,6 +74,7 @@ Documentation = "https://github.com/quantumbagel/aerpawlib#readme"
 [project.scripts]
 aerpawlib = "aerpawlib.__main__:main"
 aerpawlib-setup-sitl = "scripts.setup_sitl:main"
+aerpawlib-run-example = "scripts.run_example:main"
 
 [tool.setuptools.packages.find]
 include = ["aerpawlib*", "scripts*"]
