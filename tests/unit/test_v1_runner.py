@@ -244,6 +244,44 @@ class TestStateDecoratorEdgeCases:
         assert hasattr(fly_state, "_is_exposed_zmq")
         assert fly_state._zmq_name == "fly"
 
+    def test_stacked_state_and_timed_state_raises(self):
+        with pytest.raises(
+            StateMachineError,
+            match="cannot be decorated with more than one of @state/@timed_state",
+        ):
+            @state("s")
+            @timed_state("s", duration=1.0)
+            async def bad(self, vehicle):
+                return None
+
+    def test_stacked_timed_state_and_state_raises(self):
+        with pytest.raises(
+            StateMachineError,
+            match="cannot be decorated with more than one of @state/@timed_state",
+        ):
+            @timed_state("s", duration=1.0)
+            @state("s")
+            async def bad(self, vehicle):
+                return None
+
+
+class TestZmqDecoratorValidation:
+    def test_expose_zmq_without_state_raises_in_build(self):
+        class Z(ZmqStateMachine):
+            @state("start", first=True)
+            async def start(self, vehicle):
+                return None
+
+            @expose_zmq("remote")
+            async def not_state(self, vehicle):
+                return None
+
+        with pytest.raises(
+            StateMachineError,
+            match="@expose_zmq can only be used on @state/@timed_state methods",
+        ):
+            Z()._build()
+
 
 class TestStateMachineLifecycle:
     @pytest.mark.asyncio

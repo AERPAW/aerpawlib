@@ -42,6 +42,7 @@ from aerpawlib.log import get_logger, LogComponent
 
 logger = get_logger(LogComponent.RUNNER)
 
+
 class Runner:
     """
     Base execution framework for aerpawlib scripts.
@@ -203,6 +204,11 @@ def state(name: str, first: bool = False):
         raise InvalidStateNameError()
 
     def decorator(func):
+        if hasattr(func, "_is_state"):
+            raise StateMachineError(
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state"
+            )
         func._is_state = True
         func._state_name = name
         func._state_first = first
@@ -233,6 +239,11 @@ def timed_state(name: str, duration: float, loop: bool = False, first: bool = Fa
         raise InvalidStateNameError()
 
     def decorator(func):
+        if hasattr(func, "_is_state"):
+            raise StateMachineError(
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state"
+            )
         func._is_state = True
         func._state_name = name
         func._state_first = first
@@ -370,9 +381,7 @@ class StateMachine(Runner):
             if not inspect.ismethod(method):
                 continue
             if hasattr(method, "_is_state"):
-                self._states[method._state_name] = _State(
-                    method, method._state_name
-                )
+                self._states[method._state_name] = _State(method, method._state_name)
                 if method._state_first:
                     if _found_initial:
                         raise MultipleInitialStatesError()
@@ -431,9 +440,7 @@ class StateMachine(Runner):
 
         if len(self._initialization_tasks) != 0:
             try:
-                await asyncio.gather(
-                    *[f(vehicle) for f in self._initialization_tasks]
-                )
+                await asyncio.gather(*[f(vehicle) for f in self._initialization_tasks])
             except Exception as e:
                 logger.error(f"StateMachine: at_init task failed: {e}", exc_info=True)
                 for future in self._background_task_futures:
@@ -444,13 +451,9 @@ class StateMachine(Runner):
 
         while self._running:
             if self._current_state not in self._states:
-                raise InvalidStateError(
-                    self._current_state, list(self._states.keys())
-                )
+                raise InvalidStateError(self._current_state, list(self._states.keys()))
 
-            next_state = await self._states[self._current_state].run(
-                self, vehicle
-            )
+            next_state = await self._states[self._current_state].run(self, vehicle)
             if self._override_next_state_transition:
                 self._override_next_state_transition = False
                 self._current_state = self._next_state_overr
@@ -499,6 +502,10 @@ class ZmqStateMachine(StateMachine):
             if not inspect.ismethod(method):
                 continue
             if hasattr(method, "_is_exposed_zmq"):
+                if not hasattr(method, "_is_state"):
+                    raise StateMachineError(
+                        "@expose_zmq can only be used on @state/@timed_state methods"
+                    )
                 self._exported_states[method._zmq_name] = _State(
                     method, method._zmq_name
                 )
@@ -511,9 +518,7 @@ class ZmqStateMachine(StateMachine):
     # Sentinel used to distinguish "field not yet received" from "received None"
     _ZMQ_FIELD_PENDING = object()
 
-    def _initialize_zmq_bindings(
-        self, vehicle_identifier: str, proxy_server_addr: str
-    ):
+    def _initialize_zmq_bindings(self, vehicle_identifier: str, proxy_server_addr: str):
         """
         Configure ZMQ connection parameters.
 
@@ -581,7 +586,9 @@ class ZmqStateMachine(StateMachine):
         if msg_type == ZMQ_TYPE_TRANSITION:
             next_state = message.get("next_state")
             if not next_state:
-                logger.warning("ZmqStateMachine: TRANSITION message missing 'next_state'")
+                logger.warning(
+                    "ZmqStateMachine: TRANSITION message missing 'next_state'"
+                )
                 return
             self._next_state_overr = next_state
             self._override_next_state_transition = True
@@ -704,7 +711,9 @@ class ZmqStateMachine(StateMachine):
         await self._zmq_messages_sending.put(query_obj)
 
         async def _wait_for_reply():
-            while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
+            while (
+                self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING
+            ):
                 await asyncio.sleep(0.01)
 
         try:

@@ -30,6 +30,7 @@ from .exceptions import (
     NoEntrypointError,
     NoInitialStateError,
     InvalidStateNameError,
+    RunnerError,
 )
 from .log import LogComponent, get_logger
 from .zmqutil import check_zmq_proxy_reachable
@@ -42,6 +43,49 @@ V = TypeVar("V")
 def _is_zmq_state_machine_subclass(cls: type) -> bool:
     """True if cls is ZmqStateMachine or a subclass thereof."""
     return any(c.__name__ == "ZmqStateMachine" for c in cls.mro())
+
+
+def _nearest_parent_state_machine_config(owner: type) -> Optional[StateMachineConfig]:
+    """Return closest inherited StateMachineConfig, if any."""
+    for base in owner.__mro__[1:]:
+        if "config" in base.__dict__ and isinstance(
+            base.__dict__["config"], StateMachineConfig
+        ):
+            return base.__dict__["config"]
+    return None
+
+
+def _ensure_state_machine_config(
+    owner: type, require_zmq: bool = False
+) -> StateMachineConfig:
+    """Ensure owner has an isolated config copy; optionally upgrade to ZMQ config."""
+    cfg = owner.__dict__.get("config")
+    if isinstance(cfg, ZmqStateMachineConfig):
+        return cfg
+
+    needs_zmq = require_zmq or _is_zmq_state_machine_subclass(owner)
+    if isinstance(cfg, StateMachineConfig):
+        parent_cfg = cfg
+    else:
+        parent_cfg = _nearest_parent_state_machine_config(owner)
+
+    if needs_zmq:
+        owner.config = ZmqStateMachineConfig(
+            initial_state=parent_cfg.initial_state if parent_cfg else "",
+            states=list(parent_cfg.states) if parent_cfg else [],
+            backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
+            at_init=list(parent_cfg.at_init) if parent_cfg else [],
+            exposed_states=dict(getattr(parent_cfg, "exposed_states", {})),
+            exposed_fields=dict(getattr(parent_cfg, "exposed_fields", {})),
+        )
+    else:
+        owner.config = StateMachineConfig(
+            initial_state=parent_cfg.initial_state if parent_cfg else "",
+            states=list(parent_cfg.states) if parent_cfg else [],
+            backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
+            at_init=list(parent_cfg.at_init) if parent_cfg else [],
+        )
+    return owner.config
 
 
 # --- Config dataclasses ---
@@ -79,8 +123,12 @@ class StateMachineConfig:
 class ZmqStateMachineConfig(StateMachineConfig):
     """Config for ZmqStateMachine. Adds exposed_states and exposed_fields."""
 
-    exposed_states: Dict[str, str] = field(default_factory=dict)  # zmq_name -> state_name
-    exposed_fields: Dict[str, str] = field(default_factory=dict)  # zmq_name -> method_name
+    exposed_states: Dict[str, str] = field(
+        default_factory=dict
+    )  # zmq_name -> state_name
+    exposed_fields: Dict[str, str] = field(
+        default_factory=dict
+    )  # zmq_name -> method_name
 
 
 class Runner:
@@ -176,6 +224,7 @@ class _EntrypointDescriptor:
         if "config" in owner.__dict__ and isinstance(owner.config, BasicRunnerConfig):
             if owner.config.entrypoint != name:
                 from .exceptions import RunnerError
+
                 raise RunnerError(
                     f"Only one @entrypoint is allowed per runner class. "
                     f"Already registered '{owner.config.entrypoint}', "
@@ -234,41 +283,29 @@ class _StateDescriptor:
         return self
 
     def __set_name__(self, owner: type, attr_name: str) -> None:
-        if "config" not in owner.__dict__ or not isinstance(owner.config, StateMachineConfig):
-            # Find nearest parent config to inherit from (shallow-copy so the
-            # child class doesn't accidentally share the parent's state list).
-            parent_cfg: Optional[StateMachineConfig] = None
-            for base in owner.__mro__[1:]:
-                if "config" in base.__dict__ and isinstance(
-                    base.__dict__["config"], StateMachineConfig
-                ):
-                    parent_cfg = base.__dict__["config"]
-                    break
-            if _is_zmq_state_machine_subclass(owner):
-                owner.config = ZmqStateMachineConfig(
-                    initial_state=parent_cfg.initial_state if parent_cfg else "",
-                    states=list(parent_cfg.states) if parent_cfg else [],
-                    backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
-                    at_init=list(parent_cfg.at_init) if parent_cfg else [],
-                    exposed_states=dict(getattr(parent_cfg, "exposed_states", {})),
-                    exposed_fields=dict(getattr(parent_cfg, "exposed_fields", {})),
-                )
-            else:
-                owner.config = StateMachineConfig(
-                    initial_state=parent_cfg.initial_state if parent_cfg else "",
-                    states=list(parent_cfg.states) if parent_cfg else [],
-                    backgrounds=list(parent_cfg.backgrounds) if parent_cfg else [],
-                    at_init=list(parent_cfg.at_init) if parent_cfg else [],
-                )
-        cfg = owner.config
+        cfg = _ensure_state_machine_config(owner)
         if self.first:
             if cfg.initial_state:
                 raise MultipleInitialStatesError()
             cfg.initial_state = self.name
-        cfg.states.append(StateSpec(
-            name=self.name, method_name=attr_name, first=self.first,
-            duration=self.duration, loop=self.loop,
-        ))
+        cfg.states.append(
+            StateSpec(
+                name=self.name,
+                method_name=attr_name,
+                first=self.first,
+                duration=self.duration,
+                loop=self.loop,
+            )
+        )
+
+        # Support @state(...)
+        # @expose_zmq(...) and @expose_zmq(...)
+        # @state(...) consistently.
+        zmq_name = getattr(self.func, "zmq_name", None)
+        if zmq_name is not None:
+            zmq_cfg = _ensure_state_machine_config(owner, require_zmq=True)
+            if isinstance(zmq_cfg, ZmqStateMachineConfig):
+                zmq_cfg.exposed_states[zmq_name] = self.name
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
@@ -293,6 +330,11 @@ def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescript
     """
 
     def decorator(func: Callable) -> _StateDescriptor:
+        if isinstance(func, _StateDescriptor):
+            raise RunnerError(
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state"
+            )
         desc = _StateDescriptor(name, first=first, state_type=_StateType.STANDARD)
         desc.func = func
         return desc
@@ -324,6 +366,11 @@ def timed_state(
     """
 
     def decorator(func: Callable) -> _StateDescriptor:
+        if isinstance(func, _StateDescriptor):
+            raise RunnerError(
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state"
+            )
         desc = _StateDescriptor(
             name,
             first=first,
@@ -346,12 +393,8 @@ class _BackgroundDescriptor:
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
-        if "config" not in owner.__dict__ or not isinstance(owner.config, StateMachineConfig):
-            if _is_zmq_state_machine_subclass(owner):
-                owner.config = ZmqStateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[], exposed_states={}, exposed_fields={})
-            else:
-                owner.config = StateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[])
-        owner.config.backgrounds.append(name)
+        cfg = _ensure_state_machine_config(owner)
+        cfg.backgrounds.append(name)
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
@@ -383,12 +426,8 @@ class _AtInitDescriptor:
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
-        if "config" not in owner.__dict__ or not isinstance(owner.config, StateMachineConfig):
-            if _is_zmq_state_machine_subclass(owner):
-                owner.config = ZmqStateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[], exposed_states={}, exposed_fields={})
-            else:
-                owner.config = StateMachineConfig(initial_state="", states=[], backgrounds=[], at_init=[])
-        owner.config.at_init.append(name)
+        cfg = _ensure_state_machine_config(owner)
+        cfg.at_init.append(name)
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
@@ -411,33 +450,41 @@ def at_init(func: Callable) -> _AtInitDescriptor:
 class _ExposeZmqDescriptor:
     """Marker for @expose_zmq. Wraps @state descriptor to register it as ZMQ-exposed."""
 
-    def __init__(self, zmq_name: str, state_desc: Any) -> None:
+    def __init__(self, zmq_name: str, wrapped: Any) -> None:
+        if not zmq_name:
+            raise InvalidStateNameError()
         self.zmq_name = zmq_name
-        self.state_desc = state_desc  # The wrapped @state descriptor
+        self.wrapped = wrapped
 
     def __set_name__(self, owner: type, attr_name: str) -> None:
-        if not self.zmq_name:
-            raise InvalidStateNameError()
-        if "config" not in owner.__dict__ or not isinstance(owner.config, ZmqStateMachineConfig):
-            owner.config = ZmqStateMachineConfig(
-                initial_state="", states=[], backgrounds=[], at_init=[],
-                exposed_states={}, exposed_fields={},
+        if hasattr(self.wrapped, "__set_name__"):
+            self.wrapped.__set_name__(owner, attr_name)
+
+        cfg = _ensure_state_machine_config(owner, require_zmq=True)
+        if not isinstance(cfg, ZmqStateMachineConfig):
+            raise RunnerError("Failed to initialize ZMQ state machine configuration")
+
+        state_name = None
+        for spec in cfg.states:
+            if spec.method_name == attr_name:
+                state_name = spec.name
+                break
+        if state_name is None:
+            raise RunnerError(
+                "@expose_zmq can only be used on @state/@timed_state methods"
             )
-        # Get the state name from the wrapped descriptor's name attribute
-        state_name = getattr(self.state_desc, "name", attr_name)
-        owner.config.exposed_states[self.zmq_name] = state_name
+        cfg.exposed_states[self.zmq_name] = state_name
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
-        # Delegate to the wrapped state descriptor's __get__
         if obj is None:
             return self
-        return self.state_desc.__get__(obj, objtype)
+        if hasattr(self.wrapped, "__get__"):
+            return self.wrapped.__get__(obj, objtype)
+        return types.MethodType(self.wrapped, obj)
 
 
 def expose_zmq(name: str) -> Callable[[Any], _ExposeZmqDescriptor]:
     """Expose a state for remote ZMQ transition commands.
-
-    Must wrap a ``@state`` descriptor.
 
     Args:
         name: ZMQ message name that triggers a transition to this state.
@@ -446,8 +493,8 @@ def expose_zmq(name: str) -> Callable[[Any], _ExposeZmqDescriptor]:
         Decorator that wraps a ``@state`` descriptor and registers the ZMQ name.
     """
 
-    def decorator(state_desc: Any) -> _ExposeZmqDescriptor:
-        return _ExposeZmqDescriptor(name, state_desc)
+    def decorator(target: Any) -> _ExposeZmqDescriptor:
+        return _ExposeZmqDescriptor(name, target)
 
     return decorator
 
@@ -462,12 +509,9 @@ class _ExposeFieldZmqDescriptor:
         self.func: Optional[Callable] = None
 
     def __set_name__(self, owner: type, name: str) -> None:
-        if "config" not in owner.__dict__ or not isinstance(owner.config, ZmqStateMachineConfig):
-            owner.config = ZmqStateMachineConfig(
-                initial_state="", states=[], backgrounds=[], at_init=[],
-                exposed_states={}, exposed_fields={},
-            )
-        owner.config.exposed_fields[self.zmq_name] = name
+        cfg = _ensure_state_machine_config(owner, require_zmq=True)
+        if isinstance(cfg, ZmqStateMachineConfig):
+            cfg.exposed_fields[self.zmq_name] = name
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
@@ -495,7 +539,6 @@ def expose_field_zmq(name: str) -> Callable[[Callable], _ExposeFieldZmqDescripto
         return desc
 
     return decorator
-
 
 
 class BasicRunner(Runner):
@@ -655,7 +698,9 @@ class StateMachine(Runner):
             # Run at_init tasks
             at_init_list = self._get_at_init()
             if at_init_list:
-                logger.debug(f"StateMachine: running {len(at_init_list)} at_init task(s)")
+                logger.debug(
+                    f"StateMachine: running {len(at_init_list)} at_init task(s)"
+                )
             for name in at_init_list:
                 logger.debug(f"StateMachine: at_init '{name}'")
                 method = getattr(self, name)
@@ -664,7 +709,9 @@ class StateMachine(Runner):
             # Start background tasks
             backgrounds = self._get_backgrounds()
             if backgrounds:
-                logger.info(f"StateMachine: starting {len(backgrounds)} background task(s)")
+                logger.info(
+                    f"StateMachine: starting {len(backgrounds)} background task(s)"
+                )
             MAX_BACKGROUND_RETRIES = 10
             for name in backgrounds:
                 method = getattr(self, name)
@@ -705,18 +752,20 @@ class StateMachine(Runner):
                         f"StateMachine: invalid state '{self._current_state}' "
                         f"(valid: {list(states.keys())})"
                     )
-                    raise InvalidStateError(
-                        self._current_state, list(states.keys())
-                    )
+                    raise InvalidStateError(self._current_state, list(states.keys()))
                 spec = states[self._current_state]
                 next_state = await self._run_state(spec, vehicle)
                 if getattr(self, "_override_next_state_transition", False):
                     self._override_next_state_transition = False
                     self._current_state = getattr(self, "_next_state_overr", next_state)
-                    logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
+                    logger.info(
+                        f"StateMachine: state transition (override) -> '{self._current_state}'"
+                    )
                 else:
                     self._current_state = next_state
-                    logger.info(f"StateMachine: state transition '{spec.name}' -> '{next_state}'")
+                    logger.info(
+                        f"StateMachine: state transition '{spec.name}' -> '{next_state}'"
+                    )
                 if self._current_state is None:
                     logger.info(f"StateMachine: completed (final state returned None)")
                     break
@@ -731,14 +780,14 @@ class StateMachine(Runner):
             for fut in self._background_futures:
                 fut.cancel()
             if self._background_futures:
-                await asyncio.gather(
-                    *self._background_futures, return_exceptions=True
-                )
+                await asyncio.gather(*self._background_futures, return_exceptions=True)
             self.cleanup()
 
     def stop(self) -> None:
         """Stop the state machine after current state."""
-        logger.debug(f"StateMachine: stop() called (current state: {self._current_state})")
+        logger.debug(
+            f"StateMachine: stop() called (current state: {self._current_state})"
+        )
         self._running = False
 
 
@@ -793,6 +842,7 @@ class ZmqStateMachine(StateMachine):
         cfg = getattr(self.__class__, "config", None)
         if not isinstance(cfg, ZmqStateMachineConfig):
             from .exceptions import RunnerError
+
             raise RunnerError("ZmqStateMachine requires config from @state/@expose_zmq")
         return cfg
 
@@ -856,7 +906,9 @@ class ZmqStateMachine(StateMachine):
         if msg_type == ZMQ_TYPE_TRANSITION:
             next_state = message.get("next_state")
             if not next_state:
-                logger.warning("ZmqStateMachine: TRANSITION message missing 'next_state'")
+                logger.warning(
+                    "ZmqStateMachine: TRANSITION message missing 'next_state'"
+                )
                 return
             self._next_state_overr = next_state
             self._override_next_state_transition = True
@@ -912,6 +964,7 @@ class ZmqStateMachine(StateMachine):
         """Run with ZMQ. Requires _initialize_zmq_bindings first."""
         if self._zmq_identifier is None or self._zmq_proxy_server is None:
             from .exceptions import RunnerError
+
             raise RunnerError(
                 "ZmqStateMachine requires _initialize_zmq_bindings before run. "
                 "Pass --zmq-identifier and --zmq-proxy-server."
@@ -932,12 +985,14 @@ class ZmqStateMachine(StateMachine):
         """
         if self._zmq_send_queue is None:
             return
-        await self._zmq_send_queue.put({
-            "msg_type": ZMQ_TYPE_TRANSITION,
-            "from": self._zmq_identifier,
-            "identifier": identifier,
-            "next_state": state_name,
-        })
+        await self._zmq_send_queue.put(
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": self._zmq_identifier,
+                "identifier": identifier,
+                "next_state": state_name,
+            }
+        )
 
     async def query_field(
         self, identifier: str, field: str, timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S
@@ -960,17 +1015,21 @@ class ZmqStateMachine(StateMachine):
             asyncio.TimeoutError: If the reply does not arrive within timeout.
         """
         if self._zmq_send_queue is None:
-            raise RuntimeError("ZMQ not initialized; call _initialize_zmq_bindings first")
+            raise RuntimeError(
+                "ZMQ not initialized; call _initialize_zmq_bindings first"
+            )
         if identifier not in self._zmq_pending_fields:
             self._zmq_pending_fields[identifier] = {}
         event = asyncio.Event()
         self._zmq_pending_fields[identifier][field] = event
-        await self._zmq_send_queue.put({
-            "msg_type": ZMQ_TYPE_FIELD_REQUEST,
-            "from": self._zmq_identifier,
-            "identifier": identifier,
-            "field": field,
-        })
+        await self._zmq_send_queue.put(
+            {
+                "msg_type": ZMQ_TYPE_FIELD_REQUEST,
+                "from": self._zmq_identifier,
+                "identifier": identifier,
+                "field": field,
+            }
+        )
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
         except asyncio.TimeoutError:
@@ -988,10 +1047,12 @@ class ZmqStateMachine(StateMachine):
         """
         if self._zmq_send_queue is None:
             return
-        await self._zmq_send_queue.put({
-            "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
-            "from": self._zmq_identifier,
-            "identifier": identifier,
-            "field": field,
-            "value": value,
-        })
+        await self._zmq_send_queue.put(
+            {
+                "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
+                "from": self._zmq_identifier,
+                "identifier": identifier,
+                "field": field,
+                "value": value,
+            }
+        )

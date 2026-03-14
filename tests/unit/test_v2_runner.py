@@ -203,6 +203,26 @@ class TestStateMachine:
         await sm.run(MockVehicle())
         assert len(sm._background_futures) == 1
 
+    def test_stacked_state_and_timed_state_raises(self):
+        with pytest.raises(RunnerError) as excinfo:
+            class Bad(StateMachine):
+                @state(name="a", first=True)
+                @timed_state(name="a", duration=1.0)
+                async def a(self, vehicle):
+                    return None
+
+        assert "more than one of @state/@timed_state" in str(excinfo.value)
+
+    def test_stacked_timed_state_and_state_raises(self):
+        with pytest.raises(RunnerError) as excinfo:
+            class Bad(StateMachine):
+                @timed_state(name="a", duration=1.0)
+                @state(name="a", first=True)
+                async def a(self, vehicle):
+                    return None
+
+        assert "more than one of @state/@timed_state" in str(excinfo.value)
+
 
 class TestZmqStateMachine:
     """Unit tests for ZmqStateMachine (no live ZMQ proxy needed)."""
@@ -236,6 +256,40 @@ class TestZmqStateMachine:
         # Clean up context so it doesn't leak
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
+
+    def test_expose_zmq_then_state_registers_exposed_state(self):
+        class Z(ZmqStateMachine):
+            @expose_zmq("remote")
+            @state(name="internal", first=True)
+            async def s(self, vehicle):
+                return None
+
+        cfg = Z.config
+        assert cfg.initial_state == "internal"
+        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
+        assert cfg.exposed_states["remote"] == "internal"
+
+    def test_state_then_expose_zmq_registers_exposed_state(self):
+        class Z(ZmqStateMachine):
+            @state(name="internal", first=True)
+            @expose_zmq("remote")
+            async def s(self, vehicle):
+                return None
+
+        cfg = Z.config
+        assert cfg.initial_state == "internal"
+        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
+        assert cfg.exposed_states["remote"] == "internal"
+
+    def test_expose_zmq_without_state_raises(self):
+        with pytest.raises(RuntimeError) as excinfo:
+            class Z(ZmqStateMachine):
+                @expose_zmq("remote")
+                async def no_state(self, vehicle):
+                    return None
+
+        assert isinstance(excinfo.value.__cause__, RunnerError)
+        assert "only be used on @state/@timed_state" in str(excinfo.value.__cause__)
 
 
 class TestConnectionHandler:
@@ -454,8 +508,6 @@ class TestConnectionHandler:
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 
-
-class TestConnectionHandler:
     @pytest.mark.asyncio
     async def test_times_out_without_telemetry_ticks(self):
         handler = ConnectionHandler(
