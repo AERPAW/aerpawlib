@@ -122,7 +122,6 @@ MIN_POSITION_TOLERANCE_M = 0.1
 MAX_POSITION_TOLERANCE_M = 100.0
 
 
-
 # AERPAW Platform Constants
 
 # Default Controller VM (C-VM) address and port

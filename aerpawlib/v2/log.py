@@ -29,7 +29,9 @@ class LogComponent:
     ZMQ = "aerpawlib.v2.zmq"
 
 
-def get_logger(component: Union[LogComponent, str] = LogComponent.ROOT) -> logging.Logger:
+def get_logger(
+    component: Union[LogComponent, str] = LogComponent.ROOT,
+) -> logging.Logger:
     """Return a logger for the specified v2 component.
 
     Args:

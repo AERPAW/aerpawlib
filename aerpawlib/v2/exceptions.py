@@ -69,7 +69,9 @@ class ConnectionTimeoutError(AerpawConnectionError):
 class HeartbeatLostError(AerpawConnectionError):
     """Vehicle heartbeat lost."""
 
-    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None, **kwargs):
+    def __init__(
+        self, last_heartbeat_age: float = 0.0, message: Optional[str] = None, **kwargs
+    ):
         """Initialize with the age of the last received heartbeat.
 
         Args:
@@ -130,12 +132,16 @@ class LandingError(CommandError):
 
 class NavigationError(CommandError):
     def __init__(self, reason: str = "Unknown", **kwargs):
-        super().__init__(f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs)
+        super().__init__(
+            f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs
+        )
 
 
 class VelocityError(CommandError):
     def __init__(self, reason: str = "Unknown", **kwargs):
-        super().__init__(f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs)
+        super().__init__(
+            f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs
+        )
 
 
 class RTLError(CommandError):
@@ -215,7 +221,9 @@ class InvalidStateNameError(RunnerError):
 
 
 class UnexpectedDisarmError(StateError):
-    def __init__(self, message: str = "Vehicle disarmed unexpectedly during experiment", **kwargs):
+    def __init__(
+        self, message: str = "Vehicle disarmed unexpectedly during experiment", **kwargs
+    ):
         kwargs.setdefault("code", "UNEXPECTED_DISARM")
         kwargs.setdefault("severity", "critical")
         super().__init__(message, **kwargs)

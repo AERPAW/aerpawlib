@@ -101,7 +101,9 @@ def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
     return inside_flag
 
 
-def _lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
+def _lies_on_segment(
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+) -> bool:
     """Return True if point Q lies on segment PR.
 
     Args:
@@ -120,7 +122,9 @@ def _lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: 
     )
 
 
-def _orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> int:
+def _orientation(
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+) -> int:
     """Return the orientation of the ordered triple (P, Q, R).
 
     Args:
@@ -143,8 +147,14 @@ def _orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: floa
 
 
 def do_intersect(
-    px: float, py: float, qx: float, qy: float,
-    rx: float, ry: float, sx: float, sy: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
+    sx: float,
+    sy: float,
 ) -> bool:
     """Return True if segment PQ intersects segment RS.
 

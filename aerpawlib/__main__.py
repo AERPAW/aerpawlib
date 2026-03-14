@@ -98,9 +98,7 @@ def setup_logging(
 logger: Optional[logging.Logger] = None
 
 
-def _is_direct_user_runner_class(
-    candidate, runner_cls, framework_runner_classes
-):
+def _is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes):
     """True when candidate is a user runner directly inheriting a framework runner.
 
     We intentionally disallow user-defined runner inheritance chains (e.g.
@@ -132,9 +130,7 @@ def discover_runner(api_module, experimenter_script):
 
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
-        if not _is_direct_user_runner_class(
-            val, Runner, framework_runner_classes
-        ):
+        if not _is_direct_user_runner_class(val, Runner, framework_runner_classes):
             continue
         if ZmqStateMachine and issubclass(val, ZmqStateMachine):
             flag_zmq_runner = True
@@ -168,9 +164,7 @@ def run_v2_experiment(
     flag_zmq_runner = False
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
-        if not _is_direct_user_runner_class(
-            val, Runner, framework_runner_classes
-        ):
+        if not _is_direct_user_runner_class(val, Runner, framework_runner_classes):
             continue
         if ZmqStateMachine and issubclass(val, ZmqStateMachine):
             flag_zmq_runner = True
@@ -204,7 +198,9 @@ def run_v2_experiment(
 
     logger.info("Starting experiment execution (v2)")
     if args.debug_dump:
-        logger.warning("--debug-dump is not yet implemented for --api-version v2; flag ignored")
+        logger.warning(
+            "--debug-dump is not yet implemented for --api-version v2; flag ignored"
+        )
 
     async def run_experiment_async():
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
@@ -302,6 +298,7 @@ def run_v2_experiment(
                 ConnectionHandler,
                 setup_signal_handlers,
             )
+
             loop = asyncio.get_running_loop()
             conn_handler = ConnectionHandler(
                 vehicle,
@@ -356,7 +353,11 @@ def run_v2_experiment(
                 if shutdown_event.is_set():
                     return success  # finally block handles vehicle.close()
                 if disconnect_future is not None and disconnect_future in done:
-                    exc = None if disconnect_future.cancelled() else disconnect_future.exception()
+                    exc = (
+                        None
+                        if disconnect_future.cancelled()
+                        else disconnect_future.exception()
+                    )
                     if exc is not None:
                         raise exc
 
@@ -396,7 +397,11 @@ def run_v2_experiment(
                     await run_task
                 except asyncio.CancelledError:
                     pass
-                exc = None if disconnect_future.cancelled() else disconnect_future.exception()
+                exc = (
+                    None
+                    if disconnect_future.cancelled()
+                    else disconnect_future.exception()
+                )
                 if exc is not None:
                     raise exc
             else:
@@ -476,14 +481,14 @@ def run_v1_experiment(
         # Connection
         logger.info("Connecting to vehicle...")
         try:
+
             async def create_vehicle_inner():
                 # Run blocking constructor off event loop to keep it responsive
                 v = await asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port)
                 if hasattr(v, "_connected"):
                     start = time.time()
                     while (
-                        not v._connected
-                        and (time.time() - start) < args.conn_timeout
+                        not v._connected and (time.time() - start) < args.conn_timeout
                     ):
                         await asyncio.sleep(0.1)
                     if not v._connected:
@@ -540,9 +545,7 @@ def run_v1_experiment(
                 raise ValueError(
                     "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
                 )
-            runner._initialize_zmq_bindings(
-                args.zmq_identifier, args.zmq_server_addr
-            )
+            runner._initialize_zmq_bindings(args.zmq_identifier, args.zmq_server_addr)
 
         success = False
         try:
@@ -554,11 +557,7 @@ def run_v1_experiment(
         finally:
             # RTL/Cleanup
             if vehicle:
-                if (
-                    not vehicle._closed
-                    and vehicle.armed
-                    and args.rtl_at_end
-                ):
+                if not vehicle._closed and vehicle.armed and args.rtl_at_end:
                     logger.warning("Vehicle still armed! RTLing...")
                     try:
                         if args.vehicle == "drone":
@@ -599,9 +598,7 @@ def main():
 
     # Pre-parse for config file
     conf_parser = ArgumentParser(add_help=False)
-    conf_parser.add_argument(
-        "--config", help="path to JSON configuration file"
-    )
+    conf_parser.add_argument("--config", help="path to JSON configuration file")
     conf_args, _ = conf_parser.parse_known_args()
 
     cli_args = sys.argv[1:]
@@ -654,7 +651,9 @@ def main():
     # Core Arguments
     core_grp = parser.add_argument_group("Core Arguments")
     core_grp.add_argument(
-        "--script", help="path to experimenter script (e.g. my_mission.py)", required=not proxy_mode
+        "--script",
+        help="path to experimenter script (e.g. my_mission.py)",
+        required=not proxy_mode,
     )
     core_grp.add_argument(
         "--conn", "--connection", help="connection string", required=not proxy_mode
@@ -747,7 +746,8 @@ def main():
     # Connection Handling Arguments
     conn_grp = parser.add_argument_group("Connection Tuning")
     conn_grp.add_argument(
-        "--conn-timeout", "--connection-timeout",
+        "--conn-timeout",
+        "--connection-timeout",
         help="initial connection timeout in seconds (default: 30)",
         type=float,
         default=30.0,
@@ -814,9 +814,7 @@ def main():
     logger.debug(f"Loading API version: {api_version}")
     try:
         api_module = importlib.import_module(f"aerpawlib.{api_version}")
-        logger.debug(
-            f"Time to import API module: {time.time() - start_time:.2f}s"
-        )
+        logger.debug(f"Time to import API module: {time.time() - start_time:.2f}s")
         # Inject into globals for backward compatibility in some scripts if needed
         # Use __all__ if defined, otherwise filter out standard modules
         if hasattr(api_module, "__all__"):
@@ -826,7 +824,16 @@ def main():
             for name in dir(api_module):
                 if not name.startswith("_"):
                     # Don't overwrite standard modules that we've already imported
-                    if name in ["logging", "os", "sys", "time", "asyncio", "json", "signal", "traceback"]:
+                    if name in [
+                        "logging",
+                        "os",
+                        "sys",
+                        "time",
+                        "asyncio",
+                        "json",
+                        "signal",
+                        "traceback",
+                    ]:
                         continue
                     globals()[name] = getattr(api_module, name)
     except Exception as e:
@@ -849,7 +856,9 @@ def main():
         # Accept file paths (e.g. "my_mission.py", "examples/v1/basic_example.py", "examples/v1/basic_example")
         # or dotted module names (e.g. "examples.v1.basic_example")
         if os.sep in script_arg or "/" in script_arg or script_arg.endswith(".py"):
-            script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
+            script_path = (
+                script_arg if script_arg.endswith(".py") else script_arg + ".py"
+            )
             module_name = os.path.splitext(os.path.basename(script_path))[0]
             spec = importlib.util.spec_from_file_location(module_name, script_path)
             experimenter_script = importlib.util.module_from_spec(spec)

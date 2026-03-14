@@ -54,7 +54,9 @@ class Rover(Vehicle):
                 )
                 break
             if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
-                logger.debug(f"Rover: waiting for armable... {self._get_health_summary()}")
+                logger.debug(
+                    f"Rover: waiting for armable... {self._get_health_summary()}"
+                )
                 last_log = time.monotonic()
             await asyncio.sleep(POLLING_DELAY_S)
         logger.info("Rover: _preflight_wait done (armable or timeout)")
@@ -68,9 +70,13 @@ class Rover(Vehicle):
         we send the raw MAV_CMD_DO_SET_MODE command via mavlink_passthrough.
         """
         if self.mode == "OFFBOARD":
-            logger.debug("Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch")
+            logger.debug(
+                "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch"
+            )
             return
-        logger.info(f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})")
+        logger.info(
+            f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})"
+        )
         try:
             # Build the payload dictionary using your original constants
             fields = {
@@ -168,7 +174,11 @@ class Rover(Vehicle):
         _validate_tolerance(tolerance, "tolerance")
         await self.await_ready_to_move()
         self._ready_to_move = lambda _: False
-        logger.debug("Rover: sending goto_location(%.6f, %.6f) command", coordinates.lat, coordinates.lon)
+        logger.debug(
+            "Rover: sending goto_location(%.6f, %.6f) command",
+            coordinates.lat,
+            coordinates.lon,
+        )
         try:
             await self._system.action.goto_location(
                 coordinates.lat,
@@ -191,13 +201,17 @@ class Rover(Vehicle):
                 while not self.done_moving():
                     elapsed = time.monotonic() - start
                     if elapsed > timeout:
-                        raise TimeoutError(f"Rover failed to reach destination within {timeout}s")
+                        raise TimeoutError(
+                            f"Rover failed to reach destination within {timeout}s"
+                        )
                     now = time.monotonic()
                     if now - last_log >= 3.0:
                         dist = coordinates.ground_distance(self.position)
                         logger.debug(
                             "Rover: goto_coordinates progress ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
-                            dist, tolerance, elapsed,
+                            dist,
+                            tolerance,
+                            elapsed,
                         )
                         last_log = now
                     await asyncio.sleep(0.05)
@@ -251,7 +265,8 @@ class Rover(Vehicle):
                 if now - last_log >= 5.0:
                     logger.debug(
                         "Rover: goto_coordinates (non-blocking) ground_dist=%.1fm progress=%.0f%%",
-                        d, handle.progress * 100,
+                        d,
+                        handle.progress * 100,
                     )
                     last_log = now
                 await asyncio.sleep(0.2)
@@ -310,9 +325,7 @@ class Rover(Vehicle):
 
             self._ready_to_move = lambda _: True
             self._velocity_loop_active = True
-            target_end = (
-                time.monotonic() + duration if duration is not None else None
-            )
+            target_end = time.monotonic() + duration if duration is not None else None
 
             async def _velocity_helper() -> None:
                 try:

@@ -44,9 +44,13 @@ def read_from_plan(
     except FileNotFoundError as e:
         raise PlanError(f"Plan file not found: {path!r}", original_error=e) from e
     except json.JSONDecodeError as e:
-        raise PlanError(f"Plan file is not valid JSON: {path!r}", original_error=e) from e
+        raise PlanError(
+            f"Plan file is not valid JSON: {path!r}", original_error=e
+        ) from e
     if data["fileType"] != "Plan":
-        raise PlanError(f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).")
+        raise PlanError(
+            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r})."
+        )
     current_speed = default_speed
     for item in data["mission"]["items"]:
         try:
@@ -104,9 +108,13 @@ def read_from_plan_complete(
     except FileNotFoundError as e:
         raise PlanError(f"Plan file not found: {path!r}", original_error=e) from e
     except json.JSONDecodeError as e:
-        raise PlanError(f"Plan file is not valid JSON: {path!r}", original_error=e) from e
+        raise PlanError(
+            f"Plan file is not valid JSON: {path!r}", original_error=e
+        ) from e
     if data["fileType"] != "Plan":
-        raise PlanError(f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).")
+        raise PlanError(
+            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r})."
+        )
     current_speed = default_speed
     for item in data["mission"]["items"]:
         try:

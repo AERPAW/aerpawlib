@@ -82,14 +82,10 @@ class VectorNED:
         )
 
     def __add__(self, o: "VectorNED") -> "VectorNED":
-        return VectorNED(
-            self.north + o.north, self.east + o.east, self.down + o.down
-        )
+        return VectorNED(self.north + o.north, self.east + o.east, self.down + o.down)
 
     def __sub__(self, o: "VectorNED") -> "VectorNED":
-        return VectorNED(
-            self.north - o.north, self.east - o.east, self.down - o.down
-        )
+        return VectorNED(self.north - o.north, self.east - o.east, self.down - o.down)
 
     def __mul__(self, scalar: float) -> "VectorNED":
         return VectorNED(self.north * scalar, self.east * scalar, self.down * scalar)

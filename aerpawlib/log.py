@@ -95,7 +95,9 @@ class ColoredFormatter(logging.Formatter):
             parts = name.split(".")
             name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
-        timestamp = datetime.datetime.fromtimestamp(record.created).strftime("%H:%M:%S.%f")
+        timestamp = datetime.datetime.fromtimestamp(record.created).strftime(
+            "%H:%M:%S.%f"
+        )
         level_letter = record.levelname[0]
 
         if record.levelno >= logging.WARNING:
@@ -173,9 +175,7 @@ def get_logger(
     Returns:
         A configured logging.Logger instance.
     """
-    name = (
-        component.value if isinstance(component, LogComponent) else component
-    )
+    name = component.value if isinstance(component, LogComponent) else component
     return logging.getLogger(name)
 
 

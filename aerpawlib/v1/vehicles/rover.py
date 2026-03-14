@@ -114,9 +114,7 @@ class Rover(Vehicle):
             )
             future.result(timeout=5.0)
         except Exception as e:
-            logger.warning(
-                f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}"
-            )
+            logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
             return
 
         start = time.time()
@@ -170,9 +168,7 @@ class Rover(Vehicle):
             self._mission_start_time = time.time()
 
         try:
-            logger.debug(
-                f"Navigating to: lat={coordinates.lat}, lon={coordinates.lon}"
-            )
+            logger.debug(f"Navigating to: lat={coordinates.lat}, lon={coordinates.lon}")
             await self._run_on_mavsdk_loop(
                 self._system.action.goto_location(
                     coordinates.lat,
@@ -186,9 +182,7 @@ class Rover(Vehicle):
                 lambda s: coordinates.ground_distance(s.position) <= tolerance
             )
 
-            logger.debug(
-                f"Waiting to reach destination (tolerance={tolerance}m)..."
-            )
+            logger.debug(f"Waiting to reach destination (tolerance={tolerance}m)...")
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
@@ -256,9 +250,7 @@ class Rover(Vehicle):
 
             self._ready_to_move = lambda _: True
             gen = self._velocity_generation
-            target_end = (
-                time.monotonic() + duration if duration is not None else None
-            )
+            target_end = time.monotonic() + duration if duration is not None else None
 
             async def _velocity_helper() -> None:
                 try:
@@ -284,9 +276,7 @@ class Rover(Vehicle):
                 except Exception as e:
                     logger.error("Rover velocity helper error: %s", e)
                     try:
-                        await self._run_on_mavsdk_loop(
-                            self._system.offboard.stop()
-                        )
+                        await self._run_on_mavsdk_loop(self._system.offboard.stop())
                         self._offboard_active = False
                     except Exception:
                         pass

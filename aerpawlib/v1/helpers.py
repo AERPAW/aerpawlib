@@ -12,10 +12,12 @@ import threading
 import time
 from typing import Callable, Optional, TypeVar, Any
 
-from .constants import POLLING_DELAY_S, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M
+from .constants import (
+    POLLING_DELAY_S,
+    MIN_POSITION_TOLERANCE_M,
+    MAX_POSITION_TOLERANCE_M,
+)
 from .exceptions import InvalidToleranceError
-
-
 
 T = TypeVar("T")
 
@@ -86,9 +88,7 @@ async def wait_for_value_change(
     return getter()
 
 
-def validate_tolerance(
-    tolerance: float, param_name: str = "tolerance"
-) -> float:
+def validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:
     """
     Validate a tolerance value is within acceptable bounds.
 
@@ -110,9 +110,7 @@ def validate_tolerance(
     """
 
     if math.isnan(tolerance) or math.isinf(tolerance):
-        raise ValueError(
-            f"Tolerance must be a finite number, got {tolerance}"
-        )
+        raise ValueError(f"Tolerance must be a finite number, got {tolerance}")
     if tolerance < MIN_POSITION_TOLERANCE_M:
         raise InvalidToleranceError(
             tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
@@ -122,7 +120,6 @@ def validate_tolerance(
             tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
         )
     return tolerance
-
 
 
 def normalize_heading(heading: float) -> float:

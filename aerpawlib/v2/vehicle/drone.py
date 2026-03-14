@@ -57,7 +57,11 @@ class Drone(Vehicle):
         """Wait for pre-arm conditions. Call before run."""
         self._will_arm = should_arm
         logger.info("Drone: _preflight_wait started (waiting for armable)")
-        from ..constants import ARMABLE_TIMEOUT_S, ARMABLE_STATUS_LOG_INTERVAL_S, POLLING_DELAY_S
+        from ..constants import (
+            ARMABLE_TIMEOUT_S,
+            ARMABLE_STATUS_LOG_INTERVAL_S,
+            POLLING_DELAY_S,
+        )
 
         start = time.monotonic()
         last_log = 0.0
@@ -137,9 +141,7 @@ class Drone(Vehicle):
             north_m, east_m = 0.0, 0.0
         try:
             await self._system.offboard.set_position_ned(
-                PositionNedYaw(
-                    north_m, east_m, -self.position.alt, heading
-                )
+                PositionNedYaw(north_m, east_m, -self.position.alt, heading)
             )
             try:
                 await self._system.offboard.start()
@@ -176,7 +178,9 @@ class Drone(Vehicle):
         Raises:
             TakeoffError: If the MAVSDK takeoff command fails.
         """
-        logger.info(f"Drone: takeoff to {altitude}m (min_alt_tolerance={min_alt_tolerance})")
+        logger.info(
+            f"Drone: takeoff to {altitude}m (min_alt_tolerance={min_alt_tolerance})"
+        )
         await self.await_ready_to_move()
         time_since_arm = time.monotonic() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
@@ -186,7 +190,9 @@ class Drone(Vehicle):
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
         try:
-            logger.debug(f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()")
+            logger.debug(
+                f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()"
+            )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
             self._ready_to_move = (
@@ -198,11 +204,14 @@ class Drone(Vehicle):
                 if now - last_log >= 2.0:
                     logger.debug(
                         "Drone: takeoff climbing alt=%.1fm target=%.1fm",
-                        self.position.alt, altitude,
+                        self.position.alt,
+                        altitude,
                     )
                     last_log = now
                 await asyncio.sleep(0.05)
-            await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)  # Justified: stabilization
+            await asyncio.sleep(
+                POST_TAKEOFF_STABILIZATION_S
+            )  # Justified: stabilization
             logger.info(f"Drone: takeoff complete (altitude {altitude}m)")
         except ActionError as e:
             logger.error(f"Drone: takeoff failed: {e}")
@@ -308,7 +317,13 @@ class Drone(Vehicle):
                 "Use --skip-init only when the vehicle is already armed and home is set."
             )
         try:
-            logger.debug("Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)", coordinates.lat, coordinates.lon, target_alt, heading)
+            logger.debug(
+                "Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
+                coordinates.lat,
+                coordinates.lon,
+                target_alt,
+                heading,
+            )
             self._ready_to_move = lambda _: False
             await self._system.action.goto_location(
                 coordinates.lat, coordinates.lon, target_alt, heading
@@ -333,7 +348,9 @@ class Drone(Vehicle):
                     dist = coordinates.distance(self.position)
                     logger.debug(
                         "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
-                        dist, tolerance, elapsed,
+                        dist,
+                        tolerance,
+                        elapsed,
                     )
                     last_log = now
                 await asyncio.sleep(0.05)
@@ -380,7 +397,11 @@ class Drone(Vehicle):
                     handle.set_progress(max(0.0, min(1.0, p)))
                 now = time.monotonic()
                 if now - last_log >= 5.0:
-                    logger.debug("Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%", d, handle.progress * 100)
+                    logger.debug(
+                        "Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%",
+                        d,
+                        handle.progress * 100,
+                    )
                     last_log = now
                 await asyncio.sleep(0.2)  # Justified: progress polling interval
 
@@ -420,12 +441,12 @@ class Drone(Vehicle):
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)  # Let previous loop exit
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
-        yaw = self._current_heading if self._current_heading is not None else self.heading
+        yaw = (
+            self._current_heading if self._current_heading is not None else self.heading
+        )
         try:
             await self._system.offboard.set_velocity_ned(
-                VelocityNedYaw(
-                    velocity.north, velocity.east, velocity.down, yaw
-                )
+                VelocityNedYaw(velocity.north, velocity.east, velocity.down, yaw)
             )
             try:
                 await self._system.offboard.start()
@@ -438,7 +459,9 @@ class Drone(Vehicle):
                 try:
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
-                            logger.debug("Drone: set_velocity duration reached, stopping offboard")
+                            logger.debug(
+                                "Drone: set_velocity duration reached, stopping offboard"
+                            )
                             self._velocity_loop_active = False
                             await self._system.offboard.set_velocity_ned(
                                 VelocityNedYaw(0, 0, 0, yaw)

@@ -26,9 +26,7 @@ class AerpawlibError(Exception):
         original_error: The underlying exception that caused this error, if any
     """
 
-    def __init__(
-        self, message: str, original_error: Optional[Exception] = None
-    ):
+    def __init__(self, message: str, original_error: Optional[Exception] = None):
         self.message = message
         self.original_error = original_error
         super().__init__(message)
@@ -55,18 +53,14 @@ class ConnectionTimeoutError(AerpawConnectionError):
 
     def __init__(self, timeout_seconds: float, message: Optional[str] = None):
         self.timeout_seconds = timeout_seconds
-        msg = (
-            message or f"Connection timed out after {timeout_seconds} seconds"
-        )
+        msg = message or f"Connection timed out after {timeout_seconds} seconds"
         super().__init__(msg)
 
 
 class HeartbeatLostError(AerpawConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
-    def __init__(
-        self, last_heartbeat_age: float = 0.0, message: Optional[str] = None
-    ):
+    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None):
         self.last_heartbeat_age = last_heartbeat_age
         msg = (
             message
@@ -79,9 +73,7 @@ class MAVSDKNotInstalledError(AerpawConnectionError):
     """Raised when MAVSDK is not installed."""
 
     def __init__(self):
-        super().__init__(
-            "MAVSDK is not installed. Install with: pip install mavsdk"
-        )
+        super().__init__("MAVSDK is not installed. Install with: pip install mavsdk")
 
 
 class PortInUseError(AerpawConnectionError):
@@ -260,16 +252,17 @@ class ValidationError(AerpawlibError):
 class InvalidToleranceError(ValidationError, ValueError):
     """Raised when an invalid tolerance value is provided."""
 
-    def __init__(self, value: float, min_val: float, max_val: float,
-                 param_name: str = "tolerance"):
+    def __init__(
+        self,
+        value: float,
+        min_val: float,
+        max_val: float,
+        param_name: str = "tolerance",
+    ):
         if value < min_val:
-            msg = (
-                f"{param_name} must be at least {min_val}m, got {value}m"
-            )
+            msg = f"{param_name} must be at least {min_val}m, got {value}m"
         else:
-            msg = (
-                f"{param_name} must be at most {max_val}m, got {value}m"
-            )
+            msg = f"{param_name} must be at most {max_val}m, got {value}m"
         super().__init__(msg)
         self.value = value
         self.min_val = min_val
@@ -309,9 +302,7 @@ class NotImplementedForVehicleError(AerpawlibError):
     """Raised when a feature is not available for a vehicle type."""
 
     def __init__(self, feature: str, vehicle_type: str):
-        super().__init__(
-            f"'{feature}' is not implemented for {vehicle_type} vehicles"
-        )
+        super().__init__(f"'{feature}' is not implemented for {vehicle_type} vehicles")
         self.feature = feature
         self.vehicle_type = vehicle_type
 

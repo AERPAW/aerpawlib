@@ -6,6 +6,7 @@ maintaining API compatibility.
 
 @author: Julian Reder (quantumbagel)
 """
+
 import errno
 import json
 import socket
@@ -116,16 +117,12 @@ class VectorNED:
     def __add__(self, o: "VectorNED") -> "VectorNED":
         if not isinstance(o, VectorNED):
             raise TypeError()
-        return VectorNED(
-            self.north + o.north, self.east + o.east, self.down + o.down
-        )
+        return VectorNED(self.north + o.north, self.east + o.east, self.down + o.down)
 
     def __sub__(self, o: "VectorNED") -> "VectorNED":
         if not isinstance(o, VectorNED):
             raise TypeError()
-        return VectorNED(
-            self.north - o.north, self.east - o.east, self.down - o.down
-        )
+        return VectorNED(self.north - o.north, self.east - o.east, self.down - o.down)
 
     def __mul__(self, o: Union[float, int]) -> "VectorNED":
         if not (isinstance(o, float) or isinstance(o, int)):
@@ -135,9 +132,7 @@ class VectorNED:
     __rmul__ = __mul__
 
     def __str__(self) -> str:
-        return (
-            "(" + ",".join(map(str, [self.north, self.east, self.down])) + ")"
-        )
+        return "(" + ",".join(map(str, [self.north, self.east, self.down])) + ")"
 
 
 class Coordinate:
@@ -200,9 +195,9 @@ class Coordinate:
         d2r = math.pi / 180
         dlon = (other.lon - self.lon) * d2r
         dlat = (other.lat - self.lat) * d2r
-        a = math.pow(math.sin(dlat / 2), 2) + math.cos(
-            self.lat * d2r
-        ) * math.cos(other.lat * d2r) * math.pow(math.sin(dlon / 2), 2)
+        a = math.pow(math.sin(dlat / 2), 2) + math.cos(self.lat * d2r) * math.cos(
+            other.lat * d2r
+        ) * math.pow(math.sin(dlon / 2), 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         d = 6378.137 * c  # WGS84 equatorial radius in km
         return math.hypot(d * 1000, other.alt - self.alt)
@@ -452,7 +447,9 @@ def inside(lon: float, lat: float, geofence: List[Dict]) -> bool:
     return inside
 
 
-def lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
+def lies_on_segment(
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+) -> bool:
     """
     Check if point Q lies on line segment PR.
 
@@ -474,11 +471,15 @@ def lies_on_segment(px: float, py: float, qx: float, qy: float, rx: float, ry: f
     return False
 
 
-def liesOnSegment(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> bool:
+def liesOnSegment(
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+) -> bool:
     return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
-def orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: float) -> int:
+def orientation(
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+) -> int:
     """
     Find the orientation of an ordered triplet (p, q, r).
 
@@ -497,7 +498,16 @@ def orientation(px: float, py: float, qx: float, qy: float, rx: float, ry: float
         return 0  # Colinear
 
 
-def do_intersect(px: float, py: float, qx: float, qy: float, rx: float, ry: float, sx: float, sy: float) -> bool:
+def do_intersect(
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
+    sx: float,
+    sy: float,
+) -> bool:
     """
     Check if line segment PQ intersects with segment RS.
 
@@ -530,7 +540,16 @@ def do_intersect(px: float, py: float, qx: float, qy: float, rx: float, ry: floa
     return False
 
 
-def doIntersect(px: float, py: float, qx: float, qy: float, rx: float, ry: float, sx: float, sy: float) -> bool:
+def doIntersect(
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
+    sx: float,
+    sy: float,
+) -> bool:
     return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
 
 

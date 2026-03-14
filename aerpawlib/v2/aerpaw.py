@@ -56,10 +56,14 @@ class AERPAW_Platform:
                 f"http://{self._forw_addr}:{self._forw_port}/ping",
                 timeout=1,
             )
-            logger.info(f"AERPAW platform: connected to forward server {self._forw_addr}:{self._forw_port}")
+            logger.info(
+                f"AERPAW platform: connected to forward server {self._forw_addr}:{self._forw_port}"
+            )
             return True
         except requests.exceptions.RequestException as e:
-            logger.debug(f"AERPAW platform: not in AERPAW environment ({self._forw_addr}:{self._forw_port} unreachable: {e})")
+            logger.debug(
+                f"AERPAW platform: not in AERPAW environment ({self._forw_addr}:{self._forw_port} unreachable: {e})"
+            )
             return False
 
     def _is_aerpaw_environment(self) -> bool:

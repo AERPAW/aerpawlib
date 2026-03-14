@@ -181,7 +181,9 @@ class Drone(Vehicle):
         time_since_arm = time.time() - self._last_arm_time.get()
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
-            logger.debug(f"Delaying takeoff by {delay:.2f}s to satisfy minimum arm-to-takeoff time")
+            logger.debug(
+                f"Delaying takeoff by {delay:.2f}s to satisfy minimum arm-to-takeoff time"
+            )
             await asyncio.sleep(delay)
 
         if self._mission_start_time is None:
@@ -231,9 +233,7 @@ class Drone(Vehicle):
 
     async def land(self) -> None:
         """Land the drone and wait for it to be disarmed."""
-        await self._action_wait_disarm(
-            self._system.action.land(), "land", LandingError
-        )
+        await self._action_wait_disarm(self._system.action.land(), "land", LandingError)
 
     async def return_to_launch(self) -> None:
         """Command the drone to RTL and wait for it to land and disarm."""
@@ -343,9 +343,7 @@ class Drone(Vehicle):
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
 
         yaw = (
-            self._current_heading
-            if self._current_heading is not None
-            else self.heading
+            self._current_heading if self._current_heading is not None else self.heading
         )
         logger.debug(f"Set velocity: {velocity_vector}, yaw={yaw}")
 
@@ -367,9 +365,7 @@ class Drone(Vehicle):
                 logger.warning("Failed to start offboard mode: %s", e)
 
             self._ready_to_move = lambda _: True
-            target_end = (
-                time.monotonic() + duration if duration is not None else None
-            )
+            target_end = time.monotonic() + duration if duration is not None else None
             gen = self._velocity_generation
 
             async def _velocity_helper():
@@ -394,9 +390,7 @@ class Drone(Vehicle):
                                 )
                                 self._offboard_active = False
                             except (OffboardError, ActionError):
-                                logger.warning(
-                                    "Failed to stop offboard mode cleanly"
-                                )
+                                logger.warning("Failed to stop offboard mode cleanly")
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                 except Exception as e:
@@ -407,9 +401,7 @@ class Drone(Vehicle):
                                 VelocityNedYaw(0, 0, 0, 0)
                             )
                         )
-                        await self._run_on_mavsdk_loop(
-                            self._system.offboard.stop()
-                        )
+                        await self._run_on_mavsdk_loop(self._system.offboard.stop())
                         self._offboard_active = False
                     except Exception as e:
                         logger.debug("Velocity helper cleanup failed: %s", e)

@@ -159,7 +159,9 @@ class _BatteryCompat:
         self.level: int = 0
 
     def __str__(self) -> str:
-        return f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
+        return (
+            f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
+        )
 
     def __repr__(self) -> str:
         return f"_BatteryCompat(voltage={self.voltage}, current={self.current}, level={self.level})"
@@ -470,9 +472,7 @@ class Vehicle:
             time.sleep(POLLING_DELAY_S)
 
         # Start internal update loop
-        update_thread = threading.Thread(
-            target=self._internal_update_loop, daemon=True
-        )
+        update_thread = threading.Thread(target=self._internal_update_loop, daemon=True)
         update_thread.start()
 
     async def _run_on_mavsdk_loop(self, coro):
@@ -530,6 +530,7 @@ class Vehicle:
             self._system.connect(system_address=self._connection_string),
             timeout=CONNECTION_TIMEOUT_S,
         )
+
         # Wait for connection state with timeout; wrap in wait_for so the
         # async generator doesn't block forever on an invalid connection string.
         async def _wait_for_heartbeat():
@@ -648,7 +649,9 @@ class Vehicle:
 
         async def _health_update():
             async for health in self._system.telemetry.health():
-                self._health_val.set(health) # Used to provide information when arming fails
+                self._health_val.set(
+                    health
+                )  # Used to provide information when arming fails
                 self._is_armable_state.set(
                     health.is_global_position_ok
                     and health.is_local_position_ok
@@ -660,21 +663,27 @@ class Vehicle:
         async def _mavlink_status_update():
             import json
             from aerpawlib.v1.constants import MAV_SYS_STATUS_PREARM_CHECK
+
             async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
                 try:
                     fields = json.loads(msg.fields_json)
                     health = fields.get("onboard_control_sensors_health", 0)
-                    self._prearm_checks_ok.set((health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK)
+                    self._prearm_checks_ok.set(
+                        (health & MAV_SYS_STATUS_PREARM_CHECK)
+                        == MAV_SYS_STATUS_PREARM_CHECK
+                    )
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
 
         async def _home_update():
             async for home in self._system.telemetry.home():
-                self._home_position.set(util.Coordinate(
-                    home.latitude_deg,
-                    home.longitude_deg,
-                    home.relative_altitude_m,
-                ))
+                self._home_position.set(
+                    util.Coordinate(
+                        home.latitude_deg,
+                        home.longitude_deg,
+                        home.relative_altitude_m,
+                    )
+                )
                 self._home_abs_alt.set(home.absolute_altitude_m)
 
         async def _connection_state_update():
@@ -707,9 +716,7 @@ class Vehicle:
         ]
 
         for name, factory in telemetry_defs:
-            task = asyncio.create_task(
-                self._resilient_telemetry_task(name, factory)
-            )
+            task = asyncio.create_task(self._resilient_telemetry_task(name, factory))
             self._telemetry_tasks.append(task)
 
     async def _fetch_vehicle_info(self):
@@ -1012,7 +1019,9 @@ class Vehicle:
         logger.debug(f"set_armed({value}) called")
         if not self._is_armable_state.get() and value:
             health_summary = self._get_health_status_summary()
-            logger.error(f"Cannot arm: vehicle not in armable state. Status: {health_summary}")
+            logger.error(
+                f"Cannot arm: vehicle not in armable state. Status: {health_summary}"
+            )
             raise NotArmableError(f"Vehicle not armable. Status: {health_summary}")
 
         try:
@@ -1030,9 +1039,7 @@ class Vehicle:
                 poll_interval=POLLING_DELAY_S,
                 timeout_message=f"Arm/disarm did not complete within {ARMABLE_TIMEOUT_S}s",
             )
-            logger.debug(
-                f"Vehicle {'armed' if value else 'disarmed'} successfully"
-            )
+            logger.debug(f"Vehicle {'armed' if value else 'disarmed'} successfully")
         except ActionError as e:
             logger.error(f"Arm/disarm failed: {e}")
             if value:
@@ -1047,9 +1054,7 @@ class Vehicle:
         Args:
             should_arm: Whether to perform arming later.
         """
-        logger.debug(
-            f"_preflight_wait(should_arm={should_arm}) called"
-        )
+        logger.debug(f"_preflight_wait(should_arm={should_arm}) called")
         start = time.time()
         last_log = 0.0
         while not self._is_armable_state.get():
@@ -1093,7 +1098,8 @@ class Vehicle:
         if self._postarm_init_in_progress:
             logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: self._initialization_complete or not self._postarm_init_in_progress,
+                lambda: self._initialization_complete
+                or not self._postarm_init_in_progress,
                 poll_interval=POLLING_DELAY_S,
             )
             return
@@ -1109,7 +1115,9 @@ class Vehicle:
                 # log_to_oeo is blocking, run in thread (E6)
                 threading.Thread(
                     target=AERPAW_Platform.log_to_oeo,
-                    args=("[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",),
+                    args=(
+                        "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",
+                    ),
                     daemon=True,
                 ).start()
                 logger.info("Waiting for safety pilot to arm vehicle...")
@@ -1199,9 +1207,7 @@ class Vehicle:
         Raises:
             NotImplementedForVehicleError: Generic vehicles cannot navigate
         """
-        raise NotImplementedForVehicleError(
-            "goto_coordinates", "generic Vehicle"
-        )
+        raise NotImplementedForVehicleError("goto_coordinates", "generic Vehicle")
 
     async def set_velocity(
         self,

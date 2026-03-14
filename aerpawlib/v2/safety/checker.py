@@ -87,7 +87,9 @@ class NoOpSafetyChecker:
         Returns:
             Tuple of (True, "").
         """
-        logger.warning("NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true.")
+        logger.warning(
+            "NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true."
+        )
         return True, ""
 
     async def validate_waypoint(
@@ -102,7 +104,9 @@ class NoOpSafetyChecker:
         Returns:
             Tuple of (True, "").
         """
-        logger.warning("NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true.")
+        logger.warning(
+            "NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true."
+        )
         return True, ""
 
     async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
@@ -114,7 +118,9 @@ class NoOpSafetyChecker:
         Returns:
             Tuple of (True, "").
         """
-        logger.warning("NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true.")
+        logger.warning(
+            "NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true."
+        )
         return True, ""
 
     async def validate_landing(
@@ -129,7 +135,9 @@ class NoOpSafetyChecker:
         Returns:
             Tuple of (True, "").
         """
-        logger.warning("NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true.")
+        logger.warning(
+            "NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true."
+        )
         return True, ""
 
 
@@ -152,7 +160,9 @@ class SafetyCheckerClient:
         self._addr = addr
         self._port = port
         self._timeout_s = timeout_s
-        logger.info(f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)")
+        logger.info(
+            f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)"
+        )
         try:
             self._ctx = zmq.asyncio.Context()
             self._socket = self._ctx.socket(zmq.REQ)
@@ -216,7 +226,9 @@ class SafetyCheckerClient:
                 original_error=e,
             ) from e
         message = resp.get("message", "")
-        logger.debug(f"SafetyCheckerClient: response result={result}, message={message}")
+        logger.debug(
+            f"SafetyCheckerClient: response result={result}, message={message}"
+        )
         return result, message
 
     async def check_server_status(self) -> Tuple[bool, str]:

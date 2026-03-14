@@ -26,7 +26,11 @@ class ExternalProcess:
     """
 
     def __init__(
-        self, executable: str, params: Optional[List[str]] = None, stdin: Optional[str] = None, stdout: Optional[str] = None
+        self,
+        executable: str,
+        params: Optional[List[str]] = None,
+        stdin: Optional[str] = None,
+        stdout: Optional[str] = None,
     ) -> None:
         """
         Prepare external process for execution.
@@ -57,9 +61,7 @@ class ExternalProcess:
 
         self.process = await asyncio.create_subprocess_shell(
             executable,
-            stdout=(
-                None if self._stdout is not None else asyncio.subprocess.PIPE
-            ),
+            stdout=(None if self._stdout is not None else asyncio.subprocess.PIPE),
             stdin=None if self._stdin is not None else asyncio.subprocess.PIPE,
         )
 

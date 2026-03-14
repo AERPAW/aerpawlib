@@ -93,8 +93,12 @@ class ConnectionHandler:
 
     async def _monitor_loop(self) -> None:
         """Monitor heartbeat. Start checking after start_delay."""
-        logger.debug(f"ConnectionHandler: monitor sleeping {self._start_delay}s before first check")
-        await asyncio.sleep(self._start_delay)  # Justified: avoid false "heartbeat lost"
+        logger.debug(
+            f"ConnectionHandler: monitor sleeping {self._start_delay}s before first check"
+        )
+        await asyncio.sleep(
+            self._start_delay
+        )  # Justified: avoid false "heartbeat lost"
         logger.debug("ConnectionHandler: monitor active, checking heartbeat")
         while not self._disconnected:
             if not self._monitor_started:
@@ -113,7 +117,9 @@ class ConnectionHandler:
                     try:
                         await loop.run_in_executor(None, self._on_disconnect)
                     except Exception as e:
-                        logger.warning(f"ConnectionHandler: on_disconnect callback raised: {e}")
+                        logger.warning(
+                            f"ConnectionHandler: on_disconnect callback raised: {e}"
+                        )
                 err = HeartbeatLostError(last_heartbeat_age=age)
                 if self._disconnect_future and not self._disconnect_future.done():
                     try:

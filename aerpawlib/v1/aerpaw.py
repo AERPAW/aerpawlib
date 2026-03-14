@@ -51,7 +51,9 @@ class AERPAW:
 
     _connection_warning_displayed = False
 
-    def __init__(self, forw_addr=DEFAULT_FORWARD_SERVER_IP, forw_port=DEFAULT_FORWARD_SERVER_PORT):
+    def __init__(
+        self, forw_addr=DEFAULT_FORWARD_SERVER_IP, forw_port=DEFAULT_FORWARD_SERVER_PORT
+    ):
         """
         Initialize the AERPAW platform interface.
 
@@ -70,9 +72,7 @@ class AERPAW:
         hosting this experiment. Returns bool depending on success.
         """
         try:
-            requests.post(
-                f"http://{self._forw_addr}:{self._forw_port}/ping", timeout=1
-            )
+            requests.post(f"http://{self._forw_addr}:{self._forw_port}/ping", timeout=1)
         except requests.exceptions.RequestException:
             return False
         return True
@@ -93,10 +93,17 @@ class AERPAW:
         if self._connection_warning_displayed:
             return
         if not self._no_stdout:
-            logger.info("the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment")
+            logger.info(
+                "the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment"
+            )
         self._connection_warning_displayed = True
 
-    def log_to_oeo(self, msg: str, severity: str = OEO_MSG_SEV_INFO, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID) -> None:
+    def log_to_oeo(
+        self,
+        msg: str,
+        severity: str = OEO_MSG_SEV_INFO,
+        agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID,
+    ) -> None:
         """
         Send a message to the OEO console, if connected.
 
@@ -340,7 +347,9 @@ class AERPAW:
         response_content = response.content.decode()
         return response_content
 
-    def publish_user_oeo_topic(self, value: str, topic: str, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID) -> bool:
+    def publish_user_oeo_topic(
+        self, value: str, topic: str, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID
+    ) -> bool:
         """
         Publish `value` to a user topic in the OEO system (can be added/is
         visible on the OEO-console).
@@ -361,18 +370,26 @@ class AERPAW:
             self._display_connection_warning()
             return False
 
-        value_b64 = base64.urlsafe_b64encode(str(value).encode('utf-8')).decode('utf-8')
-        topic_b64 = base64.urlsafe_b64encode(str(topic).encode('utf-8')).decode('utf-8')
+        value_b64 = base64.urlsafe_b64encode(str(value).encode("utf-8")).decode("utf-8")
+        topic_b64 = base64.urlsafe_b64encode(str(topic).encode("utf-8")).decode("utf-8")
         agent_b64 = None
 
         if agent_id is not None:
-            agent_b64 = base64.urlsafe_b64encode(str(agent_id).encode('utf-8')).decode('utf-8')
+            agent_b64 = base64.urlsafe_b64encode(str(agent_id).encode("utf-8")).decode(
+                "utf-8"
+            )
 
         try:
             if not agent_id:
-                requests.post(f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}", timeout=3)
+                requests.post(
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}",
+                    timeout=3,
+                )
             else:
-                requests.post(f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}", timeout=3)
+                requests.post(
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
+                    timeout=3,
+                )
         except requests.exceptions.RequestException as e:
             logger.error(f"unable to publish value to OEO system. exception: {e}")
             return False

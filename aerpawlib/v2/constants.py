@@ -7,7 +7,9 @@ import os
 # Connection
 CONNECTION_TIMEOUT_S = 30.0
 HEARTBEAT_TIMEOUT_S = 5.0
-HEARTBEAT_START_DELAY_S = 1.0  # Delay before starting heartbeat monitor after first telemetry
+HEARTBEAT_START_DELAY_S = (
+    1.0  # Delay before starting heartbeat monitor after first telemetry
+)
 
 # Movement
 DEFAULT_POSITION_TOLERANCE_M = 2.0

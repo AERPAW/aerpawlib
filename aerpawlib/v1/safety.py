@@ -223,7 +223,9 @@ class SafetyCheckerClient:
     def checkServerStatus(self) -> Tuple[bool, str]:
         return self.check_server_status()
 
-    def validate_waypoint_command(self, current_location: Coordinate, next_location: Coordinate) -> Tuple[bool, str]:
+    def validate_waypoint_command(
+        self, current_location: Coordinate, next_location: Coordinate
+    ) -> Tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside geofence and avoids no-go zones.
         Returns a tuple (bool, str)
@@ -235,7 +237,9 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateWaypointCommand(self, curLoc: Coordinate, nextLoc: Coordinate) -> Tuple[bool, str]:
+    def validateWaypointCommand(
+        self, curLoc: Coordinate, nextLoc: Coordinate
+    ) -> Tuple[bool, str]:
         return self.validate_waypoint_command(curLoc, nextLoc)
 
     def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
@@ -250,7 +254,9 @@ class SafetyCheckerClient:
     def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
         return self.validate_change_speed_command(newSpeed)
 
-    def validate_takeoff_command(self, takeoff_alt: float, current_lat: float, current_lon: float) -> Tuple[bool, str]:
+    def validate_takeoff_command(
+        self, takeoff_alt: float, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints
         Returns (False, <error message>) if the altitude violates constraints, else (True, "").
@@ -261,10 +267,14 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateTakeoffCommand(self, takeoffAlt: float, currentLat: float, currentLon: float) -> Tuple[bool, str]:
+    def validateTakeoffCommand(
+        self, takeoffAlt: float, currentLat: float, currentLon: float
+    ) -> Tuple[bool, str]:
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
-    def validate_landing_command(self, current_lat: float, current_lon: float) -> Tuple[bool, str]:
+    def validate_landing_command(
+        self, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff location
         Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
@@ -273,7 +283,9 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateLandingCommand(self, currentLat: float, currentLon: float) -> Tuple[bool, str]:
+    def validateLandingCommand(
+        self, currentLat: float, currentLon: float
+    ) -> Tuple[bool, str]:
         return self.validate_landing_command(currentLat, currentLon)
 
 
@@ -347,7 +359,7 @@ class SafetyCheckerServer:
 
         self.vehicle_type = config["vehicle_type"]
 
-        (vehicle_config_dir, _) = os.path.split(vehicle_config_filename)
+        vehicle_config_dir, _ = os.path.split(vehicle_config_filename)
         self.include_geofences = [
             read_geofence(os.path.join(vehicle_config_dir, geofence))
             for geofence in config["include_geofences"]
@@ -497,30 +509,48 @@ class SafetyCheckerServer:
         # Check all edges including the closing edge (last → first vertex).
         for p1, p2 in _polygon_edges(dest_geofence):
             if do_intersect(
-                p1["lon"], p1["lat"],
-                p2["lon"], p2["lat"],
-                current_location.lon, current_location.lat,
-                next_location.lon, next_location.lat,
+                p1["lon"],
+                p1["lat"],
+                p2["lon"],
+                p2["lat"],
+                current_location.lon,
+                current_location.lat,
+                next_location.lon,
+                next_location.lat,
             ):
                 return (
                     False,
                     "Invalid waypoint. Path from (%s,%s) to waypoint (%s,%s) leaves geofence. ABORTING!"
-                    % (current_location.lat, current_location.lon, next_location.lat, next_location.lon),
+                    % (
+                        current_location.lat,
+                        current_location.lon,
+                        next_location.lat,
+                        next_location.lon,
+                    ),
                 )
 
         # Makes sure path between two points does not enter no-go zone
         for zone in self.exclude_geofences:
             for p1, p2 in _polygon_edges(zone):
                 if do_intersect(
-                    p1["lon"], p1["lat"],
-                    p2["lon"], p2["lat"],
-                    current_location.lon, current_location.lat,
-                    next_location.lon, next_location.lat,
+                    p1["lon"],
+                    p1["lat"],
+                    p2["lon"],
+                    p2["lat"],
+                    current_location.lon,
+                    current_location.lat,
+                    next_location.lon,
+                    next_location.lat,
                 ):
                     return (
                         False,
                         "Invalid waypoint. Path from (%s,%s) to waypoint (%s,%s) enters no-go zone. ABORTING!"
-                        % (current_location.lat, current_location.lon, next_location.lat, next_location.lon),
+                        % (
+                            current_location.lat,
+                            current_location.lon,
+                            next_location.lat,
+                            next_location.lon,
+                        ),
                     )
 
         # Next waypoint location is valid
@@ -554,7 +584,9 @@ class SafetyCheckerServer:
     def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
         return self.validate_change_speed_command(newSpeed)
 
-    def validate_takeoff_command(self, takeoff_alt: float, current_lat: float, current_lon: float) -> Tuple[bool, str]:
+    def validate_takeoff_command(
+        self, takeoff_alt: float, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints
         Returns (False, <error message>) if the altitude violates constraints, else (True, "").
@@ -571,10 +603,14 @@ class SafetyCheckerServer:
         # Takeoff command is valid
         return True, ""
 
-    def validateTakeoffCommand(self, takeoffAlt: float, currentLat: float, currentLon: float) -> Tuple[bool, str]:
+    def validateTakeoffCommand(
+        self, takeoffAlt: float, currentLat: float, currentLon: float
+    ) -> Tuple[bool, str]:
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
-    def validate_landing_command(self, current_lat: float, current_lon: float) -> Tuple[bool, str]:
+    def validate_landing_command(
+        self, current_lat: float, current_lon: float
+    ) -> Tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff location
         Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
@@ -597,7 +633,9 @@ class SafetyCheckerServer:
         # Landing command is valid
         return True, ""
 
-    def validateLandingCommand(self, currentLat: float, currentLon: float) -> Tuple[bool, str]:
+    def validateLandingCommand(
+        self, currentLat: float, currentLon: float
+    ) -> Tuple[bool, str]:
         return self.validate_landing_command(currentLat, currentLon)
 
     # Client Request Handlers
@@ -608,15 +646,15 @@ class SafetyCheckerServer:
         Returns:
             bytes: Serialized successful response.
         """
-        msg = serialize_response(
-            request_function=SERVER_STATUS_REQ, result=True
-        )
+        msg = serialize_response(request_function=SERVER_STATUS_REQ, result=True)
         return msg
 
     def serverStatusHandler(self, *_params) -> bytes:
         return self.server_status_handler(*_params)
 
-    def validate_waypoint_handler(self, current_json_location: str, next_json_location: str, *_params) -> bytes:
+    def validate_waypoint_handler(
+        self, current_json_location: str, next_json_location: str, *_params
+    ) -> bytes:
         """
         Handler for waypoint validation requests.
 
@@ -630,7 +668,9 @@ class SafetyCheckerServer:
         current_dict_location = json.loads(current_json_location)
         next_dict_location = json.loads(next_json_location)
         current_location = Coordinate(
-            lat=current_dict_location["lat"], lon=current_dict_location["lon"], alt=current_dict_location["alt"]
+            lat=current_dict_location["lat"],
+            lon=current_dict_location["lon"],
+            alt=current_dict_location["alt"],
         )
         next_location = Coordinate(
             lat=next_dict_location["lat"],
@@ -638,7 +678,9 @@ class SafetyCheckerServer:
             alt=next_dict_location["alt"],
         )
 
-        result, message = self.validate_waypoint_command(current_location, next_location)
+        result, message = self.validate_waypoint_command(
+            current_location, next_location
+        )
         msg = serialize_response(
             request_function=VALIDATE_WAYPOINT_REQ,
             result=result,
@@ -646,7 +688,9 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateWaypointHandler(self, curLocJSON: str, nextLocJSON: str, *_params) -> bytes:
+    def validateWaypointHandler(
+        self, curLocJSON: str, nextLocJSON: str, *_params
+    ) -> bytes:
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
 
     def validate_change_speed_handler(self, new_speed: float, *_params) -> bytes:
@@ -701,7 +745,9 @@ class SafetyCheckerServer:
             takeoffAlt, currentLat, currentLon, *_params
         )
 
-    def validate_landing_handler(self, current_lat: float, current_lon: float, *_params) -> bytes:
+    def validate_landing_handler(
+        self, current_lat: float, current_lon: float, *_params
+    ) -> bytes:
         """
         Handler for landing validation requests.
 
@@ -720,7 +766,9 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateLandingHandler(self, currentLat: float, currentLon: float, *_params) -> bytes:
+    def validateLandingHandler(
+        self, currentLat: float, currentLon: float, *_params
+    ) -> bytes:
         return self.validate_landing_handler(currentLat, currentLon, *_params)
 
 
@@ -729,9 +777,7 @@ if __name__ == "__main__":
     # but it allows us to keep the same command line interface for legacy and new safety checkers
     # without needing to maintain two separate entry points.
     # v2 will do away with this and have a more elegant way to launch the server.
-    parser = ArgumentParser(
-        description="safety - Launch a safety server"
-    )
+    parser = ArgumentParser(description="safety - Launch a safety server")
     parser.add_argument(
         "--port",
         help="Port for communication between client and server",

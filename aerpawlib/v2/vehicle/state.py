@@ -49,9 +49,7 @@ class VehicleState:
     @property
     def position(self) -> Coordinate:
         """Return the current position as a Coordinate (relative altitude)."""
-        return Coordinate(
-            self._position_lat, self._position_lon, self._position_alt
-        )
+        return Coordinate(self._position_lat, self._position_lon, self._position_alt)
 
     @property
     def home_coords(self) -> Optional[Coordinate]:
@@ -201,8 +199,9 @@ class VehicleState:
             home_ok: True if home position is set.
             armable: True if the vehicle's own health check passes.
         """
-        self._armable = global_ok and local_ok and home_ok and armable and self._prearm_checks_ok
-
+        self._armable = (
+            global_ok and local_ok and home_ok and armable and self._prearm_checks_ok
+        )
 
     def update_prearm_bits(self, ok: bool) -> None:
         """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.
@@ -212,7 +211,9 @@ class VehicleState:
         """
         self._prearm_checks_ok = ok
 
-    def update_home(self, lat: float, lon: float, rel_alt: float, abs_alt: float) -> None:
+    def update_home(
+        self, lat: float, lon: float, rel_alt: float, abs_alt: float
+    ) -> None:
         """Update the home position.
 
         Args:
