@@ -21,11 +21,13 @@ from aerpawlib.v2.constants import (
     ZMQ_TYPE_FIELD_CALLBACK,
 )
 from aerpawlib.v2.exceptions import (
+    HeartbeatLostError,
     NoEntrypointError,
     NoInitialStateError,
     MultipleInitialStatesError,
     RunnerError,
 )
+from aerpawlib.v2.safety.connection import ConnectionHandler
 from aerpawlib.v2.testing import MockVehicle
 
 
@@ -165,6 +167,42 @@ class TestStateMachine:
 
         assert isinstance(excinfo.value.__cause__, MultipleInitialStatesError)
 
+    @pytest.mark.asyncio
+    async def test_inherited_background_preserves_parent_initial_state(self):
+        calls = []
+
+        class Base(StateMachine):
+            @state(name="start", first=True)
+            async def start(self, vehicle):
+                calls.append("start")
+                return None
+
+        class Child(Base):
+            @background
+            async def bg(self, vehicle):
+                await asyncio.sleep(0)
+
+        await Child().run(MockVehicle())
+        assert calls == ["start"]
+
+    @pytest.mark.asyncio
+    async def test_background_futures_reset_between_runs(self):
+        class SM(StateMachine):
+            @background
+            async def bg(self, vehicle):
+                await asyncio.sleep(0.01)
+
+            @state(name="s", first=True)
+            async def s(self, vehicle):
+                await asyncio.sleep(0.02)
+                return None
+
+        sm = SM()
+        await sm.run(MockVehicle())
+        assert len(sm._background_futures) == 1
+        await sm.run(MockVehicle())
+        assert len(sm._background_futures) == 1
+
 
 class TestZmqStateMachine:
     """Unit tests for ZmqStateMachine (no live ZMQ proxy needed)."""
@@ -198,6 +236,26 @@ class TestZmqStateMachine:
         # Clean up context so it doesn't leak
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
+
+
+class TestConnectionHandler:
+    @pytest.mark.asyncio
+    async def test_times_out_without_telemetry_ticks(self):
+        handler = ConnectionHandler(
+            MockVehicle(),
+            heartbeat_timeout=0.1,
+            start_delay=0.0,
+        )
+        monitor = handler.start()
+        disconnect_future = handler.get_disconnect_future()
+
+        with pytest.raises(HeartbeatLostError):
+            await asyncio.wait_for(disconnect_future, timeout=1.0)
+
+        handler.stop()
+        monitor.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await monitor
 
     @pytest.mark.asyncio
     async def test_handle_transition_message(self):
@@ -349,8 +407,24 @@ class TestZmqStateMachine:
             z.query_field("responder", "altitude", timeout=1.0), timeout=2.0
         )
         assert result == 100.0
+        assert "altitude" not in z._zmq_pending_fields["responder"]
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
+
+    def test_expose_field_in_subclass_preserves_parent_initial_state(self):
+        class Base(ZmqStateMachine):
+            @state(name="start", first=True)
+            async def start(self, vehicle):
+                return None
+
+        class Child(Base):
+            @expose_field_zmq("battery")
+            async def battery(self, vehicle):
+                return 1
+
+        cfg = Child.config
+        assert cfg.initial_state == "start"
+        assert "battery" in cfg.exposed_fields
 
     @pytest.mark.asyncio
     async def test_zmq_override_not_discarded_when_state_returns_none(self):
@@ -379,3 +453,31 @@ class TestZmqStateMachine:
         assert "end" in visited
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
+
+
+class TestConnectionHandler:
+    @pytest.mark.asyncio
+    async def test_times_out_without_telemetry_ticks(self):
+        handler = ConnectionHandler(
+            MockVehicle(),
+            heartbeat_timeout=0.1,
+            start_delay=0.0,
+        )
+        monitor = handler.start()
+        disconnect_future = handler.get_disconnect_future()
+
+        done, _ = await asyncio.wait(
+            [disconnect_future], timeout=2.5, return_when=asyncio.FIRST_COMPLETED
+        )
+        assert disconnect_future in done
+        assert isinstance(disconnect_future.exception(), HeartbeatLostError)
+
+        handler.stop()
+        if not monitor.done():
+            monitor.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await monitor
+        else:
+            await monitor
+
+

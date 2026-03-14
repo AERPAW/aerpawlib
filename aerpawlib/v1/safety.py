@@ -385,10 +385,11 @@ class SafetyCheckerServer:
 
         try:
             while True:
-                raw_msg = socket.recv()
-                message = deserialize_msg(raw_msg)
-                logger.debug(f"Received request: {message}")
+                function_name = "unknown"
                 try:
+                    raw_msg = socket.recv()
+                    message = deserialize_msg(raw_msg)
+                    logger.debug(f"Received request: {message}")
                     function_name = message.get("request_function", "unknown")
                     req_function = self.REQUEST_FUNCTIONS[function_name]
                     params = message.get("params")
@@ -398,11 +399,13 @@ class SafetyCheckerServer:
                         response = req_function(*params)
                     socket.send(response)
                 except KeyError as e:
-                    fn = message.get("request_function", "unknown")
                     error_resp = serialize_response(
-                        request_function=fn,
+                        request_function=function_name,
                         result=False,
-                        message=f"Unimplemented or missing function request <{fn}>",
+                        message=(
+                            "Unimplemented or missing function request "
+                            f"<{function_name}>"
+                        ),
                     )
                     socket.send(error_resp)
                 except Exception as e:
