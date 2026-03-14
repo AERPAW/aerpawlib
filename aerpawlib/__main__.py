@@ -30,6 +30,14 @@ import traceback
 from argparse import ArgumentParser
 from typing import Optional
 
+from aerpawlib.constants import (
+    DEFAULT_CONNECTION_TIMEOUT_S,
+    DEFAULT_HEARTBEAT_TIMEOUT_S,
+    DEFAULT_MAVSDK_PORT,
+    DEFAULT_SAFETY_CHECKER_PORT,
+    RUNNER_DISCONNECT_POLL_INTERVAL_S,
+    VEHICLE_CONNECT_POLL_INTERVAL_S,
+)
 from aerpawlib.log import ColoredFormatter
 
 
@@ -98,6 +106,129 @@ def setup_logging(
 logger: Optional[logging.Logger] = None
 
 
+def _build_connection_loss_error(
+    heartbeat_error_cls,
+    age: float,
+    message: str,
+    original_error: Optional[Exception] = None,
+) -> Exception:
+    """Build a connection-loss exception for both v1 and v2 constructors.
+
+    Args:
+        heartbeat_error_cls: Exception class to instantiate.
+        age: Seconds since disconnection started.
+        message: Human-readable error text.
+        original_error: Optional root cause from lower layers.
+
+    Returns:
+        Exception: Instantiated connection-loss exception.
+    """
+    kwargs: dict[str, object] = {
+        "last_heartbeat_age": age,
+        "message": message,
+    }
+    if original_error is not None:
+        kwargs["original_error"] = original_error
+    try:
+        return heartbeat_error_cls(**kwargs)
+    except TypeError:
+        try:
+            return heartbeat_error_cls(message=message)
+        except TypeError:
+            return heartbeat_error_cls()
+
+
+async def _wait_for_v1_connection_loss(
+    vehicle,
+    heartbeat_timeout: float,
+    heartbeat_error_cls,
+):
+    """Wait until v1 connection is lost long enough to be considered fatal.
+
+    Args:
+        vehicle: v1 vehicle instance.
+        heartbeat_timeout: Allowed seconds of disconnection before failure.
+        heartbeat_error_cls: Exception class raised on disconnect.
+
+    Raises:
+        Exception: A heartbeat/connection loss exception.
+    """
+    disconnected_since = None
+    timeout_s = max(heartbeat_timeout, 0.0)
+    while not getattr(vehicle, "_closed", False):
+        connection_error = getattr(vehicle, "_connection_error", None)
+        if connection_error is not None:
+            raise _build_connection_loss_error(
+                heartbeat_error_cls,
+                age=0.0,
+                message=f"Vehicle connection lost ({connection_error})",
+                original_error=connection_error,
+            )
+
+        if bool(getattr(vehicle, "connected", True)):
+            disconnected_since = None
+        else:
+            if disconnected_since is None:
+                disconnected_since = time.monotonic()
+            age = time.monotonic() - disconnected_since
+            if age >= timeout_s:
+                raise _build_connection_loss_error(
+                    heartbeat_error_cls,
+                    age=age,
+                    message=(
+                        "Vehicle connection lost " f"(disconnected for {age:.1f}s)"
+                    ),
+                )
+        await asyncio.sleep(RUNNER_DISCONNECT_POLL_INTERVAL_S)
+
+
+async def _run_runner_with_disconnect_guard(
+    runner,
+    vehicle,
+    disconnect_future=None,
+):
+    """Run ``runner.run(vehicle)`` and race against disconnect/shutdown future.
+
+    Args:
+        runner: Runner instance to execute.
+        vehicle: Vehicle passed into ``runner.run``.
+        disconnect_future: Optional future that raises on connection loss.
+    """
+    run_task = asyncio.create_task(runner.run(vehicle))
+    if disconnect_future is None:
+        await run_task
+        return
+
+    done, pending = await asyncio.wait(
+        [run_task, disconnect_future],
+        return_when=asyncio.FIRST_COMPLETED,
+    )
+    if disconnect_future in done:
+        run_task.cancel()
+        try:
+            await run_task
+        except asyncio.CancelledError:
+            pass
+        exc = None if disconnect_future.cancelled() else disconnect_future.exception()
+        if exc is not None:
+            raise exc
+        return
+
+    for task in pending:
+        if hasattr(task, "cancel"):
+            task.cancel()
+    await run_task
+
+
+async def _await_disconnect_future(disconnect_future) -> None:
+    """Await a disconnect future so it can be raced as a task.
+
+    Args:
+        disconnect_future: Future that completes when connection is lost.
+    """
+    await disconnect_future
+
+
 def _is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes):
     """True when candidate is a user runner directly inheriting a framework runner.
 
@@ -144,6 +275,7 @@ def discover_runner(api_module, experimenter_script):
     if runner is None:
         logger.error("No Runner class found in script")
         raise Exception("No Runner class found in script")
+    assert runner is not None
 
     return runner, flag_zmq_runner
 
@@ -152,32 +284,9 @@ def run_v2_experiment(
     args, unknown_args, api_module, experimenter_script, start_time=None
 ):
     """Run an experiment using the v2 API."""
-    Runner = getattr(api_module, "Runner")
-    StateMachine = getattr(api_module, "StateMachine")
-    BasicRunner = getattr(api_module, "BasicRunner")
-    ZmqStateMachine = getattr(api_module, "ZmqStateMachine", None)
-    framework_runner_classes = [Runner, StateMachine, BasicRunner]
-    if ZmqStateMachine:
-        framework_runner_classes.append(ZmqStateMachine)
-
-    runner = None
-    flag_zmq_runner = False
-    logger.debug("Searching for Runner class in script...")
-    for name, val in inspect.getmembers(experimenter_script):
-        if not _is_direct_user_runner_class(val, Runner, framework_runner_classes):
-            continue
-        if ZmqStateMachine and issubclass(val, ZmqStateMachine):
-            flag_zmq_runner = True
-            logger.debug(f"Found ZmqStateMachine: {name}")
-        if runner:
-            logger.error("Multiple Runner classes found in script")
-            raise Exception("You can only define one runner")
-        logger.info(f"Found runner class: {name}")
-        runner = val()
-
-    if runner is None:
-        logger.error("No Runner class found in script")
-        raise Exception("No Runner class found in script")
+    runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
+    assert runner is not None
+    runner_instance = runner
 
     Vehicle = getattr(api_module, "Vehicle")
     Drone = getattr(api_module, "Drone")
@@ -225,7 +334,6 @@ def run_v2_experiment(
         else:
             aerpaw_platform = None
 
-        from aerpawlib.v2.constants import DEFAULT_SAFETY_CHECKER_PORT
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 
         is_aerpaw = aerpaw_platform._connected if aerpaw_platform else False
@@ -325,7 +433,7 @@ def run_v2_experiment(
             signal.signal(signal.SIGINT, lambda s, f: handle_shutdown())
             signal.signal(signal.SIGTERM, lambda s, f: handle_shutdown())
 
-        runner.initialize_args(unknown_args)
+        runner_instance.initialize_args(unknown_args)
 
         # Create shutdown_task early so it can be included in both the
         # preflight wait and the run wait below.
@@ -337,9 +445,16 @@ def run_v2_experiment(
                 preflight_task = asyncio.create_task(
                     vehicle._preflight_wait(args.initialize)
                 )
-                preflight_waits = [preflight_task, shutdown_task]
+                preflight_waits: list[asyncio.Task] = [
+                    preflight_task,
+                    shutdown_task,
+                ]
+                disconnect_guard_task = None
                 if disconnect_future is not None:
-                    preflight_waits.append(disconnect_future)
+                    disconnect_guard_task = asyncio.create_task(
+                        _await_disconnect_future(disconnect_future)
+                    )
+                    preflight_waits.append(disconnect_guard_task)
                 done, _ = await asyncio.wait(
                     preflight_waits,
                     return_when=asyncio.FIRST_COMPLETED,
@@ -352,12 +467,8 @@ def run_v2_experiment(
                         pass
                 if shutdown_event.is_set():
                     return success  # finally block handles vehicle.close()
-                if disconnect_future is not None and disconnect_future in done:
-                    exc = (
-                        None
-                        if disconnect_future.cancelled()
-                        else disconnect_future.exception()
-                    )
+                if disconnect_guard_task is not None and disconnect_guard_task in done:
+                    exc = disconnect_guard_task.exception()
                     if exc is not None:
                         raise exc
 
@@ -370,14 +481,18 @@ def run_v2_experiment(
                     raise ValueError(
                         "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
                     )
-                runner._initialize_zmq_bindings(
+                runner_instance._initialize_zmq_bindings(
                     args.zmq_identifier, args.zmq_server_addr
                 )
 
-            run_task = asyncio.create_task(runner.run(vehicle))
+            run_task = asyncio.create_task(
+                _run_runner_with_disconnect_guard(
+                    runner=runner_instance,
+                    vehicle=vehicle,
+                    disconnect_future=disconnect_future,
+                )
+            )
             tasks = [run_task, shutdown_task]
-            if disconnect_future is not None:
-                tasks.append(disconnect_future)
             done, pending = await asyncio.wait(
                 tasks,
                 return_when=asyncio.FIRST_COMPLETED,
@@ -391,19 +506,6 @@ def run_v2_experiment(
                     await run_task
                 except asyncio.CancelledError:
                     pass
-            elif disconnect_future is not None and disconnect_future in done:
-                run_task.cancel()
-                try:
-                    await run_task
-                except asyncio.CancelledError:
-                    pass
-                exc = (
-                    None
-                    if disconnect_future.cancelled()
-                    else disconnect_future.exception()
-                )
-                if exc is not None:
-                    raise exc
             else:
                 await run_task
                 success = True
@@ -457,6 +559,7 @@ def run_v1_experiment(
     """Run an experiment using the v1 API."""
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None  # discover_runner raises if no runner found
+    runner_instance = runner
 
     Vehicle = getattr(api_module, "Vehicle")
     Drone = getattr(api_module, "Drone")
@@ -490,7 +593,7 @@ def run_v1_experiment(
                     while (
                         not v._connected and (time.time() - start) < args.conn_timeout
                     ):
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(VEHICLE_CONNECT_POLL_INTERVAL_S)
                     if not v._connected:
                         raise TimeoutError("Connection timeout")
                 return v
@@ -532,7 +635,7 @@ def run_v1_experiment(
                 )
                 sys.exit(1)
 
-        runner.initialize_args(unknown_args)
+        runner_instance.initialize_args(unknown_args)
         if args.initialize and hasattr(vehicle, "_preflight_wait"):
             vehicle._preflight_wait(args.initialize)
 
@@ -545,19 +648,47 @@ def run_v1_experiment(
                 raise ValueError(
                     "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
                 )
-            runner._initialize_zmq_bindings(args.zmq_identifier, args.zmq_server_addr)
+            runner_instance._initialize_zmq_bindings(
+                args.zmq_identifier, args.zmq_server_addr
+            )
 
         success = False
+        heartbeat_lost = False
+        heartbeat_error_cls = getattr(api_module, "HeartbeatLostError", Exception)
+        disconnect_task = None
         try:
-            await runner.run(vehicle)
+            disconnect_task = asyncio.create_task(
+                _wait_for_v1_connection_loss(
+                    vehicle=vehicle,
+                    heartbeat_timeout=args.heartbeat_timeout,
+                    heartbeat_error_cls=heartbeat_error_cls,
+                )
+            )
+            await _run_runner_with_disconnect_guard(
+                runner=runner_instance,
+                vehicle=vehicle,
+                disconnect_future=disconnect_task,
+            )
             success = True
         except Exception as e:
+            heartbeat_lost = isinstance(e, heartbeat_error_cls)
             logger.error(f"Experiment failed: {e}")
             traceback.print_exc()
         finally:
+            if disconnect_task is not None and not disconnect_task.done():
+                disconnect_task.cancel()
+                try:
+                    await disconnect_task
+                except asyncio.CancelledError:
+                    pass
             # RTL/Cleanup
             if vehicle:
-                if not vehicle._closed and vehicle.armed and args.rtl_at_end:
+                if (
+                    not vehicle._closed
+                    and vehicle.armed
+                    and args.rtl_at_end
+                    and not heartbeat_lost
+                ):
                     logger.warning("Vehicle still armed! RTLing...")
                     try:
                         if args.vehicle == "drone":
@@ -750,14 +881,14 @@ def main():
         "--connection-timeout",
         help="initial connection timeout in seconds (default: 30)",
         type=float,
-        default=30.0,
+        default=DEFAULT_CONNECTION_TIMEOUT_S,
         dest="conn_timeout",
     )
     conn_grp.add_argument(
         "--heartbeat-timeout",
         help="max seconds without heartbeat before considered disconnected (default: 5)",
         type=float,
-        default=5.0,
+        default=DEFAULT_HEARTBEAT_TIMEOUT_S,
         dest="heartbeat_timeout",
     )
     conn_grp.add_argument(
@@ -766,7 +897,7 @@ def main():
         "Use a unique port per vehicle process to avoid conflicts when running "
         "multiple vehicles on the same host.",
         type=int,
-        default=50051,
+        default=DEFAULT_MAVSDK_PORT,
         dest="mavsdk_port",
     )
     conn_grp.add_argument(

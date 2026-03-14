@@ -99,6 +99,10 @@ STATE_MACHINE_DELAY_S = 0.01
 # Delay for velocity command update loop (seconds)
 VELOCITY_UPDATE_DELAY_S = 0.05
 
+# Delay after sending zero-velocity before stopping offboard mode (seconds).
+# Gives the autopilot one control cycle to consume the stop command.
+OFFBOARD_STOP_SETTLE_DELAY_S = 0.1
+
 # Logging interval when waiting for armable state (seconds)
 ARMABLE_STATUS_LOG_INTERVAL_S = 5.0
 

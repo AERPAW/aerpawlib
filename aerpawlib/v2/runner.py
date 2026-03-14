@@ -254,6 +254,8 @@ def entrypoint(func: Callable) -> _EntrypointDescriptor:
 
 
 class _StateType(Enum):
+    """Internal state execution mode for state-machine methods."""
+
     STANDARD = auto()
     TIMED = auto()
 
@@ -687,6 +689,8 @@ class StateMachine(Runner):
             InvalidStateError: If a state transition targets an unknown state.
         """
         states = self._get_states()
+        # Each run should track only the background tasks started in that run.
+        self._background_futures = []
         self._current_state = self._get_initial_state()
         self._running = True
         logger.info(
@@ -717,6 +721,7 @@ class StateMachine(Runner):
                 method = getattr(self, name)
 
                 async def _bg_task(task, _name=name):
+                    """Run a background task with bounded retry/backoff on errors."""
                     consecutive_failures = 0
                     while self._running:
                         try:
@@ -839,6 +844,7 @@ class ZmqStateMachine(StateMachine):
         self._next_state_overr = ""
 
     def _get_zmq_config(self) -> ZmqStateMachineConfig:
+        """Return validated ZMQ configuration for this runner class."""
         cfg = getattr(self.__class__, "config", None)
         if not isinstance(cfg, ZmqStateMachineConfig):
             from .exceptions import RunnerError
@@ -953,6 +959,7 @@ class ZmqStateMachine(StateMachine):
                 self._zmq_pending_fields[sender][field] = value
 
     def _get_backgrounds(self) -> List[str]:
+        """Return base backgrounds plus mandatory ZMQ send/receive loops."""
         base = list(super()._get_backgrounds())
         if "_zmq_recv_loop" not in base:
             base.insert(0, "_zmq_recv_loop")
@@ -1035,7 +1042,8 @@ class ZmqStateMachine(StateMachine):
         except asyncio.TimeoutError:
             self._zmq_pending_fields.get(identifier, {}).pop(field, None)
             raise
-        return self._zmq_pending_fields[identifier][field]
+        value = self._zmq_pending_fields[identifier].pop(field)
+        return value
 
     async def _zmq_send_reply(self, identifier: str, field: str, value: Any) -> None:
         """Send a field-query reply to the requesting runner.

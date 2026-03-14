@@ -72,6 +72,7 @@ class TestBasicRunner:
     @pytest.mark.asyncio
     async def test_multiple_entrypoint_raises(self):
         """Having two @entrypoint methods should raise StateMachineError during run."""
+
         class R(BasicRunner):
             @entrypoint
             async def entry_a(self, vehicle):
@@ -87,6 +88,7 @@ class TestBasicRunner:
     @pytest.mark.asyncio
     async def test_entrypoint_exception_propagates(self):
         """Exceptions raised inside @entrypoint propagate to the caller."""
+
         class R(BasicRunner):
             @entrypoint
             async def run_mission(self, vehicle):
@@ -209,21 +211,32 @@ class TestRunnerInit:
         assert args == ["--x", "1"]
 
 
+class TestRunnerEntrypoint:
+    def test_runner_has_single_public_execution_entrypoint(self):
+        runner = Runner()
+        assert hasattr(runner, "run")
+        assert not hasattr(runner, "run_with_connection_failfast")
+        assert not hasattr(runner, "run_with_heartbeat_failfast")
+
+
 class TestStateDecoratorEdgeCases:
     def test_empty_name_raises_at_decoration_time(self):
         with pytest.raises(InvalidStateNameError):
+
             @state("")
             async def bad_state(self, vehicle):
                 return None
 
     def test_timed_state_empty_name_raises(self):
         with pytest.raises(InvalidStateNameError):
+
             @timed_state("", duration=1.0)
             async def bad_state(self, vehicle):
                 return None
 
     def test_expose_zmq_empty_name_raises(self):
         with pytest.raises(InvalidStateNameError):
+
             @expose_zmq("")
             async def bad_func(self, vehicle):
                 return None
@@ -249,6 +262,7 @@ class TestStateDecoratorEdgeCases:
             StateMachineError,
             match="cannot be decorated with more than one of @state/@timed_state",
         ):
+
             @state("s")
             @timed_state("s", duration=1.0)
             async def bad(self, vehicle):
@@ -259,6 +273,7 @@ class TestStateDecoratorEdgeCases:
             StateMachineError,
             match="cannot be decorated with more than one of @state/@timed_state",
         ):
+
             @timed_state("s", duration=1.0)
             @state("s")
             async def bad(self, vehicle):
@@ -308,6 +323,7 @@ class TestStateMachineLifecycle:
     @pytest.mark.asyncio
     async def test_invalid_transition_raises(self):
         """Returning a non-existent state name raises InvalidStateError."""
+
         class R(StateMachine):
             @state("start", first=True)
             async def start_state(self, vehicle):
@@ -319,6 +335,7 @@ class TestStateMachineLifecycle:
     @pytest.mark.asyncio
     async def test_no_initial_state_raises(self):
         """State machine with no first=True state raises NoInitialStateError."""
+
         class R(StateMachine):
             @state("orphan")
             async def orphan_state(self, vehicle):
@@ -330,6 +347,7 @@ class TestStateMachineLifecycle:
     @pytest.mark.asyncio
     async def test_multiple_initial_states_raises(self):
         """Two first=True states raises MultipleInitialStatesError."""
+
         class R(StateMachine):
             @state("a", first=True)
             async def state_a(self, vehicle):
@@ -368,6 +386,7 @@ class TestBackgroundTasks:
     @pytest.mark.asyncio
     async def test_background_cancelled_after_state_machine_stops(self):
         """Background tasks should be cancelled when the machine stops."""
+
         class R(StateMachine):
             @background
             async def monitor(self, vehicle):
@@ -457,6 +476,7 @@ class TestZmqStateMachine:
     @pytest.mark.asyncio
     async def test_run_without_bindings_raises(self):
         """ZmqStateMachine.run() should raise StateMachineError if not initialized."""
+
         class Z(ZmqStateMachine):
             @state("start", first=True)
             async def start(self, vehicle):
@@ -478,6 +498,7 @@ class TestZmqStateMachine:
 
     def test_expose_zmq_registered_in_build(self):
         """States decorated with @expose_zmq should appear in _exported_states."""
+
         class Z(ZmqStateMachine):
             @state("start", first=True)
             async def start(self, vehicle):
@@ -507,4 +528,3 @@ class TestZmqStateMachine:
         z._initialize_zmq_bindings("test", "127.0.0.1")
         z._build()
         assert "battery" in z._exported_fields
-

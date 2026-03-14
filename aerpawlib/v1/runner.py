@@ -104,6 +104,7 @@ class BasicRunner(Runner):
     """
 
     def _build(self):
+        """Discover and validate the single ``@entrypoint`` method."""
         self._entry = None
         for _, method in inspect.getmembers(self):
             if not inspect.ismethod(method):
@@ -117,6 +118,7 @@ class BasicRunner(Runner):
                 self._entry = method
 
     async def run(self, vehicle: Vehicle) -> None:
+        """Execute the discovered entrypoint and then call cleanup."""
         self._build()
         if self._entry is None:
             raise NoEntrypointError()
@@ -127,6 +129,8 @@ class BasicRunner(Runner):
 
 
 class _StateType(Enum):
+    """Internal enum describing how a state function executes."""
+
     STANDARD = auto()
     TIMED = auto()
 
@@ -164,6 +168,7 @@ class _State:
             running = True
 
             async def _bg():
+                """Run a timed state until duration elapses or loop exits."""
                 nonlocal running
                 last_state = ""
                 while running:
@@ -204,6 +209,7 @@ def state(name: str, first: bool = False):
         raise InvalidStateNameError()
 
     def decorator(func):
+        """Mark a method as a standard state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
                 "A method cannot be decorated with more than one of "
@@ -239,6 +245,7 @@ def timed_state(name: str, duration: float, loop: bool = False, first: bool = Fa
         raise InvalidStateNameError()
 
     def decorator(func):
+        """Mark a method as a timed state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
                 "A method cannot be decorated with more than one of "
@@ -272,6 +279,7 @@ def expose_zmq(name: str):
         raise InvalidStateNameError()
 
     def decorator(func):
+        """Mark a state method as exposed for remote ZMQ transitions."""
         func._is_exposed_zmq = True
         func._zmq_name = name
         return func
@@ -296,6 +304,7 @@ def expose_field_zmq(name: str):
         raise InvalidStateNameError()
 
     def decorator(func):
+        """Mark a method as exposed for remote ZMQ field requests."""
         func._is_exposed_field_zmq = True
         func._zmq_name = name
         return func
@@ -404,6 +413,7 @@ class StateMachine(Runner):
         for task in self._background_tasks:
 
             async def _task_runner(t=task):
+                """Run and automatically restart a background task on failure."""
                 while self._running:
                     try:
                         await t.__func__(self, vehicle)
@@ -495,6 +505,7 @@ class ZmqStateMachine(StateMachine):
     _exported_states: Dict[str, _State]
 
     def _build(self):
+        """Build base state maps and collect ZMQ-exposed states/fields."""
         super()._build()
         self._exported_states = {}
         self._exported_fields = {}
@@ -711,6 +722,7 @@ class ZmqStateMachine(StateMachine):
         await self._zmq_messages_sending.put(query_obj)
 
         async def _wait_for_reply():
+            """Wait until the requested field value is received."""
             while (
                 self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING
             ):

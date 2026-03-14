@@ -10,6 +10,8 @@ HEARTBEAT_TIMEOUT_S = 5.0
 HEARTBEAT_START_DELAY_S = (
     1.0  # Delay before starting heartbeat monitor after first telemetry
 )
+# Interval between heartbeat timeout checks in ConnectionHandler.
+HEARTBEAT_CHECK_INTERVAL_S = 1.0
 
 # Movement
 DEFAULT_POSITION_TOLERANCE_M = 2.0
@@ -24,6 +26,10 @@ ARMABLE_TIMEOUT_S = 60.0
 ARMABLE_STATUS_LOG_INTERVAL_S = 5.0
 POLLING_DELAY_S = 0.05
 VELOCITY_UPDATE_DELAY_S = 0.05
+# Delay before re-entering velocity loop after stopping prior loop iteration.
+VELOCITY_LOOP_HANDOFF_DELAY_S = 0.05
+# Delay after sending zero velocity before disabling offboard mode.
+OFFBOARD_STOP_SETTLE_DELAY_S = 0.1
 
 # Validation
 MIN_POSITION_TOLERANCE_M = 0.1
