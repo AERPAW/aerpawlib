@@ -283,6 +283,7 @@ class Coordinate:
         return json.dumps(self, default=lambda o: o.__dict__)
 
     def toJson(self) -> str:
+        """Backward-compatible alias for :meth:`to_json`."""
         return self.to_json()
 
 
@@ -411,6 +412,7 @@ def read_geofence(filePath: str) -> List[Dict]:
 
 
 def readGeofence(filePath: str) -> List[Dict]:
+    """Backward-compatible alias for :func:`read_geofence`."""
     return read_geofence(filePath)
 
 
@@ -474,6 +476,7 @@ def lies_on_segment(
 def liesOnSegment(
     px: float, py: float, qx: float, qy: float, rx: float, ry: float
 ) -> bool:
+    """Backward-compatible alias for :func:`lies_on_segment`."""
     return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
@@ -550,6 +553,7 @@ def doIntersect(
     sx: float,
     sy: float,
 ) -> bool:
+    """Backward-compatible alias for :func:`do_intersect`."""
     return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
 
 

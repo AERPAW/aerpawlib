@@ -19,10 +19,12 @@ from ..constants import (
     ARMABLE_TIMEOUT_S,
     ARMING_SEQUENCE_DELAY_S,
     DEFAULT_GOTO_TIMEOUT_S,
+    OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
     ROVER_GUIDED_MODE,
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+    VELOCITY_LOOP_HANDOFF_DELAY_S,
     VELOCITY_UPDATE_DELAY_S,
 )
 from ..exceptions import NavigationError, VelocityError
@@ -32,7 +34,7 @@ from .base import Vehicle, VehicleTask, _validate_tolerance, _wait_for_condition
 
 logger = get_logger(LogComponent.ROVER)
 
-# Rover uses ground distance for tolerance
+# Ground rover navigation uses horizontal distance only for arrival checks.
 DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 
 
@@ -40,7 +42,16 @@ class Rover(Vehicle):
     """Rover implementation for ground vehicles."""
 
     async def _preflight_wait(self, should_arm: bool = True) -> None:
-        """Wait for pre-arm conditions (GPS fix, armable). Call before run."""
+        """Wait for pre-arm readiness before mission start.
+
+        The rover is switched into GUIDED/OFFBOARD first, then this method
+        waits until the flight controller reports the vehicle as armable or
+        until the armable timeout is reached.
+
+        Args:
+            should_arm: Whether the vehicle should be armed later during the
+                startup sequence.
+        """
         self._will_arm = should_arm
         logger.info("Rover: _preflight_wait started (waiting for armable)")
         await self._set_guided_mode()
@@ -62,12 +73,13 @@ class Rover(Vehicle):
         logger.info("Rover: _preflight_wait done (armable or timeout)")
 
     async def _set_guided_mode(self) -> None:
-        """Switch to GUIDED mode before arming.
+        """Switch the rover to GUIDED mode before arming.
 
         ArduPilot Rover requires GUIDED mode to accept arm commands via
         MAVLink. MAVSDK does not expose a direct flight-mode setter for
         ArduPilot due to incompatibility with its custom mode system, so
-        we send the raw MAV_CMD_DO_SET_MODE command via mavlink_passthrough.
+        this method sends a raw ``MAV_CMD_DO_SET_MODE`` command through
+        ``mavlink_direct`` and waits for the mode telemetry to update.
         """
         if self.mode == "OFFBOARD":
             logger.debug(
@@ -78,7 +90,7 @@ class Rover(Vehicle):
             f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})"
         )
         try:
-            # Build the payload dictionary using your original constants
+            # COMMAND_LONG payload for MAV_CMD_DO_SET_MODE -> GUIDED.
             fields = {
                 "target_system": 1,
                 "target_component": 1,
@@ -93,7 +105,7 @@ class Rover(Vehicle):
                 "param7": 0.0,
             }
 
-            # Package into the MavlinkMessage object
+            # Wrap the payload for mavlink_direct transmission.
             msg = MavlinkMessage(
                 system_id=1,
                 component_id=1,
@@ -103,7 +115,7 @@ class Rover(Vehicle):
                 fields_json=json.dumps(fields),
             )
 
-            # Send the serialized message directly to the flight controller
+            # Send directly to the flight controller.
             await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
             logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
@@ -123,7 +135,15 @@ class Rover(Vehicle):
             )
 
     async def _arm_vehicle(self) -> None:
-        """Arm and prepare rover for mission (auto-arm after GPS fix)."""
+        """Arm the rover and confirm mission prerequisites.
+
+        This waits for armable state and a 3D GPS fix, arms the rover, then
+        verifies that a home position is available before mission commands run.
+
+        Raises:
+            TimeoutError: If armability, GPS lock, or home position readiness
+                does not complete within the configured timeout.
+        """
         if not self._will_arm:
             logger.debug("Rover: _arm_vehicle skipped (_will_arm=False)")
             return
@@ -155,17 +175,20 @@ class Rover(Vehicle):
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
     ) -> Optional[VehicleTask]:
-        """Navigate to coordinates (2D ground). target_heading ignored.
+        """Navigate to a target coordinate using ground-distance arrival.
 
         Args:
             coordinates: Target position.
             tolerance: Arrival tolerance in metres (ground distance).
-            target_heading: Ignored for rovers.
+            target_heading: Unused for rovers; accepted for API parity.
             timeout: Maximum seconds to wait for arrival.
             blocking: If False, returns a VehicleTask immediately.
 
         Returns:
             None when blocking=True; VehicleTask when blocking=False.
+
+        Raises:
+            NavigationError: If command dispatch fails or arrival times out.
         """
         logger.info(
             f"Rover: goto_coordinates ({coordinates.lat:.6f}, {coordinates.lon:.6f}) "
@@ -221,7 +244,7 @@ class Rover(Vehicle):
                 raise NavigationError(str(e), original_error=e)
             return None
 
-        # Non-blocking: return a VehicleTask
+        # Non-blocking mode tracks completion and progress in a task handle.
         handle = VehicleTask()
         logger.debug("Rover: goto_coordinates returning non-blocking VehicleTask")
 
@@ -304,7 +327,8 @@ class Rover(Vehicle):
         """
         await self.await_ready_to_move()
         self._velocity_loop_active = False
-        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.05)
+        # Give any previous helper loop time to observe the stop flag.
+        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + VELOCITY_LOOP_HANDOFF_DELAY_S)
 
         if not global_relative:
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
@@ -314,7 +338,7 @@ class Rover(Vehicle):
                 VelocityNedYaw(
                     velocity_vector.north,
                     velocity_vector.east,
-                    0,  # Rovers don't fly
+                    0,  # Vertical command is always zero for ground vehicles.
                     0,
                 )
             )
@@ -328,6 +352,7 @@ class Rover(Vehicle):
             target_end = time.monotonic() + duration if duration is not None else None
 
             async def _velocity_helper() -> None:
+                """Keep the active velocity command alive and stop on timeout."""
                 try:
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
@@ -336,7 +361,7 @@ class Rover(Vehicle):
                                 await self._system.offboard.set_velocity_ned(
                                     VelocityNedYaw(0, 0, 0, 0)
                                 )
-                                await asyncio.sleep(0.1)
+                                await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                                 await self._system.offboard.stop()
                             except Exception as e:
                                 logger.debug(

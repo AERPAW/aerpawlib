@@ -30,6 +30,7 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     ROVER_GUIDED_MODE,
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+    OFFBOARD_STOP_SETTLE_DELAY_S,
     VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
@@ -253,6 +254,7 @@ class Rover(Vehicle):
             target_end = time.monotonic() + duration if duration is not None else None
 
             async def _velocity_helper() -> None:
+                """Maintain rover velocity command until timeout or replacement."""
                 try:
                     while self._velocity_generation == gen:
                         if target_end and time.monotonic() > target_end:
@@ -262,7 +264,7 @@ class Rover(Vehicle):
                                         VelocityNedYaw(0, 0, 0, 0)
                                     )
                                 )
-                                await asyncio.sleep(0.1)
+                                await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.stop()
                                 )

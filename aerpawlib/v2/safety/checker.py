@@ -30,11 +30,31 @@ logger = get_logger(LogComponent.SAFETY)
 
 
 def _serialize_request(request_function: str, params: list) -> bytes:
+    """Serialize and compress a safety checker request payload.
+
+    Args:
+        request_function: Server-side function identifier.
+        params: Positional arguments for the request.
+
+    Returns:
+        Compressed request bytes suitable for ZMQ transport.
+    """
     raw = json.dumps({"request_function": request_function, "params": params})
     return zlib.compress(raw.encode("utf-8"))
 
 
 def _deserialize_response(data: bytes) -> dict:
+    """Decompress and parse a safety checker response.
+
+    Args:
+        data: Compressed response payload from the server.
+
+    Returns:
+        Parsed JSON response dictionary.
+
+    Raises:
+        AerpawlibError: If decompression or JSON parsing fails.
+    """
     try:
         raw = zlib.decompress(data)
     except zlib.error as e:

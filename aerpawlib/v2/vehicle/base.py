@@ -251,46 +251,57 @@ class Vehicle:
 
     @property
     def position(self) -> Coordinate:
+        """Return the most recent global position estimate."""
         return self._state.position
 
     @property
     def home_coords(self) -> Optional[Coordinate]:
+        """Return the stored home coordinate, if available."""
         return self._state.home_coords
 
     @property
     def home_amsl(self) -> float:
+        """Return home altitude above mean sea level in metres."""
         return self._state.home_amsl
 
     @property
     def battery(self) -> Battery:
+        """Return latest battery telemetry."""
         return self._state.battery
 
     @property
     def gps(self) -> GPSInfo:
+        """Return latest GPS telemetry."""
         return self._state.gps
 
     @property
     def armed(self) -> bool:
+        """Return whether the vehicle is armed."""
         return self._state.armed
 
     @property
     def heading(self) -> float:
+        """Return heading in degrees."""
         return self._state.heading
 
     @property
     def velocity(self) -> VectorNED:
+        """Return current NED velocity vector."""
         return self._state.velocity
 
     @property
     def attitude(self) -> Attitude:
+        """Return latest roll, pitch, and yaw values."""
         return self._state.attitude
 
     @property
     def mode(self) -> str:
+        """Return current autopilot mode name."""
         return self._state.mode
 
     @property
     def armable(self) -> bool:
+        """Return whether pre-arm checks currently pass."""
         return self._state.armable
 
     async def can_takeoff(
@@ -876,5 +887,6 @@ class DummyVehicle(Vehicle):
         pass
 
     def close(self) -> None:
+        """Mark the dummy vehicle as closed without external side effects."""
         self._closed = True
         self._running = False

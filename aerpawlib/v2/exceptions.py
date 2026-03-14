@@ -111,26 +111,36 @@ class CommandError(AerpawlibError):
 
 
 class ArmError(CommandError):
+    """Raised when an arm command fails."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(f"Failed to arm: {reason}", code="ARM_ERROR", **kwargs)
 
 
 class DisarmError(CommandError):
+    """Raised when a disarm command fails."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(f"Failed to disarm: {reason}", code="DISARM_ERROR", **kwargs)
 
 
 class TakeoffError(CommandError):
+    """Raised when a takeoff command fails."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(f"Takeoff failed: {reason}", code="TAKEOFF_ERROR", **kwargs)
 
 
 class LandingError(CommandError):
+    """Raised when a landing command fails."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(f"Landing failed: {reason}", code="LANDING_ERROR", **kwargs)
 
 
 class NavigationError(CommandError):
+    """Raised when navigation to a target cannot be completed."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(
             f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs
@@ -138,6 +148,8 @@ class NavigationError(CommandError):
 
 
 class VelocityError(CommandError):
+    """Raised when a velocity command cannot be applied."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(
             f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs
@@ -145,6 +157,8 @@ class VelocityError(CommandError):
 
 
 class RTLError(CommandError):
+    """Raised when return-to-launch fails."""
+
     def __init__(self, reason: str = "Unknown", **kwargs):
         super().__init__(f"RTL failed: {reason}", code="RTL_ERROR", **kwargs)
 
@@ -159,12 +173,16 @@ class StateError(AerpawlibError):
 
 
 class NotArmableError(StateError):
+    """Raised when the vehicle cannot be armed in its current state."""
+
     def __init__(self, reason: str = "Vehicle not armable", **kwargs):
         kwargs.setdefault("code", "NOT_ARMABLE")
         super().__init__(f"Cannot arm: {reason}", **kwargs)
 
 
 class NotConnectedError(StateError):
+    """Raised when a command requires an active vehicle connection."""
+
     def __init__(self, message: str = "Vehicle not connected", **kwargs):
         kwargs.setdefault("code", "NOT_CONNECTED")
         super().__init__(message, **kwargs)
@@ -180,12 +198,16 @@ class RunnerError(AerpawlibError):
 
 
 class NoEntrypointError(RunnerError):
+    """Raised when a runner has no method marked with ``@entrypoint``."""
+
     def __init__(self, **kwargs):
         kwargs.setdefault("code", "NO_ENTRYPOINT")
         super().__init__("No @entrypoint declared", **kwargs)
 
 
 class InvalidStateError(RunnerError):
+    """Raised when a state machine transitions to an unknown state."""
+
     def __init__(self, state_name: str, available_states: list, **kwargs):
         """Initialize with the invalid state name and the list of valid states.
 
@@ -203,24 +225,32 @@ class InvalidStateError(RunnerError):
 
 
 class NoInitialStateError(RunnerError):
+    """Raised when no state is marked as the initial state."""
+
     def __init__(self, **kwargs):
         kwargs.setdefault("code", "NO_INITIAL_STATE")
         super().__init__("No initial state", **kwargs)
 
 
 class MultipleInitialStatesError(RunnerError):
+    """Raised when more than one state is marked initial."""
+
     def __init__(self, **kwargs):
         kwargs.setdefault("code", "MULTIPLE_INITIAL_STATES")
         super().__init__("Multiple initial states", **kwargs)
 
 
 class InvalidStateNameError(RunnerError):
+    """Raised when a state decorator is given an empty name."""
+
     def __init__(self, **kwargs):
         kwargs.setdefault("code", "INVALID_STATE_NAME")
         super().__init__("State name cannot be empty", **kwargs)
 
 
 class UnexpectedDisarmError(StateError):
+    """Raised when the vehicle disarms unexpectedly during execution."""
+
     def __init__(
         self, message: str = "Vehicle disarmed unexpectedly during experiment", **kwargs
     ):

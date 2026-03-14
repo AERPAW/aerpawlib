@@ -369,6 +369,7 @@ class Drone(Vehicle):
             gen = self._velocity_generation
 
             async def _velocity_helper():
+                """Maintain velocity command until cancelled or duration expires."""
                 try:
                     while self._velocity_generation == gen:
                         if target_end and time.monotonic() > target_end:
@@ -412,6 +413,7 @@ class Drone(Vehicle):
             raise VelocityError(str(e), original_error=e)
 
     async def _stop(self) -> None:
+        """Stop drone-specific offboard control during shutdown."""
         await super()._stop()
         self._velocity_generation += 1
         # Only exit offboard mode if we were actually running it.

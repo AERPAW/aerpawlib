@@ -410,6 +410,7 @@ class _AERPAWLazyProxy:
         self.__dict__["_lock"] = threading.Lock()
 
     def _get_instance(self):
+        """Create and memoize the underlying ``AERPAW`` singleton instance."""
         if self._instance is None:
             with self._lock:
                 # Double-check after acquiring lock

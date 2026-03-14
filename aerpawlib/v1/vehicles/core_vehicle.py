@@ -252,12 +252,15 @@ class DummyVehicle:
         self._closed = False
 
     def close(self):
+        """Mark the dummy vehicle as closed."""
         self._closed = True
 
     def _preflight_wait(self, should_arm):
+        """No-op preflight hook for compatibility with Vehicle."""
         pass
 
     async def _arm_vehicle(self):
+        """No-op arming hook for compatibility with Vehicle."""
         pass
 
 
@@ -796,6 +799,7 @@ class Vehicle:
 
     @property
     def heading(self) -> float:
+        """Heading in degrees from telemetry."""
         return self._heading_deg.get()
 
     @property
@@ -805,10 +809,12 @@ class Vehicle:
 
     @property
     def velocity(self) -> util.VectorNED:
+        """Velocity vector in NED coordinates (m/s)."""
         return util.VectorNED(*self._velocity_ned.get())
 
     @property
     def autopilot_info(self) -> _VersionCompat:
+        """Autopilot version information reported by MAVLink."""
         return self._autopilot_info
 
     @property

@@ -13,7 +13,11 @@ import sys
 import time
 from typing import Callable, Optional, Protocol
 
-from ..constants import HEARTBEAT_START_DELAY_S, HEARTBEAT_TIMEOUT_S
+from ..constants import (
+    HEARTBEAT_CHECK_INTERVAL_S,
+    HEARTBEAT_START_DELAY_S,
+    HEARTBEAT_TIMEOUT_S,
+)
 from ..exceptions import HeartbeatLostError
 from ..log import LogComponent, get_logger
 from ..protocols import VehicleProtocol
@@ -22,12 +26,11 @@ logger = get_logger(LogComponent.VEHICLE)
 
 
 class ConnectionHandler:
-    """
-    Single authority for connection state and heartbeat.
+    """Single authority for connection state and heartbeat monitoring.
 
-    Protocol-based: depends on VehicleProtocol (heartbeat_tick), not concrete Vehicle.
-    Start monitoring only after first telemetry or short post-connect delay.
-    On disconnect: notify OEO, trigger callbacks, exit.
+    Depends on :class:`VehicleProtocol` rather than concrete vehicle classes.
+    The handler starts monitoring shortly after startup and signals disconnect
+    through a future that callers can race against mission execution.
     """
 
     def __init__(
@@ -37,17 +40,13 @@ class ConnectionHandler:
         start_delay: float = HEARTBEAT_START_DELAY_S,
         on_disconnect: Optional[Callable[[], None]] = None,
     ) -> None:
-        """Initialise the heartbeat monitor.
+        """Initialize the heartbeat monitor.
 
         Args:
-            vehicle: Vehicle-like object used for heartbeat tracking (must satisfy
-                VehicleProtocol).
-            heartbeat_timeout: Seconds without a tick before the connection is
-                considered lost.
-            start_delay: Seconds to wait after the first telemetry before
-                enabling the timeout check, to avoid false positives on startup.
-            on_disconnect: Optional zero-argument callback invoked (in a thread
-                executor) when heartbeat is lost.
+            vehicle: Vehicle-like object used for heartbeat tracking.
+            heartbeat_timeout: Seconds without a tick before disconnect.
+            start_delay: Startup grace period before timeout checks begin.
+            on_disconnect: Optional callback invoked when heartbeat is lost.
         """
         self._vehicle = vehicle
         self._heartbeat_timeout = heartbeat_timeout
@@ -60,7 +59,7 @@ class ConnectionHandler:
         self._disconnect_future: Optional[asyncio.Future] = None
 
     def heartbeat_tick(self) -> None:
-        """Record a heartbeat tick and enable the monitor if this is the first tick."""
+        """Record receipt of telemetry/heartbeat activity."""
         self._last_tick = time.monotonic()
         self._monitor_started = True
 
@@ -75,6 +74,9 @@ class ConnectionHandler:
             f"ConnectionHandler: starting heartbeat monitor "
             f"(timeout={self._heartbeat_timeout}s, start_delay={self._start_delay}s)"
         )
+        self._disconnected = False
+        self._last_tick = time.monotonic()
+        self._monitor_started = True
         self._disconnect_future = asyncio.get_running_loop().create_future()
         self._monitor_task = asyncio.create_task(self._monitor_loop())
         return self._monitor_task
@@ -92,7 +94,7 @@ class ConnectionHandler:
         return self._disconnect_future
 
     async def _monitor_loop(self) -> None:
-        """Monitor heartbeat. Start checking after start_delay."""
+        """Monitor heartbeat and surface disconnect through the future."""
         logger.debug(
             f"ConnectionHandler: monitor sleeping {self._start_delay}s before first check"
         )
@@ -101,10 +103,6 @@ class ConnectionHandler:
         )  # Justified: avoid false "heartbeat lost"
         logger.debug("ConnectionHandler: monitor active, checking heartbeat")
         while not self._disconnected:
-            if not self._monitor_started:
-                # No telemetry tick received yet; keep the baseline current so
-                # the timeout doesn't fire before the first message arrives.
-                self._last_tick = time.monotonic()
             now = time.monotonic()
             age = now - self._last_tick
             if age > self._heartbeat_timeout:
@@ -127,7 +125,7 @@ class ConnectionHandler:
                     except asyncio.InvalidStateError:
                         pass
                 return
-            await asyncio.sleep(1.0)  # Justified: heartbeat check interval
+            await asyncio.sleep(HEARTBEAT_CHECK_INTERVAL_S)
 
     def stop(self) -> None:
         """Stop monitor."""
@@ -157,6 +155,7 @@ def setup_signal_handlers(
         if on_sigint:
 
             def _sigint():
+                """Invoke the configured SIGINT callback."""
                 if on_sigint:
                     on_sigint()
 
@@ -164,6 +163,7 @@ def setup_signal_handlers(
         if on_sigterm:
 
             def _sigterm():
+                """Invoke the configured SIGTERM callback."""
                 if on_sigterm:
                     on_sigterm()
 

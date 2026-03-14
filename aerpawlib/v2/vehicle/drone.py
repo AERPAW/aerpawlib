@@ -36,10 +36,12 @@ logger = get_logger(LogComponent.DRONE)
 
 
 def _normalize_heading(h: float) -> float:
+    """Normalize a heading angle to the range [0, 360)."""
     return h % 360
 
 
 def _heading_diff(a: float, b: float) -> float:
+    """Return the shortest absolute angular distance between headings."""
     d = abs((a % 360) - (b % 360))
     return min(d, 360 - d)
 
@@ -456,6 +458,7 @@ class Drone(Vehicle):
             target_end = time.monotonic() + duration if duration else None
 
             async def _velocity_loop() -> None:
+                """Maintain velocity command until duration or cancellation."""
                 try:
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
@@ -515,5 +518,6 @@ class Drone(Vehicle):
             logger.debug("Stop offboard (may not be in offboard)")
 
     async def _stop(self) -> None:
+        """Stop drone-specific background control before final shutdown."""
         await super()._stop()
         await self._stop_offboard()

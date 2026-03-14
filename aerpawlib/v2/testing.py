@@ -39,30 +39,37 @@ class MockVehicle:
 
     @property
     def connected(self) -> bool:
+        """Return whether the mock is considered connected."""
         return self._connected
 
     @property
     def armed(self) -> bool:
+        """Return whether the mock is armed."""
         return self._armed
 
     @property
     def position(self) -> Coordinate:
+        """Return the mock's current position."""
         return self._position
 
     @property
     def home_coords(self) -> Optional[Coordinate]:
+        """Return the mock home coordinate."""
         return self._home
 
     @property
     def battery(self) -> Battery:
+        """Return static mock battery telemetry."""
         return self._battery
 
     @property
     def gps(self) -> GPSInfo:
+        """Return static mock GPS telemetry."""
         return self._gps
 
     @property
     def heading(self) -> float:
+        """Return the mock heading in degrees."""
         return self._heading
 
     def heartbeat_tick(self) -> None:

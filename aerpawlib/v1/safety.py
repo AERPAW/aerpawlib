@@ -192,6 +192,7 @@ class SafetyCheckerClient:
         return message
 
     def sendRequest(self, msg: bytes) -> Dict:
+        """Backward-compatible alias for :meth:`send_request`."""
         return self.send_request(msg)
 
     def parse_response(self, response: Dict) -> Tuple[bool, str]:
@@ -207,6 +208,7 @@ class SafetyCheckerClient:
         return response["result"], response["message"]
 
     def parseResponse(self, response: Dict) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`parse_response`."""
         return self.parse_response(response)
 
     def check_server_status(self) -> Tuple[bool, str]:
@@ -221,6 +223,7 @@ class SafetyCheckerClient:
         return self.parse_response(resp)
 
     def checkServerStatus(self) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`check_server_status`."""
         return self.check_server_status()
 
     def validate_waypoint_command(
@@ -240,6 +243,7 @@ class SafetyCheckerClient:
     def validateWaypointCommand(
         self, curLoc: Coordinate, nextLoc: Coordinate
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
 
     def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
@@ -252,6 +256,7 @@ class SafetyCheckerClient:
         return self.parse_response(resp)
 
     def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_change_speed_command`."""
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
@@ -270,6 +275,7 @@ class SafetyCheckerClient:
     def validateTakeoffCommand(
         self, takeoffAlt: float, currentLat: float, currentLon: float
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
@@ -286,6 +292,7 @@ class SafetyCheckerClient:
     def validateLandingCommand(
         self, currentLat: float, currentLon: float
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)
 
 
@@ -559,6 +566,7 @@ class SafetyCheckerServer:
     def validateWaypointCommand(
         self, curLoc: Coordinate, nextLoc: Coordinate
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
 
     def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
@@ -582,6 +590,7 @@ class SafetyCheckerServer:
         return True, ""
 
     def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_change_speed_command`."""
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
@@ -606,6 +615,7 @@ class SafetyCheckerServer:
     def validateTakeoffCommand(
         self, takeoffAlt: float, currentLat: float, currentLon: float
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
@@ -636,6 +646,7 @@ class SafetyCheckerServer:
     def validateLandingCommand(
         self, currentLat: float, currentLon: float
     ) -> Tuple[bool, str]:
+        """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)
 
     # Client Request Handlers
@@ -650,6 +661,7 @@ class SafetyCheckerServer:
         return msg
 
     def serverStatusHandler(self, *_params) -> bytes:
+        """Backward-compatible alias for :meth:`server_status_handler`."""
         return self.server_status_handler(*_params)
 
     def validate_waypoint_handler(
@@ -691,6 +703,7 @@ class SafetyCheckerServer:
     def validateWaypointHandler(
         self, curLocJSON: str, nextLocJSON: str, *_params
     ) -> bytes:
+        """Backward-compatible alias for :meth:`validate_waypoint_handler`."""
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
 
     def validate_change_speed_handler(self, new_speed: float, *_params) -> bytes:
@@ -712,6 +725,7 @@ class SafetyCheckerServer:
         return msg
 
     def validateChangeSpeedHandler(self, newSpeed: float, *_params) -> bytes:
+        """Backward-compatible alias for :meth:`validate_change_speed_handler`."""
         return self.validate_change_speed_handler(newSpeed, *_params)
 
     def validate_takeoff_handler(
@@ -741,6 +755,7 @@ class SafetyCheckerServer:
     def validateTakeoffHandler(
         self, takeoffAlt: float, currentLat: float, currentLon: float, *_params
     ) -> bytes:
+        """Backward-compatible alias for :meth:`validate_takeoff_handler`."""
         return self.validate_takeoff_handler(
             takeoffAlt, currentLat, currentLon, *_params
         )
@@ -769,6 +784,7 @@ class SafetyCheckerServer:
     def validateLandingHandler(
         self, currentLat: float, currentLon: float, *_params
     ) -> bytes:
+        """Backward-compatible alias for :meth:`validate_landing_handler`."""
         return self.validate_landing_handler(currentLat, currentLon, *_params)
 
 
