@@ -160,7 +160,7 @@ for cmd, x, y, z, wp_id, speed in waypoints:
 Run:
 ```bash
 aerpawlib --script examples/v1/preplanned_trajectory.py \
-  --conn udp://127.0.0.1:14550 --vehicle drone --plan mission.plan
+  --conn udp://127.0.0.1:14550 --vehicle drone --file mission.plan
 ```
 
 ---
@@ -173,7 +173,7 @@ Components: `SafetyCheckerServer` (separate process), `SafetyCheckerClient` (in 
 
 **v1** Setup:
 1. Create YAML config and KML geofences (see [v1 Safety Checker](v1/safety_checker.md))
-2. Start server: `aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml`
+2. Start server: `python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml`
 3. In script: create `SafetyCheckerClient`, call `validate_waypoint_command` before `goto_coordinates`
 
 **v2** Setup: Run with `--safety-checker-port 14580` (or let it default in AERPAW). aerpawlib auto-wires `vehicle.safety`. Use `can_takeoff`, `can_goto`, `can_land` before commands. See [v2 Safety](v2/safety.md) for behavior (AERPAW vs non-AERPAW, passthrough on failure).

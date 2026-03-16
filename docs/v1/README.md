@@ -5,7 +5,7 @@ The v1 API provides backward compatibility with the legacy aerpawlib API while u
 > **Note**: v1 uses the same API as the legacy version. It has no additional features and is intended to become a stopgap until aerpawlib v2 is ready.
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+
 - MAVSDK-Python (`pip install mavsdk`)
 - pyzmq for safety checker (`pip install pyzmq`)
 
@@ -52,7 +52,8 @@ drone = Drone("tcp://localhost:5760")
 
 ## API Reference
 
-The v1 API is fully compatible with the [legacy API](../legacy/README.md). All classes, methods, and properties work identically.
+The v1 API is fully compatible with the historical (legacy) aerpawlib API.
+All classes, methods, and properties work identically.
 
 
 ### Vehicle Properties
@@ -153,7 +154,7 @@ The v1 API includes the same safety checker as the legacy API for geofence valid
 Run the safety checker server in a separate process:
 
 ```bash
-aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
+python -m aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
 ```
 
 Or in Python (constructor blocks):
@@ -551,6 +552,5 @@ from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
 
 
 > Note that compatible versions of datastructures (_GPSInfoCompat) do not inherit from their DroneKit counterparts, so type assertions will fail. If you were relying on type assertions, you're probably doing something wrong.
-
 
 

@@ -101,8 +101,9 @@ Integration tests disable pytest output capture (`-s` behavior) because MAVProxy
 ### "Mode change to GUIDED failed: requires position"
 
 This occurs when starting an experiment before SITL has fully initialized. 
-This is a inconsistency with the MavSDK library lying to us about whether the drone actually has a position or not.
+This is an inconsistency where MAVSDK can briefly report the vehicle as ready
+before position data is actually usable.
 
 There are two solutions:
 - Wait for SITL to fully start – Give SITL 10–15 seconds after `sim_vehicle.py` reports "Ready to FLY" before running your script.
-2. Use external SITL – Run SITL in a separate terminal first, then run your experiment with `--no-sitl` (for pytest) or after SITL is ready.
+- Use external SITL – Run SITL in a separate terminal first, then run your experiment with `--no-sitl` (for pytest) after SITL is ready.

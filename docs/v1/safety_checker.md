@@ -32,7 +32,7 @@ exclude_geofences:
 
 ```bash
 # From command line (recommended)
-aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
+python -m aerpawlib.v1.safety --port 14580 --vehicle_config geofence_config.yaml
 ```
 
 Or in Python:
@@ -271,7 +271,7 @@ server_process.start()
 ### Using screen (Linux)
 
 ```bash
-screen -dmS safety_checker aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
+screen -dmS safety_checker python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
 ```
 
 > **Note**: `aerpawlib.v1.safetyChecker` is a deprecated alias for `aerpawlib.v1.safety`. Use `safety` for new code.
@@ -280,27 +280,25 @@ screen -dmS safety_checker aerpawlib.v1.safety --port 14580 --vehicle_config con
 
 ## Upgrading to v2
 
-The v2 API offers a more comprehensive safety system with async support:
+The v2 API offers async command validation integrated into the vehicle API:
 
 ```python
-from aerpawlib.v2 import (
-    Drone, SafetyLimits, SafetyCheckerClient, SafetyConfig
-)
+from aerpawlib.v2 import Drone
+from aerpawlib.v2.safety import SafetyCheckerClient
 
-# Async context manager for cleaner code
-async with SafetyCheckerClient("localhost", 14580) as checker:
-    drone = Drone(
-        "udp://:14540",
-        safety_limits=SafetyLimits.restrictive(),
-        safety_checker=checker
-    )
-    
-    await drone.connect()
-    await drone.arm()  # Pre-flight checks run automatically
+client = SafetyCheckerClient("127.0.0.1", 14580)
+drone = await Drone.connect("udpin://127.0.0.1:14550", safety=client)
+
+ok, msg = await drone.can_takeoff(10)
+if ok:
     await drone.takeoff(altitude=10)
-    await drone.land()
 ```
 
+Or via CLI:
+
+```bash
+aerpawlib --api-version v2 --script my_mission.py --vehicle drone \
+  --conn udpin://127.0.0.1:14550 --safety-checker-port 14580
+```
 
 See the [v2 Safety Guide](../v2/safety.md) for details.
-

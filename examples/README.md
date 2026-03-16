@@ -25,14 +25,19 @@ examples/
 │       └── README.md
 └── v2/                          # v2 API (modern, async-first)
     ├── basic_example.py
-    ├── basic_example.py
-    ├── command_handle_example.py
-    ├── command_validation_example.py
     ├── enhanced_example.py
+    ├── rover_example.py
+    ├── velocity_example.py
+    ├── command_handle_example.py
+    ├── command_handle_cancel_example.py
+    ├── command_validation_example.py
+    ├── geofence_example.py
+    ├── logging_example.py
+    ├── dummy_vehicle_example.py
+    ├── at_init_example.py
     ├── plan_example.py
     ├── state_machine_example.py
     ├── zmq_state_machine_example.py
-    └── test_runner.py
 ```
 
 ## Quick Reference
@@ -50,7 +55,10 @@ examples/
 | `zmq_runner` | Leader/follower multi-vehicle coordination |
 | `zmq_preplanned_orbit` | Two drones: tracer + orbiter |
 | `plan_example` (v2) | Load waypoints from QGroundControl .plan file |
+| `rover_example` (v2) | Rover mission basics for ground vehicles |
+| `velocity_example` (v2) | Velocity control patterns for v2 vehicles |
 | `command_validation_example` (v2) | can_takeoff / can_goto before commands |
+| `command_handle_example` (v2) | Non-blocking command handle progress/cancel |
 | `zmq_state_machine_example` (v2) | ZmqStateMachine with expose_zmq |
 
 ## Running Examples

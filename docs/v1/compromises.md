@@ -15,7 +15,7 @@ Because MAVSDK methods can only be called from the loop that initialized them, t
 *   While necessary, this creates a slight latency penalty for every command compared to the pure `asyncio` v2 API.
 
 ## Thread-Safe Telemetry
-Telemtry is received asynchronously on the background thread but read by the user script on the main thread.
+Telemetry is received asynchronously on the background thread but read by the user script on the main thread.
 
 *   All internal state variables (position, altitude, heading) are protected by `ThreadSafeValue` wrappers (using `threading.Lock`).
 *   Prevents race conditions and partial reads, but adds locking overhead to every telemetry access.
@@ -39,6 +39,6 @@ DroneKit objects (Battery, GPSInfo, Attitude) were classes with specific attribu
 *   Ensures that code like `vehicle.battery.level` or `vehicle.gps_0.fix_type` continues to work without modification.
 
 ## Manual Task Reaping
-In a pure async application, tasks are cleaned up when the loop closes. In v1, the background loop persists across diferentes states.
+In a pure async application, tasks are cleaned up when the loop closes. In v1, the background loop persists across different states.
 
 *   An explicit `close()` method is required to cancel telemetry tasks and stop the background thread. Without this, the process would hang on exit due to the persistent background telemetry thread.

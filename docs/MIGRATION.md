@@ -7,7 +7,7 @@ This guide helps you migrate scripts from aerpawlib v1 to v2.
 | Area       | v1                                     | v2                                           |
 |------------|----------------------------------------|----------------------------------------------|
 | Runners    | `inspect.getmembers` + function attrs  | Config dataclass or decorators               |
-| Safety     | `SafetyCheckerClient`, `SafetyMonitor` | `vehicle.safety` + `can_takeoff`, `can_goto` |
+| Safety     | `SafetyCheckerClient`                  | `vehicle.safety` + `can_takeoff`, `can_goto` |
 | Types      | `aerpawlib.v1.util`                    | `aerpawlib.v2.types`                         |
 | Plan files | `aerpawlib.v1.util.read_from_plan`     | `aerpawlib.v2.plan.read_from_plan`           |
 
@@ -39,7 +39,7 @@ class MyMission(BasicRunner):
 
 ## Safety and Command Validation
 
-v1: Use `SafetyCheckerClient` explicitly; optional `SafetyMonitor` for warnings.
+v1: Use `SafetyCheckerClient` explicitly for waypoint/takeoff/landing checks.
 
 v2: Use `can_takeoff`, `can_goto`, `can_land` before commands. Pass a safety client to `connect(safety=...)`; when running via CLI, aerpawlib builds and passes it from `--safety-checker-port` (in AERPAW defaults to 14580; outside AERPAW optional with passthrough on failure):
 
