@@ -82,6 +82,10 @@ DEFAULT_GOTO_TIMEOUT_S = 300.0
 # Flag for system health: indicates if pre-arm checks are passing
 MAV_SYS_STATUS_PREARM_CHECK = 0x01
 
+# EKF_STATUS_REPORT (ArduPilot) - takeoff readiness
+# flags bitmask: 831 = all critical EKF estimates good (attitude, velocity, position)
+EKF_READY_FLAGS = 831  # EKF fully ready for takeoff
+
 
 # Timing Constants
 

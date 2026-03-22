@@ -53,7 +53,6 @@ class Rover(Vehicle):
                 startup sequence.
         """
         self._will_arm = should_arm
-        logger.info("Rover: _preflight_wait started (waiting for armable)")
         await self._set_guided_mode()
         start = time.monotonic()
         last_log = 0.0
@@ -70,7 +69,6 @@ class Rover(Vehicle):
                 )
                 last_log = time.monotonic()
             await asyncio.sleep(POLLING_DELAY_S)
-        logger.info("Rover: _preflight_wait done (armable or timeout)")
 
     async def _set_guided_mode(self) -> None:
         """Switch the rover to GUIDED mode before arming.
@@ -147,7 +145,6 @@ class Rover(Vehicle):
         if not self._will_arm:
             logger.debug("Rover: _arm_vehicle skipped (_will_arm=False)")
             return
-        logger.info("Rover: _arm_vehicle (waiting for armable, GPS fix, arming)")
         await _wait_for_condition(
             lambda: self._state.armable,
             timeout=30.0,
@@ -165,7 +162,6 @@ class Rover(Vehicle):
             timeout=5.0,
             timeout_message="Rover: home position not available",
         )
-        logger.info("Rover: _arm_vehicle done (armed, home position set)")
 
     async def goto_coordinates(
         self,
@@ -190,10 +186,6 @@ class Rover(Vehicle):
         Raises:
             NavigationError: If command dispatch fails or arrival times out.
         """
-        logger.info(
-            f"Rover: goto_coordinates ({coordinates.lat:.6f}, {coordinates.lon:.6f}) "
-            f"tolerance={tolerance}m, timeout={timeout}s, blocking={blocking}"
-        )
         _validate_tolerance(tolerance, "tolerance")
         await self.await_ready_to_move()
         self._ready_to_move = lambda _: False
@@ -238,11 +230,10 @@ class Rover(Vehicle):
                         )
                         last_log = now
                     await asyncio.sleep(0.05)
-                logger.info("Rover: goto_coordinates complete")
+                return None
             except TimeoutError as e:
                 logger.error(f"Rover: goto_coordinates failed (timeout): {e}")
                 raise NavigationError(str(e), original_error=e)
-            return None
 
         # Non-blocking mode tracks completion and progress in a task handle.
         handle = VehicleTask()
@@ -298,6 +289,118 @@ class Rover(Vehicle):
         t2 = asyncio.create_task(_progress_updater())
         self._command_tasks.extend([t1, t2])
         return handle
+
+    async def goto_north(
+        self,
+        meters: float,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Go ``meters`` north from current position."""
+        target = self.position + VectorNED(meters, 0, 0)
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_east(
+        self,
+        meters: float,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Go ``meters`` east from current position."""
+        target = self.position + VectorNED(0, meters, 0)
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_south(
+        self,
+        meters: float,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Go ``meters`` south from current position."""
+        target = self.position + VectorNED(-meters, 0, 0)
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_west(
+        self,
+        meters: float,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Go ``meters`` west from current position."""
+        target = self.position + VectorNED(0, -meters, 0)
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_ned(
+        self,
+        north: float,
+        east: float,
+        down: float = 0,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Go by NED offset from current position.
+
+        Args:
+            north: North component in metres (positive = north).
+            east: East component in metres (positive = east).
+            down: Ignored for rovers (ground vehicles).
+            tolerance: Arrival tolerance in metres.
+            timeout: Maximum seconds to wait for arrival.
+            blocking: If True (default), await arrival before returning.
+        """
+        target = self.position + VectorNED(north, east, down)
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_bearing(
+        self,
+        bearing_deg: float,
+        distance_m: float,
+        tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> Optional[VehicleTask]:
+        """Drive along ``bearing_deg`` for ``distance_m`` metres from current position.
+
+        Bearing: 0=north, 90=east, 180=south, 270=west.
+        """
+        v = VectorNED(distance_m, 0, 0).rotate_by_angle(-bearing_deg)
+        target = self.position + v
+        return await self.goto_coordinates(
+            target,
+            tolerance=tolerance,
+            timeout=timeout,
+            blocking=blocking,
+        )
 
     _velocity_loop_active: bool = False
 

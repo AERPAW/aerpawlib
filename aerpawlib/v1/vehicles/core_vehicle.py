@@ -41,6 +41,7 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     VERBOSE_LOG_FILE_PREFIX,
     VERBOSE_LOG_DELAY_S,
+    EKF_READY_FLAGS,
 )
 from aerpawlib.v1.exceptions import (
     ConnectionTimeoutError,
@@ -369,6 +370,7 @@ class Vehicle:
         self._home_position = ThreadSafeValue(None)
         self._home_abs_alt = ThreadSafeValue(0.0)
         self._prearm_checks_ok = ThreadSafeValue(False)
+        self._ekf_ready = ThreadSafeValue(False)
 
         # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
         self._battery_val = ThreadSafeValue(_BatteryCompat())
@@ -678,6 +680,27 @@ class Vehicle:
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
 
+        async def _ekf_status_update():
+            """Subscribe to EKF_STATUS_REPORT (ArduPilot) for takeoff readiness."""
+            import json
+
+            try:
+                async for msg in self._system.mavlink_direct.message(
+                    "EKF_STATUS_REPORT"
+                ):
+                    try:
+                        fields = json.loads(msg.fields_json)
+                        flags = fields.get("flags", 0)
+                        self._ekf_ready.set(
+                            (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS
+                        )
+                    except Exception as e:
+                        logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
+            except Exception as e:
+                logger.debug(
+                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e
+                )
+
         async def _home_update():
             async for home in self._system.telemetry.home():
                 self._home_position.set(
@@ -714,6 +737,7 @@ class Vehicle:
             ("armed", lambda: _armed_update()),
             ("health", lambda: _health_update()),
             ("mavlink_status", lambda: _mavlink_status_update()),
+            ("ekf_status", lambda: _ekf_status_update()),
             ("home", lambda: _home_update()),
             ("connection", lambda: _connection_state_update()),
         ]
@@ -785,6 +809,11 @@ class Vehicle:
         True if the vehicle is currently armed.
         """
         return self._armed_state.get()
+
+    @property
+    def ekf_ready(self) -> bool:
+        """True if EKF reports ready for takeoff (ArduPilot)."""
+        return self._ekf_ready.get()
 
     @property
     def home_coords(self) -> Optional[util.Coordinate]:
@@ -1170,7 +1199,9 @@ class Vehicle:
                     msg = f"{str(e)}. Status: {health_summary}"
                     logger.error(msg)
                     raise NotArmableError(msg)
-
+                logger.debug("Waiting for EKF ready...")
+                while not self._ekf_ready.get():
+                    await asyncio.sleep(0.1)
                 logger.debug("Vehicle is armable, sending arm command...")
 
                 # Arm the vehicle
@@ -1276,6 +1307,7 @@ class Vehicle:
             f"Home: {'OK' if health.is_home_position_ok else 'FAIL'}, "
             f"Local: {'OK' if health.is_local_position_ok else 'FAIL'}, "
             f"Pre-arm: {'OK' if self._prearm_checks_ok.get() else 'FAIL'}, "
+            f"EKF: {'OK' if self._ekf_ready.get() else 'FAIL'}, "
             f"Armable: {'OK' if health.is_armable else 'FAIL'}, "
             f"Gyro: {'OK' if health.is_gyrometer_calibration_ok else 'FAIL'}, "
             f"Accel: {'OK' if health.is_accelerometer_calibration_ok else 'FAIL'}, "

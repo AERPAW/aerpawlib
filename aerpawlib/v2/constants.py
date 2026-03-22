@@ -58,6 +58,10 @@ VALIDATE_LANDING_REQ = "validate_landing_req"
 # MAVLink Flags
 MAV_SYS_STATUS_PREARM_CHECK = 0x01
 
+# EKF_STATUS_REPORT (ArduPilot) - takeoff readiness
+# flags bitmask: 831 = all critical EKF estimates good (attitude, velocity, position)
+EKF_READY_FLAGS = 831  # EKF fully ready for takeoff
+
 # Rover
 ROVER_GUIDED_MODE = 15  # ArduPilot Rover GUIDED mode number
 ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0  # Seconds to wait for mode change

@@ -12,7 +12,6 @@ from __future__ import annotations
 import datetime
 import logging
 import sys
-import time
 from enum import Enum
 from typing import Optional, Union
 
@@ -181,7 +180,7 @@ def get_logger(
 
 def set_level(
     level: Union[LogLevel, str, int],
-    component: Optional[LogComponent] = None,
+    component: Optional[Union[LogComponent, str]] = None,
 ) -> None:
     """Set the log level for a component or the v1 root logger."""
     if isinstance(level, LogLevel):
@@ -191,7 +190,12 @@ def set_level(
     else:
         level_value = level
 
-    logger_name = component.value if component else "aerpawlib.v1"
+    if component is None:
+        logger_name = "aerpawlib.v1"
+    elif isinstance(component, LogComponent):
+        logger_name = component.value
+    else:
+        logger_name = component
     logging.getLogger(logger_name).setLevel(level_value)
 
 

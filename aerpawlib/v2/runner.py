@@ -134,6 +134,10 @@ class ZmqStateMachineConfig(StateMachineConfig):
 class Runner:
     """Base execution framework for aerpawlib v2 scripts."""
 
+    def set_event_log(self, event_log: Any) -> None:
+        """Set the structured event logger for mission events."""
+        self._event_log = event_log
+
     async def run(self, vehicle: V) -> None:
         """Execute the runner's core logic.
 

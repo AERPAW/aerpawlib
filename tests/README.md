@@ -78,8 +78,11 @@ pytest tests/integration/ -v --no-sitl
 SITL output is captured to separate log files per vehicle type:
 - `logs/sitl_drone_output.log` – sim_vehicle.py output (build, progress)
 - `logs/sitl_rover_output.log` – sim_vehicle.py output (build, progress)
-- `/tmp/ArduCopter.log` – SITL binary output (when run headless, no terminal window)
-- `/tmp/Rover.log` – SITL binary output (when run headless, no terminal window)
+- `logs/sitl_drone_process.log` – ArduCopter SITL binary output (headless process log)
+- `logs/sitl_rover_process.log` – Rover SITL binary output (headless process log)
+
+Pytest redirects ArduPilot's default `/tmp/<Vehicle>.log` output to the repo-local
+`logs/` files above so all test logs are stored together.
 
 Pytest unsets `DISPLAY` so sim_vehicle does not open a new Terminal window; the SITL process runs headless.
 

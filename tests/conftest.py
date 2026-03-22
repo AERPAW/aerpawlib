@@ -259,7 +259,6 @@ class SITLManager:
             time.sleep(1)
 
         self.stop()
-        sitl_process_log = f"/tmp/{self.vehicle_type}.log"
         msg = (
             f"SITL failed to start within {SITL_STARTUP_TIMEOUT}s. "
             f"Check {sitl_log_path} (sim_vehicle output) and {sitl_process_log} (SITL process)."

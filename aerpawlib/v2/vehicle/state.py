@@ -10,6 +10,7 @@ import math
 import time
 from typing import Optional
 
+from ..constants import EKF_READY_FLAGS
 from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 
 
@@ -45,6 +46,12 @@ class VehicleState:
         self._last_arm_time: float = 0.0
         self._armed_telemetry_received: bool = False
         self._prearm_checks_ok: bool = False
+        self._ekf_ready: bool = False
+
+    @property
+    def ekf_ready(self) -> bool:
+        """Return True if EKF reports ready for takeoff (ArduPilot)."""
+        return self._ekf_ready
 
     @property
     def position(self) -> Coordinate:
@@ -199,9 +206,9 @@ class VehicleState:
             home_ok: True if home position is set.
             armable: True if the vehicle's own health check passes.
         """
-        self._armable = (
-            global_ok and local_ok and home_ok and armable and self._prearm_checks_ok
-        )
+        # Armable when MAVSDK health reports OK. SYS_STATUS prearm check removed
+        # (was ArduPilot-specific); EKF readiness is checked separately for takeoff.
+        self._armable = global_ok and local_ok and home_ok and armable
 
     def update_prearm_bits(self, ok: bool) -> None:
         """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.
@@ -210,6 +217,14 @@ class VehicleState:
             ok: True if the bit is set.
         """
         self._prearm_checks_ok = ok
+
+    def update_ekf_from_flags(self, flags: int) -> None:
+        """Update EKF takeoff-readiness from EKF_STATUS_REPORT flags.
+
+        Args:
+            flags: Raw flags value from EKF_STATUS_REPORT MAVLink message.
+        """
+        self._ekf_ready = (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS
 
     def update_home(
         self, lat: float, lon: float, rel_alt: float, abs_alt: float

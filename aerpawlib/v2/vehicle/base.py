@@ -221,6 +221,11 @@ class Vehicle:
         self._expecting_disarm: bool = False
         self._unexpected_disarm_event: asyncio.Event = asyncio.Event()
         self.safety: Optional[Any] = safety
+        self._event_log: Optional[Any] = None
+
+    def set_event_log(self, event_log: Optional[Any]) -> None:
+        """Set the structured event logger for mission events."""
+        self._event_log = event_log
 
     def set_heartbeat_tick_callback(self, cb: Callable[[], None]) -> None:
         """Set a callback invoked whenever telemetry is received.
@@ -303,6 +308,11 @@ class Vehicle:
     def armable(self) -> bool:
         """Return whether pre-arm checks currently pass."""
         return self._state.armable
+
+    @property
+    def ekf_ready(self) -> bool:
+        """Return True if EKF reports ready for takeoff (ArduPilot)."""
+        return self._state.ekf_ready
 
     async def can_takeoff(
         self, altitude: float, min_battery_percent: float = 10.0
@@ -601,6 +611,8 @@ class Vehicle:
                     prev_armed[0] = armed
                 elif prev_armed[0] != armed:
                     logger.info(f"Telemetry: armed changed {prev_armed[0]} -> {armed}")
+                    if self._event_log:
+                        self._event_log.log_event("arm" if armed else "disarm")
                     if (
                         prev_armed[0] is True
                         and not armed
@@ -661,6 +673,25 @@ class Vehicle:
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
 
+        async def _ekf_status_update() -> None:
+            """Subscribe to EKF_STATUS_REPORT (ArduPilot) for takeoff readiness."""
+            try:
+                async for msg in self._system.mavlink_direct.message(
+                    "EKF_STATUS_REPORT"
+                ):
+                    if not self._running:
+                        return
+                    try:
+                        fields = json.loads(msg.fields_json)
+                        flags = fields.get("flags", 0)
+                        self._state.update_ekf_from_flags(flags)
+                    except Exception as e:
+                        logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
+            except Exception as e:
+                logger.debug(
+                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e
+                )
+
         for coro in [
             _position_update,
             _attitude_update,
@@ -672,6 +703,7 @@ class Vehicle:
             _health_update,
             _home_update,
             _mavlink_status_update,
+            _ekf_status_update,
         ]:
             task = asyncio.create_task(coro())
             self._telemetry_tasks.append(task)
@@ -728,7 +760,6 @@ class Vehicle:
         """
         if self._closed or self._system is None:
             raise RuntimeError("Cannot set_armed: vehicle is closed")
-        logger.info(f"set_armed({value})")
         if value and not self._state.armable:
             logger.warning(f"Arm rejected: {self._get_health_summary()}")
             raise NotArmableError(f"Vehicle not armable: {self._get_health_summary()}")
@@ -754,7 +785,6 @@ class Vehicle:
         finally:
             if not value:
                 self._expecting_disarm = False
-        logger.debug(f"set_armed({value}) completed successfully")
 
     def _get_health_summary(self) -> str:
         """Return a human-readable summary of current health/GPS/armable status.

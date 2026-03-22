@@ -376,6 +376,17 @@ def run_v2_experiment(
                     f"Connection to {safety_addr}:{effective_port} failed: {e}"
                 )
 
+        event_log = None
+        if getattr(args, "structured_log", None):
+            from aerpawlib.v2.event_log import StructuredEventLogger
+
+            if os.path.exists(args.structured_log):
+                logger.warning(
+                    "Structured log file %s already exists and will be overwritten",
+                    args.structured_log,
+                )
+            event_log = StructuredEventLogger(open(args.structured_log, "w"))
+
         logger.info("Connecting to vehicle...")
         try:
             vehicle = await asyncio.wait_for(
@@ -401,6 +412,20 @@ def run_v2_experiment(
             if vehicle:
                 vehicle.close()
 
+        if event_log:
+            vehicle.set_event_log(event_log)
+            runner_instance.set_event_log(event_log)
+            logger.info("Structured event logging -> %s", args.structured_log)
+            event_log.log_event("mission_start")
+
+        def _on_disconnect():
+            if aerpaw_platform:
+                aerpaw_platform.log_to_oeo(
+                    "[aerpawlib] Connection lost", severity="CRITICAL"
+                )
+            if event_log:
+                event_log.log_event("connection_lost")
+
         try:
             from aerpawlib.v2.safety.connection import (
                 ConnectionHandler,
@@ -411,13 +436,7 @@ def run_v2_experiment(
             conn_handler = ConnectionHandler(
                 vehicle,
                 heartbeat_timeout=args.heartbeat_timeout,
-                on_disconnect=lambda: (
-                    aerpaw_platform.log_to_oeo(
-                        "[aerpawlib] Connection lost", severity="CRITICAL"
-                    )
-                    if aerpaw_platform
-                    else None
-                ),
+                on_disconnect=_on_disconnect,
             )
             _conn_handler_ref[0] = conn_handler
             vehicle.set_heartbeat_tick_callback(conn_handler.heartbeat_tick)
@@ -541,6 +560,15 @@ def run_v2_experiment(
                     safety_client.close()
                 except Exception as e:
                     logger.debug(f"Failed to close safety client cleanly: {e}")
+            if event_log is not None:
+                try:
+                    event_log.log_event("mission_end", success=success)
+                except Exception:
+                    pass
+                try:
+                    event_log.close()
+                except Exception as e:
+                    logger.debug(f"Failed to close structured event log: {e}")
         return success
 
     experiment_success = False
@@ -818,7 +846,7 @@ def main():
     )
     exec_grp.add_argument(
         "--debug-dump",
-        help="run aerpawlib's internal debug dump on vehicle object",
+        help="run aerpawlib's internal debug dump on vehicle object (v1 only)",
         action="store_true",
         dest="debug_dump",
     )
@@ -873,6 +901,12 @@ def main():
         help="write logs to file in addition to console",
         dest="log_file",
     )
+    log_grp.add_argument(
+        "--structured-log",
+        metavar="FILE",
+        dest="structured_log",
+        help="Emit JSONL event log to FILE (v2 only). Omit to disable file logging.",
+    )
 
     # Connection Handling Arguments
     conn_grp = parser.add_argument_group("Connection Tuning")
@@ -908,7 +942,6 @@ def main():
         default=None,
         dest="safety_checker_port",
     )
-
     args, unknown_args = parser.parse_known_args(
         args=cli_args
     )  # we'll pass other args to the script
