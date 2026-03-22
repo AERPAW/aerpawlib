@@ -178,7 +178,9 @@ class Drone(Vehicle):
             TakeoffError: If the MAVSDK takeoff command fails.
         """
         if self._event_log:
-            self._event_log.log_event("command", type="takeoff", arguments={"altitude": altitude})
+            self._event_log.log_event(
+                "command", type="takeoff", arguments={"altitude": altitude}
+            )
         await self.await_ready_to_move()
         time_since_arm = time.monotonic() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
