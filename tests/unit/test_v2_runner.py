@@ -57,7 +57,8 @@ class TestBasicRunner:
 
     @pytest.mark.asyncio
     async def test_multiple_entrypoints_raises(self):
-        with pytest.raises(RuntimeError) as excinfo:
+        # Py <3.12 wraps __set_name__ failures in RuntimeError; 3.12+ raises RunnerError.
+        with pytest.raises((RuntimeError, RunnerError)) as excinfo:
             class MultiEntry(BasicRunner):
                 @entrypoint
                 async def run1(self, vehicle):
@@ -67,8 +68,10 @@ class TestBasicRunner:
                 async def run2(self, vehicle):
                     pass
 
-        assert isinstance(excinfo.value.__cause__, RunnerError)
-        assert "Only one @entrypoint" in str(excinfo.value.__cause__)
+        err = excinfo.value
+        inner = err.__cause__ if isinstance(err, RuntimeError) else err
+        assert isinstance(inner, RunnerError)
+        assert "Only one @entrypoint" in str(inner)
 
 
 class TestStateMachine:
@@ -155,7 +158,7 @@ class TestStateMachine:
 
     @pytest.mark.asyncio
     async def test_multiple_initial_states_raises(self):
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises((RuntimeError, MultipleInitialStatesError)) as excinfo:
             class SM(StateMachine):
                 @state(name="a", first=True)
                 async def a(self, vehicle):
@@ -165,7 +168,9 @@ class TestStateMachine:
                 async def b(self, vehicle):
                     return None
 
-        assert isinstance(excinfo.value.__cause__, MultipleInitialStatesError)
+        err = excinfo.value
+        inner = err.__cause__ if isinstance(err, RuntimeError) else err
+        assert isinstance(inner, MultipleInitialStatesError)
 
     @pytest.mark.asyncio
     async def test_inherited_background_preserves_parent_initial_state(self):
@@ -282,14 +287,16 @@ class TestZmqStateMachine:
         assert cfg.exposed_states["remote"] == "internal"
 
     def test_expose_zmq_without_state_raises(self):
-        with pytest.raises(RuntimeError) as excinfo:
+        with pytest.raises((RuntimeError, RunnerError)) as excinfo:
             class Z(ZmqStateMachine):
                 @expose_zmq("remote")
                 async def no_state(self, vehicle):
                     return None
 
-        assert isinstance(excinfo.value.__cause__, RunnerError)
-        assert "only be used on @state/@timed_state" in str(excinfo.value.__cause__)
+        err = excinfo.value
+        inner = err.__cause__ if isinstance(err, RuntimeError) else err
+        assert isinstance(inner, RunnerError)
+        assert "only be used on @state/@timed_state" in str(inner)
 
 
 class TestConnectionHandler:
