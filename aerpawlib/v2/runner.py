@@ -842,7 +842,9 @@ class ZmqStateMachine(StateMachine):
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr
         self._zmq_context = zmq.asyncio.Context()
-        self._zmq_send_queue = asyncio.Queue()
+        # Queue is created in run() so asyncio.Queue() runs with a current loop
+        # (Python 3.9 raises if constructed from synchronous code with no loop).
+        self._zmq_send_queue = None
         self._zmq_pending_fields = {}
         self._override_next_state_transition = False
         self._next_state_overr = ""
@@ -980,6 +982,8 @@ class ZmqStateMachine(StateMachine):
                 "ZmqStateMachine requires _initialize_zmq_bindings before run. "
                 "Pass --zmq-identifier and --zmq-proxy-server."
             )
+        if self._zmq_send_queue is None:
+            self._zmq_send_queue = asyncio.Queue()
         try:
             await super().run(vehicle)
         finally:

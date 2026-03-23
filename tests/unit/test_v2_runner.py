@@ -257,7 +257,8 @@ class TestZmqStateMachine:
         z._initialize_zmq_bindings("myid", "127.0.0.1")
         assert z._zmq_identifier == "myid"
         assert z._zmq_proxy_server == "127.0.0.1"
-        assert z._zmq_send_queue is not None
+        # Send queue is created in run() when an event loop is running (Py3.9 compat).
+        assert z._zmq_send_queue is None
         assert z._zmq_pending_fields == {}
         # Clean up context so it doesn't leak
         if z._zmq_context is not None:
@@ -428,6 +429,7 @@ class TestConnectionHandler:
 
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
+        z._zmq_send_queue = asyncio.Queue()
         await z.transition_runner("other", "next_step")
         msg = z._zmq_send_queue.get_nowait()
         assert msg["msg_type"] == ZMQ_TYPE_TRANSITION
@@ -448,6 +450,7 @@ class TestConnectionHandler:
 
         z = Z()
         z._initialize_zmq_bindings("requester", "127.0.0.1")
+        z._zmq_send_queue = asyncio.Queue()
         vehicle = MockVehicle()
 
         async def _inject_reply():
