@@ -20,7 +20,7 @@ from aerpawlib.log import get_logger, LogComponent
 import math
 import time
 import threading
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -41,6 +41,7 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     VERBOSE_LOG_FILE_PREFIX,
     VERBOSE_LOG_DELAY_S,
+    STRUCTURED_TELEMETRY_INTERVAL_S,
     EKF_READY_FLAGS,
 )
 from aerpawlib.v1.exceptions import (
@@ -252,6 +253,10 @@ class DummyVehicle:
     def __init__(self):
         self._closed = False
 
+    def set_event_log(self, event_log: Optional[Any]) -> None:
+        """No-op: DummyVehicle ignores structured logging."""
+        pass
+
     def close(self):
         """Mark the dummy vehicle as closed."""
         self._closed = True
@@ -316,6 +321,9 @@ class Vehicle:
     _verbose_logging_delay: float = VERBOSE_LOG_DELAY_S
     _verbose_log_lock: threading.Lock
 
+    _event_log: Optional[Any] = None
+    _structured_telemetry_last_log_time: float = 0.0
+
     # Safety initialization state
     _initialization_complete: bool = False
     _postarm_init_in_progress: bool = False
@@ -345,6 +353,8 @@ class Vehicle:
         self._connection_error: Optional[BaseException] = None
         self._closed = False
         self._verbose_log_lock = threading.Lock()
+        self._event_log = None
+        self._structured_telemetry_last_log_time = 0.0
         self._will_arm = True
         self._mission_start_time: Optional[float] = None
 
@@ -396,6 +406,10 @@ class Vehicle:
 
         # Connect synchronously (blocking)
         self._connect_sync()
+
+    def set_event_log(self, event_log: Optional[Any]) -> None:
+        """Attach structured JSONL logger from ``--structured-log`` (v1)."""
+        self._event_log = event_log
 
     def _connect_sync(self):
         """
@@ -940,6 +954,39 @@ class Vehicle:
                         self._verbose_logging_file_writer.close()
                         self._verbose_logging_file_writer = None
                     raise
+
+        if self._event_log is not None:
+            now = time.time()
+            if self._structured_telemetry_last_log_time == 0.0 or (
+                self._structured_telemetry_last_log_time
+                + STRUCTURED_TELEMETRY_INTERVAL_S
+                <= now
+            ):
+                self._structured_telemetry_last_log_time = now
+                att = self.attitude
+                pos = self.position
+                vel = self.velocity
+                bat = self.battery
+                gps = self.gps
+                self._event_log.log_event(
+                    "telemetry",
+                    lat=pos.lat,
+                    lon=pos.lon,
+                    alt_m=pos.alt,
+                    vel_n_m_s=vel.north,
+                    vel_e_m_s=vel.east,
+                    vel_d_m_s=vel.down,
+                    roll_rad=att.roll,
+                    pitch_rad=att.pitch,
+                    yaw_rad=att.yaw,
+                    heading_deg=self.heading,
+                    mode=self.mode,
+                    armed=self.armed,
+                    battery_pct=bat.level,
+                    battery_v=bat.voltage,
+                    gps_fix=gps.fix_type,
+                    gps_sats=gps.satellites_visible,
+                )
 
     # Special things
     def done_moving(self) -> bool:

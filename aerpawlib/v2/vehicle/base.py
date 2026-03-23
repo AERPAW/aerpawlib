@@ -227,6 +227,36 @@ class Vehicle:
         """Set the structured event logger for mission events."""
         self._event_log = event_log
 
+    def _log_structured_telemetry_snapshot(self) -> None:
+        """Emit a single JSONL telemetry event (throttled by caller)."""
+        if not self._event_log:
+            return
+        s = self._state
+        att = s.attitude
+        pos = s.position
+        vel = s.velocity
+        bat = s.battery
+        gps = s.gps
+        self._event_log.log_event(
+            "telemetry",
+            lat=pos.lat,
+            lon=pos.lon,
+            alt_m=pos.alt,
+            vel_n_m_s=vel.north,
+            vel_e_m_s=vel.east,
+            vel_d_m_s=vel.down,
+            roll_rad=att.roll,
+            pitch_rad=att.pitch,
+            yaw_rad=att.yaw,
+            heading_deg=s.heading,
+            mode=s.mode,
+            armed=s.armed,
+            battery_pct=bat.level,
+            battery_v=bat.voltage,
+            gps_fix=gps.fix_type,
+            gps_sats=gps.satellites_visible,
+        )
+
     def set_heartbeat_tick_callback(self, cb: Callable[[], None]) -> None:
         """Set a callback invoked whenever telemetry is received.
 
@@ -464,6 +494,7 @@ class Vehicle:
 
         # Throttle interval for periodic telemetry debug logs (seconds)
         _telem_log_interval = 5.0
+        last_struct_telem = [0.0]
 
         def _telem_log_throttle(
             last: list, interval: float = _telem_log_interval
@@ -497,6 +528,8 @@ class Vehicle:
                     logger.debug(
                         f"Telemetry: position lat={position.latitude_deg:.6f} lon={position.longitude_deg:.6f} alt={position.relative_altitude_m:.1f}m"
                     )
+                if self._event_log and _telem_log_throttle(last_struct_telem):
+                    self._log_structured_telemetry_snapshot()
 
         async def _attitude_update() -> None:
             first = [True]

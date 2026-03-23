@@ -230,21 +230,22 @@ Common options:
 - `--api-version v1` or `v2` (default: v1)
 - `--skip-init`: Skip pre-arm wait (use with caution)
 - `--skip-rtl`: Do not RTL/land at script end
-- `--debug-dump`: Enable verbose vehicle state logging
+- `--structured-log FILE`: Emit JSON Lines mission/telemetry events to `FILE` (v1 and v2)
 - `--zmq-identifier`, `--zmq-proxy-server`: For ZMQ scripts
 - `--safety-checker-port` (v2 only): Port for SafetyCheckerServer. In AERPAW env defaults to 14580; outside AERPAW optional (passthrough on failure). See [v2 Safety](v2/safety.md).
 - `-v` / `--verbose` (DEBUG), `-q` / `--quiet` (WARNING): Logging level (default: INFO)
 
 ### Config File (beta)
 
-Use `--config` to load options from JSON:
+Use `--config` to load default CLI options from JSON (keys match long option names, e.g. `api-version`). A key with JSON `null` is skipped (no flag added). Arguments on the command line override the file.
 
 ```json
 {
   "script": "examples/v1/basic_example.py",
   "conn": "udp://127.0.0.1:14550",
   "vehicle": "drone",
-  "verbose": true
+  "verbose": true,
+  "skip-rtl": null
 }
 ```
 

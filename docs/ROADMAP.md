@@ -6,15 +6,16 @@ Planned features and improvements for future releases.
 - [x] nothing planned 
 
 ## v2 API (Development)
-- [ ] Add more data to structured logging, including periodic telemetry and velocity sets
+- [x] Add more data to structured logging, including periodic telemetry data and set_velocity calls
 
 ## Both versions
 - [ ] Fix integration tests
-- [ ] CI Pipeline w/ GitHub
+- [x] CI Pipeline w/ GitHub
+- [ ] Fix weird rotation drift bug?
 
 ## CLI
 - [ ] Improve configs:
-  - [ ]  None values mean nothing else passed (think `--debug`)
+  - [x]  None values mean nothing else passed (think `--debug`)
   - [ ] Make configs patches to the runtime (drone runtime, eg) and rename them to make better sense
   - [ ] Add more configs, especially for v2
-- [ ] `Remove --debug-dump` and fold it in the `--structured-logging` option in v1
+- [x] Remove `--debug-dump` and use `--structured-log` for JSONL (v1 and v2)

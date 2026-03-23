@@ -20,6 +20,10 @@ Run with:
 aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn udpin://127.0.0.1:14550
 ```
 
+### Structured JSONL (`--structured-log FILE`)
+
+Machine-readable events are written one JSON object per line: `mission_start` / `mission_end`, throttled `telemetry` (position, velocity, attitude, battery, GPS, mode, armed), `command` events (e.g. `set_velocity`, `stop_velocity`, takeoff, goto), and `arm` / `disarm`. Omit the flag to disable file output.
+
 ## Architecture
 
 - No background threads for MAVSDK. All commands use direct `await`.

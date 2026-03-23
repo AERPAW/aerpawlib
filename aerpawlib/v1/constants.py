@@ -119,6 +119,9 @@ VERBOSE_LOG_FILE_PREFIX = "aerpawlib_vehicle_dump"
 # Default delay between verbose log entries (seconds)
 VERBOSE_LOG_DELAY_S = 0.1
 
+# Interval between JSONL telemetry snapshots for --structured-log (v1)
+STRUCTURED_TELEMETRY_INTERVAL_S = 5.0
+
 
 # Validation Limits
 

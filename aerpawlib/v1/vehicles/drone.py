@@ -346,6 +346,17 @@ class Drone(Vehicle):
             self._current_heading if self._current_heading is not None else self.heading
         )
         logger.debug(f"Set velocity: {velocity_vector}, yaw={yaw}")
+        if self._event_log:
+            self._event_log.log_event(
+                "command",
+                type="set_velocity",
+                north_m_s=velocity_vector.north,
+                east_m_s=velocity_vector.east,
+                down_m_s=velocity_vector.down,
+                global_relative=global_relative,
+                duration_s=duration,
+                yaw_deg=yaw,
+            )
 
         try:
             await self._run_on_mavsdk_loop(

@@ -625,6 +625,17 @@ class Drone(Vehicle):
         yaw = (
             self._current_heading if self._current_heading is not None else self.heading
         )
+        if self._event_log:
+            self._event_log.log_event(
+                "command",
+                type="set_velocity",
+                north_m_s=velocity.north,
+                east_m_s=velocity.east,
+                down_m_s=velocity.down,
+                global_relative=global_relative,
+                duration_s=duration,
+                yaw_deg=yaw,
+            )
         try:
             await self._system.offboard.set_velocity_ned(
                 VelocityNedYaw(velocity.north, velocity.east, velocity.down, yaw)
@@ -680,6 +691,8 @@ class Drone(Vehicle):
         Call this to halt motion after :meth:`set_velocity` when no ``duration``
         was specified, or to abort a velocity command early.
         """
+        if self._event_log:
+            self._event_log.log_event("command", type="stop_velocity")
         logger.info("Drone: stop_velocity")
         await self._stop_offboard()
 

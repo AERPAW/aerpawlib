@@ -436,6 +436,16 @@ class Rover(Vehicle):
         if not global_relative:
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
 
+        if self._event_log:
+            self._event_log.log_event(
+                "command",
+                type="set_velocity",
+                north_m_s=velocity_vector.north,
+                east_m_s=velocity_vector.east,
+                down_m_s=0.0,
+                global_relative=global_relative,
+                duration_s=duration,
+            )
         try:
             await self._system.offboard.set_velocity_ned(
                 VelocityNedYaw(

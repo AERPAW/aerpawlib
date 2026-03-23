@@ -306,10 +306,6 @@ def run_v2_experiment(
         raise Exception("Please specify a valid vehicle type")
 
     logger.info("Starting experiment execution (v2)")
-    if args.debug_dump:
-        logger.warning(
-            "--debug-dump is not yet implemented for --api-version v2; flag ignored"
-        )
 
     async def run_experiment_async():
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
@@ -378,7 +374,7 @@ def run_v2_experiment(
 
         event_log = None
         if getattr(args, "structured_log", None):
-            from aerpawlib.v2.event_log import StructuredEventLogger
+            from aerpawlib.structured_log import StructuredEventLogger
 
             if os.path.exists(args.structured_log):
                 logger.warning(
@@ -609,6 +605,7 @@ def run_v1_experiment(
     logger.info(f"Starting experiment execution ({version_name})")
 
     async def run_experiment_async():
+        event_log = None
         # Connection
         logger.info("Connecting to vehicle...")
         try:
@@ -631,6 +628,19 @@ def run_v1_experiment(
             )
         except Exception as e:
             raise ConnectionError(f"Could not connect: {e}")
+
+        if getattr(args, "structured_log", None):
+            from aerpawlib.structured_log import StructuredEventLogger
+
+            if os.path.exists(args.structured_log):
+                logger.warning(
+                    "Structured log file %s already exists and will be overwritten",
+                    args.structured_log,
+                )
+            event_log = StructuredEventLogger(open(args.structured_log, "w"))
+            vehicle.set_event_log(event_log)
+            event_log.log_event("mission_start")
+            logger.info("Structured event logging -> %s", args.structured_log)
 
         # Shutdown
         def handle_shutdown(signum, frame):
@@ -727,6 +737,15 @@ def run_v1_experiment(
                         logger.error(f"RTL failed: {e}")
                         traceback.print_exc()
                 vehicle.close()
+            if event_log is not None:
+                try:
+                    event_log.log_event("mission_end", success=success)
+                except Exception:
+                    pass
+                try:
+                    event_log.close()
+                except Exception as e:
+                    logger.debug(f"Failed to close structured event log: {e}")
         return success
 
     experiment_success = False
@@ -774,7 +793,7 @@ def main():
 
             config_cli_args = []
             for key, value in config_data.items():
-                if isinstance(value, bool):
+                if isinstance(value, bool) or value is None:
                     if value:
                         config_cli_args.append(f"--{key}")
                     # for store_false args, if user puts "skip-init": false in json,
@@ -803,8 +822,9 @@ def main():
     )
     parser.add_argument(
         "--config",
-        help="path to JSON configuration file. Keys are other arguments.\n"
-        "Providing arguments to aerpawlib will override the config file.",
+        help="path to JSON file of CLI defaults: keys match long option names "
+        "(e.g. api-version, conn). JSON null for a key omits that flag. "
+        "Arguments after --config override the file.",
     )
 
     # Core Arguments
@@ -843,12 +863,6 @@ def main():
         help="don't rtl and land at the end of an experiment automatically",
         action="store_false",
         dest="rtl_at_end",
-    )
-    exec_grp.add_argument(
-        "--debug-dump",
-        help="run aerpawlib's internal debug dump on vehicle object (v1 only)",
-        action="store_true",
-        dest="debug_dump",
     )
     exec_grp.add_argument(
         "--no-aerpawlib-stdout",
@@ -905,7 +919,7 @@ def main():
         "--structured-log",
         metavar="FILE",
         dest="structured_log",
-        help="Emit JSONL event log to FILE (v2 only). Omit to disable file logging.",
+        help="Emit JSONL event log to FILE (v1 and v2). Omit to disable.",
     )
 
     # Connection Handling Arguments

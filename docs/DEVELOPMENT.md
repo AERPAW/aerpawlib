@@ -1,73 +1,78 @@
 # aerpawlib Development Guide
 
-This document is for contributors and developers working on the aerpawlib codebase.
+For contributors working on the library, tests, and tooling. End-user workflows live in [USER_GUIDE.md](USER_GUIDE.md).
 
-## Project Structure
-
-```
-aerpawlib-vehicle-control/
-├── aerpawlib/
-│   ├── __main__.py          # CLI entry point (aerpawlib)
-│   ├── v1/                  # v1 API (MAVSDK, DroneKit-compatible)
-│   │   ├── __init__.py
-│   │   ├── aerpaw.py        # AERPAW platform (OEO, checkpoints)
-│   │   ├── constants.py     # Timing, limits, config
-│   │   ├── exceptions.py    # Exception hierarchy
-│   │   ├── external.py      # ExternalProcess
-│   │   ├── helpers.py       # wait_for_condition, validate_*, ThreadSafeValue
-│   │   ├── log.py           # Logging configuration
-│   │   ├── runner.py        # Runner, BasicRunner, StateMachine, ZmqStateMachine
-│   │   ├── safety.py        # SafetyCheckerServer, SafetyCheckerClient
-│   │   ├── safetyChecker.py # Deprecation alias for safety
-│   │   ├── util.py          # Coordinate, VectorNED, geofence, plan parsing
-│   │   ├── vehicle.py       # Re-exports Vehicle, Drone, Rover
-│   │   ├── zmqutil.py       # ZMQ proxy
-│   │   └── vehicles/
-│   │       ├── core_vehicle.py  # Vehicle base, telemetry, connection
-│   │       ├── drone.py        # Drone implementation
-│   │       └── rover.py        # Rover implementation
-│   └── v2/                  # v2 API (modern, async-first)
-│       ├── ...
-├── docs/                    # Documentation
-├── examples/                # Example scripts
-├── tests/                   # Pytest tests
-│   ├── conftest.py          # Fixtures, SITL manager
-│   ├── unit/                # Unit tests (no SITL)
-│   └── integration/         # Integration tests (SITL)
-├── pyproject.toml
-└── README.md
-```
-
-## Key Architectural Concepts
-
-### v1 Dual-Loop Architecture
-
-v1 maintains a background thread with its own asyncio event loop for MAVSDK. User code runs on the main thread/loop. All MAVSDK calls go through `_run_on_mavsdk_loop()`, which uses `run_coroutine_threadsafe` to bridge threads.
-
-- Received on background thread, stored in `ThreadSafeValue` wrappers
-- Commands: Scheduled on background loop, main thread awaits result
-- Close: Must call `vehicle.close()` to stop background thread and cancel tasks
-
-See [v1/compromises.md](v1/compromises.md) for design tradeoffs.
-
-### v1 Runner Hierarchy
+## Repository layout
 
 ```
-Runner (base)
-├── BasicRunner     # Single @entrypoint
-├── StateMachine    # @state, @timed_state, @background, @at_init
-└── ZmqStateMachine  # StateMachine + ZMQ remote control
+aerpawlib/                 # Installable package
+  __main__.py              # `aerpawlib` CLI: API version, script runner, config JSON
+  structured_log.py        # JSON Lines StructuredEventLogger (v1 + v2)
+  log.py                   # Shared ColoredFormatter, LogComponent
+  constants.py             # Shared defaults (ports, timeouts, …)
+  v1/                      # v1 API (stable): MAVSDK, DroneKit-style surface
+    vehicles/              # core_vehicle.Vehicle, Drone, Rover
+    runner.py              # Runner, BasicRunner, StateMachine, ZmqStateMachine
+    safety.py              # SafetyCheckerServer / Client (v1 geofence flow)
+    …
+  v2/                      # v2 API: async-first, single event loop
+    vehicle/               # base.Vehicle, Drone, Rover, state, VehicleTask
+    safety/                # validation, SafetyCheckerClient, connection handler
+    runner.py              # BasicRunner, StateMachine, descriptors
+    …
+scripts/                   # setup_sitl, run_example, …
+tests/
+  unit/                    # Fast tests, no SITL (v1 + v2 + CLI helpers)
+  integration/             # SITL + real MAVSDK (v1 + v2)
+  conftest.py              # Markers, SITL lifecycle, fixtures
+docs/                      # This tree
+examples/                  # v1 and v2 sample missions
+.github/workflows/         # CI (unit tests)
 ```
 
-### Module Dependencies
+Legacy shim: `aerpawlib.runner` re-exports v1 with a `DeprecationWarning`. Top-level `import aerpawlib` lazy-loads **v1** symbols for old scripts; new code should use `aerpawlib.v1` or `aerpawlib.v2` explicitly.
 
-- `v1/vehicle.py` aggregates `core_vehicle`, `drone`, `rover`
-- `v1/__init__.py` uses `from .X import *` for flat API
-- `safetyChecker` is a deprecated alias for `safety`
+## Two APIs
+
+| | **v1** (`--api-version v1`, default) | **v2** (`--api-version v2`) |
+|---|--------------------------------------|-----------------------------|
+| Concurrency | Background thread + dedicated asyncio loop for MAVSDK; main thread uses `asyncio` for user code | Single asyncio loop; telemetry and commands on the same loop |
+| State | `ThreadSafeValue` + polling in `core_vehicle` | Plain `VehicleState` updated from async telemetry generators |
+| Vehicles | `aerpawlib.v1.vehicles` (`Vehicle`, `Drone`, `Rover`, `DummyVehicle`) | `aerpawlib.v2` (`Drone.connect`, `Rover.connect`, …) |
+| Runners | `BasicRunner`, `StateMachine`, `ZmqStateMachine` | v2 `runner.py` with config dataclasses / decorators |
+
+See [v1/compromises.md](v1/compromises.md) for v1 design tradeoffs and [v2/README.md](v2/README.md) for v2 usage.
+
+### v1: dual-loop / thread bridge
+
+- Telemetry and MAVSDK run on a **background thread** with its own event loop.
+- User `async` code runs on the **main** loop; MAVSDK coroutines are scheduled with `_run_on_mavsdk_loop()` (`asyncio.run_coroutine_threadsafe`).
+- Always call `vehicle.close()` to stop the background loop and cancel tasks.
+
+### v2: single-loop async
+
+- `await Drone.connect(...)` wires MAVSDK `System` and starts telemetry tasks on the **current** loop.
+- No `ThreadSafeValue`; subscriptions update `VehicleState` directly.
+- Connection loss and heartbeats use `aerpawlib.v2.safety.connection` (`ConnectionHandler`) when available.
+
+## CLI entry point
+
+`aerpawlib` is defined in [pyproject.toml](../pyproject.toml) as `aerpawlib.__main__:main`.
+
+Notable flags: `--api-version`, `--config` (JSON defaults; `null` values omit flags), `--structured-log FILE` (JSONL for v1 and v2), `--vehicle`, `--conn`, v2-only `--safety-checker-port`, logging `-v` / `-q`, `--log-file`.
 
 ## Testing
 
-### Unit Tests (No SITL)
+Install dev deps and (for integration tests) SITL tooling:
+
+```bash
+pip install -e .[dev]
+# Integration tests only:
+aerpawlib-setup-sitl
+# or: ./scripts/install_dev.sh
+```
+
+### Unit tests (no vehicle / no SITL)
 
 ```bash
 pytest tests/unit/ -v
@@ -75,120 +80,144 @@ pytest tests/unit/ -v
 pytest -m unit -v
 ```
 
-Covers: util, helpers, exceptions, runner, external.
+Rough coverage by file:
 
-### Integration Tests (SITL)
+- **v1:** `test_v1_util`, `test_v1_helpers`, `test_v1_exceptions`, `test_v1_runner`, `test_v1_external`, `test_v1_safety`, `test_v1_vehicle`
+- **v2:** `test_v2_types`, `test_v2_exceptions`, `test_v2_runner`, `test_v2_geofence`, `test_v2_plan`, `test_v2_testing`
+- **Shared / CLI:** `test_main_runner_discovery`
 
-Requires ArduPilot SITL. Pytest manages SITL lifecycle by default.
+### Integration tests (ArduPilot SITL)
+
+Pytest can start and tear down SITL (separate instances for copter vs rover, distinct UDP ports). Details: [tests/README.md](../tests/README.md).
 
 ```bash
-# Pytest starts SITL, runs tests, stops SITL
 pytest tests/integration/ -v
+# or
+pytest -m integration -v
+```
 
-# Use external SITL (start sim_vehicle.py manually first)
+**External SITL** (you start `sim_vehicle.py` yourself):
+
+```bash
 pytest tests/integration/ -v --no-sitl
 ```
 
-**Prerequisites**:
-- `pip install -e .[dev]` then `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`)
-- `ARDUPILOT_HOME` set to `./ardupilot` (default) or the ArduPilot path
-- `sim_vehicle.py` at `$ARDUPILOT_HOME/Tools/autotest/sim_vehicle.py`
+Layout includes both **v1** (`test_v1_drone`, `test_v1_rover`, …) and **v2** (`test_v2_drone`, `test_v2_velocity`, `test_v2_safety`, …) modules.
 
-See [tests/README.md](../tests/README.md) for full details.
+### Continuous integration
 
-## Code Conventions
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs `pytest tests/unit/` on push/PR (Python 3.11 and 3.12). Integration tests are not run in CI by default (heavy SITL dependency).
 
-### Python Version
+## Code conventions
 
-- **Minimum**: Python 3.9 (pyproject.toml `requires-python = ">=3.9"`)
-- Use `Optional[X]` not `X | None` for 3.9 compatibility
+### Python version
 
-### Formatting
+- **Supported:** 3.9+ per `requires-python` in [pyproject.toml](../pyproject.toml).
+- Prefer `Optional[X]` / `Union[X, Y]` where needed for 3.9; avoid `X | Y` in shared code if you must stay 3.9-clean (project also supports newer Pythons).
 
-- Black: 79 char line length, py39–py312
-- Config in `pyproject.toml`
+### Style
+
+- Follow **PEP 8** and match surrounding modules. There is **no** Black/ruff config in `pyproject.toml`; do not assume a fixed line length beyond readability.
 
 ### Imports
 
-- Prefer absolute imports: `from aerpawlib.v1 import X`
-- v1 re-exports from submodules in `__init__.py`
+- Prefer explicit versioned imports: `from aerpawlib.v1 import …`, `from aerpawlib.v2 import …`.
+- `aerpawlib.v1.__init__` re-exports many symbols for a flat API; v2 is typically imported from submodules.
 
 ### Logging
 
-- Use `get_logger(LogComponent.X)` from `aerpawlib.log`
-- Components: VEHICLE, DRONE, ROVER, RUNNER, SAFETY, AERPAW, etc.
+- Use `get_logger(LogComponent.X)` from `aerpawlib.log` (or `aerpawlib.v1.log` / `aerpawlib.v2.log` as used locally).
+- Components include `VEHICLE`, `DRONE`, `ROVER`, `RUNNER`, `SAFETY`, `SITL`, etc.
 
 ### Exceptions
 
-- Inherit from `AerpawlibError` (or subclasses)
-- Use `original_error=e` when wrapping
+- Raise or wrap with the hierarchy under `AerpawlibError` / version-specific modules; use `original_error=e` when wrapping lower-level failures.
 
-## Adding New Features
+## Adding features
 
-### New Vehicle Method (v1 Drone)
+### v1 – new method on `Drone` / `Rover`
 
-1. Add method to `aerpawlib/v1/vehicles/drone.py`
-2. Use `await self._run_on_mavsdk_loop(coro)` for MAVSDK calls
-3. Set `_ready_to_move` for blocking methods
-4. Add integration test in `tests/integration/test_v1_drone.py`
+1. Implement in `aerpawlib/v1/vehicles/drone.py` or `rover.py` (or `core_vehicle.py` if shared).
+2. MAVSDK: `await self._run_on_mavsdk_loop(coro)`.
+3. For blocking flows, update `_ready_to_move` as existing methods do.
+4. Add or extend tests in `tests/integration/test_v1_*.py` when behavior needs a real stack; unit tests when logic is isolated.
 
-### New Runner Decorator
+### v2 – new method on `Drone` / `Rover`
 
-1. Add decorator in `aerpawlib/v1/runner.py`
-2. Set attribute on function (e.g., `_is_background`)
-3. Handle in `StateMachine._build()` or equivalent
-4. Add unit test in `tests/unit/test_v1_runner.py`
+1. Implement in `aerpawlib/v2/vehicle/drone.py` or `rover.py` (shared pieces in `base.py`).
+2. Use `await` on MAVSDK directly; respect offboard / `VehicleTask` patterns already in the file.
+3. Tests: `tests/unit/test_v2_*.py` and/or `tests/integration/test_v2_*.py`.
 
-### New Safety Checker Request
+### New runner decorator (v1)
 
-1. Add constant in `aerpawlib/v1/constants.py`
-2. Add handler in `SafetyCheckerServer`
-3. Add client method in `SafetyCheckerClient`
-4. Update [v1/safety_checker.md](v1/safety_checker.md)
+1. `aerpawlib/v1/runner.py`: decorator + wiring in `StateMachine._build()` (or relevant runner).
+2. `tests/unit/test_v1_runner.py`.
+
+### Safety checker (v1)
+
+1. Constants in `aerpawlib/v1/constants.py` if needed.
+2. Server/client in `SafetyCheckerServer` / `SafetyCheckerClient`.
+3. [v1/safety_checker.md](v1/safety_checker.md).
+
+### Safety / validation (v2)
+
+See [v2/safety.md](v2/safety.md) and `aerpawlib/v2/safety/`.
 
 ## Debugging
 
-### Verbose Vehicle State
+### Structured JSONL
 
 ```bash
-aerpawlib --script my_mission.py --conn ... --vehicle drone --debug-dump
+aerpawlib --api-version v2 --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone \
+  --structured-log mission.jsonl
 ```
 
-Writes CSV of vehicle state to `aerpawlib_vehicle_dump_*.csv`.
+Same `--structured-log` works for v1. Events include `telemetry` (throttled), `mission_start` / `mission_end`, commands (`set_velocity`, …), and more; see [v2/README.md](v2/README.md).
 
-### Log Level
+### Console log level (`aerpawlib` CLI)
 
-```bash
-aerpawlib --script my_mission.py ... --debug   # DEBUG
-aerpawlib --script my_mission.py ... -v       # INFO
-aerpawlib --script my_mission.py ... -q       # WARNING only
-```
+| Flags | Root log level |
+|-------|----------------|
+| *(none)* | INFO |
+| `-v` / `--verbose` | DEBUG |
+| `-q` / `--quiet` | WARNING |
 
-### SITL Verbosity
+Optional `--log-file PATH` adds a file handler at **DEBUG** regardless of console level.
+
+There is **no** separate `--debug` flag on the CLI—use `-v`.
+
+### Integration / SITL
 
 ```bash
 SITL_VERBOSE=1 pytest tests/integration/ -v
 ```
 
-### gRPC Fork Warning
+Other env vars: see [tests/README.md](../tests/README.md) (`SIM_SPEEDUP`, `ARDUPILOT_HOME`, …).
 
-When using `ExternalProcess` with fork:
+### gRPC fork warning
+
+When using `ExternalProcess` with `fork`:
+
 ```
 Other threads are currently calling into gRPC, skipping fork() handlers
 ```
-Set `GRPC_ENABLE_FORK_SUPPORT=false` to suppress (cosmetic only).
 
-## Release Checklist
+Setting `GRPC_ENABLE_FORK_SUPPORT=false` suppresses the message (cosmetic only).
 
-- [ ] Run full test suite: `pytest tests/ -v`
-- [ ] Update version in `pyproject.toml`
-- [ ] Update [ROADMAP.md](ROADMAP.md) if needed
-- [ ] Ensure [docs/README.md](README.md) and [USER_GUIDE.md](USER_GUIDE.md) are current
+## Release checklist
 
-## Related Documentation
+- [ ] `pytest tests/unit/ -v` (and integration locally if you touched vehicle/SITL paths)
+- [ ] Bump version in [pyproject.toml](../pyproject.toml)
+- [ ] Update [ROADMAP.md](ROADMAP.md) if scope changed
+- [ ] Skim [USER_GUIDE.md](USER_GUIDE.md) / [docs/README.md](README.md) for stale flags or examples
 
-- [User Guide](USER_GUIDE.md) – Workflows and features
-- [v1 API Reference](v1/README.md) – Full v1 API
-- [v1 Architecture](v1/compromises.md) – Design tradeoffs
-- [v1 Safety Checker](v1/safety_checker.md) – Geofence validation
-- [ROADMAP.md](ROADMAP.md) – Planned improvements
+## Related documentation
+
+- [User Guide](USER_GUIDE.md) – How to run missions and use the platform
+- [Documentation index](README.md) – All guides and API refs
+- [v1 README](v1/README.md) – v1 API reference
+- [v2 README](v2/README.md) – v2 API reference
+- [v1 compromises](v1/compromises.md) – v1 architecture tradeoffs
+- [v1 Safety Checker](v1/safety_checker.md) – v1 geofence / server
+- [v2 Safety](v2/safety.md) – v2 validation and clients
+- [Roadmap](ROADMAP.md) – Planned work
