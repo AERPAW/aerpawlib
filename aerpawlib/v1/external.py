@@ -47,6 +47,46 @@ class ExternalProcess:
         self._params = params if params is not None else []
         self._stdin = stdin
         self._stdout = stdout
+        self.process: Optional[asyncio.subprocess.Process] = None
+
+    async def aclose(self) -> None:
+        """Reap the subprocess and close streams.
+
+        Avoids PytestUnraisableExceptionWarning from deferred ``BaseSubprocessTransport``
+        cleanup after the asyncio loop is closed.
+        """
+        proc = self.process
+        if proc is None:
+            return
+        try:
+            if proc.returncode is None:
+                proc.terminate()
+                try:
+                    await asyncio.wait_for(proc.wait(), timeout=5.0)
+                except asyncio.TimeoutExpired:
+                    proc.kill()
+                    await proc.wait()
+        except ProcessLookupError:
+            pass
+        for name in ("stdout", "stderr"):
+            stream = getattr(proc, name, None)
+            if stream is not None:
+                try:
+                    await stream.read()
+                except (BrokenPipeError, ConnectionResetError, ValueError, OSError):
+                    pass
+        if proc.stdin is not None:
+            try:
+                proc.stdin.close()
+                await proc.stdin.wait_closed()
+            except (
+                BrokenPipeError,
+                ConnectionResetError,
+                ValueError,
+                OSError,
+                AttributeError,
+            ):
+                pass
 
     async def start(self) -> None:
         """

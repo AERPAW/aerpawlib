@@ -242,7 +242,8 @@ class TestZmqStateMachine:
 
         with pytest.raises(RunnerError):
             import asyncio
-            asyncio.get_event_loop().run_until_complete(Z().run(MockVehicle()))
+
+            asyncio.run(Z().run(MockVehicle()))
 
     def test_initialize_zmq_bindings_sets_attrs(self):
         """_initialize_zmq_bindings sets identifier and proxy server."""

@@ -41,11 +41,7 @@ class TestExternalProcess:
             line = await ep.read_line()
             assert "hello" in (line or "")
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_wait_until_output_matches(self):
@@ -55,18 +51,17 @@ class TestExternalProcess:
             buff = await ep.wait_until_output(r"bar")
             assert any("bar" in (l or "") for l in buff)
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_wait_until_output_returns_empty_on_exit(self):
         ep = ExternalProcess("true")  # Exits immediately
         await ep.start()
-        buff = await ep.wait_until_output(r"nonexistent")
-        assert buff == [] or buff is not None
+        try:
+            buff = await ep.wait_until_output(r"nonexistent")
+            assert buff == [] or buff is not None
+        finally:
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_read_line_multiple(self):
@@ -82,34 +77,36 @@ class TestExternalProcess:
             assert any("line1" in l for l in lines)
             assert any("line2" in l for l in lines)
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_read_line_returns_none_on_eof(self):
         """After all output is drained and the process exits, read_line returns None."""
         ep = ExternalProcess("echo", params=["hello"])
         await ep.start()
-        await ep.wait_until_terminated()
-        # Drain any buffered output lines first
-        for _ in range(10):
-            line = await ep.read_line()
-            if line is None:
-                break
-        # Eventually read_line should return None (EOF)
-        result = await ep.read_line()
-        assert result is None
+        try:
+            await ep.wait_until_terminated()
+            # Drain any buffered output lines first
+            for _ in range(10):
+                line = await ep.read_line()
+                if line is None:
+                    break
+            # Eventually read_line should return None (EOF)
+            result = await ep.read_line()
+            assert result is None
+        finally:
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_wait_until_terminated_completes(self):
         """wait_until_terminated should return once the process exits."""
         ep = ExternalProcess("true")
         await ep.start()
-        await asyncio.wait_for(ep.wait_until_terminated(), timeout=5.0)
-        assert ep.process.returncode is not None
+        try:
+            await asyncio.wait_for(ep.wait_until_terminated(), timeout=5.0)
+            assert ep.process.returncode is not None
+        finally:
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_send_input_writes_to_stdin(self):
@@ -121,11 +118,7 @@ class TestExternalProcess:
             line = await asyncio.wait_for(ep.read_line(), timeout=2.0)
             assert line is not None and "hello" in line
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_send_input_raises_when_stdin_redirected(self):
@@ -139,11 +132,7 @@ class TestExternalProcess:
             with pytest.raises(RuntimeError, match="stdin is not available"):
                 await ep.send_input("extra data\n")
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
             os.unlink(path)
 
     @pytest.mark.asyncio
@@ -157,11 +146,7 @@ class TestExternalProcess:
             assert any("beta" in (l or "") for l in buff)
             # "gamma" may or may not be included, but shouldn't crash
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
     @pytest.mark.asyncio
     async def test_process_params_appended_to_command(self):
@@ -172,9 +157,5 @@ class TestExternalProcess:
             line = await asyncio.wait_for(ep.read_line(), timeout=2.0)
             assert line is not None and "unique_token_xyz" in line
         finally:
-            try:
-                ep.process.terminate()
-                await asyncio.wait_for(ep.process.wait(), timeout=2)
-            except Exception:
-                pass
+            await ep.aclose()
 
