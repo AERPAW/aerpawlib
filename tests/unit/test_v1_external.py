@@ -110,8 +110,8 @@ class TestExternalProcess:
 
     @pytest.mark.asyncio
     async def test_send_input_writes_to_stdin(self):
-        """cat reads from stdin and echoes back; send_input should deliver data."""
-        ep = ExternalProcess("cat")
+        """head -n 1 reads one line from stdin; send_input should deliver data."""
+        ep = ExternalProcess("head", params=["-n", "1"])
         await ep.start()
         try:
             await ep.send_input("hello\n")
