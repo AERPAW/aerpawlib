@@ -63,7 +63,7 @@ class ExternalProcess:
                 proc.terminate()
                 try:
                     await asyncio.wait_for(proc.wait(), timeout=5.0)
-                except asyncio.TimeoutExpired:
+                except asyncio.TimeoutError:
                     proc.kill()
                     await proc.wait()
         except ProcessLookupError:
