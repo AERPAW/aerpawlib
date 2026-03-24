@@ -14,8 +14,8 @@ Planned features and improvements for future releases.
 - [ ] Fix weird rotation drift bug?
 
 ## CLI
-- [ ] Improve configs:
+- [x] Improve configs:
   - [x]  None values mean nothing else passed (think `--debug`)
-  - [ ] Make configs patches to the runtime (drone runtime, eg) and rename them to make better sense
-  - [ ] Add more configs, especially for v2
+  - [x] Make configs patches to the runtime (drone runtime, eg) and rename them to make better sense
+  - [x] Add more configs, especially for v2
 - [x] Remove `--debug-dump` and use `--structured-log` for JSONL (v1 and v2)
