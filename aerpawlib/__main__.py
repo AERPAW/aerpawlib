@@ -758,6 +758,59 @@ def run_v1_experiment(
     sys.exit(0 if experiment_success else 1)
 
 
+def _strip_config_argv(argv: list[str]) -> list[str]:
+    """Remove --config PATH and --config=PATH tokens from argv."""
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--config" and i + 1 < len(argv):
+            i += 2
+            continue
+        if arg.startswith("--config="):
+            i += 1
+            continue
+        out.append(arg)
+        i += 1
+    return out
+
+
+def _merge_config_json_files(paths: list[str]) -> dict:
+    """
+    Load JSON config files in order. Later files override earlier keys.
+    JSON null for a key removes it from the merged result (no flag emitted).
+    """
+    merged: dict = {}
+    for path in paths:
+        with open(path, "r") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            raise ValueError(f"Config must be a JSON object: {path}")
+        for key, value in data.items():
+            if value is None:
+                merged.pop(key, None)
+            else:
+                merged[key] = value
+    return merged
+
+
+def _config_dict_to_cli_args(config_data: dict) -> list[str]:
+    """Turn merged JSON config into fake argv tokens for argparse."""
+    config_cli_args: list[str] = []
+    for key, value in config_data.items():
+        if isinstance(value, bool) or value is None:
+            if value:
+                config_cli_args.append(f"--{key}")
+        elif isinstance(value, list):
+            for item in value:
+                config_cli_args.append(f"--{key}")
+                config_cli_args.append(str(item))
+        else:
+            config_cli_args.append(f"--{key}")
+            config_cli_args.append(str(value))
+    return config_cli_args
+
+
 def main():
     """Main entry point for aerpawlib CLI."""
     # Import trick to allow things to work when run as "aerpawlib"
@@ -774,45 +827,33 @@ def main():
     os.chdir(project_root)
     sys.path.insert(0, os.getcwd())
 
-    # Pre-parse for config file
+    # Pre-parse for config file(s): --config may appear multiple times
     conf_parser = ArgumentParser(add_help=False)
-    conf_parser.add_argument("--config", help="path to JSON configuration file")
+    conf_parser.add_argument(
+        "--config",
+        action="append",
+        default=None,
+        dest="config_files",
+        metavar="PATH",
+    )
     conf_args, _ = conf_parser.parse_known_args()
+    config_paths = conf_args.config_files or []
 
     cli_args = sys.argv[1:]
 
-    # If config file is provided, load it and merge arguments
-    if conf_args.config:
-        if not os.path.exists(conf_args.config):
-            print(f"Config file not found: {conf_args.config}")
-            sys.exit(1)
-
+    if config_paths:
+        for path in config_paths:
+            if not os.path.exists(path):
+                print(f"Config file not found: {path}")
+                sys.exit(1)
         try:
-            with open(conf_args.config, "r") as f:
-                config_data = json.load(f)
-
-            config_cli_args = []
-            for key, value in config_data.items():
-                if isinstance(value, bool) or value is None:
-                    if value:
-                        config_cli_args.append(f"--{key}")
-                    # for store_false args, if user puts "skip-init": false in json,
-                    # it means they DON'T want to skip init (which is default).
-                    # So we don't add --skip-init flag.
-                    # if user puts "skip-init": true, we add --skip-init.
-                elif isinstance(value, list):
-                    for item in value:
-                        config_cli_args.append(f"--{key}")
-                        config_cli_args.append(str(item))
-                else:
-                    config_cli_args.append(f"--{key}")
-                    config_cli_args.append(str(value))
-
-            # Prepend config args to CLI args so CLI overrides config
-            cli_args = config_cli_args + cli_args
-
+            merged = _merge_config_json_files(config_paths)
+            config_cli_args = _config_dict_to_cli_args(merged)
+            # Real argv overrides merged config; strip --config so the main parser
+            # does not see duplicate --config entries.
+            cli_args = config_cli_args + _strip_config_argv(sys.argv[1:])
         except Exception as e:
-            print(f"Error loading config file: {e}")
+            print(f"Error loading config file(s): {e}")
             sys.exit(1)
 
     proxy_mode = "--run-proxy" in cli_args
@@ -822,9 +863,12 @@ def main():
     )
     parser.add_argument(
         "--config",
-        help="path to JSON file of CLI defaults: keys match long option names "
-        "(e.g. api-version, conn). JSON null for a key omits that flag. "
-        "Arguments after --config override the file.",
+        action="append",
+        metavar="PATH",
+        help="JSON file(s) of CLI defaults (repeatable). Merged in order; later "
+        "files override earlier. Keys match long option names (e.g. api-version, "
+        "conn). JSON null removes a key from the merge. Command-line arguments "
+        "override the merged config.",
     )
 
     # Core Arguments

@@ -59,7 +59,7 @@ See [v1/compromises.md](v1/compromises.md) for v1 design tradeoffs and [v2/READM
 
 `aerpawlib` is defined in [pyproject.toml](../pyproject.toml) as `aerpawlib.__main__:main`.
 
-Notable flags: `--api-version`, `--config` (JSON defaults; `null` values omit flags), `--structured-log FILE` (JSONL for v1 and v2), `--vehicle`, `--conn`, v2-only `--safety-checker-port`, logging `-v` / `-q`, `--log-file`.
+Notable flags: `--api-version`, `--config` (repeatable; JSON files merged in order, later overrides earlier; `null` omits or removes a key), `--structured-log FILE` (JSONL for v1 and v2), `--vehicle`, `--conn`, v2-only `--safety-checker-port`, logging `-v` / `-q`, `--log-file`. Shared presets are under `configs/` at the repo root.
 
 ## Testing
 

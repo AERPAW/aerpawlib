@@ -72,8 +72,8 @@ aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone
 # Basic square flight
 aerpawlib --script examples/v1/basic_example.py --conn udp://127.0.0.1:14550 --vehicle drone
 
-# With config file
-aerpawlib --config tests/configs/testv1_basic_runner.json
+# Layered config presets (API/vehicle, SITL connection, optional JSONL logging)
+aerpawlib --config configs/v1-drone.json --config configs/sitl-drone.json --script examples.v1.basic_runner
 ```
 
 See [examples/README.md](examples/README.md) for full list.

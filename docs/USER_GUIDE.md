@@ -237,7 +237,13 @@ Common options:
 
 ### Config File (beta)
 
-Use `--config` to load default CLI options from JSON (keys match long option names, e.g. `api-version`). A key with JSON `null` is skipped (no flag added). Arguments on the command line override the file.
+Use `--config PATH` one or more times to load default CLI options from JSON. Files are merged **in order**: later files override earlier keys. A key with JSON `null` is omitted from the merge (no flag added), and can remove a key set by an earlier file. Keys match long option names (e.g. `api-version`, `conn`). Arguments on the command line override the merged config.
+
+Repository presets live under `configs/` (e.g. `v1-drone.json`, `sitl-drone.json`, `structured-logging.json`). Typical SITL runs stack presets and pass `--script` separately:
+
+```bash
+aerpawlib --config configs/v1-drone.json --config configs/sitl-drone.json --script examples.v1.basic_runner
+```
 
 ```json
 {
@@ -251,9 +257,10 @@ Use `--config` to load default CLI options from JSON (keys match long option nam
 
 ```bash
 aerpawlib --config mission.json
+aerpawlib --config base.json --config overrides.json
 ```
 
-CLI arguments override config file values.
+CLI arguments override merged config values.
 
 
 ---
