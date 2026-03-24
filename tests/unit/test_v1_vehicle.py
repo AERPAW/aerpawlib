@@ -2,7 +2,7 @@
 
 import math
 import socket
-from unittest.mock import patch
+import threading
 
 import pytest
 
@@ -230,20 +230,16 @@ class TestPortInUse:
 class TestVehicleValidationUnit:
     """Unit tests for vehicle command validation (no SITL needed)."""
 
-
     @pytest.mark.asyncio
-    @patch("aerpawlib.v1.vehicles.core_vehicle.Vehicle._connect_sync", return_value=None)
-    @patch("aerpawlib.v1.vehicles.rover.Rover.__init__", return_value=None)
-    async def test_rover_goto_validation(self, mock_rover_init, mock_connect):
-        rover = Rover("udp://:14540")
+    async def test_rover_goto_validation(self):
+        # __new__ only: skip __init__ / MAVSDK; validate_tolerance runs first.
+        rover = Rover.__new__(Rover)
         with pytest.raises(ValueError, match="at least"):
             await Rover.goto_coordinates(rover, Coordinate(0, 0), tolerance=0.0)
 
     @pytest.mark.asyncio
-    @patch("aerpawlib.v1.vehicles.core_vehicle.Vehicle._connect_sync", return_value=None)
-    @patch("aerpawlib.v1.vehicles.drone.Drone.__init__", return_value=None)
-    async def test_drone_goto_validation(self, mock_drone_init, mock_connect):
-        drone = Drone("udp://:14540")
+    async def test_drone_goto_validation(self):
+        drone = Drone.__new__(Drone)
         with pytest.raises(ValueError, match="at least"):
             await Drone.goto_coordinates(drone, Coordinate(0, 0), tolerance=0.0)
 
@@ -252,18 +248,18 @@ class TestHeartbeatMonitoring:
     """Unit tests for Vehicle heartbeat / connection-loss detection."""
 
     def _make_vehicle(self):
-        """Return a Vehicle with _connect_sync stubbed out."""
+        """Return a bare Vehicle instance (no __init__ / MAVSDK)."""
         from aerpawlib.v1.vehicles.core_vehicle import Vehicle
-        with patch.object(Vehicle, "_connect_sync", return_value=None):
-            v = Vehicle.__new__(Vehicle)
-            v._has_heartbeat = True
-            v._last_heartbeat_time = 0.0
-            v._verbose_logging = False
-            v._verbose_log_lock = __import__("threading").Lock()
-            v._verbose_logging_file_writer = None
-            v._verbose_logging_last_log_time = 0.0
-            v._verbose_logging_delay = 999.0
-            return v
+
+        v = Vehicle.__new__(Vehicle)
+        v._has_heartbeat = True
+        v._last_heartbeat_time = 0.0
+        v._verbose_logging = False
+        v._verbose_log_lock = threading.Lock()
+        v._verbose_logging_file_writer = None
+        v._verbose_logging_last_log_time = 0.0
+        v._verbose_logging_delay = 999.0
+        return v
 
     def test_connected_true_when_heartbeat_set(self):
         v = self._make_vehicle()

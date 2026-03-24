@@ -26,163 +26,20 @@ from ..constants import (
     MAV_SYS_STATUS_PREARM_CHECK,
 )
 from ..exceptions import (
-    AerpawConnectionError,
     ConnectionTimeoutError,
     NotArmableError,
 )
 from ..log import LogComponent, get_logger
 from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
+from .connection_helpers import (
+    _validate_connection_string,
+    _validate_tolerance,
+    _wait_for_condition,
+)
 from .state import VehicleState
+from .task import VehicleTask
 
 logger = get_logger(LogComponent.VEHICLE)
-
-_MAVSDK_VALID_SCHEMES = frozenset(("udpin", "tcpin", "serial", "tcp", "udp"))
-
-
-def _validate_connection_string(conn_str: str) -> None:
-    """Raise AerpawConnectionError immediately if conn_str is malformed.
-
-    Prevents spawning mavsdk_server with an invalid URL, which would otherwise
-    cause a silent timeout hang instead of a fast, clear error.
-    """
-    s = conn_str.strip()
-    if "://" not in s:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: missing '://'. "
-            "Expected format e.g. 'udpin://0.0.0.0:14550', "
-            "'udpout://host:port', 'tcpin://host:port', "
-            "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
-        )
-    scheme = s.split("://")[0].lower()
-    if scheme not in _MAVSDK_VALID_SCHEMES:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
-            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}."
-        )
-
-
-def _validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:
-    """Validate that tolerance is within acceptable bounds.
-
-    Args:
-        tolerance: Tolerance value in metres to validate.
-        param_name: Name of the parameter (used in error messages).
-
-    Returns:
-        The validated tolerance value (unchanged).
-
-    Raises:
-        ValueError: If tolerance is outside [MIN_POSITION_TOLERANCE_M,
-            MAX_POSITION_TOLERANCE_M].
-    """
-    if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
-        raise ValueError(
-            f"{param_name} must be between {MIN_POSITION_TOLERANCE_M} and "
-            f"{MAX_POSITION_TOLERANCE_M}, got {tolerance}"
-        )
-    return tolerance
-
-
-async def _wait_for_condition(
-    condition: Callable[[], bool],
-    timeout: Optional[float] = None,
-    poll_interval: float = 0.05,
-    timeout_message: str = "Operation timed out",
-) -> bool:
-    """Wait until a condition callable returns True.
-
-    Args:
-        condition: Zero-argument callable; returns True when the wait is over.
-        timeout: Maximum seconds to wait. None means wait indefinitely.
-        poll_interval: Seconds between condition checks; also yields the
-            event loop between checks.
-        timeout_message: Message used in the TimeoutError if the wait expires.
-
-    Returns:
-        True when the condition becomes True.
-
-    Raises:
-        TimeoutError: If timeout is reached before the condition is satisfied.
-    """
-    start = time.monotonic()
-    while not condition():
-        if timeout is not None and (time.monotonic() - start) > timeout:
-            logger.warning(
-                f"_wait_for_condition timeout after {timeout}s: {timeout_message}"
-            )
-            raise TimeoutError(timeout_message)
-        await asyncio.sleep(poll_interval)  # Justified: yield to loop, allow telemetry
-    return True
-
-
-class VehicleTask:
-    """
-    Handle for non-blocking commands with progress and cancellation.
-
-    Use event-driven completion via position/landed_state subscriptions.
-    """
-
-    def __init__(self) -> None:
-        self._done = asyncio.Event()
-        self._cancelled = False
-        self._progress: float = 0.0
-        self._error: Optional[Exception] = None
-        self._on_cancel: Optional[Callable[[], object]] = None
-        self._cancel_tasks: List[asyncio.Task] = []
-
-    @property
-    def progress(self) -> float:
-        """Progress 0.0 to 1.0."""
-        return self._progress
-
-    def is_done(self) -> bool:
-        """True if the command has completed (success, error, or cancelled)."""
-        return self._done.is_set()
-
-    def set_progress(self, value: float) -> None:
-        """Update progress (0.0-1.0). Internal use by command implementation."""
-        self._progress = max(0.0, min(1.0, value))
-
-    def set_complete(self) -> None:
-        """Mark command as successfully complete. Internal use."""
-        self._error = None
-        self._done.set()
-
-    def set_error(self, error: Exception) -> None:
-        """Mark command as failed with error. Internal use."""
-        self._error = error
-        self._done.set()
-
-    def set_on_cancel(self, callback: Callable[[], object]) -> None:
-        """Set async callback to run when cancel() is called (e.g. RTL to stop goto)."""
-        self._on_cancel = callback
-
-    def cancel(self) -> None:
-        """Request cancellation. Invokes on_cancel callback if set to stop the vehicle."""
-        logger.debug("VehicleTask: cancel requested")
-        self._cancelled = True
-        if self._on_cancel:
-            try:
-                loop = asyncio.get_running_loop()
-                result = self._on_cancel()
-                if asyncio.iscoroutine(result):
-                    t = loop.create_task(result)
-                    self._cancel_tasks.append(t)
-            except RuntimeError:
-                logger.warning(
-                    "VehicleTask.cancel() called outside an async context; "
-                    "on_cancel callback will not run. The vehicle may continue its current task."
-                )
-
-    def is_cancelled(self) -> bool:
-        """Return True if cancel() has been called."""
-        return self._cancelled
-
-    async def wait_done(self) -> None:
-        """Wait until command completes or is cancelled."""
-        await self._done.wait()
-        if self._error is not None:
-            raise self._error
 
 
 class Vehicle:

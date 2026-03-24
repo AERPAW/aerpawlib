@@ -10,9 +10,7 @@ backward compatibility with the original DroneKit-based interface.
 
 import asyncio
 import errno
-import re
 import socket
-from urllib.parse import urlparse
 
 from grpc.aio import AioRpcError
 
@@ -57,6 +55,14 @@ from aerpawlib.v1.helpers import (
     wait_for_condition,
     ThreadSafeValue,
 )
+from .connection import _parse_udp_connection_port, _validate_connection_string
+from .dummy_vehicle import DummyVehicle
+from .telemetry_compat import (
+    _AttitudeCompat,
+    _BatteryCompat,
+    _GPSInfoCompat,
+    _VersionCompat,
+)
 
 # Named timeouts (L4/L5)
 _MAVSDK_LOOP_TIMEOUT_S = 30.0
@@ -64,210 +70,6 @@ _HOME_WAIT_TIMEOUT_S = 5.0
 
 # Configure module logger
 logger = get_logger(LogComponent.VEHICLE)
-
-
-def _parse_udp_connection_port(connection_string: str) -> Optional[Tuple[str, int]]:
-    """
-    Parse host and port from a UDP connection string for port-in-use checks.
-
-    Supports MAVSDK/aerpawlib UDP formats:
-    - udp://:port, udp://host:port
-    - udpin://:port, udpin://host:port, udpin://[ipv6]:port
-    - udpout:// returns None (client mode; no local bind)
-
-    Returns:
-        (host, port) for server/listen modes, None for client mode or non-UDP.
-    """
-    parsed = urlparse(connection_string.strip())
-    scheme = parsed.scheme.lower()
-    netloc = parsed.netloc
-
-    # udpout is client mode - we connect to remote, no local bind to check
-    if scheme == "udpout":
-        return None
-
-    if scheme not in ("udp", "udpin"):
-        return None
-
-    if not netloc:
-        return None
-
-    # Parse host and port from netloc
-    # IPv6: [::1]:14540 or [fe80::1]:14540
-    ipv6_match = re.match(r"\[([^\]]+)\]:(\d+)$", netloc)
-    if ipv6_match:
-        host, port_str = ipv6_match.group(1), ipv6_match.group(2)
-    else:
-        # IPv4 or hostname: 127.0.0.1:14550 or :14540
-        parts = netloc.rsplit(":", 1)
-        if len(parts) != 2:
-            return None
-        host, port_str = parts
-
-    try:
-        port = int(port_str)
-    except ValueError:
-        return None
-
-    if not (0 < port <= 65535):
-        return None
-
-    host = host.strip() if host else "0.0.0.0"
-    return (host, port)
-
-
-_MAVSDK_VALID_SCHEMES = frozenset(
-    ("udpin", "udpout", "tcpin", "tcpout", "serial", "tcp", "udp")
-)
-
-
-def _validate_connection_string(conn_str: str) -> None:
-    """Raise AerpawConnectionError immediately if conn_str is malformed.
-
-    This prevents spawning mavsdk_server with an invalid URL, which would
-    otherwise cause a silent 30-second hang before ConnectionTimeoutError.
-    """
-    s = conn_str.strip()
-    if "://" not in s:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: missing '://'. "
-            "Expected format e.g. 'udpin://0.0.0.0:14550', "
-            "'udpout://host:port', 'tcpin://host:port', "
-            "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
-        )
-    scheme = s.split("://")[0].lower()
-    if scheme not in _MAVSDK_VALID_SCHEMES:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
-            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}."
-        )
-
-
-class _BatteryCompat:
-    """
-    Compatibility wrapper to match dronekit.Battery interface.
-
-    Attributes:
-        voltage: Battery voltage in volts
-        current: Battery current draw in amps
-        level: Battery level as percentage (0-100)
-    """
-
-    __slots__ = ("voltage", "current", "level")
-
-    def __init__(self):
-        self.voltage: float = 0.0
-        self.current: float = 0.0
-        self.level: int = 0
-
-    def __str__(self) -> str:
-        return (
-            f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
-        )
-
-    def __repr__(self) -> str:
-        return f"_BatteryCompat(voltage={self.voltage}, current={self.current}, level={self.level})"
-
-
-class _GPSInfoCompat:
-    """
-    Compatibility wrapper to match dronekit.GPSInfo interface.
-
-    Attributes:
-        fix_type: GPS fix type (0-1: no fix, 2: 2d fix, 3: 3d fix)
-        satellites_visible: Number of visible satellites
-    """
-
-    __slots__ = ("fix_type", "satellites_visible")
-
-    def __init__(self):
-        self.fix_type: int = 0
-        self.satellites_visible: int = 0
-
-    def __str__(self) -> str:
-        return f"GPSInfo:fix={self.fix_type},num_sat={self.satellites_visible}"
-
-    def __repr__(self) -> str:
-        return f"_GPSInfoCompat(fix_type={self.fix_type}, satellites_visible={self.satellites_visible})"
-
-
-class _AttitudeCompat:
-    """
-    Compatibility wrapper to match dronekit.Attitude interface.
-
-    All angles in radians.
-
-    Attributes:
-        pitch: Pitch angle in radians
-        roll: Roll angle in radians
-        yaw: Yaw angle in radians
-    """
-
-    __slots__ = ("pitch", "roll", "yaw")
-
-    def __init__(self):
-        self.pitch: float = 0.0
-        self.roll: float = 0.0
-        self.yaw: float = 0.0
-
-    def __str__(self) -> str:
-        return f"Attitude:pitch={self.pitch},yaw={self.yaw},roll={self.roll}"
-
-    def __repr__(self) -> str:
-        return f"_AttitudeCompat(pitch={self.pitch}, roll={self.roll}, yaw={self.yaw})"
-
-
-class _VersionCompat:
-    """
-    Compatibility wrapper to match dronekit.Version interface.
-
-    Attributes:
-        major: Major version number
-        minor: Minor version number
-        patch: Patch version number
-        release: Release type (if available)
-    """
-
-    __slots__ = ("major", "minor", "patch", "release")
-
-    def __init__(self):
-        self.major: Optional[int] = None
-        self.minor: Optional[int] = None
-        self.patch: Optional[int] = None
-        self.release: Optional[str] = None
-
-    def __str__(self) -> str:
-        return f"{self.major}.{self.minor}.{self.patch}"
-
-    def __repr__(self) -> str:
-        return f"_VersionCompat(major={self.major}, minor={self.minor}, patch={self.patch})"
-
-
-class DummyVehicle:
-    """
-    A placeholder vehicle class for scripts that do not require physical vehicle interaction.
-
-    This class provides the same interface as `Vehicle` but with empty implementations.
-    """
-
-    def __init__(self):
-        self._closed = False
-
-    def set_event_log(self, event_log: Optional[Any]) -> None:
-        """No-op: DummyVehicle ignores structured logging."""
-        pass
-
-    def close(self):
-        """Mark the dummy vehicle as closed."""
-        self._closed = True
-
-    def _preflight_wait(self, should_arm):
-        """No-op preflight hook for compatibility with Vehicle."""
-        pass
-
-    async def _arm_vehicle(self):
-        """No-op arming hook for compatibility with Vehicle."""
-        pass
 
 
 class Vehicle:

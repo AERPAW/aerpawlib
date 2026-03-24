@@ -40,17 +40,15 @@ class _FakeContext:
         return None
 
 
-def test_start_server_handles_malformed_request_without_crashing(monkeypatch):
+def test_start_server_handles_malformed_request_without_crashing():
     fake_socket = _FakeSocket()
     fake_context = _FakeContext(fake_socket)
-
-    monkeypatch.setattr("aerpawlib.v1.safety.zmq.Context", lambda: fake_context)
 
     server = SafetyCheckerServer.__new__(SafetyCheckerServer)
     server.REQUEST_FUNCTIONS = {}
 
     with pytest.raises(KeyboardInterrupt):
-        server.start_server(14580)
+        server.start_server(14580, context_factory=lambda: fake_context)
 
     assert len(fake_socket.sent) == 1
     response = deserialize_msg(fake_socket.sent[0])
@@ -79,21 +77,17 @@ class _UnknownFunctionSocket:
         return None
 
 
-def test_start_server_unknown_function_request_does_not_crash(monkeypatch):
+def test_start_server_unknown_function_request_does_not_crash():
     fake_socket = _UnknownFunctionSocket()
     fake_context = _FakeContext(fake_socket)
-
-    monkeypatch.setattr("aerpawlib.v1.safety.zmq.Context", lambda: fake_context)
 
     server = SafetyCheckerServer.__new__(SafetyCheckerServer)
     server.REQUEST_FUNCTIONS = {}
 
     with pytest.raises(KeyboardInterrupt):
-        server.start_server(14581)
+        server.start_server(14581, context_factory=lambda: fake_context)
 
     assert len(fake_socket.sent) == 1
     response = deserialize_msg(fake_socket.sent[0])
     assert response["result"] is False
     assert "not_implemented" in response["message"]
-
-
