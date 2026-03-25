@@ -1,0 +1,5 @@
+{
+  "conn": "udpin://127.0.0.1:14560",
+  "mavsdk-port": 50052,
+  "no-aerpaw-environment": true
+}

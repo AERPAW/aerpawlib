@@ -1,0 +1,5 @@
+{
+  "api-version": "v2",
+  "vehicle": "rover",
+  "mavsdk-port": 50052
+}
