@@ -1,0 +1,103 @@
+"""DroneKit-compatible telemetry wrappers for v1 Vehicle."""
+
+from typing import Optional
+
+
+class _BatteryCompat:
+    """
+    Compatibility wrapper to match dronekit.Battery interface.
+
+    Attributes:
+        voltage: Battery voltage in volts
+        current: Battery current draw in amps
+        level: Battery level as percentage (0-100)
+    """
+
+    __slots__ = ("voltage", "current", "level")
+
+    def __init__(self):
+        self.voltage: float = 0.0
+        self.current: float = 0.0
+        self.level: int = 0
+
+    def __str__(self) -> str:
+        return (
+            f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
+        )
+
+    def __repr__(self) -> str:
+        return f"_BatteryCompat(voltage={self.voltage}, current={self.current}, level={self.level})"
+
+
+class _GPSInfoCompat:
+    """
+    Compatibility wrapper to match dronekit.GPSInfo interface.
+
+    Attributes:
+        fix_type: GPS fix type (0-1: no fix, 2: 2d fix, 3: 3d fix)
+        satellites_visible: Number of visible satellites
+    """
+
+    __slots__ = ("fix_type", "satellites_visible")
+
+    def __init__(self):
+        self.fix_type: int = 0
+        self.satellites_visible: int = 0
+
+    def __str__(self) -> str:
+        return f"GPSInfo:fix={self.fix_type},num_sat={self.satellites_visible}"
+
+    def __repr__(self) -> str:
+        return f"_GPSInfoCompat(fix_type={self.fix_type}, satellites_visible={self.satellites_visible})"
+
+
+class _AttitudeCompat:
+    """
+    Compatibility wrapper to match dronekit.Attitude interface.
+
+    All angles in radians.
+
+    Attributes:
+        pitch: Pitch angle in radians
+        roll: Roll angle in radians
+        yaw: Yaw angle in radians
+    """
+
+    __slots__ = ("pitch", "roll", "yaw")
+
+    def __init__(self):
+        self.pitch: float = 0.0
+        self.roll: float = 0.0
+        self.yaw: float = 0.0
+
+    def __str__(self) -> str:
+        return f"Attitude:pitch={self.pitch},yaw={self.yaw},roll={self.roll}"
+
+    def __repr__(self) -> str:
+        return f"_AttitudeCompat(pitch={self.pitch}, roll={self.roll}, yaw={self.yaw})"
+
+
+class _VersionCompat:
+    """
+    Compatibility wrapper to match dronekit.Version interface.
+
+    Attributes:
+        major: Major version number
+        minor: Minor version number
+        patch: Patch version number
+        release: Release type (if available)
+    """
+
+    __slots__ = ("major", "minor", "patch", "release")
+
+    def __init__(self):
+        self.major: Optional[int] = None
+        self.minor: Optional[int] = None
+        self.patch: Optional[int] = None
+        self.release: Optional[str] = None
+
+    def __str__(self) -> str:
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    def __repr__(self) -> str:
+        return f"_VersionCompat(major={self.major}, minor={self.minor}, patch={self.patch})"
