@@ -13,12 +13,22 @@ from mavsdk.action import ActionError
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
 from ..constants import (
+    ARMING_SEQUENCE_DELAY_S,
+    CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
+    GPS_3D_FIX_TYPE,
+    GOTO_LOG_INTERVAL_S,
+    GOTO_NB_LOG_INTERVAL_S,
     HEADING_TOLERANCE_DEG,
+    HOME_POSITION_TIMEOUT_S,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
+    POLLING_DELAY_S,
+    POSITION_READY_TIMEOUT_S,
+    POST_ARM_STABILIZE_DELAY_S,
     POST_TAKEOFF_STABILIZATION_S,
+    TAKEOFF_LOG_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
 )
 from ..exceptions import (
@@ -78,21 +88,21 @@ class Drone(Vehicle):
             return
         await _wait_for_condition(
             lambda: self._state.armable,
-            timeout=30.0,
+            timeout=CONNECTION_TIMEOUT_S,
             timeout_message=f"Vehicle not armable: {self._get_health_summary()}",
         )
         await _wait_for_condition(
-            lambda: self.gps.fix_type >= 3,
+            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
             timeout=POSITION_READY_TIMEOUT_S,
             timeout_message="No GPS 3D fix",
         )
         while not self.ekf_ready:
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
         await self.set_armed(True)
         await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
         await _wait_for_condition(
             lambda: self._state.home_coords is not None,
-            timeout=5.0,
+            timeout=HOME_POSITION_TIMEOUT_S,
             timeout_message="Home position not available",
         )
 
@@ -191,14 +201,14 @@ class Drone(Vehicle):
             last_log = 0.0
             while not self.done_moving():
                 now = time.monotonic()
-                if now - last_log >= 2.0:
+                if now - last_log >= TAKEOFF_LOG_INTERVAL_S:
                     logger.debug(
                         "Drone: takeoff climbing alt=%.1fm target=%.1fm",
                         self.position.alt,
                         altitude,
                     )
                     last_log = now
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(POLLING_DELAY_S)
             await asyncio.sleep(
                 POST_TAKEOFF_STABILIZATION_S
             )  # Justified: stabilization
@@ -230,8 +240,8 @@ class Drone(Vehicle):
             self._expecting_disarm = True
             await _wait_for_condition(
                 lambda: not self.armed,
-                poll_interval=0.05,
-                timeout=300.0,
+                poll_interval=POLLING_DELAY_S,
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message="Drone: land timed out waiting for disarm",
             )
             if self._event_log:
@@ -257,8 +267,8 @@ class Drone(Vehicle):
             self._expecting_disarm = True
             await _wait_for_condition(
                 lambda: not self.armed,
-                poll_interval=0.05,
-                timeout=300.0,
+                poll_interval=POLLING_DELAY_S,
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message="Drone: return_to_launch timed out waiting for disarm",
             )
         except (ActionError, TimeoutError) as e:
@@ -351,7 +361,7 @@ class Drone(Vehicle):
                 if elapsed > timeout:
                     raise TimeoutError(f"Goto timed out within {timeout}s")
                 now = time.monotonic()
-                if now - last_log >= 3.0:
+                if now - last_log >= GOTO_LOG_INTERVAL_S:
                     dist = coordinates.distance(self.position)
                     logger.debug(
                         "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
@@ -360,7 +370,7 @@ class Drone(Vehicle):
                         elapsed,
                     )
                     last_log = now
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(POLLING_DELAY_S)
             logger.debug("Drone: goto_coordinates complete (blocking)")
             if self._event_log:
                 self._event_log.log_event(
@@ -417,7 +427,7 @@ class Drone(Vehicle):
                     p = 1.0 - (d / initial_dist)
                     handle.set_progress(max(0.0, min(1.0, p)))
                 now = time.monotonic()
-                if now - last_log >= 5.0:
+                if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
                         "Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%",
                         d,

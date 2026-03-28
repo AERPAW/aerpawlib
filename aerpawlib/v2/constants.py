@@ -76,3 +76,95 @@ PLAN_CMD_SPEED = 178
 # AERPAW
 DEFAULT_FORWARD_SERVER_IP = os.getenv("AP_EXPENV_OEOCVM_XM", "192.168.32.25")
 DEFAULT_FORWARD_SERVER_PORT = 12435
+
+
+# Network Ports
+
+# Default MAVSDK gRPC server port
+DEFAULT_MAVSDK_SERVER_PORT = 50051
+
+# Default MAVLink UDP port
+DEFAULT_MAV_UDP_PORT = 14550
+
+
+# Additional Timing Constants
+
+# Post-arm stabilization delay before takeoff (seconds)
+POST_ARM_STABILIZE_DELAY_S = 0.1
+
+# Timeout for home position readiness (seconds)
+HOME_POSITION_TIMEOUT_S = 5.0
+
+# Log interval for takeoff progress (seconds)
+TAKEOFF_LOG_INTERVAL_S = 2.0
+
+# Log interval for goto progress (seconds)
+GOTO_LOG_INTERVAL_S = 3.0
+
+# Polling interval for goto operations (seconds)
+GOTO_POLL_INTERVAL_S = 0.2
+
+# Log interval for non-blocking goto (seconds)
+GOTO_NB_LOG_INTERVAL_S = 5.0
+
+# Log interval for ready-to-move checks (seconds)
+READY_MOVE_LOG_INTERVAL_S = 10.0
+
+
+# AERPAW Network Timeouts
+
+# Timeout for AERPAW platform ping (seconds)
+AERPAW_PING_TIMEOUT_S = 1.0
+
+# Timeout for AERPAW notification HTTP requests (seconds)
+AERPAW_NOTIFY_TIMEOUT_S = 3.0
+
+
+# ZMQ Additional Constants
+
+# Default timeout for ZMQ reachability check (seconds)
+ZMQ_REACHABILITY_TIMEOUT_S = 2.0
+
+
+# GPS Constants
+
+# GPS fix type value indicating 3D fix (MAVLink standard)
+GPS_3D_FIX_TYPE = 3
+
+
+# Battery Constants
+
+# Default minimum battery percentage for takeoff validation
+DEFAULT_MIN_BATTERY_PERCENT = 10.0
+
+
+# Geographic Constants
+
+# Earth radius in kilometers (WGS84)
+EARTH_RADIUS_KM = 6378.137
+
+# Earth radius in meters (WGS84)
+EARTH_RADIUS_M = 6378137.0
+
+# Radians to degrees conversion factor (180/π)
+RAD_TO_DEG_FACTOR = 57.2957795
+
+# WGS84 latitude distance calculation coefficients
+LAT_M_PER_DEG = 111132.954
+LAT_COEFF_2 = 559.822
+LAT_COEFF_4 = 1.175
+
+
+# MAVLink Message Names
+
+# MAVLink command message name for rover control
+MAVLINK_MSG_COMMAND_LONG = "COMMAND_LONG"
+
+
+# Test Mock Data
+
+# Mock latitude for testing (Raleigh, NC area)
+MOCK_LAT = 35.727436
+
+# Mock longitude for testing (Raleigh, NC area)
+MOCK_LON = -78.696587

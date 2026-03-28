@@ -7,7 +7,30 @@ import signal
 import sys
 import traceback
 
-from aerpawlib.constants import DEFAULT_SAFETY_CHECKER_PORT
+from aerpawlib.cli.constants import (
+    DEFAULT_SAFETY_CHECKER_PORT,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_ROVER,
+    VEHICLE_TYPE_NONE,
+    API_CLASS_VEHICLE,
+    API_CLASS_DRONE,
+    API_CLASS_ROVER,
+    API_CLASS_DUMMY_VEHICLE,
+    API_CLASS_AERPAW_PLATFORM,
+    EVENT_MISSION_START,
+    EVENT_MISSION_END,
+    EVENT_CONNECTION_LOST,
+    INVALID_VEHICLE_TYPE_MSG,
+    STANDALONE_MODE_MSG,
+    SAFETY_CHECKER_NOT_PROVIDED_MSG,
+    SAFETY_CHECKER_REQUIRED_MSG_FMT,
+    SAFETY_CHECKER_FALLBACK_MSG_FMT,
+    AERPAWLIB_CONNECTION_LOST_LOG_MSG,
+    LOG_SEVERITY_CRITICAL,
+    LOCALHOST_ADDR,
+    AERPAWLIB_LOGGER_NAME,
+)
 
 from .disconnect import (
     await_disconnect_future,
@@ -15,7 +38,7 @@ from .disconnect import (
 )
 from .discovery import discover_runner
 
-logger = logging.getLogger("aerpawlib")
+logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
 
 
 def run_v2_experiment(
@@ -26,22 +49,22 @@ def run_v2_experiment(
     assert runner is not None
     runner_instance = runner
 
-    Vehicle = getattr(api_module, "Vehicle")
-    Drone = getattr(api_module, "Drone")
-    Rover = getattr(api_module, "Rover")
-    DummyVehicle = getattr(api_module, "DummyVehicle", None)
-    AERPAW_Platform = getattr(api_module, "AERPAW_Platform", None)
+    Vehicle = getattr(api_module, API_CLASS_VEHICLE)
+    Drone = getattr(api_module, API_CLASS_DRONE)
+    Rover = getattr(api_module, API_CLASS_ROVER)
+    DummyVehicle = getattr(api_module, API_CLASS_DUMMY_VEHICLE, None)
+    AERPAW_Platform = getattr(api_module, API_CLASS_AERPAW_PLATFORM, None)
 
     vehicle_type = {
-        "generic": Vehicle,
-        "drone": Drone,
-        "rover": Rover,
-        "none": DummyVehicle,
+        VEHICLE_TYPE_GENERIC: Vehicle,
+        VEHICLE_TYPE_DRONE: Drone,
+        VEHICLE_TYPE_ROVER: Rover,
+        VEHICLE_TYPE_NONE: DummyVehicle,
     }.get(args.vehicle, None)
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
-        raise Exception("Please specify a valid vehicle type")
+        raise Exception(INVALID_VEHICLE_TYPE_MSG)
 
     logger.info("Starting experiment execution (v2)")
 
@@ -50,10 +73,7 @@ def run_v2_experiment(
 
         if no_aerpaw_env:
             aerpaw_platform = None
-            logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
-                "running in standalone mode."
-            )
+            logger.info(STANDALONE_MODE_MSG)
         elif AERPAW_Platform:
             aerpaw_platform = AERPAW_Platform()
             aerpaw_platform.set_no_stdout(args.no_stdout)
@@ -77,11 +97,9 @@ def run_v2_experiment(
             else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
         )
         if effective_port is None:
-            safety_client = NoOpSafetyChecker(
-                "Not in AERPAW environment and --safety-checker-port not provided."
-            )
+            safety_client = NoOpSafetyChecker(SAFETY_CHECKER_NOT_PROVIDED_MSG)
         else:
-            safety_addr = "127.0.0.1"
+            safety_addr = LOCALHOST_ADDR
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = await client.check_server_status()
@@ -92,16 +110,14 @@ def run_v2_experiment(
             except Exception as e:
                 if is_aerpaw:
                     logger.critical(
-                        "AERPAW environment requires SafetyCheckerServer. "
-                        "Connection to %s:%d failed: %s",
+                        SAFETY_CHECKER_REQUIRED_MSG_FMT,
                         safety_addr,
                         effective_port,
                         e,
                     )
                     sys.exit(1)
                 logger.error(
-                    "SafetyCheckerServer connection failed (%s:%d): %s. "
-                    "Using passthrough (all validations pass).",
+                    SAFETY_CHECKER_FALLBACK_MSG_FMT,
                     safety_addr,
                     effective_port,
                     e,
@@ -150,15 +166,15 @@ def run_v2_experiment(
             vehicle.set_event_log(event_log)
             runner_instance.set_event_log(event_log)
             logger.info("Structured event logging -> %s", args.structured_log)
-            event_log.log_event("mission_start")
+            event_log.log_event(EVENT_MISSION_START)
 
         def _on_disconnect():
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
-                    "[aerpawlib] Connection lost", severity="CRITICAL"
+                    AERPAWLIB_CONNECTION_LOST_LOG_MSG, severity=LOG_SEVERITY_CRITICAL
                 )
             if event_log:
-                event_log.log_event("connection_lost")
+                event_log.log_event(EVENT_CONNECTION_LOST)
 
         try:
             from aerpawlib.v2.safety.connection import (
@@ -279,9 +295,9 @@ def run_v2_experiment(
                 ):
                     logger.warning("Vehicle still armed! RTLing...")
                     try:
-                        if args.vehicle == "drone":
+                        if args.vehicle == VEHICLE_TYPE_DRONE:
                             await vehicle.return_to_launch()
-                        elif args.vehicle == "rover" and vehicle.home_coords:
+                        elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
                             await vehicle.goto_coordinates(vehicle.home_coords)
                     except Exception as e:
                         logger.error(f"RTL failed: {e}")
@@ -294,7 +310,7 @@ def run_v2_experiment(
                     logger.debug(f"Failed to close safety client cleanly: {e}")
             if event_log is not None:
                 try:
-                    event_log.log_event("mission_end", success=success)
+                    event_log.log_event(EVENT_MISSION_END, success=success)
                 except Exception:
                     pass
                 try:

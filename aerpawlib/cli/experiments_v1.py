@@ -8,7 +8,25 @@ import sys
 import time
 import traceback
 
-from aerpawlib.constants import VEHICLE_CONNECT_POLL_INTERVAL_S
+from aerpawlib.cli.constants import (
+    VEHICLE_CONNECT_POLL_INTERVAL_S,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_ROVER,
+    VEHICLE_TYPE_NONE,
+    API_CLASS_VEHICLE,
+    API_CLASS_DRONE,
+    API_CLASS_ROVER,
+    API_CLASS_DUMMY_VEHICLE,
+    API_CLASS_AERPAW_PLATFORM,
+    API_CLASS_HEARTBEAT_LOST_ERROR,
+    VEHICLE_ATTR_INTERNAL_CONNECTED,
+    VEHICLE_ATTR_CLOSED,
+    EVENT_MISSION_START,
+    EVENT_MISSION_END,
+    INVALID_VEHICLE_TYPE_MSG,
+    STANDALONE_MODE_MSG,
+)
 
 from .disconnect import (
     run_runner_with_disconnect_guard,
@@ -16,7 +34,9 @@ from .disconnect import (
 )
 from .discovery import discover_runner
 
-logger = logging.getLogger("aerpawlib")
+from aerpawlib.cli.constants import AERPAWLIB_LOGGER_NAME
+
+logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
 
 
 def run_v1_experiment(
@@ -27,22 +47,22 @@ def run_v1_experiment(
     assert runner is not None
     runner_instance = runner
 
-    Vehicle = getattr(api_module, "Vehicle")
-    Drone = getattr(api_module, "Drone")
-    Rover = getattr(api_module, "Rover")
-    DummyVehicle = getattr(api_module, "DummyVehicle", None)
-    AERPAW_Platform = getattr(api_module, "AERPAW_Platform", None)
+    Vehicle = getattr(api_module, API_CLASS_VEHICLE)
+    Drone = getattr(api_module, API_CLASS_DRONE)
+    Rover = getattr(api_module, API_CLASS_ROVER)
+    DummyVehicle = getattr(api_module, API_CLASS_DUMMY_VEHICLE, None)
+    AERPAW_Platform = getattr(api_module, API_CLASS_AERPAW_PLATFORM, None)
 
     vehicle_type = {
-        "generic": Vehicle,
-        "drone": Drone,
-        "rover": Rover,
-        "none": DummyVehicle,
+        VEHICLE_TYPE_GENERIC: Vehicle,
+        VEHICLE_TYPE_DRONE: Drone,
+        VEHICLE_TYPE_ROVER: Rover,
+        VEHICLE_TYPE_NONE: DummyVehicle,
     }.get(args.vehicle, None)
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
-        raise Exception("Please specify a valid vehicle type")
+        raise Exception(INVALID_VEHICLE_TYPE_MSG)
 
     logger.info(f"Starting experiment execution ({version_name})")
 
@@ -53,13 +73,14 @@ def run_v1_experiment(
 
             async def create_vehicle_inner():
                 v = await asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port)
-                if hasattr(v, "_connected"):
+                if hasattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED):
                     start = time.time()
                     while (
-                        not v._connected and (time.time() - start) < args.conn_timeout
+                        not getattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED)
+                        and (time.time() - start) < args.conn_timeout
                     ):
                         await asyncio.sleep(VEHICLE_CONNECT_POLL_INTERVAL_S)
-                    if not v._connected:
+                    if not getattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED):
                         raise TimeoutError("Connection timeout")
                 return v
 
@@ -79,7 +100,7 @@ def run_v1_experiment(
                 )
             event_log = StructuredEventLogger(open(args.structured_log, "w"))
             vehicle.set_event_log(event_log)
-            event_log.log_event("mission_start")
+            event_log.log_event(EVENT_MISSION_START)
             logger.info("Structured event logging -> %s", args.structured_log)
 
         def handle_shutdown(signum, frame):
@@ -93,10 +114,7 @@ def run_v1_experiment(
 
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
         if no_aerpaw_env:
-            logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
-                "running in standalone mode."
-            )
+            logger.info(STANDALONE_MODE_MSG)
             if AERPAW_Platform:
                 AERPAW_Platform._no_stdout = args.no_stdout
         elif AERPAW_Platform:
@@ -130,7 +148,9 @@ def run_v1_experiment(
 
         success = False
         heartbeat_lost = False
-        heartbeat_error_cls = getattr(api_module, "HeartbeatLostError", Exception)
+        heartbeat_error_cls = getattr(
+            api_module, API_CLASS_HEARTBEAT_LOST_ERROR, Exception
+        )
         disconnect_task = None
         try:
             disconnect_task = asyncio.create_task(
@@ -159,16 +179,16 @@ def run_v1_experiment(
                     pass
             if vehicle:
                 if (
-                    not vehicle._closed
+                    not getattr(vehicle, VEHICLE_ATTR_CLOSED)
                     and vehicle.armed
                     and args.rtl_at_end
                     and not heartbeat_lost
                 ):
                     logger.warning("Vehicle still armed! RTLing...")
                     try:
-                        if args.vehicle == "drone":
+                        if args.vehicle == VEHICLE_TYPE_DRONE:
                             await vehicle.return_to_launch()
-                        elif args.vehicle == "rover" and vehicle.home_coords:
+                        elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
                             await vehicle.goto_coordinates(vehicle.home_coords)
                     except Exception as e:
                         logger.error(f"RTL failed: {e}")
@@ -176,7 +196,7 @@ def run_v1_experiment(
                 vehicle.close()
             if event_log is not None:
                 try:
-                    event_log.log_event("mission_end", success=success)
+                    event_log.log_event(EVENT_MISSION_END, success=success)
                 except Exception:
                     pass
                 try:

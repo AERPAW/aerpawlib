@@ -32,6 +32,9 @@ from aerpawlib.v1.constants import (
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     VELOCITY_UPDATE_DELAY_S,
+    MAVLINK_COMMAND_TIMEOUT_S,
+    MAVLINK_MSG_COMMAND_LONG,
+    GUIDED_MODE_NAME,
 )
 from aerpawlib.v1.exceptions import (
     NavigationError,
@@ -78,13 +81,13 @@ class Rover(Vehicle):
         MAVLink. We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll until the flight controller confirms the mode change.
         """
-        if self._mode.get() == "OFFBOARD":
+        if self._mode.get() == GUIDED_MODE_NAME:
             logger.debug(
-                "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch"
+                f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch"
             )
             return
         logger.info(
-            f"Rover: switching to GUIDED (OFFBOARD) mode "
+            f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode "
             f"(current mode={self._mode.get()!r})"
         )
         fields = {
@@ -105,7 +108,7 @@ class Rover(Vehicle):
             component_id=1,
             target_system_id=1,
             target_component_id=1,
-            message_name="COMMAND_LONG",
+            message_name=MAVLINK_MSG_COMMAND_LONG,
             fields_json=json.dumps(fields),
         )
         try:
@@ -113,22 +116,24 @@ class Rover(Vehicle):
                 self._system.mavlink_direct.send_message(msg),
                 self._mavsdk_loop,
             )
-            future.result(timeout=5.0)
+            future.result(timeout=MAVLINK_COMMAND_TIMEOUT_S)
         except Exception as e:
-            logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            logger.warning(
+                f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}"
+            )
             return
 
         start = time.time()
-        while self._mode.get() != "OFFBOARD":
+        while self._mode.get() != GUIDED_MODE_NAME:
             if time.time() - start > ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S:
                 logger.warning(
                     f"Rover: mode switch timeout "
                     f"(current mode={self._mode.get()!r}); "
-                    "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode"
+                    f"arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode"
                 )
                 return
             time.sleep(POLLING_DELAY_S)
-        logger.info("Rover: GUIDED (OFFBOARD) mode confirmed")
+        logger.info(f"Rover: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 
     def _preflight_wait(self, should_arm: bool) -> None:
         """Wait for pre-arm conditions, setting GUIDED mode first."""

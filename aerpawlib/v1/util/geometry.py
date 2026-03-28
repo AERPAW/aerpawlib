@@ -4,6 +4,16 @@ import json
 import math
 from typing import Tuple, Union
 
+from ..constants import (
+    EARTH_RADIUS_KM,
+    EARTH_RADIUS_M,
+    RAD_TO_DEG_FACTOR,
+    COORDINATE_EPSILON,
+    LAT_M_PER_DEG,
+    LAT_COEFF_2,
+    LAT_COEFF_4,
+)
+
 VectorNEDType = "VectorNED"
 CoordinateType = "Coordinate"
 
@@ -181,7 +191,7 @@ class Coordinate:
             other.lat * d2r
         ) * math.pow(math.sin(dlon / 2), 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        d = 6378.137 * c
+        d = EARTH_RADIUS_KM * c
         return math.hypot(d * 1000, other.alt - self.alt)
 
     def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
@@ -205,10 +215,10 @@ class Coordinate:
         d_lat = other.lat - self.lat
         d_lon = other.lon - self.lon
 
-        if abs(d_lat) < 1e-10 and abs(d_lon) < 1e-10:
+        if abs(d_lat) < COORDINATE_EPSILON and abs(d_lon) < COORDINATE_EPSILON:
             return 0.0
 
-        bearing = 90 + math.atan2(-d_lat, d_lon) * 57.2957795
+        bearing = 90 + math.atan2(-d_lat, d_lon) * RAD_TO_DEG_FACTOR
         if wrap_360:
             bearing %= 360
         return bearing
@@ -221,7 +231,7 @@ class Coordinate:
         else:
             raise TypeError()
 
-        earth_radius = 6378137.0
+        earth_radius = EARTH_RADIUS_M
         d_lat = north / earth_radius
         d_lon = east / (earth_radius * math.cos(math.pi * self.lat / 180))
         new_lat = self.lat + (d_lat * 180 / math.pi)
@@ -241,11 +251,11 @@ class Coordinate:
             return VectorNED(
                 d_lat
                 * (
-                    111132.954
-                    - 559.822 * math.cos(2 * lat_mid)
-                    + 1.175 * math.cos(4 * lat_mid)
+                    LAT_M_PER_DEG
+                    - LAT_COEFF_2 * math.cos(2 * lat_mid)
+                    + LAT_COEFF_4 * math.cos(4 * lat_mid)
                 ),
-                d_lon * (111132.954 * math.cos(lat_mid)),
+                d_lon * (LAT_M_PER_DEG * math.cos(lat_mid)),
                 o.alt - self.alt,
             )
         else:
@@ -268,6 +278,4 @@ class Coordinate:
         return self.to_json()
 
 
-Waypoint = Tuple[
-    int, float, float, float, int, float
-]
+Waypoint = Tuple[int, float, float, float, int, float]

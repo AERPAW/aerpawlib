@@ -41,6 +41,9 @@ from aerpawlib.v1.constants import (
     VERBOSE_LOG_DELAY_S,
     STRUCTURED_TELEMETRY_INTERVAL_S,
     EKF_READY_FLAGS,
+    MAX_TELEMETRY_RETRIES,
+    MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
+    GPS_3D_FIX_TYPE,
 )
 from aerpawlib.v1.exceptions import (
     ConnectionTimeoutError,
@@ -377,7 +380,7 @@ class Vehicle:
     async def _resilient_telemetry_task(self, name, coro_factory):
         """Wrap a telemetry subscription in retry logic."""
         retry_count = 0
-        max_retries = 3
+        max_retries = MAX_TELEMETRY_RETRIES
         while self._running.get() and retry_count < max_retries:
             try:
                 await coro_factory()
@@ -514,7 +517,8 @@ class Vehicle:
                         logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
             except Exception as e:
                 logger.debug(
-                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e
+                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s",
+                    e,
                 )
 
         async def _home_update():
@@ -876,10 +880,11 @@ class Vehicle:
                 self._verbose_logging_file_writer = None
 
         if hasattr(self, "_mavsdk_thread") and self._mavsdk_thread.is_alive():
-            self._mavsdk_thread.join(timeout=5.0)
+            self._mavsdk_thread.join(timeout=MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S)
             if self._mavsdk_thread.is_alive():
                 logger.warning(
-                    "MAVSDK thread did not exit within 5s; process will exit"
+                    "MAVSDK thread did not exit within %ds; process will exit",
+                    MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
                 )
 
         # Clear system reference to help garbage collection release the gRPC server
@@ -1038,7 +1043,7 @@ class Vehicle:
                 logger.debug("Waiting for GPS 3D fix (position ready for GUIDED)...")
                 try:
                     await wait_for_condition(
-                        lambda: self.gps.fix_type >= 3,
+                        lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
                         timeout=POSITION_READY_TIMEOUT_S,
                         poll_interval=POLLING_DELAY_S,
                         timeout_message=f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started",

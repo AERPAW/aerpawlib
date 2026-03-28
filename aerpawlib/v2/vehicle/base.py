@@ -21,9 +21,15 @@ from mavsdk.action import ActionError
 
 from ..constants import (
     CONNECTION_TIMEOUT_S,
+    DEFAULT_MAVSDK_SERVER_PORT,
+    GPS_3D_FIX_TYPE,
     MIN_POSITION_TOLERANCE_M,
     MAX_POSITION_TOLERANCE_M,
     MAV_SYS_STATUS_PREARM_CHECK,
+    MOCK_LAT,
+    MOCK_LON,
+    POLLING_DELAY_S,
+    READY_MOVE_LOG_INTERVAL_S,
 )
 from ..exceptions import (
     ConnectionTimeoutError,
@@ -51,7 +57,7 @@ class Vehicle:
         self,
         system: System,
         connection_string: str,
-        mavsdk_server_port: int = 50051,
+        mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         safety: Optional[Any] = None,
     ) -> None:
@@ -289,7 +295,7 @@ class Vehicle:
     async def connect(
         cls,
         connection_string: str,
-        mavsdk_server_port: int = 50051,
+        mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Optional[Any] = None,
@@ -624,7 +630,7 @@ class Vehicle:
             if elapsed > 300.0:
                 raise TimeoutError("Vehicle did not report ready within timeout")
             now = time.monotonic()
-            if now - last_log >= 10.0:
+            if now - last_log >= READY_MOVE_LOG_INTERVAL_S:
                 logger.debug(
                     "await_ready_to_move: still waiting (elapsed=%.0fs mode=%s armed=%s)",
                     elapsed,
@@ -632,7 +638,7 @@ class Vehicle:
                     self.armed,
                 )
                 last_log = now
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(POLLING_DELAY_S)
         logger.debug("await_ready_to_move: vehicle ready")
 
     async def set_armed(self, value: bool) -> None:
@@ -755,14 +761,14 @@ class DummyVehicle(Vehicle):
             safety: Optional safety checker; defaults to None (no safety checks).
         """
         self._state = VehicleState()
-        self._state.update_position(35.727436, -78.696587, 0.0, 0.0)
-        self._state.update_gps(3, 10)
+        self._state.update_position(MOCK_LAT, MOCK_LON, 0.0, 0.0)
+        self._state.update_gps(GPS_3D_FIX_TYPE, 10)
         self._state.update_battery(12.6, 0.0, 100)
-        self._state.update_home(35.727436, -78.696587, 0.0, 0.0)
+        self._state.update_home(MOCK_LAT, MOCK_LON, 0.0, 0.0)
         self._state.update_armable(True, True, True)
         self._system = None
         self._connection_string = ""
-        self._mavsdk_server_port = 50051
+        self._mavsdk_server_port = DEFAULT_MAVSDK_SERVER_PORT
         self._telemetry_tasks = []
         self._command_tasks = []
         self._running = True
@@ -779,7 +785,7 @@ class DummyVehicle(Vehicle):
     async def connect(
         cls,
         connection_string: str = "",
-        mavsdk_server_port: int = 50051,
+        mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Optional[Any] = None,

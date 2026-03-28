@@ -11,7 +11,12 @@ from typing import Optional
 
 import requests
 
-from .constants import DEFAULT_FORWARD_SERVER_IP, DEFAULT_FORWARD_SERVER_PORT
+from .constants import (
+    AERPAW_NOTIFY_TIMEOUT_S,
+    AERPAW_PING_TIMEOUT_S,
+    DEFAULT_FORWARD_SERVER_IP,
+    DEFAULT_FORWARD_SERVER_PORT,
+)
 from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.AERPAW)
@@ -54,7 +59,7 @@ class AERPAW_Platform:
         try:
             requests.post(
                 f"http://{self._forw_addr}:{self._forw_port}/ping",
-                timeout=1,
+                timeout=AERPAW_PING_TIMEOUT_S,
             )
             logger.info(
                 f"AERPAW platform: connected to forward server {self._forw_addr}:{self._forw_port}"
@@ -111,7 +116,7 @@ class AERPAW_Platform:
             url = f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
             if agent_id:
                 url += f"/{agent_id}"
-            requests.post(url, timeout=3)
+            requests.post(url, timeout=AERPAW_NOTIFY_TIMEOUT_S)
         except requests.exceptions.RequestException as e:
             if not self._no_stdout:
                 logger.error(f"Failed to send message to OEO: {e}")

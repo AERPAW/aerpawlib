@@ -6,13 +6,15 @@ Reuses logic from v1.
 
 import socket
 
-from .constants import ZMQ_PROXY_OUT_PORT
+from .constants import ZMQ_PROXY_OUT_PORT, ZMQ_REACHABILITY_TIMEOUT_S
 from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.ZMQ)
 
 
-def check_zmq_proxy_reachable(proxy_addr: str, timeout_s: float = 2.0) -> bool:
+def check_zmq_proxy_reachable(
+    proxy_addr: str, timeout_s: float = ZMQ_REACHABILITY_TIMEOUT_S
+) -> bool:
     """Check if the ZMQ proxy is reachable before starting a runner.
 
     Args:

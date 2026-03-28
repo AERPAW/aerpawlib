@@ -21,6 +21,8 @@ from aerpawlib.v1.constants import (
     DEFAULT_POSITION_TOLERANCE_M,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     DEFAULT_GOTO_TIMEOUT_S,
+    TELEMETRY_SUBSCRIPTION_TIMEOUT_S,
+    OFFBOARD_STOP_SETTLE_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
     TakeoffError,
@@ -71,7 +73,7 @@ class Drone(Vehicle):
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._armed_telemetry_received.get():
-            if time.time() - start > 5.0:
+            if time.time() - start > TELEMETRY_SUBSCRIPTION_TIMEOUT_S:
                 logger.warning(
                     "Timeout waiting for armed-state telemetry; proceeding anyway"
                 )
@@ -393,7 +395,7 @@ class Drone(Vehicle):
                                         VelocityNedYaw(0, 0, 0, yaw)
                                     )
                                 )
-                                await asyncio.sleep(0.05)
+                                await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                             except (OffboardError, ActionError):
                                 pass
                             try:

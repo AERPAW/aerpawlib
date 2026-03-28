@@ -16,6 +16,9 @@ from ..constants import (
     VALIDATE_LANDING_REQ,
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_WAYPOINT_REQ,
+    VEHICLE_TYPE_COPTER,
+    VEHICLE_TYPE_ROVER,
+    DEFAULT_SAFETY_SERVER_PORT,
 )
 from ..util import Coordinate, do_intersect, inside, read_geofence
 from .wire_format import deserialize_msg, serialize_response
@@ -66,13 +69,17 @@ class SafetyCheckerServer:
     ]
     REQUIRED_COPTER_PARAMS = ["max_alt", "min_alt"]
 
-    def __init__(self, vehicle_config_filename: str, server_port=14580):
+    def __init__(
+        self,
+        vehicle_config_filename: str,
+        server_port=DEFAULT_SAFETY_SERVER_PORT,
+    ):
         """
         Initialize the safety checker server and start listening.
 
         Args:
             vehicle_config_filename: Path to the YAML configuration file.
-            server_port: Port to bind the server to. Defaults to 14580.
+            server_port: Port to bind the server to. Defaults to DEFAULT_SAFETY_SERVER_PORT.
         """
         self.REQUEST_FUNCTIONS = {
             SERVER_STATUS_REQ: self.server_status_handler,
@@ -103,7 +110,7 @@ class SafetyCheckerServer:
 
         self.takeoff_location = None
 
-        if self.vehicle_type == "copter":
+        if self.vehicle_type == VEHICLE_TYPE_COPTER:
             self.max_alt = config["max_alt"]
             self.min_alt = config["min_alt"]
 
@@ -189,7 +196,7 @@ class SafetyCheckerServer:
                 f"Vehicle type in {vehicle_config_filename} is invalid! Must be one of {self.VEHICLE_TYPES}"
             )
 
-        if config["vehicle_type"] == "copter":
+        if config["vehicle_type"] == VEHICLE_TYPE_COPTER:
             for param in self.REQUIRED_COPTER_PARAMS:
                 if param not in config:
                     raise Exception(
@@ -206,7 +213,7 @@ class SafetyCheckerServer:
         """
         logger.debug(f"Validating {next_location}")
 
-        if self.vehicle_type == "copter":
+        if self.vehicle_type == VEHICLE_TYPE_COPTER:
             if next_location.alt < self.min_alt or next_location.alt > self.max_alt:
                 return (
                     False,
@@ -315,7 +322,7 @@ class SafetyCheckerServer:
         Makes sure the takeoff altitude lies within the vehicle constraints
         Returns (False, <error message>) if the altitude violates constraints, else (True, "").
         """
-        if self.vehicle_type == "copter":
+        if self.vehicle_type == VEHICLE_TYPE_COPTER:
             if takeoff_alt < self.min_alt or takeoff_alt > self.max_alt:
                 return (
                     False,
@@ -439,7 +446,11 @@ class SafetyCheckerServer:
         return self.validate_change_speed_handler(newSpeed, *_params)
 
     def validate_takeoff_handler(
-        self, takeoff_alt: float, current_lat: float, current_lon: float, *_params
+        self,
+        takeoff_alt: float,
+        current_lat: float,
+        current_lon: float,
+        *_params,
     ) -> bytes:
         """
         Handler for takeoff validation requests.

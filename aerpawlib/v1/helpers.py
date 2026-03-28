@@ -113,11 +113,17 @@ def validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float
         raise ValueError(f"Tolerance must be a finite number, got {tolerance}")
     if tolerance < MIN_POSITION_TOLERANCE_M:
         raise InvalidToleranceError(
-            tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
+            tolerance,
+            MIN_POSITION_TOLERANCE_M,
+            MAX_POSITION_TOLERANCE_M,
+            param_name,
         )
     if tolerance > MAX_POSITION_TOLERANCE_M:
         raise InvalidToleranceError(
-            tolerance, MIN_POSITION_TOLERANCE_M, MAX_POSITION_TOLERANCE_M, param_name
+            tolerance,
+            MIN_POSITION_TOLERANCE_M,
+            MAX_POSITION_TOLERANCE_M,
+            param_name,
         )
     return tolerance
 

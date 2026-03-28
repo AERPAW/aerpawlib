@@ -7,6 +7,7 @@ import time
 from typing import Callable, Optional
 
 from ..constants import (
+    DEFAULT_MAV_UDP_PORT,
     MAX_POSITION_TOLERANCE_M,
     MIN_POSITION_TOLERANCE_M,
 )
@@ -28,7 +29,7 @@ def _validate_connection_string(conn_str: str) -> None:
     if "://" not in s:
         raise AerpawConnectionError(
             f"Invalid connection string {conn_str!r}: missing '://'. "
-            "Expected format e.g. 'udpin://0.0.0.0:14550', "
+            f"Expected format e.g. 'udpin://0.0.0.0:{DEFAULT_MAV_UDP_PORT}', "
             "'udpout://host:port', 'tcpin://host:port', "
             "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
         )

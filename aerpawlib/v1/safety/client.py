@@ -30,7 +30,10 @@ class SafetyCheckerClient:
     """
 
     def __init__(
-        self, addr: str, port: int, timeout_s: float = SAFETY_CHECKER_REQUEST_TIMEOUT_S
+        self,
+        addr: str,
+        port: int,
+        timeout_s: float = SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     ):
         """
         Initialize the safety checker client.
@@ -146,7 +149,8 @@ class SafetyCheckerClient:
         (False, <error message>) if the waypoint violates geofence or no-go zone constraints, else (True, "").
         """
         msg = serialize_request(
-            VALIDATE_WAYPOINT_REQ, [current_location.to_json(), next_location.to_json()]
+            VALIDATE_WAYPOINT_REQ,
+            [current_location.to_json(), next_location.to_json()],
         )
         resp = self.send_request(msg)
         return self.parse_response(resp)

@@ -11,6 +11,15 @@ import math
 from dataclasses import dataclass
 from typing import Tuple
 
+from .constants import (
+    EARTH_RADIUS_KM,
+    EARTH_RADIUS_M,
+    LAT_COEFF_2,
+    LAT_COEFF_4,
+    LAT_M_PER_DEG,
+    RAD_TO_DEG_FACTOR,
+)
+
 
 @dataclass
 class VectorNED:
@@ -147,7 +156,7 @@ class Coordinate:
             * math.sin(dlon / 2) ** 2
         )
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-        d_ground = 6378.137 * c * 1000  # km to m
+        d_ground = EARTH_RADIUS_KM * c * 1000  # km to m
         return math.hypot(d_ground, other.alt - self.alt)
 
     def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
@@ -169,7 +178,7 @@ class Coordinate:
         d_lon = other.lon - self.lon
         if abs(d_lat) < 1e-10 and abs(d_lon) < 1e-10:
             return 0.0
-        bearing = 90 + math.atan2(-d_lat, d_lon) * 57.2957795
+        bearing = 90 + math.atan2(-d_lat, d_lon) * RAD_TO_DEG_FACTOR
         if wrap_360:
             bearing %= 360
         return bearing
@@ -177,7 +186,7 @@ class Coordinate:
     def __add__(self, o: VectorNED) -> "Coordinate":
         if not isinstance(o, VectorNED):
             raise TypeError()
-        earth_radius = 6378137.0
+        earth_radius = EARTH_RADIUS_M
         d_lat = o.north / earth_radius
         d_lon = o.east / (earth_radius * math.cos(math.pi * self.lat / 180))
         return Coordinate(
@@ -196,11 +205,11 @@ class Coordinate:
             return VectorNED(
                 d_lat
                 * (
-                    111132.954
-                    - 559.822 * math.cos(2 * lat_mid)
-                    + 1.175 * math.cos(4 * lat_mid)
+                    LAT_M_PER_DEG
+                    - LAT_COEFF_2 * math.cos(2 * lat_mid)
+                    + LAT_COEFF_4 * math.cos(4 * lat_mid)
                 ),
-                d_lon * (111132.954 * math.cos(lat_mid)),
+                d_lon * (LAT_M_PER_DEG * math.cos(lat_mid)),
                 o.alt - self.alt,
             )
         raise TypeError()

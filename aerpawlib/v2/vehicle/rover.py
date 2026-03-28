@@ -18,7 +18,14 @@ from ..constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
     ARMING_SEQUENCE_DELAY_S,
+    CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
+    GPS_3D_FIX_TYPE,
+    GOTO_LOG_INTERVAL_S,
+    GOTO_NB_LOG_INTERVAL_S,
+    GOTO_POLL_INTERVAL_S,
+    HOME_POSITION_TIMEOUT_S,
+    MAVLINK_MSG_COMMAND_LONG,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
@@ -109,7 +116,7 @@ class Rover(Vehicle):
                 component_id=1,
                 target_system_id=1,
                 target_component_id=1,
-                message_name="COMMAND_LONG",
+                message_name=MAVLINK_MSG_COMMAND_LONG,
                 fields_json=json.dumps(fields),
             )
 
@@ -147,11 +154,11 @@ class Rover(Vehicle):
             return
         await _wait_for_condition(
             lambda: self._state.armable,
-            timeout=30.0,
+            timeout=CONNECTION_TIMEOUT_S,
             timeout_message=f"Rover not armable: {self._get_health_summary()}",
         )
         await _wait_for_condition(
-            lambda: self.gps.fix_type >= 3,
+            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
             timeout=POSITION_READY_TIMEOUT_S,
             timeout_message="Rover: no GPS 3D fix",
         )
@@ -159,7 +166,7 @@ class Rover(Vehicle):
         await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
         await _wait_for_condition(
             lambda: self._state.home_coords is not None,
-            timeout=5.0,
+            timeout=HOME_POSITION_TIMEOUT_S,
             timeout_message="Rover: home position not available",
         )
 
@@ -220,7 +227,7 @@ class Rover(Vehicle):
                             f"Rover failed to reach destination within {timeout}s"
                         )
                     now = time.monotonic()
-                    if now - last_log >= 3.0:
+                    if now - last_log >= GOTO_LOG_INTERVAL_S:
                         dist = coordinates.ground_distance(self.position)
                         logger.debug(
                             "Rover: goto_coordinates progress ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
@@ -229,7 +236,7 @@ class Rover(Vehicle):
                             elapsed,
                         )
                         last_log = now
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(POLLING_DELAY_S)
                 return None
             except TimeoutError as e:
                 logger.error(f"Rover: goto_coordinates failed (timeout): {e}")
@@ -276,14 +283,14 @@ class Rover(Vehicle):
                     p = 1.0 - (d / initial_dist)
                     handle.set_progress(max(0.0, min(1.0, p)))
                 now = time.monotonic()
-                if now - last_log >= 5.0:
+                if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
                         "Rover: goto_coordinates (non-blocking) ground_dist=%.1fm progress=%.0f%%",
                         d,
                         handle.progress * 100,
                     )
                     last_log = now
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(GOTO_POLL_INTERVAL_S)
 
         t1 = asyncio.create_task(_wait_arrival())
         t2 = asyncio.create_task(_progress_updater())

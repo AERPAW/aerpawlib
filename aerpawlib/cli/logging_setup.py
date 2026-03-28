@@ -4,6 +4,14 @@ import logging
 import sys
 from typing import Optional
 
+from aerpawlib.cli.constants import (
+    AERPAWLIB_LOGGER_NAME,
+    CYGRPC_LOGGER_NAME,
+    GRPC_CYGRPC_LOGGER_NAME,
+    LOG_FORMAT_STRING,
+    LOG_DATETIME_FORMAT,
+    LOG_FILE_OPEN_MODE,
+)
 from aerpawlib.log import ColoredFormatter
 
 
@@ -44,17 +52,17 @@ def setup_logging(
     console_handler.setFormatter(ColoredFormatter(use_colors=True))
     root_logger.addHandler(console_handler)
 
-    logging.getLogger("_cython.cygrpc").setLevel(logging.WARNING)
-    logging.getLogger("grpc._cython.cygrpc").setLevel(logging.WARNING)
+    logging.getLogger(CYGRPC_LOGGER_NAME).setLevel(logging.WARNING)
+    logging.getLogger(GRPC_CYGRPC_LOGGER_NAME).setLevel(logging.WARNING)
 
     if log_file:
-        file_handler = logging.FileHandler(log_file, mode="a")
+        file_handler = logging.FileHandler(log_file, mode=LOG_FILE_OPEN_MODE)
         file_handler.setLevel(logging.DEBUG)
         file_formatter = logging.Formatter(
-            "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
+            LOG_FORMAT_STRING,
+            datefmt=LOG_DATETIME_FORMAT,
         )
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
-    return logging.getLogger("aerpawlib")
+    return logging.getLogger(AERPAWLIB_LOGGER_NAME)

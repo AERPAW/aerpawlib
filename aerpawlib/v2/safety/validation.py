@@ -6,6 +6,7 @@ Integrated into vehicle lifecycle.
 
 from __future__ import annotations
 
+from ..constants import DEFAULT_MIN_BATTERY_PERCENT, GPS_3D_FIX_TYPE
 from ..log import LogComponent, get_logger
 from ..protocols import VehicleProtocol
 
@@ -23,9 +24,9 @@ class PreflightChecks:
             vehicle: Vehicle to inspect.
 
         Returns:
-            True if fix_type >= 3, False otherwise.
+            True if fix_type >= GPS_3D_FIX_TYPE, False otherwise.
         """
-        if vehicle.gps.fix_type >= 3:
+        if vehicle.gps.fix_type >= GPS_3D_FIX_TYPE:
             logger.debug(
                 f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})"
             )
@@ -36,7 +37,9 @@ class PreflightChecks:
         return False
 
     @staticmethod
-    def check_battery(vehicle: VehicleProtocol, min_percent: float = 10.0) -> bool:
+    def check_battery(
+        vehicle: VehicleProtocol, min_percent: float = DEFAULT_MIN_BATTERY_PERCENT
+    ) -> bool:
         """Check that the vehicle battery is above the minimum threshold.
 
         Args:

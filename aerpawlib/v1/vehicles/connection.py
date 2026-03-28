@@ -11,7 +11,9 @@ _MAVSDK_VALID_SCHEMES = frozenset(
 )
 
 
-def _parse_udp_connection_port(connection_string: str) -> Optional[Tuple[str, int]]:
+def _parse_udp_connection_port(
+    connection_string: str,
+) -> Optional[Tuple[str, int]]:
     """
     Parse host and port from a UDP connection string for port-in-use checks.
 

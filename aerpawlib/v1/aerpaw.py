@@ -28,6 +28,9 @@ from .constants import (
     OEO_MSG_SEV_ERR,
     OEO_MSG_SEV_CRIT,
     OEO_MSG_SEVS,
+    AERPAW_PING_TIMEOUT_S,
+    AERPAW_OEO_MSG_TIMEOUT_S,
+    AERPAW_CHECKPOINT_TIMEOUT_S,
 )
 
 
@@ -52,7 +55,9 @@ class AERPAW:
     _connection_warning_displayed = False
 
     def __init__(
-        self, forw_addr=DEFAULT_FORWARD_SERVER_IP, forw_port=DEFAULT_FORWARD_SERVER_PORT
+        self,
+        forw_addr=DEFAULT_FORWARD_SERVER_IP,
+        forw_port=DEFAULT_FORWARD_SERVER_PORT,
     ):
         """
         Initialize the AERPAW platform interface.
@@ -72,7 +77,10 @@ class AERPAW:
         hosting this experiment. Returns bool depending on success.
         """
         try:
-            requests.post(f"http://{self._forw_addr}:{self._forw_port}/ping", timeout=1)
+            requests.post(
+                f"http://{self._forw_addr}:{self._forw_port}/ping",
+                timeout=AERPAW_PING_TIMEOUT_S,
+            )
         except requests.exceptions.RequestException:
             return False
         return True
@@ -140,12 +148,12 @@ class AERPAW:
             if agent_id:
                 requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
-                    timeout=3,
+                    timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}",
-                    timeout=3,
+                    timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException:
             if not self._no_stdout:
@@ -182,7 +190,7 @@ class AERPAW:
             )
         response = requests.post(
             f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
@@ -204,7 +212,7 @@ class AERPAW:
             )
         response = requests.post(
             self._checkpoint_build_request("bool", checkpoint_name),
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -229,7 +237,7 @@ class AERPAW:
             )
         response = requests.get(
             self._checkpoint_build_request("bool", checkpoint_name),
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
@@ -259,7 +267,7 @@ class AERPAW:
             )
         response = requests.post(
             self._checkpoint_build_request("int", counter_name),
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -284,7 +292,7 @@ class AERPAW:
             )
         response = requests.get(
             self._checkpoint_build_request("int", counter_name),
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
@@ -315,7 +323,7 @@ class AERPAW:
         response = requests.post(
             self._checkpoint_build_request("string", string_name),
             params={"val": value},
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
@@ -340,7 +348,7 @@ class AERPAW:
             )
         response = requests.get(
             self._checkpoint_build_request("string", string_name),
-            timeout=5,
+            timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
@@ -348,7 +356,10 @@ class AERPAW:
         return response_content
 
     def publish_user_oeo_topic(
-        self, value: str, topic: str, agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID
+        self,
+        value: str,
+        topic: str,
+        agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID,
     ) -> bool:
         """
         Publish `value` to a user topic in the OEO system (can be added/is
@@ -383,12 +394,12 @@ class AERPAW:
             if not agent_id:
                 requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}",
-                    timeout=3,
+                    timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
-                    timeout=3,
+                    timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException as e:
             logger.error(f"unable to publish value to OEO system. exception: {e}")

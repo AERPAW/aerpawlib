@@ -4,7 +4,14 @@ import asyncio
 import time
 from typing import Optional
 
-from aerpawlib.constants import RUNNER_DISCONNECT_POLL_INTERVAL_S
+from aerpawlib.cli.constants import (
+    RUNNER_DISCONNECT_POLL_INTERVAL_S,
+    VEHICLE_ATTR_CLOSED,
+    VEHICLE_ATTR_CONNECTION_ERROR,
+    VEHICLE_ATTR_CONNECTED,
+    VEHICLE_CONNECTION_LOST_MSG_WITH_ERROR_FMT,
+    VEHICLE_CONNECTION_LOST_MSG_WITH_DURATION_FMT,
+)
 
 
 def build_connection_loss_error(
@@ -56,17 +63,19 @@ async def wait_for_v1_connection_loss(
     """
     disconnected_since = None
     timeout_s = max(heartbeat_timeout, 0.0)
-    while not getattr(vehicle, "_closed", False):
-        connection_error = getattr(vehicle, "_connection_error", None)
+    while not getattr(vehicle, VEHICLE_ATTR_CLOSED, False):
+        connection_error = getattr(vehicle, VEHICLE_ATTR_CONNECTION_ERROR, None)
         if connection_error is not None:
             raise build_connection_loss_error(
                 heartbeat_error_cls,
                 age=0.0,
-                message=f"Vehicle connection lost ({connection_error})",
+                message=VEHICLE_CONNECTION_LOST_MSG_WITH_ERROR_FMT.format(
+                    connection_error=connection_error
+                ),
                 original_error=connection_error,
             )
 
-        if bool(getattr(vehicle, "connected", True)):
+        if bool(getattr(vehicle, VEHICLE_ATTR_CONNECTED, True)):
             disconnected_since = None
         else:
             if disconnected_since is None:
@@ -76,8 +85,8 @@ async def wait_for_v1_connection_loss(
                 raise build_connection_loss_error(
                     heartbeat_error_cls,
                     age=age,
-                    message=(
-                        "Vehicle connection lost " f"(disconnected for {age:.1f}s)"
+                    message=VEHICLE_CONNECTION_LOST_MSG_WITH_DURATION_FMT.format(
+                        age=age
                     ),
                 )
         await asyncio.sleep(RUNNER_DISCONNECT_POLL_INTERVAL_S)

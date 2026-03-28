@@ -196,3 +196,88 @@ PLAN_CMD_TAKEOFF = 22
 PLAN_CMD_WAYPOINT = 16
 PLAN_CMD_RTL = 20
 PLAN_CMD_SPEED = 178
+
+
+# Vehicle Type Identifiers
+
+# Vehicle type string for copter/drone in safety validation
+VEHICLE_TYPE_COPTER = "copter"
+# Vehicle type string for rover in safety validation
+VEHICLE_TYPE_ROVER = "rover"
+
+
+# Additional Timing Constants
+
+# Timeout for telemetry subscription (seconds)
+TELEMETRY_SUBSCRIPTION_TIMEOUT_S = 5.0
+
+# Timeout for MAVSDK thread shutdown (seconds)
+MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S = 5.0
+
+# Timeout for MAVLink command execution (seconds)
+MAVLINK_COMMAND_TIMEOUT_S = 5.0
+
+
+# AERPAW Network Timeouts
+
+# Timeout for AERPAW platform ping (seconds)
+AERPAW_PING_TIMEOUT_S = 1
+
+# Timeout for AERPAW OEO message HTTP requests (seconds)
+AERPAW_OEO_MSG_TIMEOUT_S = 3
+
+# Timeout for AERPAW checkpoint HTTP requests (seconds)
+AERPAW_CHECKPOINT_TIMEOUT_S = 5
+
+
+# Retry Configuration
+
+# Maximum number of retries for telemetry subscription
+MAX_TELEMETRY_RETRIES = 3
+
+
+# ZMQ Additional Constants
+
+# Default timeout for ZMQ proxy reachability check (seconds)
+ZMQ_PROXY_CHECK_TIMEOUT_S = 2.0
+
+
+# GPS Constants
+
+# GPS fix type value indicating 3D fix (MAVLink standard)
+GPS_3D_FIX_TYPE = 3
+
+
+# Safety Server Constants
+
+# Default port for safety checker server
+DEFAULT_SAFETY_SERVER_PORT = 14580
+
+
+# Geographic Constants
+
+# Earth radius in kilometers (WGS84)
+EARTH_RADIUS_KM = 6378.137
+
+# Earth radius in meters (WGS84)
+EARTH_RADIUS_M = 6378137.0
+
+# Radians to degrees conversion factor (180/π)
+RAD_TO_DEG_FACTOR = 57.2957795
+
+# Coordinate equality epsilon for floating point comparison
+COORDINATE_EPSILON = 1e-10
+
+# WGS84 latitude distance calculation coefficients
+LAT_M_PER_DEG = 111132.954
+LAT_COEFF_2 = 559.822
+LAT_COEFF_4 = 1.175
+
+
+# MAVLink Message Names
+
+# MAVLink command message name for rover control
+MAVLINK_MSG_COMMAND_LONG = "COMMAND_LONG"
+
+# Rover mode name string
+GUIDED_MODE_NAME = "OFFBOARD"

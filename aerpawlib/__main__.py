@@ -40,10 +40,15 @@ from aerpawlib.cli.paths import (
     resolve_cli_path,
     resolve_script_path,
 )
-from aerpawlib.constants import (
+from aerpawlib.cli.constants import (
     DEFAULT_CONNECTION_TIMEOUT_S,
     DEFAULT_HEARTBEAT_TIMEOUT_S,
     DEFAULT_MAVSDK_PORT,
+    DEFAULT_SAFETY_CHECKER_PORT,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_ROVER,
+    VEHICLE_TYPE_NONE,
 )
 
 logger: Optional[logging.Logger] = None
@@ -123,7 +128,12 @@ def main():
     core_grp.add_argument(
         "--vehicle",
         help="vehicle type",
-        choices=["generic", "drone", "rover", "none"],
+        choices=[
+            VEHICLE_TYPE_GENERIC,
+            VEHICLE_TYPE_DRONE,
+            VEHICLE_TYPE_ROVER,
+            VEHICLE_TYPE_NONE,
+        ],
         required=not proxy_mode,
     )
     core_grp.add_argument(
@@ -229,7 +239,7 @@ def main():
     )
     conn_grp.add_argument(
         "--safety-checker-port",
-        help="Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to 14580; "
+        help=f"Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to {DEFAULT_SAFETY_CHECKER_PORT}; "
         "outside AERPAW, optional. If connection fails: AERPAW=crash, non-AERPAW=passthrough.",
         type=int,
         default=None,
@@ -279,7 +289,7 @@ def main():
         else:
             for name in dir(api_module):
                 if not name.startswith("_"):
-                    if name in [
+                    excluded_names = [
                         "logging",
                         "os",
                         "sys",
@@ -288,7 +298,8 @@ def main():
                         "json",
                         "signal",
                         "traceback",
-                    ]:
+                    ]
+                    if name in excluded_names:
                         continue
                     globals()[name] = getattr(api_module, name)
     except Exception as e:

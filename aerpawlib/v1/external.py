@@ -73,7 +73,12 @@ class ExternalProcess:
             if stream is not None:
                 try:
                     await stream.read()
-                except (BrokenPipeError, ConnectionResetError, ValueError, OSError):
+                except (
+                    BrokenPipeError,
+                    ConnectionResetError,
+                    ValueError,
+                    OSError,
+                ):
                     pass
         if proc.stdin is not None:
             try:
