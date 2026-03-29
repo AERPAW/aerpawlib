@@ -13,7 +13,8 @@ from mavsdk.action import ActionError
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
 from ..constants import (
-    ARMING_SEQUENCE_DELAY_S,
+    ARMABLE_STATUS_LOG_INTERVAL_S,
+    ARMABLE_TIMEOUT_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
@@ -22,7 +23,6 @@ from ..constants import (
     GOTO_LOG_INTERVAL_S,
     GOTO_NB_LOG_INTERVAL_S,
     HEADING_TOLERANCE_DEG,
-    HOME_POSITION_TIMEOUT_S,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
@@ -31,6 +31,7 @@ from ..constants import (
     TAKEOFF_LOG_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
 )
+from ..aerpaw import AERPAW_Platform
 from ..exceptions import (
     LandingError,
     NavigationError,
@@ -59,12 +60,6 @@ class Drone(Vehicle):
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Wait for pre-arm conditions. Call before run."""
         self._will_arm = should_arm
-        from ..constants import (
-            ARMABLE_TIMEOUT_S,
-            ARMABLE_STATUS_LOG_INTERVAL_S,
-            POLLING_DELAY_S,
-        )
-
         start = time.monotonic()
         last_log = 0.0
         while not self._state.armable:
@@ -80,31 +75,32 @@ class Drone(Vehicle):
             await asyncio.sleep(POLLING_DELAY_S)
 
     async def _arm_vehicle(self) -> None:
-        """Arm and prepare for mission (SITL/standalone: auto-arm)."""
-        from ..constants import ARMING_SEQUENCE_DELAY_S, POSITION_READY_TIMEOUT_S
-
+        """Arm and prepare for mission (AERPAW: wait for pilot; else auto-arm)."""
         if not self._will_arm:
             logger.debug("Drone: _arm_vehicle skipped (_will_arm=False)")
             return
-        await _wait_for_condition(
-            lambda: self._state.armable,
-            timeout=CONNECTION_TIMEOUT_S,
-            timeout_message=f"Vehicle not armable: {self._get_health_summary()}",
-        )
-        await _wait_for_condition(
-            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
-            timeout=POSITION_READY_TIMEOUT_S,
-            timeout_message="No GPS 3D fix",
-        )
-        while not self.ekf_ready:
-            await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
-        await self.set_armed(True)
-        await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
-        await _wait_for_condition(
-            lambda: self._state.home_coords is not None,
-            timeout=HOME_POSITION_TIMEOUT_S,
-            timeout_message="Home position not available",
-        )
+
+        platform = AERPAW_Platform()
+        if platform._is_aerpaw_environment():
+            await self._await_aerpaw_safety_pilot_arm(platform)
+        else:
+            logger.info("Standalone mode: auto-arming vehicle...")
+            await _wait_for_condition(
+                lambda: self._state.armable,
+                timeout=CONNECTION_TIMEOUT_S,
+                timeout_message=f"Vehicle not armable: {self._get_health_summary()}",
+            )
+            await _wait_for_condition(
+                lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+                timeout=POSITION_READY_TIMEOUT_S,
+                timeout_message="No GPS 3D fix",
+            )
+            while not self.ekf_ready:
+                await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
+            await self.set_armed(True)
+            logger.info("Vehicle armed successfully")
+
+        await self._arm_vehicle_post_arm_home_wait()
 
     async def set_heading(
         self,

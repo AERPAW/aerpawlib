@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Generator, List, Tuple
 
+from pykml import parser
+
 from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.VEHICLE)
@@ -26,9 +28,6 @@ def read_geofence(file_path: str) -> List[dict]:
     Raises:
         ValueError: If no Polygon with a LinearRing is found in the KML.
     """
-    from pykml import parser
-    from lxml import etree
-
     with open(file_path, "rb") as f:
         root = parser.fromstring(f.read())
 

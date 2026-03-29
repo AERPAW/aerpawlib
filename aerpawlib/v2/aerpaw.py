@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 from typing import Optional
 
+import aiohttp
 import requests
 
 from .constants import (
@@ -83,6 +84,31 @@ class AERPAW_Platform:
         """
         self._no_stdout = value
 
+    def _log_to_oeo_local(self, msg: str, severity: str) -> None:
+        """Emit *msg* to the local logger according to *severity*."""
+        if self._no_stdout:
+            return
+        if severity == OEO_MSG_SEV_CRIT:
+            logger.critical(msg)
+        elif severity == OEO_MSG_SEV_ERR:
+            logger.error(msg)
+        elif severity == OEO_MSG_SEV_WARN:
+            logger.warning(msg)
+        else:
+            logger.info(msg)
+
+    def _oeo_message_url(
+        self, msg: str, severity: str, agent_id: Optional[str]
+    ) -> str:
+        """Build the HTTP URL for publishing *msg* to the OEO forward server."""
+        encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
+        url = (
+            f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
+        )
+        if agent_id:
+            url += f"/{agent_id}"
+        return url
+
     def log_to_oeo(
         self,
         msg: str,
@@ -100,23 +126,34 @@ class AERPAW_Platform:
                 CRITICAL).
             agent_id: Optional agent identifier appended to the request URL.
         """
-        if not self._no_stdout:
-            if severity == OEO_MSG_SEV_CRIT:
-                logger.critical(msg)
-            elif severity == OEO_MSG_SEV_ERR:
-                logger.error(msg)
-            elif severity == OEO_MSG_SEV_WARN:
-                logger.warning(msg)
-            else:
-                logger.info(msg)
+        self._log_to_oeo_local(msg, severity)
         if not self._connected:
             return
-        encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
         try:
-            url = f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
-            if agent_id:
-                url += f"/{agent_id}"
-            requests.post(url, timeout=AERPAW_NOTIFY_TIMEOUT_S)
+            requests.post(
+                self._oeo_message_url(msg, severity, agent_id),
+                timeout=AERPAW_NOTIFY_TIMEOUT_S,
+            )
         except requests.exceptions.RequestException as e:
+            if not self._no_stdout:
+                logger.error(f"Failed to send message to OEO: {e}")
+
+    async def log_to_oeo_async(
+        self,
+        msg: str,
+        severity: str = OEO_MSG_SEV_INFO,
+        agent_id: Optional[str] = None,
+    ) -> None:
+        """Async variant of ``log_to_oeo`` for use from asyncio (non-blocking HTTP)."""
+        self._log_to_oeo_local(msg, severity)
+        if not self._connected:
+            return
+        url = self._oeo_message_url(msg, severity, agent_id)
+        timeout = aiohttp.ClientTimeout(total=AERPAW_NOTIFY_TIMEOUT_S)
+        try:
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url):
+                    pass
+        except aiohttp.ClientError as e:
             if not self._no_stdout:
                 logger.error(f"Failed to send message to OEO: {e}")

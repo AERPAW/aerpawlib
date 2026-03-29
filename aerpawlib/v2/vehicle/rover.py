@@ -17,14 +17,12 @@ from pymavlink import mavutil
 from ..constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
-    ARMING_SEQUENCE_DELAY_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     GPS_3D_FIX_TYPE,
     GOTO_LOG_INTERVAL_S,
     GOTO_NB_LOG_INTERVAL_S,
     GOTO_POLL_INTERVAL_S,
-    HOME_POSITION_TIMEOUT_S,
     MAVLINK_MSG_COMMAND_LONG,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
@@ -34,6 +32,7 @@ from ..constants import (
     VELOCITY_LOOP_HANDOFF_DELAY_S,
     VELOCITY_UPDATE_DELAY_S,
 )
+from ..aerpaw import AERPAW_Platform
 from ..exceptions import NavigationError, VelocityError
 from ..log import LogComponent, get_logger
 from ..types import Coordinate, VectorNED
@@ -140,35 +139,30 @@ class Rover(Vehicle):
             )
 
     async def _arm_vehicle(self) -> None:
-        """Arm the rover and confirm mission prerequisites.
-
-        This waits for armable state and a 3D GPS fix, arms the rover, then
-        verifies that a home position is available before mission commands run.
-
-        Raises:
-            TimeoutError: If armability, GPS lock, or home position readiness
-                does not complete within the configured timeout.
-        """
+        """Arm and prepare for mission (AERPAW: wait for pilot; else auto-arm)."""
         if not self._will_arm:
             logger.debug("Rover: _arm_vehicle skipped (_will_arm=False)")
             return
-        await _wait_for_condition(
-            lambda: self._state.armable,
-            timeout=CONNECTION_TIMEOUT_S,
-            timeout_message=f"Rover not armable: {self._get_health_summary()}",
-        )
-        await _wait_for_condition(
-            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
-            timeout=POSITION_READY_TIMEOUT_S,
-            timeout_message="Rover: no GPS 3D fix",
-        )
-        await self.set_armed(True)
-        await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
-        await _wait_for_condition(
-            lambda: self._state.home_coords is not None,
-            timeout=HOME_POSITION_TIMEOUT_S,
-            timeout_message="Rover: home position not available",
-        )
+
+        platform = AERPAW_Platform()
+        if platform._is_aerpaw_environment():
+            await self._await_aerpaw_safety_pilot_arm(platform)
+        else:
+            logger.info("Standalone mode: auto-arming rover...")
+            await _wait_for_condition(
+                lambda: self._state.armable,
+                timeout=CONNECTION_TIMEOUT_S,
+                timeout_message=f"Rover not armable: {self._get_health_summary()}",
+            )
+            await _wait_for_condition(
+                lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+                timeout=POSITION_READY_TIMEOUT_S,
+                timeout_message="Rover: no GPS 3D fix",
+            )
+            await self.set_armed(True)
+            logger.info("Rover armed successfully")
+
+        await self._arm_vehicle_post_arm_home_wait()
 
     async def goto_coordinates(
         self,

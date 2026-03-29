@@ -19,10 +19,13 @@ if TYPE_CHECKING:
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from ..aerpaw import AERPAW_Platform
 from ..constants import (
+    ARMING_SEQUENCE_DELAY_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_MAVSDK_SERVER_PORT,
     GPS_3D_FIX_TYPE,
+    HOME_POSITION_TIMEOUT_S,
     MIN_POSITION_TOLERANCE_M,
     MAX_POSITION_TOLERANCE_M,
     MAV_SYS_STATUS_PREARM_CHECK,
@@ -32,7 +35,9 @@ from ..constants import (
     READY_MOVE_LOG_INTERVAL_S,
 )
 from ..exceptions import (
+    ArmError,
     ConnectionTimeoutError,
+    DisarmError,
     NotArmableError,
 )
 from ..log import LogComponent, get_logger
@@ -609,9 +614,38 @@ class Vehicle:
         """Return True if the vehicle is ready to accept the next command."""
         return self._ready_to_move(self)
 
+    async def _await_aerpaw_safety_pilot_arm(self, platform: AERPAW_Platform) -> None:
+        """AERPAW: OEO notice (async), then wait indefinitely for pilot to arm."""
+        asyncio.create_task(
+            platform.log_to_oeo_async(
+                "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",
+            )
+        )
+        logger.info("Waiting for safety pilot to arm vehicle...")
+        await _wait_for_condition(
+            lambda: self._state.armable,
+            poll_interval=POLLING_DELAY_S,
+        )
+        await _wait_for_condition(
+            lambda: self.armed,
+            poll_interval=POLLING_DELAY_S,
+        )
+
+    async def _arm_vehicle_post_arm_home_wait(self) -> None:
+        """Shared tail after vehicle is armed (AERPAW or auto-arm): delay + home."""
+        await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+        await _wait_for_condition(
+            lambda: self._state.home_coords is not None,
+            timeout=HOME_POSITION_TIMEOUT_S,
+            timeout_message="Home position not available",
+        )
+
     async def _arm_vehicle(self) -> None:
-        """Arm and prepare for mission. Override in Drone/Rover."""
-        raise NotImplementedError("Override in subclass")
+        """Arm and prepare for mission. Implemented by Drone and Rover."""
+        if not self._will_arm:
+            logger.debug("Vehicle: _arm_vehicle skipped (_will_arm=False)")
+            return
+        raise NotImplementedError("Subclass must implement _arm_vehicle")
 
     async def await_ready_to_move(self) -> None:
         """Wait until vehicle is ready for next command."""
@@ -673,8 +707,6 @@ class Vehicle:
                 timeout_message="Arm/disarm did not complete within 60s",
             )
         except ActionError as e:
-            from ..exceptions import ArmError, DisarmError
-
             if value:
                 raise ArmError(str(e), original_error=e)
             raise DisarmError(str(e), original_error=e)
@@ -780,6 +812,12 @@ class DummyVehicle(Vehicle):
         self._expecting_disarm = False
         self._unexpected_disarm_event = asyncio.Event()
         self.safety = safety
+
+    async def _arm_vehicle(self) -> None:
+        """Dry-run: no MAVSDK arming."""
+        if not self._will_arm:
+            logger.debug("DummyVehicle: _arm_vehicle skipped (_will_arm=False)")
+            return
 
     @classmethod
     async def connect(

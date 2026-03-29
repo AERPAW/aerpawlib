@@ -22,6 +22,7 @@ from .exceptions import (
     NoEntrypointError,
     NoInitialStateError,
     RunnerError,
+    UnexpectedDisarmError,
 )
 from .log import LogComponent, get_logger
 from .runner_config import (
@@ -76,8 +77,6 @@ class Runner:
         if disarm_event is None:
             await coro
             return
-
-        from .exceptions import UnexpectedDisarmError
 
         main_task = asyncio.ensure_future(coro)
 

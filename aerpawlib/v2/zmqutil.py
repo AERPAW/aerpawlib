@@ -6,7 +6,13 @@ Reuses logic from v1.
 
 import socket
 
-from .constants import ZMQ_PROXY_OUT_PORT, ZMQ_REACHABILITY_TIMEOUT_S
+import zmq
+
+from .constants import (
+    ZMQ_PROXY_IN_PORT,
+    ZMQ_PROXY_OUT_PORT,
+    ZMQ_REACHABILITY_TIMEOUT_S,
+)
 from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.ZMQ)
@@ -39,10 +45,6 @@ def run_zmq_proxy() -> None:
     Start this proxy in a separate process before launching any runners that
     use ZMQ bindings (ZmqStateMachine).
     """
-    import zmq
-
-    from .constants import ZMQ_PROXY_IN_PORT
-
     ctx = zmq.Context()
     p_sub = ctx.socket(zmq.XSUB)
     p_pub = ctx.socket(zmq.XPUB)
