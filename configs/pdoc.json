@@ -1,0 +1,14 @@
+{
+  "modules": [
+    "aerpawlib"
+  ],
+  "output_directory": "docs/pdoc",
+  "docformat": "google",
+  "include_undocumented": true,
+  "search": true,
+  "show_source": true,
+  "edit_url": {
+    "aerpawlib": "https://github.com/AERPAW/aerpawlib/blob/main/aerpawlib/"
+  },
+  "footer_text": "aerpawlib API documentation"
+}
