@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional, TypeVar
+from typing import Any, Dict, List, Optional, cast
 
 import zmq
 import zmq.asyncio
 
-from .constants import (
+from ..constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
@@ -17,22 +17,22 @@ from .constants import (
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_FIELD_CALLBACK,
 )
-from .exceptions import (
+from ..exceptions import (
     InvalidStateError,
     NoEntrypointError,
     NoInitialStateError,
     RunnerError,
     UnexpectedDisarmError,
 )
-from .log import LogComponent, get_logger
-from .runner_config import (
+from ..log import LogComponent, get_logger
+from .config import (
     BasicRunnerConfig,
     StateMachineConfig,
     StateSpec,
     ZmqStateMachineConfig,
     V,
 )
-from .zmqutil import check_zmq_proxy_reachable
+from ..zmqutil import check_zmq_proxy_reachable
 
 logger = get_logger(LogComponent.RUNNER)
 
@@ -321,13 +321,15 @@ class StateMachine(Runner):
                 self._background_futures.append(fut)
 
             while self._running:
-                if self._current_state not in states:
+                current_state = self._current_state
+                assert current_state is not None
+                if current_state not in states:
                     logger.error(
-                        f"StateMachine: invalid state '{self._current_state}' "
+                        f"StateMachine: invalid state '{current_state}' "
                         f"(valid: {list(states.keys())})"
                     )
-                    raise InvalidStateError(self._current_state, list(states.keys()))
-                spec = states[self._current_state]
+                    raise InvalidStateError(current_state, list(states.keys()))
+                spec = states[current_state]
                 next_state = await self._run_state(spec, vehicle)
                 if getattr(self, "_override_next_state_transition", False):
                     self._override_next_state_transition = False
@@ -482,7 +484,7 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: TRANSITION message missing 'next_state'"
                 )
                 return
-            self._next_state_overr = next_state
+            self._next_state_overr = cast(str, next_state)
             self._override_next_state_transition = True
             logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
 
@@ -495,12 +497,15 @@ class ZmqStateMachine(StateMachine):
                     "(missing 'field' or 'from')"
                 )
                 return
+            field_name = cast(str, field)
+            sender_name = cast(str, sender)
             cfg = self._get_zmq_config()
             return_val = None
-            if field in cfg.exposed_fields:
-                method = getattr(self, cfg.exposed_fields[field])
+            method_name = cfg.exposed_fields.get(field_name)
+            if method_name is not None:
+                method = getattr(self, method_name)
                 return_val = await method(vehicle)
-            await self._zmq_send_reply(sender, field, return_val)
+            await self._zmq_send_reply(sender_name, field_name, return_val)
 
         elif msg_type == ZMQ_TYPE_FIELD_CALLBACK:
             field = message.get("field")
@@ -511,16 +516,18 @@ class ZmqStateMachine(StateMachine):
                     "(missing 'field' or 'from')"
                 )
                 return
+            field_name = cast(str, field)
+            sender_name = cast(str, sender)
             value = message.get("value")
-            pending = self._zmq_pending_fields.get(sender, {})
-            waiting = pending.get(field)
+            pending = self._zmq_pending_fields.get(sender_name, {})
+            waiting = pending.get(field_name)
             if isinstance(waiting, asyncio.Event):
-                pending[field] = value
+                pending[field_name] = value
                 waiting.set()
             else:
-                if sender not in self._zmq_pending_fields:
-                    self._zmq_pending_fields[sender] = {}
-                self._zmq_pending_fields[sender][field] = value
+                if sender_name not in self._zmq_pending_fields:
+                    self._zmq_pending_fields[sender_name] = {}
+                self._zmq_pending_fields[sender_name][field_name] = value
 
     def _get_backgrounds(self) -> List[str]:
         """Return base backgrounds plus mandatory ZMQ send/receive loops."""

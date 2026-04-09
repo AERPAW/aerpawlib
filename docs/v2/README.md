@@ -33,12 +33,12 @@ Machine-readable events are written one JSON object per line: `mission_start` / 
 
 ## Key Types
 
-| Type | Purpose |
-|------|---------|
-| `Coordinate` | WGS84 position (lat, lon, alt) |
-| `VectorNED` | NED displacement (north, east, down) in meters |
-| `Battery`, `GPSInfo`, `Attitude` | Telemetry dataclasses |
-| `VehicleTask` | Non-blocking command with progress and cancellation |
+| Type                             | Purpose                                             |
+|----------------------------------|-----------------------------------------------------|
+| `Coordinate`                     | WGS84 position (lat, lon, alt)                      |
+| `VectorNED`                      | NED displacement (north, east, down) in meters      |
+| `Battery`, `GPSInfo`, `Attitude` | Telemetry dataclasses                               |
+| `VehicleTask`                    | Non-blocking command with progress and cancellation |
 
 ## Vehicle API
 
@@ -55,21 +55,21 @@ vehicle = await Drone.connect("udpin://127.0.0.1:14550", timeout=60.0)
 
 ### Vehicle Properties
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `position` | `Coordinate` | Current position (lat, lon, alt AGL) |
-| `home_coords` | `Optional[Coordinate]` | Home/launch position |
-| `home_amsl` | `float` | Home altitude in AMSL meters |
-| `battery` | `Battery` | Battery status (voltage, current, level %) |
-| `gps` | `GPSInfo` | GPS status (fix_type, satellites_visible) |
-| `armed` | `bool` | True if vehicle is armed |
-| `heading` | `float` | Current heading in degrees |
-| `velocity` | `VectorNED` | Current velocity in m/s |
-| `attitude` | `Attitude` | Roll, pitch, yaw in radians |
-| `mode` | `str` | Current flight mode name |
-| `armable` | `bool` | True if vehicle can be armed |
-| `connected` | `bool` | True if connection is active and not closed |
-| `closed` | `bool` | True if `close()` has been called |
+| Property      | Type                   | Description                                 |
+|---------------|------------------------|---------------------------------------------|
+| `position`    | `Coordinate`           | Current position (lat, lon, alt AGL)        |
+| `home_coords` | `Optional[Coordinate]` | Home/launch position                        |
+| `home_amsl`   | `float`                | Home altitude in AMSL meters                |
+| `battery`     | `Battery`              | Battery status (voltage, current, level %)  |
+| `gps`         | `GPSInfo`              | GPS status (fix_type, satellites_visible)   |
+| `armed`       | `bool`                 | True if vehicle is armed                    |
+| `heading`     | `float`                | Current heading in degrees                  |
+| `velocity`    | `VectorNED`            | Current velocity in m/s                     |
+| `attitude`    | `Attitude`             | Roll, pitch, yaw in radians                 |
+| `mode`        | `str`                  | Current flight mode name                    |
+| `armable`     | `bool`                 | True if vehicle can be armed                |
+| `connected`   | `bool`                 | True if connection is active and not closed |
+| `closed`      | `bool`                 | True if `close()` has been called           |
 
 ### Drone Commands (blocking)
 ```python
@@ -93,13 +93,13 @@ await handle.wait_done() # raises if error occurred
 
 ### VehicleTask API
 
-| Method / Property | Description |
-|-------------------|-------------|
-| `progress` | Float 0.0–1.0 progress estimate |
-| `is_done()` | True when command has completed, errored, or been cancelled |
-| `is_cancelled()` | True after `cancel()` has been called |
-| `cancel()` | Request cancellation (triggers on_cancel callback) |
-| `wait_done()` | Await completion; re-raises any error |
+| Method / Property | Description                                                 |
+|-------------------|-------------------------------------------------------------|
+| `progress`        | Float 0.0–1.0 progress estimate                             |
+| `is_done()`       | True when command has completed, errored, or been cancelled |
+| `is_cancelled()`  | True after `cancel()` has been called                       |
+| `cancel()`        | Request cancellation (triggers on_cancel callback)          |
+| `wait_done()`     | Await completion; re-raises any error                       |
 
 ### Arm / Disarm
 ```python

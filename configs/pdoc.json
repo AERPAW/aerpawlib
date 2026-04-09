@@ -1,6 +1,14 @@
 {
   "modules": [
-    "aerpawlib"
+    "aerpawlib.v1",
+    "aerpawlib.v2",
+    "!aerpawlib.v1.safetyChecker",
+    "!aerpawlib.runner",
+    "!aerpawlib.vehicle",
+    "!aerpawlib.external",
+    "!aerpawlib.aerpaw",
+    "!aerpawlib.zmqutil",
+    "!aerpawlib.safetyChecker"
   ],
   "output_directory": "docs/pdoc",
   "docformat": "google",
@@ -8,7 +16,8 @@
   "search": true,
   "show_source": true,
   "edit_url": {
-    "aerpawlib": "https://github.com/AERPAW/aerpawlib/blob/main/aerpawlib/"
+    "aerpawlib.v1": "https://github.com/AERPAW/aerpawlib/blob/main/aerpawlib/v1/",
+    "aerpawlib.v2": "https://github.com/AERPAW/aerpawlib/blob/main/aerpawlib/v2/"
   },
-  "footer_text": "aerpawlib API documentation"
+  "footer_text": "aerpawlib API documentation (v1.3.0)"
 }

@@ -97,14 +97,10 @@ class AERPAW_Platform:
         else:
             logger.info(msg)
 
-    def _oeo_message_url(
-        self, msg: str, severity: str, agent_id: Optional[str]
-    ) -> str:
+    def _oeo_message_url(self, msg: str, severity: str, agent_id: Optional[str]) -> str:
         """Build the HTTP URL for publishing *msg* to the OEO forward server."""
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
-        url = (
-            f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
-        )
+        url = f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
         if agent_id:
             url += f"/{agent_id}"
         return url

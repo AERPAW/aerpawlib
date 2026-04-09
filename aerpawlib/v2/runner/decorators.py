@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import types
 from enum import Enum, auto
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
-from .exceptions import (
+from ..exceptions import (
     InvalidStateNameError,
     MultipleInitialStatesError,
     RunnerError,
 )
-from .runner_config import (
+from .config import (
     BasicRunnerConfig,
-    StateMachineConfig,
     StateSpec,
     ZmqStateMachineConfig,
     _ensure_state_machine_config,
@@ -42,7 +41,10 @@ class _EntrypointDescriptor:
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(self.func, obj)
+        if self.func is None:
+            raise RuntimeError("Expose-field decorator not applied to function")
+        func = cast(Callable, self.func)
+        return types.MethodType(func, obj)
 
 
 def entrypoint(func: Callable) -> _EntrypointDescriptor:
@@ -110,7 +112,7 @@ class _StateDescriptor:
         if zmq_name is not None:
             zmq_cfg = _ensure_state_machine_config(owner, require_zmq=True)
             if isinstance(zmq_cfg, ZmqStateMachineConfig):
-                zmq_cfg.exposed_states[zmq_name] = self.name
+                zmq_cfg.exposed_states[cast(str, zmq_name)] = cast(str, self.name)
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
@@ -203,7 +205,7 @@ class _BackgroundDescriptor:
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(self.func, obj)
+        return types.MethodType(cast(Callable, self.func), obj)
 
 
 def background(func: Callable) -> _BackgroundDescriptor:
@@ -236,7 +238,7 @@ class _AtInitDescriptor:
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(self.func, obj)
+        return types.MethodType(cast(Callable, self.func), obj)
 
 
 def at_init(func: Callable) -> _AtInitDescriptor:
@@ -315,12 +317,15 @@ class _ExposeFieldZmqDescriptor:
     def __set_name__(self, owner: type, name: str) -> None:
         cfg = _ensure_state_machine_config(owner, require_zmq=True)
         if isinstance(cfg, ZmqStateMachineConfig):
-            cfg.exposed_fields[self.zmq_name] = name
+            cfg.exposed_fields[cast(str, self.zmq_name)] = cast(str, name)
 
     def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(self.func, obj)
+        func = self.func
+        if func is None:
+            raise RuntimeError("Expose-field decorator not applied to function")
+        return types.MethodType(cast(Callable, func), obj)
 
     def __call__(self, func: Callable) -> "_ExposeFieldZmqDescriptor":
         self.func = func

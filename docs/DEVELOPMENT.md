@@ -64,6 +64,8 @@ Notable flags: `--api-version`, `--config` (repeatable; JSON files merged in ord
 ## API docs (pdoc)
 
 Static API docs are generated into `docs/pdoc/` using `configs/pdoc.json`.
+The published top-level API pages are `v1` and `v2`; the CLI and backward-compatible
+alias modules are documented separately (see [`docs/CLI.md`](CLI.md) and [`docs/ALIASES.md`](ALIASES.md)).
 
 ```bash
 pip install -e .[docs]
@@ -73,6 +75,9 @@ python -m scripts.generate_pdoc --clean
 
 The repository includes `.github/workflows/pdoc-pages.yml`, which publishes `docs/pdoc/`
 to GitHub Pages (`https://aerpaw.github.io/aerpawlib/`) on pushes to `main`/`master`.
+
+See [docs/README.md](README.md) for the complete documentation structure, including
+tutorials, CLI guides, and getting-started resources.
 
 ## Testing
 

@@ -3,7 +3,7 @@
 import asyncio
 import pytest
 
-from aerpawlib.v2 import (
+from aerpawlib.v2.runner import (
     BasicRunner,
     StateMachine,
     ZmqStateMachine,

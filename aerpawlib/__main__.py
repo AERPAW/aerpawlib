@@ -27,11 +27,7 @@ from aerpawlib.cli.config_merge import (
     merge_config_json_files,
     strip_config_argv,
 )
-from aerpawlib.cli.disconnect import (
-    run_runner_with_disconnect_guard as _run_runner_with_disconnect_guard,
-    wait_for_v1_connection_loss as _wait_for_v1_connection_loss,
-)
-from aerpawlib.cli.discovery import discover_runner
+
 from aerpawlib.cli.experiments_v1 import run_v1_experiment
 from aerpawlib.cli.experiments_v2 import run_v2_experiment
 from aerpawlib.cli.logging_setup import setup_logging

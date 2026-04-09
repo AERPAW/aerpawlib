@@ -11,7 +11,8 @@ Run with:
         --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 """
 
-from aerpawlib.v2 import ZmqStateMachine, Drone, state, expose_zmq
+from aerpawlib.v2.runner import ZmqStateMachine, state, expose_zmq
+from aerpawlib.v2.vehicle import Drone
 
 
 class RemoteMission(ZmqStateMachine):
