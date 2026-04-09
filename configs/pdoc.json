@@ -5,6 +5,7 @@
     "!aerpawlib.v1.safetyChecker",
     "!aerpawlib.runner",
     "!aerpawlib.vehicle",
+    "!aerpawlib.util",
     "!aerpawlib.external",
     "!aerpawlib.aerpaw",
     "!aerpawlib.zmqutil",
