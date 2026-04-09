@@ -65,6 +65,7 @@ aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone
 | [**docs/DEVELOPMENT.md**](docs/DEVELOPMENT.md) | Contributors: project structure, testing, conventions |
 | [**docs/v1/README.md**](docs/v1/README.md) | v1 API reference (full) |
 | [**docs/v2/README.md**](docs/v2/README.md) | v2 API reference (beta) |
+| [**docs/pdoc/**](docs/pdoc/) | Generated pdoc API site (published on GitHub Pages) |
 | [**docs/ROADMAP.md**](docs/ROADMAP.md) | Planned features and improvements |
 
 ## Examples

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from enum import Enum, auto
-from typing import Any, Callable
+from typing import Any, Callable, Optional, TypeVar
 
 from .constants import STATE_MACHINE_DELAY_S
 from .exceptions import (
@@ -14,6 +14,7 @@ from .exceptions import (
 from .vehicle import Vehicle
 
 _Runnable = Callable[..., Any]
+_DecoratedFunc = TypeVar("_DecoratedFunc", bound=Callable[..., Any])
 
 
 class _StateType(Enum):
@@ -35,11 +36,11 @@ class _State:
     _name: str
     _func: _Runnable
 
-    def __init__(self, func: _Runnable, name: str):
+    def __init__(self, func: _Runnable, name: str) -> None:
         self._name = name
         self._func = func
 
-    async def run(self, runner: Any, vehicle: Vehicle) -> str:
+    async def run(self, runner: Any, vehicle: Vehicle) -> Optional[str]:
         """
         Run the function associated with this state.
 
@@ -55,10 +56,10 @@ class _State:
         elif self._func._state_type == _StateType.TIMED:
             running = True
 
-            async def _bg():
+            async def _bg() -> Optional[str]:
                 """Run a timed state until duration elapses or loop exits."""
                 nonlocal running
-                last_state = ""
+                last_state: Optional[str] = None
                 while running:
                     last_state = await self._func.__func__(runner, vehicle)
                     if not running:
@@ -74,10 +75,10 @@ class _State:
             running = False
             next_state = await r
             return next_state
-        return ""
+        return None
 
 
-def entrypoint(func):
+def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     Decorator used to identify the entry point used by `BasicRunner` driven
     scripts.
@@ -88,7 +89,7 @@ def entrypoint(func):
     return func
 
 
-def state(name: str, first: bool = False):
+def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator to specify a state in a StateMachine.
 
@@ -106,7 +107,7 @@ def state(name: str, first: bool = False):
     if name == "":
         raise InvalidStateNameError()
 
-    def decorator(func):
+    def decorator(func: _DecoratedFunc) -> _DecoratedFunc:
         """Mark a method as a standard state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
@@ -122,7 +123,9 @@ def state(name: str, first: bool = False):
     return decorator
 
 
-def timed_state(name: str, duration: float, loop: bool = False, first: bool = False):
+def timed_state(
+    name: str, duration: float, loop: bool = False, first: bool = False
+) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator for a state that runs for a fixed duration.
 
@@ -142,7 +145,7 @@ def timed_state(name: str, duration: float, loop: bool = False, first: bool = Fa
     if name == "":
         raise InvalidStateNameError()
 
-    def decorator(func):
+    def decorator(func: _DecoratedFunc) -> _DecoratedFunc:
         """Mark a method as a timed state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
@@ -160,7 +163,7 @@ def timed_state(name: str, duration: float, loop: bool = False, first: bool = Fa
     return decorator
 
 
-def expose_zmq(name: str):
+def expose_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator to expose a state for remote control via ZMQ.
 
@@ -176,7 +179,7 @@ def expose_zmq(name: str):
     if name == "":
         raise InvalidStateNameError()
 
-    def decorator(func):
+    def decorator(func: _DecoratedFunc) -> _DecoratedFunc:
         """Mark a state method as exposed for remote ZMQ transitions."""
         func._is_exposed_zmq = True
         func._zmq_name = name
@@ -185,7 +188,7 @@ def expose_zmq(name: str):
     return decorator
 
 
-def expose_field_zmq(name: str):
+def expose_field_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator to make a field requestable via ZMQ.
 
@@ -201,7 +204,7 @@ def expose_field_zmq(name: str):
     if name == "":
         raise InvalidStateNameError()
 
-    def decorator(func):
+    def decorator(func: _DecoratedFunc) -> _DecoratedFunc:
         """Mark a method as exposed for remote ZMQ field requests."""
         func._is_exposed_field_zmq = True
         func._zmq_name = name
@@ -210,7 +213,7 @@ def expose_field_zmq(name: str):
     return decorator
 
 
-def background(func):
+def background(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     Designate a function to be run in parallel to a StateMachine.
 
@@ -224,7 +227,7 @@ def background(func):
     return func
 
 
-def at_init(func):
+def at_init(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     Designate a function to be run during vehicle initialization.
 

@@ -3,7 +3,7 @@
 import json
 import os
 from argparse import ArgumentParser
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 import yaml
 import zmq
@@ -26,7 +26,9 @@ from .wire_format import deserialize_msg, serialize_response
 logger = get_logger(LogComponent.SAFETY)
 
 
-def _polygon_edges(polygon):
+def _polygon_edges(
+    polygon: List[Dict[str, float]],
+) -> Iterator[Tuple[Dict[str, float], Dict[str, float]]]:
     """
     Yield consecutive (p1, p2) edge pairs for a polygon, including the
     closing edge from the last vertex back to the first.
@@ -72,8 +74,8 @@ class SafetyCheckerServer:
     def __init__(
         self,
         vehicle_config_filename: str,
-        server_port=DEFAULT_SAFETY_SERVER_PORT,
-    ):
+        server_port: int = DEFAULT_SAFETY_SERVER_PORT,
+    ) -> None:
         """
         Initialize the safety checker server and start listening.
 
@@ -367,7 +369,7 @@ class SafetyCheckerServer:
         """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)
 
-    def server_status_handler(self, *_params) -> bytes:
+    def server_status_handler(self, *_params: Any) -> bytes:
         """
         Handler for server status requests.
 
@@ -377,12 +379,12 @@ class SafetyCheckerServer:
         msg = serialize_response(request_function=SERVER_STATUS_REQ, result=True)
         return msg
 
-    def serverStatusHandler(self, *_params) -> bytes:
+    def serverStatusHandler(self, *_params: Any) -> bytes:
         """Backward-compatible alias for :meth:`server_status_handler`."""
         return self.server_status_handler(*_params)
 
     def validate_waypoint_handler(
-        self, current_json_location: str, next_json_location: str, *_params
+        self, current_json_location: str, next_json_location: str, *_params: Any
     ) -> bytes:
         """
         Handler for waypoint validation requests.
@@ -418,12 +420,12 @@ class SafetyCheckerServer:
         return msg
 
     def validateWaypointHandler(
-        self, curLocJSON: str, nextLocJSON: str, *_params
+        self, curLocJSON: str, nextLocJSON: str, *_params: Any
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_waypoint_handler`."""
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
 
-    def validate_change_speed_handler(self, new_speed: float, *_params) -> bytes:
+    def validate_change_speed_handler(self, new_speed: float, *_params: Any) -> bytes:
         """
         Handler for speed change validation requests.
 
@@ -441,7 +443,7 @@ class SafetyCheckerServer:
         )
         return msg
 
-    def validateChangeSpeedHandler(self, newSpeed: float, *_params) -> bytes:
+    def validateChangeSpeedHandler(self, newSpeed: float, *_params: Any) -> bytes:
         """Backward-compatible alias for :meth:`validate_change_speed_handler`."""
         return self.validate_change_speed_handler(newSpeed, *_params)
 
@@ -450,7 +452,7 @@ class SafetyCheckerServer:
         takeoff_alt: float,
         current_lat: float,
         current_lon: float,
-        *_params,
+        *_params: Any,
     ) -> bytes:
         """
         Handler for takeoff validation requests.
@@ -474,7 +476,11 @@ class SafetyCheckerServer:
         return msg
 
     def validateTakeoffHandler(
-        self, takeoffAlt: float, currentLat: float, currentLon: float, *_params
+        self,
+        takeoffAlt: float,
+        currentLat: float,
+        currentLon: float,
+        *_params: Any,
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_takeoff_handler`."""
         return self.validate_takeoff_handler(
@@ -482,7 +488,7 @@ class SafetyCheckerServer:
         )
 
     def validate_landing_handler(
-        self, current_lat: float, current_lon: float, *_params
+        self, current_lat: float, current_lon: float, *_params: Any
     ) -> bytes:
         """
         Handler for landing validation requests.
@@ -503,7 +509,7 @@ class SafetyCheckerServer:
         return msg
 
     def validateLandingHandler(
-        self, currentLat: float, currentLon: float, *_params
+        self, currentLat: float, currentLon: float, *_params: Any
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_landing_handler`."""
         return self.validate_landing_handler(currentLat, currentLon, *_params)

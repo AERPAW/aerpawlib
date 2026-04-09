@@ -51,7 +51,11 @@ dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "psutil>=5.9.0",
+    "pdoc>=15.0.0",
     "aerpawlib[sitl]",
+]
+docs = [
+    "pdoc>=15.0.0",
 ]
 sitl = [
     "msgspec>=0.18.0",
@@ -75,6 +79,7 @@ Documentation = "https://github.com/aerpaw/aerpawlib#readme"
 aerpawlib = "aerpawlib.__main__:main"
 aerpawlib-setup-sitl = "scripts.setup_sitl:main"
 aerpawlib-run-example = "scripts.run_example:main"
+aerpawlib-generate-pdoc = "scripts.generate_pdoc:main"
 
 [tool.setuptools.packages.find]
 include = ["aerpawlib*", "scripts*"]
@@ -85,4 +90,3 @@ aerpawlib = ["*.yaml", "*.kml", "*.plan"]
 [tool.coverage.run]
 source = ["aerpawlib"]
 omit = ["*/test/*", "*/__pycache__/*"]
-

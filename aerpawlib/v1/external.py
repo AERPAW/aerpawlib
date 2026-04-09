@@ -6,8 +6,8 @@ This is the v1 version of the external process utilities.
 """
 
 import asyncio
-from typing import List, Optional
 import re
+from typing import List, Optional, Pattern, Union
 
 
 class ExternalProcess:
@@ -149,7 +149,9 @@ class ExternalProcess:
         """
         await self.process.wait()
 
-    async def wait_until_output(self, output_regex) -> List[str]:
+    async def wait_until_output(
+        self, output_regex: Union[str, Pattern[str]]
+    ) -> List[str]:
         """
         Block and wait until a line matching the given regex is found in stdout.
 

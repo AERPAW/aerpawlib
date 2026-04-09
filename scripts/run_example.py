@@ -39,9 +39,6 @@ DEFAULT_INSTANCE_ROVER = 1
 SITL_STARTUP_TIMEOUT = 90
 
 
-
-
-
 def _find_sim_vehicle() -> Optional[Path]:
     """Locate sim_vehicle.py from ARDUPILOT_HOME or project ardupilot* directories."""
     project_root = Path(__file__).resolve().parent.parent
@@ -105,8 +102,10 @@ def start_sitl(
     cmd = [
         sys.executable,
         str(sim_vehicle),
-        "-v", vehicle_type,
-        "-I", str(instance),
+        "-v",
+        vehicle_type,
+        "-I",
+        str(instance),
         f"127.0.0.1:{port}",
         "-w",
     ]
@@ -137,9 +136,9 @@ def start_sitl(
         stderr=stderr_target,
     )
 
-
-
-    print(f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)...")
+    print(
+        f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)..."
+    )
     deadline = time.monotonic() + SITL_STARTUP_TIMEOUT
     server_ready = False
 
@@ -213,6 +212,7 @@ def stop_sitl(process: Optional[subprocess.Popen]) -> None:
 
 
 def main() -> None:
+    """Parse CLI args, launch SITL, then run aerpawlib against that instance."""
     parser = argparse.ArgumentParser(
         description=(
             "Run an aerpawlib example script with a bundled SITL. "
@@ -287,11 +287,17 @@ def main() -> None:
         sitl_proc = start_sitl(sitl_vehicle, port, instance, args.speedup)
 
         aerpawlib_cmd = [
-            sys.executable, "-m", "aerpawlib",
-            "--script", args.script,
-            "--vehicle", args.vehicle,
-            "--conn", conn_str,
-            "--api-version", args.api_version,
+            sys.executable,
+            "-m",
+            "aerpawlib",
+            "--script",
+            args.script,
+            "--vehicle",
+            args.vehicle,
+            "--conn",
+            conn_str,
+            "--api-version",
+            args.api_version,
         ] + extra_args
 
         print("Running aerpawlib script...")

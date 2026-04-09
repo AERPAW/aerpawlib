@@ -18,7 +18,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 ARDUPILOT_REPO = "https://github.com/ArduPilot/ardupilot.git"
 ARDUPILOT_BRANCH = os.getenv("ARDUPILOT_BRANCH", "Copter-4.6.3")
 
@@ -66,12 +65,22 @@ def setup_sitl(skip_compile: bool = False) -> bool:
     else:
         print(f"Cloning ArduPilot ({ARDUPILOT_BRANCH}) to {workarea}...")
         if not _run(
-            ["git", "clone", ARDUPILOT_REPO, "--branch", ARDUPILOT_BRANCH, "--single-branch", str(workarea)]
+            [
+                "git",
+                "clone",
+                ARDUPILOT_REPO,
+                "--branch",
+                ARDUPILOT_BRANCH,
+                "--single-branch",
+                str(workarea),
+            ]
         ):
             return False
 
         print("Initializing submodules...")
-        if not _run(["git", "submodule", "update", "--recursive", "--init"], cwd=workarea):
+        if not _run(
+            ["git", "submodule", "update", "--recursive", "--init"], cwd=workarea
+        ):
             return False
 
     if skip_compile:
@@ -103,6 +112,7 @@ def setup_sitl(skip_compile: bool = False) -> bool:
 
 
 def main() -> int:
+    """CLI entry point for SITL setup; returns process exit code."""
     import argparse
 
     parser = argparse.ArgumentParser(description="Setup ArduPilot SITL for aerpawlib")

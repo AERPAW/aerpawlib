@@ -10,6 +10,7 @@ Welcome to the aerpawlib documentation. aerpawlib is a Python library for autono
 | [Development Guide](DEVELOPMENT.md) | Contributors | Project structure, testing, coding conventions |
 | [v1 API Reference](v1/README.md) | v1 users | Full v1 API documentation (MAVSDK, DroneKit-compatible) |
 | [v2 API Reference](v2/README.md) | v2 users | v2 API documentation (modern, async-first) |
+| [Generated API Site](pdoc/) | All users | Static pdoc output committed under `docs/pdoc/` |
 | [v1 Safety Checker](v1/safety_checker.md) | v1 users | Geofence validation and safety server/client |
 | [v1 Architecture](v1/compromises.md) | Developers | v1 design tradeoffs and dual-loop architecture |
 | [v2 Safety](v2/safety.md) | v2 users | Command validation, vehicle.safety, SafetyCheckerClient |
@@ -21,6 +22,7 @@ Welcome to the aerpawlib documentation. aerpawlib is a Python library for autono
 
 - [User Guide → Quick Start](USER_GUIDE.md#quick-start)
 - [User Guide → Running Scripts](USER_GUIDE.md#running-scripts)
+- Hosted API docs: <https://aerpaw.github.io/aerpawlib/>
 - [examples/](../examples/) directory
 - [tests/README.md](../tests/README.md)
 

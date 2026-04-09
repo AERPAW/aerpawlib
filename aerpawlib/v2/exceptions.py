@@ -6,7 +6,7 @@ Structured hierarchy with error codes and severity.
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Any, List, Literal, Optional
 
 Severity = Literal["warning", "error", "critical"]
 
@@ -28,7 +28,7 @@ class AerpawlibError(Exception):
         code: str = "UNKNOWN",
         severity: Severity = "error",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         self.message = message
         self.code = code
         self.severity = severity
@@ -45,7 +45,7 @@ class AerpawlibError(Exception):
 class AerpawConnectionError(AerpawlibError):
     """Base for connection errors."""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("code", "CONNECTION_ERROR")
         super().__init__(message, **kwargs)
 
@@ -53,7 +53,12 @@ class AerpawConnectionError(AerpawlibError):
 class ConnectionTimeoutError(AerpawConnectionError):
     """Connection timed out."""
 
-    def __init__(self, timeout_seconds: float, message: Optional[str] = None, **kwargs):
+    def __init__(
+        self,
+        timeout_seconds: float,
+        message: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize with the timeout duration.
 
         Args:
@@ -70,8 +75,11 @@ class HeartbeatLostError(AerpawConnectionError):
     """Vehicle heartbeat lost."""
 
     def __init__(
-        self, last_heartbeat_age: float = 0.0, message: Optional[str] = None, **kwargs
-    ):
+        self,
+        last_heartbeat_age: float = 0.0,
+        message: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
         """Initialize with the age of the last received heartbeat.
 
         Args:
@@ -88,7 +96,7 @@ class HeartbeatLostError(AerpawConnectionError):
 class PortInUseError(AerpawConnectionError):
     """Port already in use."""
 
-    def __init__(self, port: int, message: Optional[str] = None, **kwargs):
+    def __init__(self, port: int, message: Optional[str] = None, **kwargs: Any) -> None:
         """Initialize with the conflicting port number.
 
         Args:
@@ -105,7 +113,7 @@ class PortInUseError(AerpawConnectionError):
 class CommandError(AerpawlibError):
     """Base for command execution errors."""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("code", "COMMAND_ERROR")
         super().__init__(message, **kwargs)
 
@@ -113,35 +121,35 @@ class CommandError(AerpawlibError):
 class ArmError(CommandError):
     """Raised when an arm command fails."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(f"Failed to arm: {reason}", code="ARM_ERROR", **kwargs)
 
 
 class DisarmError(CommandError):
     """Raised when a disarm command fails."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(f"Failed to disarm: {reason}", code="DISARM_ERROR", **kwargs)
 
 
 class TakeoffError(CommandError):
     """Raised when a takeoff command fails."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(f"Takeoff failed: {reason}", code="TAKEOFF_ERROR", **kwargs)
 
 
 class LandingError(CommandError):
     """Raised when a landing command fails."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(f"Landing failed: {reason}", code="LANDING_ERROR", **kwargs)
 
 
 class NavigationError(CommandError):
     """Raised when navigation to a target cannot be completed."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
             f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs
         )
@@ -150,7 +158,7 @@ class NavigationError(CommandError):
 class VelocityError(CommandError):
     """Raised when a velocity command cannot be applied."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
             f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs
         )
@@ -159,7 +167,7 @@ class VelocityError(CommandError):
 class RTLError(CommandError):
     """Raised when return-to-launch fails."""
 
-    def __init__(self, reason: str = "Unknown", **kwargs):
+    def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(f"RTL failed: {reason}", code="RTL_ERROR", **kwargs)
 
 
@@ -167,7 +175,7 @@ class RTLError(CommandError):
 class StateError(AerpawlibError):
     """Base for vehicle state errors."""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("code", "STATE_ERROR")
         super().__init__(message, **kwargs)
 
@@ -175,7 +183,7 @@ class StateError(AerpawlibError):
 class NotArmableError(StateError):
     """Raised when the vehicle cannot be armed in its current state."""
 
-    def __init__(self, reason: str = "Vehicle not armable", **kwargs):
+    def __init__(self, reason: str = "Vehicle not armable", **kwargs: Any) -> None:
         kwargs.setdefault("code", "NOT_ARMABLE")
         super().__init__(f"Cannot arm: {reason}", **kwargs)
 
@@ -183,7 +191,7 @@ class NotArmableError(StateError):
 class NotConnectedError(StateError):
     """Raised when a command requires an active vehicle connection."""
 
-    def __init__(self, message: str = "Vehicle not connected", **kwargs):
+    def __init__(self, message: str = "Vehicle not connected", **kwargs: Any) -> None:
         kwargs.setdefault("code", "NOT_CONNECTED")
         super().__init__(message, **kwargs)
 
@@ -192,7 +200,7 @@ class NotConnectedError(StateError):
 class RunnerError(AerpawlibError):
     """Base for runner/state machine errors."""
 
-    def __init__(self, message: str, **kwargs):
+    def __init__(self, message: str, **kwargs: Any) -> None:
         kwargs.setdefault("code", "RUNNER_ERROR")
         super().__init__(message, **kwargs)
 
@@ -200,7 +208,7 @@ class RunnerError(AerpawlibError):
 class NoEntrypointError(RunnerError):
     """Raised when a runner has no method marked with ``@entrypoint``."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("code", "NO_ENTRYPOINT")
         super().__init__("No @entrypoint declared", **kwargs)
 
@@ -208,7 +216,9 @@ class NoEntrypointError(RunnerError):
 class InvalidStateError(RunnerError):
     """Raised when a state machine transitions to an unknown state."""
 
-    def __init__(self, state_name: str, available_states: list, **kwargs):
+    def __init__(
+        self, state_name: str, available_states: List[str], **kwargs: Any
+    ) -> None:
         """Initialize with the invalid state name and the list of valid states.
 
         Args:
@@ -227,7 +237,7 @@ class InvalidStateError(RunnerError):
 class NoInitialStateError(RunnerError):
     """Raised when no state is marked as the initial state."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("code", "NO_INITIAL_STATE")
         super().__init__("No initial state", **kwargs)
 
@@ -235,7 +245,7 @@ class NoInitialStateError(RunnerError):
 class MultipleInitialStatesError(RunnerError):
     """Raised when more than one state is marked initial."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("code", "MULTIPLE_INITIAL_STATES")
         super().__init__("Multiple initial states", **kwargs)
 
@@ -243,7 +253,7 @@ class MultipleInitialStatesError(RunnerError):
 class InvalidStateNameError(RunnerError):
     """Raised when a state decorator is given an empty name."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         kwargs.setdefault("code", "INVALID_STATE_NAME")
         super().__init__("State name cannot be empty", **kwargs)
 
@@ -252,8 +262,10 @@ class UnexpectedDisarmError(StateError):
     """Raised when the vehicle disarms unexpectedly during execution."""
 
     def __init__(
-        self, message: str = "Vehicle disarmed unexpectedly during experiment", **kwargs
-    ):
+        self,
+        message: str = "Vehicle disarmed unexpectedly during experiment",
+        **kwargs: Any,
+    ) -> None:
         kwargs.setdefault("code", "UNEXPECTED_DISARM")
         kwargs.setdefault("severity", "critical")
         super().__init__(message, **kwargs)
@@ -262,6 +274,6 @@ class UnexpectedDisarmError(StateError):
 class PlanError(AerpawlibError):
     """Raised when a .plan file cannot be parsed."""
 
-    def __init__(self, message: str = "Plan file error", **kwargs):
+    def __init__(self, message: str = "Plan file error", **kwargs: Any) -> None:
         kwargs.setdefault("code", "PLAN_ERROR")
         super().__init__(message, **kwargs)

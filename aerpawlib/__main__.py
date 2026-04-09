@@ -55,7 +55,7 @@ logger: Optional[logging.Logger] = None
 start_time: Optional[float] = None
 
 
-def main():
+def main() -> None:
     """Main entry point for aerpawlib CLI."""
     global logger, start_time
 

@@ -43,7 +43,7 @@ def check_zmq_proxy_reachable(
         return False
 
 
-def run_zmq_proxy():
+def run_zmq_proxy() -> None:
     """
     Start a ZMQ forwarder device (XSUB/XPUB proxy).
 

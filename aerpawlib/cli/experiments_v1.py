@@ -7,6 +7,7 @@ import signal
 import sys
 import time
 import traceback
+from typing import Any
 
 from aerpawlib.cli.constants import (
     VEHICLE_CONNECT_POLL_INTERVAL_S,
@@ -40,8 +41,12 @@ logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
 
 
 def run_v1_experiment(
-    args, unknown_args, api_module, experimenter_script, version_name="v1"
-):
+    args: Any,
+    unknown_args: Any,
+    api_module: Any,
+    experimenter_script: Any,
+    version_name: str = "v1",
+) -> None:
     """Run an experiment using the v1 API."""
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
@@ -66,12 +71,14 @@ def run_v1_experiment(
 
     logger.info(f"Starting experiment execution ({version_name})")
 
-    async def run_experiment_async():
+    async def run_experiment_async() -> bool:
+        """Connect the vehicle, run the mission, and handle cleanup/RTL."""
         event_log = None
         logger.info("Connecting to vehicle...")
         try:
 
-            async def create_vehicle_inner():
+            async def create_vehicle_inner() -> Any:
+                """Instantiate the vehicle and wait for v1 connection readiness."""
                 v = await asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port)
                 if hasattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED):
                     start = time.time()
@@ -103,7 +110,8 @@ def run_v1_experiment(
             event_log.log_event(EVENT_MISSION_START)
             logger.info("Structured event logging -> %s", args.structured_log)
 
-        def handle_shutdown(signum, frame):
+        def handle_shutdown(signum: Any, frame: Any) -> None:
+            """Handle SIGINT/SIGTERM by closing the vehicle then exiting."""
             logger.warning("Initiating graceful shutdown...")
             if vehicle:
                 vehicle.close()

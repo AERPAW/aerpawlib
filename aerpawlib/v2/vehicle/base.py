@@ -335,6 +335,7 @@ class Vehicle:
         # Wrap in wait_for so an invalid connection string doesn't hang forever
         # (the async generator may never yield if MAVSDK gets no heartbeat).
         async def _wait_for_heartbeat() -> None:
+            """Block until MAVSDK reports an active connection state."""
             async for state in system.core.connection_state():
                 if state.is_connected:
                     return
@@ -375,6 +376,7 @@ class Vehicle:
             return False
 
         async def _position_update() -> None:
+            """Subscribe to position telemetry and refresh shared vehicle state."""
             first = [True]
             last_log = [0.0]
             async for position in self._system.telemetry.position():
@@ -400,6 +402,7 @@ class Vehicle:
                     self._log_structured_telemetry_snapshot()
 
         async def _attitude_update() -> None:
+            """Subscribe to attitude telemetry and convert degrees to radians."""
             first = [True]
             last_log = [0.0]
             async for att in self._system.telemetry.attitude_euler():
@@ -421,6 +424,7 @@ class Vehicle:
                     )
 
         async def _velocity_update() -> None:
+            """Subscribe to NED velocity telemetry."""
             first = [True]
             last_log = [0.0]
             async for vel in self._system.telemetry.velocity_ned():
@@ -438,6 +442,7 @@ class Vehicle:
                     )
 
         async def _gps_update() -> None:
+            """Subscribe to GPS fix telemetry and keep compatibility with enums/ints."""
             first = [True]
             last_log = [0.0]
             async for gps in self._system.telemetry.gps_info():
@@ -460,6 +465,7 @@ class Vehicle:
                     )
 
         async def _battery_update() -> None:
+            """Subscribe to battery telemetry and normalize optional current values."""
             first = [True]
             last_log = [0.0]
             async for bat in self._system.telemetry.battery():
@@ -480,6 +486,7 @@ class Vehicle:
                     )
 
         async def _flight_mode_update() -> None:
+            """Subscribe to flight-mode updates and emit change logs."""
             first = [True]
             prev_mode: list = [None]
             async for mode in self._system.telemetry.flight_mode():
@@ -500,6 +507,7 @@ class Vehicle:
                     prev_mode[0] = mode_name
 
         async def _armed_update() -> None:
+            """Subscribe to armed state and detect unexpected disarm transitions."""
             first = [True]
             prev_armed: list = [None]
             async for armed in self._system.telemetry.armed():
@@ -527,6 +535,7 @@ class Vehicle:
                     prev_armed[0] = armed
 
         async def _health_update() -> None:
+            """Subscribe to health telemetry and update aggregate armability flags."""
             first = [True]
             async for health in self._system.telemetry.health():
                 if not self._running:
@@ -544,6 +553,7 @@ class Vehicle:
                     first[0] = False
 
         async def _home_update() -> None:
+            """Subscribe to home-position telemetry for relative-altitude commands."""
             first = [True]
             async for home in self._system.telemetry.home():
                 if not self._running:
@@ -561,6 +571,7 @@ class Vehicle:
                     first[0] = False
 
         async def _mavlink_status_update() -> None:
+            """Subscribe to SYS_STATUS to capture pre-arm bitmask readiness."""
             async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
                 if not self._running:
                     return

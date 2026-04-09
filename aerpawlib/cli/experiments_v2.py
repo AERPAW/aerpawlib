@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import traceback
+from typing import Any
 
 from aerpawlib.cli.constants import (
     DEFAULT_SAFETY_CHECKER_PORT,
@@ -42,8 +43,12 @@ logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
 
 
 def run_v2_experiment(
-    args, unknown_args, api_module, experimenter_script, start_time=None
-):
+    args: Any,
+    unknown_args: Any,
+    api_module: Any,
+    experimenter_script: Any,
+    start_time: Any = None,
+) -> None:
     """Run an experiment using the v2 API."""
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
@@ -68,7 +73,8 @@ def run_v2_experiment(
 
     logger.info("Starting experiment execution (v2)")
 
-    async def run_experiment_async():
+    async def run_experiment_async() -> bool:
+        """Connect, run the v2 runner, and perform shutdown/RTL cleanup."""
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
 
         if no_aerpaw_env:
@@ -154,7 +160,8 @@ def run_v2_experiment(
         shutdown_event = asyncio.Event()
         _conn_handler_ref: list = [None]
 
-        def handle_shutdown():
+        def handle_shutdown() -> None:
+            """Initiate graceful shutdown from signal handlers or disconnects."""
             logger.warning("Initiating graceful shutdown...")
             shutdown_event.set()
             if _conn_handler_ref[0] is not None:
@@ -168,7 +175,8 @@ def run_v2_experiment(
             logger.info("Structured event logging -> %s", args.structured_log)
             event_log.log_event(EVENT_MISSION_START)
 
-        def _on_disconnect():
+        def _on_disconnect() -> None:
+            """Publish disconnect events to OEO and structured logs."""
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
                     AERPAWLIB_CONNECTION_LOST_LOG_MSG, severity=LOG_SEVERITY_CRITICAL
@@ -222,6 +230,8 @@ def run_v2_experiment(
                         await_disconnect_future(disconnect_future)
                     )
                     preflight_waits.append(disconnect_guard_task)
+                # Race preflight against shutdown/disconnect so we do not keep
+                # initializing after the mission is already terminating.
                 done, _ = await asyncio.wait(
                     preflight_waits,
                     return_when=asyncio.FIRST_COMPLETED,

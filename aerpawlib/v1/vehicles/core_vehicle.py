@@ -138,7 +138,7 @@ class Vehicle:
     # Connection/heartbeat tracking
     _last_heartbeat_time: float = 0.0
 
-    def __init__(self, connection_string: str, mavsdk_server_port: int = 50051):
+    def __init__(self, connection_string: str, mavsdk_server_port: int = 50051) -> None:
         """
         Initialize the vehicle and connect to the autopilot.
 
@@ -216,7 +216,7 @@ class Vehicle:
         """Attach structured JSONL logger from ``--structured-log`` (v1)."""
         self._event_log = event_log
 
-    def _connect_sync(self):
+    def _connect_sync(self) -> None:
         """
         Establish connection and start telemetry in background threads.
 
@@ -257,7 +257,8 @@ class Vehicle:
         loop = asyncio.new_event_loop()
         self._mavsdk_loop = loop  # Store reference for thread-safe calls
 
-        def _run_connection():
+        def _run_connection() -> None:
+            """Run the MAVSDK loop lifecycle inside the dedicated thread."""
             asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(self._connect_async())
@@ -299,7 +300,7 @@ class Vehicle:
         update_thread = threading.Thread(target=self._internal_update_loop, daemon=True)
         update_thread.start()
 
-    async def _run_on_mavsdk_loop(self, coro):
+    async def _run_on_mavsdk_loop(self, coro: Any) -> Any:
         """
         Run a coroutine on the MAVSDK event loop.
 
@@ -326,6 +327,8 @@ class Vehicle:
 
         future = asyncio.run_coroutine_threadsafe(coro, self._mavsdk_loop)
         with self._pending_mavsdk_lock:
+            # Track every submitted coroutine so close() can cancel in-flight
+            # operations before shutting down the MAVSDK loop/thread.
             self._pending_mavsdk_futures.add(future)
         try:
             return await asyncio.wait_for(
@@ -345,7 +348,7 @@ class Vehicle:
             with self._pending_mavsdk_lock:
                 self._pending_mavsdk_futures.discard(future)
 
-    async def _connect_async(self):
+    async def _connect_async(self) -> None:
         """
         Asynchronously connect to the MAVSDK system and start telemetry tasks.
         """
@@ -357,7 +360,8 @@ class Vehicle:
 
         # Wait for connection state with timeout; wrap in wait_for so the
         # async generator doesn't block forever on an invalid connection string.
-        async def _wait_for_heartbeat():
+        async def _wait_for_heartbeat() -> None:
+            """Block until MAVSDK reports a connected vehicle state."""
             async for state in self._system.core.connection_state():
                 if state.is_connected:
                     self._has_heartbeat = True
@@ -377,7 +381,9 @@ class Vehicle:
         # Fetch vehicle info
         await self._fetch_vehicle_info()
 
-    async def _resilient_telemetry_task(self, name, coro_factory):
+    async def _resilient_telemetry_task(
+        self, name: str, coro_factory: Callable[[], Any]
+    ) -> None:
         """Wrap a telemetry subscription in retry logic."""
         retry_count = 0
         max_retries = MAX_TELEMETRY_RETRIES
@@ -414,19 +420,21 @@ class Vehicle:
                         )
                         self._has_heartbeat = False
 
-    async def _start_telemetry(self):
+    async def _start_telemetry(self) -> None:
         """
         Spawn background tasks to subscribe to various telemetry streams.
         """
 
-        async def _position_update():
+        async def _position_update() -> None:
+            """Track live global position telemetry."""
             async for position in self._system.telemetry.position():
                 self._position_lat.set(position.latitude_deg)
                 self._position_lon.set(position.longitude_deg)
                 self._position_alt.set(position.relative_altitude_m)
                 self._position_abs_alt.set(position.absolute_altitude_m)
 
-        async def _attitude_update():
+        async def _attitude_update() -> None:
+            """Track roll/pitch/yaw and derive heading in degrees."""
             async for attitude in self._system.telemetry.attitude_euler():
                 new_att = _AttitudeCompat()
                 new_att.roll = math.radians(attitude.roll_deg)
@@ -435,20 +443,23 @@ class Vehicle:
                 self._attitude_val.set(new_att)
                 self._heading_deg.set(attitude.yaw_deg % 360)
 
-        async def _velocity_update():
+        async def _velocity_update() -> None:
+            """Track NED velocity telemetry."""
             async for velocity in self._system.telemetry.velocity_ned():
                 self._velocity_ned.set(
                     [velocity.north_m_s, velocity.east_m_s, velocity.down_m_s]
                 )
 
-        async def _gps_update():
+        async def _gps_update() -> None:
+            """Track GPS fix type and visible satellites."""
             async for gps_info in self._system.telemetry.gps_info():
                 new_gps = _GPSInfoCompat()
                 new_gps.satellites_visible = gps_info.num_satellites
                 new_gps.fix_type = gps_info.fix_type.value
                 self._gps_val.set(new_gps)
 
-        async def _battery_update():
+        async def _battery_update() -> None:
+            """Track battery voltage/current/remaining level."""
             async for battery in self._system.telemetry.battery():
                 new_bat = _BatteryCompat()
                 new_bat.voltage = battery.voltage_v
@@ -456,11 +467,13 @@ class Vehicle:
                 new_bat.level = int(battery.remaining_percent)
                 self._battery_val.set(new_bat)
 
-        async def _flight_mode_update():
+        async def _flight_mode_update() -> None:
+            """Track current autopilot flight mode name."""
             async for mode in self._system.telemetry.flight_mode():
                 self._mode.set(mode.name)
 
-        async def _armed_update():
+        async def _armed_update() -> None:
+            """Track armed transitions and reset init state on disarm."""
             async for armed in self._system.telemetry.armed():
                 old_armed = self._armed_state.get()
                 self._armed_state.set(armed)
@@ -471,7 +484,8 @@ class Vehicle:
                     # Vehicle disarmed; allow re-initialization on next guided command
                     self._initialization_complete = False
 
-        async def _health_update():
+        async def _health_update() -> None:
+            """Track pre-arm health and aggregate armability flags."""
             async for health in self._system.telemetry.health():
                 self._health_val.set(
                     health
@@ -484,7 +498,8 @@ class Vehicle:
                     and self._prearm_checks_ok.get()
                 )
 
-        async def _mavlink_status_update():
+        async def _mavlink_status_update() -> None:
+            """Read SYS_STATUS pre-arm bitmask via MAVLink direct stream."""
             import json
             from aerpawlib.v1.constants import MAV_SYS_STATUS_PREARM_CHECK
 
@@ -499,7 +514,7 @@ class Vehicle:
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
 
-        async def _ekf_status_update():
+        async def _ekf_status_update() -> None:
             """Subscribe to EKF_STATUS_REPORT (ArduPilot) for takeoff readiness."""
             import json
 
@@ -521,7 +536,8 @@ class Vehicle:
                     e,
                 )
 
-        async def _home_update():
+        async def _home_update() -> None:
+            """Track home position and absolute home altitude."""
             async for home in self._system.telemetry.home():
                 self._home_position.set(
                     util.Coordinate(
@@ -532,7 +548,8 @@ class Vehicle:
                 )
                 self._home_abs_alt.set(home.absolute_altitude_m)
 
-        async def _connection_state_update():
+        async def _connection_state_update() -> None:
+            """Track MAVSDK connection state to mirror heartbeat availability."""
             async for state in self._system.core.connection_state():
                 if state.is_connected:
                     self._last_heartbeat_time = time.time()
@@ -563,10 +580,12 @@ class Vehicle:
         ]
 
         for name, factory in telemetry_defs:
+            # Keep streams isolated: one failing telemetry subscription should not
+            # tear down the others; _resilient_telemetry_task handles retries.
             task = asyncio.create_task(self._resilient_telemetry_task(name, factory))
             self._telemetry_tasks.append(task)
 
-    async def _fetch_vehicle_info(self):
+    async def _fetch_vehicle_info(self) -> None:
         """
         Fetch static vehicle information like firmware version once.
         """
@@ -718,7 +737,7 @@ class Vehicle:
         return ",".join(map(str, props))
 
     # Internal logic
-    def _internal_update_loop(self):
+    def _internal_update_loop(self) -> None:
         """
         Background loop for periodic internal state maintenance and logging.
         """
@@ -726,7 +745,7 @@ class Vehicle:
             self._internal_update()
             time.sleep(INTERNAL_UPDATE_DELAY_S)
 
-    def _internal_update(self):
+    def _internal_update(self) -> None:
         """
         Perform a single iteration of internal updates.
 
@@ -824,7 +843,7 @@ class Vehicle:
             timeout_message=f"Vehicle did not report done_moving within {DEFAULT_GOTO_TIMEOUT_S}s",
         )
 
-    def _abort(self):
+    def _abort(self) -> None:
         """
         Trigger an abort of the current operation if it is marked as abortable.
         """

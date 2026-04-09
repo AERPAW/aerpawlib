@@ -84,7 +84,7 @@ class BasicRunner(Runner):
     `examples/basic_runner.py`
     """
 
-    def _build(self):
+    def _build(self) -> None:
         """Discover and validate the single ``@entrypoint`` method."""
         self._entry = None
         for _, method in inspect.getmembers(self):
@@ -134,7 +134,7 @@ class StateMachine(Runner):
     _running: bool
     _background_task_futures: List[asyncio.Future]
 
-    def _build(self):
+    def _build(self) -> None:
         """
         Introspect the class to identify states, background tasks, and init tasks.
 
@@ -164,7 +164,7 @@ class StateMachine(Runner):
         if not _found_initial:
             raise NoInitialStateError()
 
-    async def _start_background_tasks(self, vehicle: Vehicle):
+    async def _start_background_tasks(self, vehicle: Vehicle) -> None:
         """
         Start all background tasks in the asyncio event loop.
 
@@ -173,7 +173,7 @@ class StateMachine(Runner):
         """
         for task in self._background_tasks:
 
-            async def _task_runner(t=task):
+            async def _task_runner(t: _BackgroundTask = task) -> None:
                 """Run and automatically restart a background task on failure."""
                 while self._running:
                     try:
@@ -264,7 +264,7 @@ class ZmqStateMachine(StateMachine):
 
     _exported_states: Dict[str, _State]
 
-    def _build(self):
+    def _build(self) -> None:
         """Build base state maps and collect ZMQ-exposed states/fields."""
         super()._build()
         self._exported_states = {}
@@ -288,7 +288,9 @@ class ZmqStateMachine(StateMachine):
 
     _ZMQ_FIELD_PENDING = object()
 
-    def _initialize_zmq_bindings(self, vehicle_identifier: str, proxy_server_addr: str):
+    def _initialize_zmq_bindings(
+        self, vehicle_identifier: str, proxy_server_addr: str
+    ) -> None:
         """
         Configure ZMQ connection parameters.
 
@@ -312,7 +314,7 @@ class ZmqStateMachine(StateMachine):
         self._zmq_received_fields = {}
 
     @background
-    async def _zmq_bg_sub(self, vehicle: Vehicle):
+    async def _zmq_bg_sub(self, vehicle: Vehicle) -> None:
         """
         Background task to subscribe to ZMQ messages.
 
@@ -337,7 +339,9 @@ class ZmqStateMachine(StateMachine):
         finally:
             socket.close()
 
-    async def _zmq_handle_request(self, vehicle: Vehicle, message):
+    async def _zmq_handle_request(
+        self, vehicle: Vehicle, message: Dict[str, Any]
+    ) -> None:
         """
         Handle an incoming ZMQ request.
 
@@ -387,7 +391,7 @@ class ZmqStateMachine(StateMachine):
             self._zmq_received_fields[msg_from][field] = value
 
     @background
-    async def _zmq_bg_pub(self, _: Vehicle):
+    async def _zmq_bg_pub(self, _: Vehicle) -> None:
         """
         Background task to publish ZMQ messages.
 
@@ -476,7 +480,7 @@ class ZmqStateMachine(StateMachine):
         }
         await self._zmq_messages_sending.put(query_obj)
 
-        async def _wait_for_reply():
+        async def _wait_for_reply() -> None:
             """Wait until the requested field value is received."""
             while (
                 self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING
@@ -493,7 +497,9 @@ class ZmqStateMachine(StateMachine):
             raise
         return self._zmq_received_fields[identifier][field]
 
-    async def _reply_queried_field(self, identifier: str, field: str, value):
+    async def _reply_queried_field(
+        self, identifier: str, field: str, value: Any
+    ) -> None:
         """
         Send a reply to a field query.
 

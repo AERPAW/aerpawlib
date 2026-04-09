@@ -64,7 +64,7 @@ class Runner:
         """Cleanup on exit."""
         pass
 
-    async def _run_with_disarm_guard(self, vehicle: Any, coro) -> None:
+    async def _run_with_disarm_guard(self, vehicle: Any, coro: Any) -> None:
         """Run *coro* but raise UnexpectedDisarmError if the vehicle disarms unexpectedly.
 
         Uses ``asyncio.wait(FIRST_COMPLETED)`` to race the main coroutine against the
@@ -81,6 +81,7 @@ class Runner:
         main_task = asyncio.ensure_future(coro)
 
         async def _watch_disarm() -> None:
+            """Wait for the vehicle unexpected-disarm event to be set."""
             await disarm_event.wait()
 
         disarm_task = asyncio.ensure_future(_watch_disarm())
@@ -147,6 +148,7 @@ class StateMachine(Runner):
     """State-based mission runner."""
 
     def __init__(self) -> None:
+        """Initialise runtime state for one execution of the state machine."""
         self._current_state: Optional[str] = None
         self._running = False
         self._background_futures: List[asyncio.Future] = []
@@ -223,6 +225,7 @@ class StateMachine(Runner):
         last_state = ""
 
         async def _bg() -> str:
+            """Execute timed-state iterations until stop_event is set."""
             nonlocal last_state
             while not stop_event.is_set():
                 last_state = await method(vehicle)
@@ -267,6 +270,7 @@ class StateMachine(Runner):
         )
 
         async def _main_loop() -> None:
+            """Execute init hooks, backgrounds, then state transitions."""
             at_init_list = self._get_at_init()
             if at_init_list:
                 logger.debug(
@@ -286,7 +290,7 @@ class StateMachine(Runner):
             for name in backgrounds:
                 method = getattr(self, name)
 
-                async def _bg_task(task, _name=name):
+                async def _bg_task(task: Any, _name: str = name) -> None:
                     """Run a background task with bounded retry/backoff on errors."""
                     consecutive_failures = 0
                     while self._running:
@@ -379,6 +383,7 @@ class ZmqStateMachine(StateMachine):
     """
 
     def __init__(self) -> None:
+        """Initialise ZMQ transport state in addition to base StateMachine state."""
         super().__init__()
         self._zmq_identifier: Optional[str] = None
         self._zmq_proxy_server: Optional[str] = None

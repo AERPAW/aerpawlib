@@ -11,7 +11,7 @@ so existing catch blocks will continue to work.
 @author: Julian Reder
 """
 
-from typing import Optional, Any
+from typing import List, Optional
 
 
 class AerpawlibError(Exception):
@@ -26,7 +26,9 @@ class AerpawlibError(Exception):
         original_error: The underlying exception that caused this error, if any
     """
 
-    def __init__(self, message: str, original_error: Optional[Exception] = None):
+    def __init__(
+        self, message: str, original_error: Optional[Exception] = None
+    ) -> None:
         self.message = message
         self.original_error = original_error
         super().__init__(message)
@@ -51,7 +53,7 @@ class AerpawConnectionError(AerpawlibError):
 class ConnectionTimeoutError(AerpawConnectionError):
     """Raised when connection to the vehicle times out."""
 
-    def __init__(self, timeout_seconds: float, message: Optional[str] = None):
+    def __init__(self, timeout_seconds: float, message: Optional[str] = None) -> None:
         self.timeout_seconds = timeout_seconds
         msg = message or f"Connection timed out after {timeout_seconds} seconds"
         super().__init__(msg)
@@ -60,7 +62,9 @@ class ConnectionTimeoutError(AerpawConnectionError):
 class HeartbeatLostError(AerpawConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
-    def __init__(self, last_heartbeat_age: float = 0.0, message: Optional[str] = None):
+    def __init__(
+        self, last_heartbeat_age: float = 0.0, message: Optional[str] = None
+    ) -> None:
         self.last_heartbeat_age = last_heartbeat_age
         msg = (
             message
@@ -72,14 +76,14 @@ class HeartbeatLostError(AerpawConnectionError):
 class MAVSDKNotInstalledError(AerpawConnectionError):
     """Raised when MAVSDK is not installed."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("MAVSDK is not installed. Install with: pip install mavsdk")
 
 
 class PortInUseError(AerpawConnectionError):
     """Raised when the MAVSDK server port is already in use."""
 
-    def __init__(self, port: int, message: Optional[str] = None):
+    def __init__(self, port: int, message: Optional[str] = None) -> None:
         msg = message or f"Port {port} is already in use (MAVSDK server cannot bind)"
         super().__init__(msg)
         self.port = port
@@ -99,7 +103,7 @@ class AERPAWPlatformError(AerpawlibError):
 class NotInAERPAWEnvironmentError(AERPAWPlatformError):
     """Raised when AERPAW platform features are used outside the platform."""
 
-    def __init__(self, feature: str):
+    def __init__(self, feature: str) -> None:
         super().__init__(
             f"'{feature}' requires AERPAW platform environment. "
             "This feature is not available in standalone/SITL mode."
@@ -125,7 +129,7 @@ class ArmError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Failed to arm vehicle: {reason}", original_error)
 
 
@@ -136,7 +140,7 @@ class DisarmError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Failed to disarm vehicle: {reason}", original_error)
 
 
@@ -147,7 +151,7 @@ class TakeoffError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Takeoff failed: {reason}", original_error)
 
 
@@ -158,7 +162,7 @@ class LandingError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Landing failed: {reason}", original_error)
 
 
@@ -169,7 +173,7 @@ class NavigationError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Navigation failed: {reason}", original_error)
 
 
@@ -180,7 +184,7 @@ class VelocityError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Set velocity failed: {reason}", original_error)
 
 
@@ -191,7 +195,7 @@ class HeadingError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Set heading failed: {reason}", original_error)
 
 
@@ -202,7 +206,7 @@ class RTLError(CommandError):
         self,
         reason: str = "Unknown",
         original_error: Optional[Exception] = None,
-    ):
+    ) -> None:
         super().__init__(f"Return to launch failed: {reason}", original_error)
 
 
@@ -220,21 +224,21 @@ class StateError(AerpawlibError):
 class NotArmableError(StateError):
     """Raised when attempting to arm a vehicle that is not ready."""
 
-    def __init__(self, reason: str = "Vehicle not in armable state"):
+    def __init__(self, reason: str = "Vehicle not in armable state") -> None:
         super().__init__(f"Cannot arm: {reason}")
 
 
 class NotConnectedError(StateError):
     """Raised when attempting to command a disconnected vehicle."""
 
-    def __init__(self, message: str = "Vehicle is not connected"):
+    def __init__(self, message: str = "Vehicle is not connected") -> None:
         super().__init__(message)
 
 
 class AbortedError(StateError):
     """Raised when an operation was aborted."""
 
-    def __init__(self, message: str = "Operation was aborted"):
+    def __init__(self, message: str = "Operation was aborted") -> None:
         super().__init__(message)
 
 
@@ -258,7 +262,7 @@ class InvalidToleranceError(ValidationError, ValueError):
         min_val: float,
         max_val: float,
         param_name: str = "tolerance",
-    ):
+    ) -> None:
         if value < min_val:
             msg = f"{param_name} must be at least {min_val}m, got {value}m"
         else:
@@ -272,7 +276,7 @@ class InvalidToleranceError(ValidationError, ValueError):
 class InvalidAltitudeError(ValidationError):
     """Raised when an invalid altitude is provided."""
 
-    def __init__(self, value: float, min_val: float, max_val: float):
+    def __init__(self, value: float, min_val: float, max_val: float) -> None:
         super().__init__(
             f"Invalid altitude {value}m: must be between {min_val}m and {max_val}m"
         )
@@ -284,7 +288,7 @@ class InvalidAltitudeError(ValidationError):
 class InvalidSpeedError(ValidationError):
     """Raised when an invalid speed is provided."""
 
-    def __init__(self, value: float, min_val: float, max_val: float):
+    def __init__(self, value: float, min_val: float, max_val: float) -> None:
         super().__init__(
             f"Invalid speed {value} m/s: must be between {min_val} and {max_val} m/s"
         )
@@ -301,7 +305,7 @@ class InvalidSpeedError(ValidationError):
 class NotImplementedForVehicleError(AerpawlibError):
     """Raised when a feature is not available for a vehicle type."""
 
-    def __init__(self, feature: str, vehicle_type: str):
+    def __init__(self, feature: str, vehicle_type: str) -> None:
         super().__init__(f"'{feature}' is not implemented for {vehicle_type} vehicles")
         self.feature = feature
         self.vehicle_type = vehicle_type
@@ -321,14 +325,14 @@ class StateMachineError(AerpawlibError):
 class NoEntrypointError(StateMachineError):
     """Raised when a BasicRunner has no @entrypoint declared."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("No @entrypoint declared")
 
 
 class InvalidStateError(StateMachineError):
     """Raised when state machine enters an unknown state."""
 
-    def __init__(self, state_name: str, available_states: list):
+    def __init__(self, state_name: str, available_states: List[str]) -> None:
         super().__init__(
             f"Illegal state '{state_name}'. Available states: {available_states}"
         )
@@ -339,19 +343,19 @@ class InvalidStateError(StateMachineError):
 class NoInitialStateError(StateMachineError):
     """Raised when state machine has no initial state."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("There is no initial state")
 
 
 class MultipleInitialStatesError(StateMachineError):
     """Raised when state machine has multiple initial states."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("There may only be one initial state")
 
 
 class InvalidStateNameError(StateMachineError):
     """Raised when a state is given an empty name."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("State name cannot be empty string")

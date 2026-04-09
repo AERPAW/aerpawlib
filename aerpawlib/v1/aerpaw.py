@@ -10,6 +10,7 @@ functionality.
 
 import base64
 import threading
+from typing import Any
 from urllib.parse import quote as url_quote
 
 import requests
@@ -56,9 +57,9 @@ class AERPAW:
 
     def __init__(
         self,
-        forw_addr=DEFAULT_FORWARD_SERVER_IP,
-        forw_port=DEFAULT_FORWARD_SERVER_PORT,
-    ):
+        forw_addr: str = DEFAULT_FORWARD_SERVER_IP,
+        forw_port: int = DEFAULT_FORWARD_SERVER_PORT,
+    ) -> None:
         """
         Initialize the AERPAW platform interface.
 
@@ -94,7 +95,7 @@ class AERPAW:
         """
         return self._connected
 
-    def _display_connection_warning(self):
+    def _display_connection_warning(self) -> None:
         """
         Displays a warning if the AERPAW platform is used outside of an AERPAW environment.
         """
@@ -159,7 +160,7 @@ class AERPAW:
             if not self._no_stdout:
                 logger.error("unable to send previous message to OEO.")
 
-    def _checkpoint_build_request(self, var_type, var_name):
+    def _checkpoint_build_request(self, var_type: str, var_name: str) -> str:
         """
         Builds a checkpoint request URL.
 
@@ -416,11 +417,12 @@ class _AERPAWLazyProxy:
     outside the AERPAW environment.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialise the proxy without constructing the underlying AERPAW client."""
         self.__dict__["_instance"] = None
         self.__dict__["_lock"] = threading.Lock()
 
-    def _get_instance(self):
+    def _get_instance(self) -> AERPAW:
         """Create and memoize the underlying ``AERPAW`` singleton instance."""
         if self._instance is None:
             with self._lock:
@@ -429,7 +431,8 @@ class _AERPAWLazyProxy:
                     self.__dict__["_instance"] = AERPAW()
         return self._instance
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
+        """Forward attribute lookups to the lazily-created ``AERPAW`` instance."""
         return getattr(self._get_instance(), name)
 
 

@@ -61,6 +61,19 @@ See [v1/compromises.md](v1/compromises.md) for v1 design tradeoffs and [v2/READM
 
 Notable flags: `--api-version`, `--config` (repeatable; JSON files merged in order, later overrides earlier; `null` omits or removes a key), `--structured-log FILE` (JSONL for v1 and v2), `--vehicle`, `--conn`, v2-only `--safety-checker-port`, logging `-v` / `-q`, `--log-file`. Shared presets are under `configs/` at the repo root.
 
+## API docs (pdoc)
+
+Static API docs are generated into `docs/pdoc/` using `configs/pdoc.json`.
+
+```bash
+pip install -e .[docs]
+python -m scripts.generate_pdoc --clean
+# or: aerpawlib-generate-pdoc --clean
+```
+
+The repository includes `.github/workflows/pdoc-pages.yml`, which publishes `docs/pdoc/`
+to GitHub Pages (`https://aerpaw.github.io/aerpawlib/`) on pushes to `main`/`master`.
+
 ## Testing
 
 Install dev deps and (for integration tests) SITL tooling:
