@@ -1,7 +1,8 @@
 """
-Runner for aerpawlib v2.
+Runner framework for AERPAW v2.
 
-Supports config dataclass (explicit) or decorators (@entrypoint, @state, etc.).
+This package provides configuration models, runner decorators, and concrete
+runner implementations for basic, state-machine, and ZMQ-enabled flows.
 """
 
 from __future__ import annotations

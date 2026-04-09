@@ -1,7 +1,6 @@
 """
-aerpawlib test suite.
+AERPAW test suite packages.
 
-This package contains:
-- unit/: Unit tests for logic (no SITL required)
-- integration/: SITL integration tests (requires ArduPilot SITL)
+The test tree includes ``tests.unit`` for fast logic checks and
+``tests.integration`` for SITL-backed behavior tests.
 """

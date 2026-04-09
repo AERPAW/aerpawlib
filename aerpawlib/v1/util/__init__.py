@@ -1,10 +1,8 @@
 """
-Types and functions commonly used throughout the aerpawlib v1 framework.
+Utility types and helpers for AERPAW v1.
 
-This version has been updated to remove DroneKit dependencies while
-maintaining API compatibility.
-
-@author: Julian Reder (quantumbagel)
+This package re-exports coordinate/waypoint types, geofence helpers,
+mission plan readers, and network port utilities used across v1.
 """
 
 from .geometry import Coordinate, VectorNED, Waypoint

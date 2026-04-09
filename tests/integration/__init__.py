@@ -1,1 +1,1 @@
-"""Integration tests (requires SITL)."""
+"""Integration tests that exercise SITL-backed mission behavior."""

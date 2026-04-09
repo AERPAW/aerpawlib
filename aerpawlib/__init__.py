@@ -1,5 +1,12 @@
 """
-.. include:: ./documentation.md
+AERPAW vehicle-control library.
+
+This package keeps a lazy compatibility surface for legacy
+``import aerpawlib`` usage while the maintained APIs live under
+``aerpawlib.v1`` and ``aerpawlib.v2``.
+
+For new code, prefer explicit versioned imports such as
+``from aerpawlib.v1 import Drone`` or ``from aerpawlib.v2 import Drone``.
 """
 
 __author__ = "John Kesler and Julian Reder"

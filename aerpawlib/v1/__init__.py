@@ -1,22 +1,11 @@
 """
-aerpawlib v1 API - MAVSDK-based vehicle control (API compatible)
+AERPAW v1 API.
 
-This module provides backward compatibility with the original aerpawlib API
-while using MAVSDK as the backend instead of DroneKit.
+The v1 package preserves the original aerpawlib programming model while
+using modern MAVSDK-based internals.
 
-The v1 API provides:
-- Vehicle, Drone, Rover classes for vehicle control
-- Runner, BasicRunner, StateMachine for script execution
-- Coordinate, VectorNED for position/movement handling
-- Utility functions for geofencing and waypoint handling
-
-Usage:
-    from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
-
-    # All existing v1 code works unchanged
-
-@author: Julian Reder (quantumbagel) - MAVSDK adaptation
-@author: John Kesler (morzack) - some code from original aerpawlib
+It re-exports the primary v1 public surface, including vehicle classes,
+runner/state-machine classes, coordinate utilities, and safety helpers.
 """
 
 from .external import *

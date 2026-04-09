@@ -1,19 +1,10 @@
 """
-aerpawlib v2 API - async-first vehicle control.
+AERPAW v2 API.
 
-Modern replacement for v1 with single event loop, native async telemetry,
-descriptor-based runners, VehicleTask for progress/cancellation, and
-built-in safety/connection handling.
+The v2 package is the async-first interface with native asyncio runners,
+telemetry streaming, and built-in safety/connection handling.
 
-Usage:
-    from aerpawlib.v2 import Drone, Coordinate, BasicRunner, entrypoint
-
-    class MyMission(BasicRunner):
-        @entrypoint
-        async def run(self, drone: Drone):
-            await drone.takeoff(altitude=10)
-            await drone.goto_coordinates(drone.position + VectorNED(20, 0))
-            await drone.land()
+Import public v2 symbols directly from this package for mission scripts.
 """
 
 from .constants import *

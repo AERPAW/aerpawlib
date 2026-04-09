@@ -1,1 +1,1 @@
-"""Unit tests for logic (no SITL required)."""
+"""Unit tests for fast, non-SITL verification of library behavior."""

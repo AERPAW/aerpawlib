@@ -1,10 +1,8 @@
 """
-safety module
-Provides a safety server and client for validating vehicle commands
-Unchanged from legacy except to provide aliases for new method names
-to maintain backward compatibility with existing code.
+Safety services for AERPAW v1.
 
-@author: John Kesler (morzack)
+This package exposes the v1 safety checker server/client and wire-format
+helpers used to validate mission commands.
 """
 
 from .client import SafetyCheckerClient

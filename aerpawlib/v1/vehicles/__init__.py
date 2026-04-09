@@ -1,7 +1,8 @@
 """
-Vehicle implementations for aerpawlib v1.
+Vehicle implementations for AERPAW v1.
 
-Re-exports all vehicle classes for convenient imports.
+The package re-exports the common ``Vehicle`` base type together with
+``Drone`` and ``Rover`` concrete implementations.
 """
 
 from .core_vehicle import Vehicle, DummyVehicle

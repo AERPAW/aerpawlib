@@ -1,5 +1,7 @@
 """
-Vehicle module for aerpawlib v2.
+Vehicle implementations for AERPAW v2.
+
+Re-exports the shared vehicle base along with drone and rover classes.
 """
 
 from .base import Vehicle, DummyVehicle
