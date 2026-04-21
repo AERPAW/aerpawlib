@@ -1,4 +1,17 @@
-"""Local UDP/TCP port availability checks."""
+"""
+Local TCP/UDP port availability helpers.
+
+This module provides lightweight bind-based checks used by v1 startup logic to
+detect likely local port conflicts before launching vehicle connections.
+
+Capabilities
+- Check UDP port availability on a target host/interface.
+- Check TCP port availability on IPv4 or IPv6 hosts.
+
+Notes:
+- These are fast pre-checks intended to improve error messages before deeper
+  MAVSDK connection setup begins.
+"""
 
 import errno
 import socket

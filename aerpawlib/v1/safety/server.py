@@ -1,4 +1,22 @@
-"""ZMQ SafetyCheckerServer and geofence validation."""
+"""
+ZMQ safety server and geofence validation utilities.
+
+This module implements `SafetyCheckerServer`, a blocking REP server that loads
+vehicle constraints from configuration and validates incoming command requests.
+
+Capabilities
+- Validate waypoint paths against include/exclude geofence polygons.
+- Validate speed and altitude constraints for supported vehicle types.
+- Reply with structured pass/fail responses over the compressed wire format.
+
+Usage:
+- Run the server as a sidecar process and point `SafetyCheckerClient` instances
+  at its host/port.
+
+Notes:
+- Request payloads use the compressed JSON format defined in
+  `aerpawlib.v1.safety.wire_format`.
+"""
 
 import json
 import os

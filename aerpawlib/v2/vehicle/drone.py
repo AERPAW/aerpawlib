@@ -1,5 +1,49 @@
 """
-Drone vehicle for aerpawlib v2.
+Drone vehicle implementation for the aerpawlib v2 API.
+
+This module provides the :class:`Drone` implementation used by the v2,
+async-first vehicle API. The :class:`Drone` class implements common
+multirotor behaviours such as arming, takeoff, landing, return-to-launch,
+point-to-point navigation (goto), and velocity-control via offboard mode.
+
+Key behaviours and concepts
+- Async API: All high-level vehicle operations are coroutines and must be
+  awaited from an asyncio event loop (for example, inside an ``async``
+  mission runner).
+- Offboard usage: Methods that use velocity or precise heading control enter
+  offboard mode on the autopilot. Offboard is started automatically when
+  required and stopped when the command completes (or when ``_stop_offboard``
+  is called). Use :meth:`stop_velocity` to explicitly stop an ongoing
+  velocity command.
+- Heading lock: Calling :meth:`set_heading` with ``lock_in=True`` stores a
+  heading that will be used by later navigation commands. Pass ``None`` to
+  clear the locked heading.
+- Non-blocking navigation: :meth:`goto_coordinates` supports a non-blocking
+  mode that returns a :class:`VehicleTask` handle which can be used to
+  observe progress or cancel the operation.
+
+Typical usage example
+    async def mission(drone: Drone):
+        await drone.takeoff(altitude=5.0)
+        await drone.goto_north(10.0)
+        await drone.set_velocity(VectorNED(1.0, 0.0, 0.0), duration=5.0)
+        await drone.land()
+
+Integration and logging
+- When available, commands log structured events to ``self._event_log``;
+  consumers can attach a structured logger to record mission events/telemetry.
+- The :class:`Drone` implementation cooperates with the AERPAW platform
+  helper (``AERPAW_Platform``) to wait for a safety pilot when running in
+  an AERPAW experiment. In standalone/SITL mode the class will auto-arm
+  where appropriate.
+
+Exceptions
+- This module raises domain-specific exceptions (e.g. :class:`TakeoffError`,
+  :class:`NavigationError`, :class:`VelocityError`, :class:`LandingError`,
+  :class:`RTLError`) to simplify error handling in user code.
+
+See the :mod:`aerpawlib.v2.vehicle.base` module for the :class:`Vehicle`
+base class and shared helpers.
 """
 
 from __future__ import annotations

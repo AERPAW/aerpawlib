@@ -1,14 +1,18 @@
 """
-Custom exceptions for aerpawlib v1.
+Exception hierarchy for the v1 API.
 
-Provides a meaningful exception hierarchy for better error handling
-while maintaining backward compatibility with existing code that catches
-generic Exception.
+This module defines package-specific exception types used by v1 components so
+callers can catch broad categories (for example, connection errors) or specific
+failures (for example, takeoff errors).
 
-All exceptions inherit from AerpawlibError, which inherits from Exception,
-so existing catch blocks will continue to work.
+Capabilities
+- Provide a shared base class (`AerpawlibError`) for v1-originated failures.
+- Organize errors by domain (connection, command, validation, state machine).
+- Preserve root causes through optional `original_error` chaining.
 
-@author: Julian Reder
+Usage:
+- Catch `AerpawlibError` for coarse-grained handling, or concrete subclasses
+  for targeted recovery logic.
 """
 
 from typing import List, Optional

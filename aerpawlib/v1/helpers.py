@@ -1,9 +1,19 @@
+the v1 codebase. The helpers favor simple, well-documented primitives that
 """
-Helper utilities for aerpawlib v1.
+Helper utilities for the v1 API.
 
-Common patterns extracted to reduce code duplication and improve maintainability.
+This module contains small reusable primitives used across v1 runner and
+vehicle logic, including async polling helpers, navigation value helpers, and
+thread-safe containers for cross-thread telemetry access.
 
-@author: Julian Reder
+Capabilities
+- Provide async wait helpers for condition/value polling with timeout support.
+- Provide tolerance and heading normalization helpers used by movement logic.
+- Provide `ThreadSafeValue` for safe data sharing across runner/MAVSDK threads.
+
+Usage:
+- Prefer these helpers instead of duplicating polling or normalization logic in
+  runner and vehicle implementations.
 """
 
 import asyncio

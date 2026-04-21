@@ -1,4 +1,18 @@
-"""Coordinate and VectorNED types for v1."""
+"""
+Geometry primitives for the v1 API.
+
+This module defines lightweight coordinate and NED-vector types used by v1
+navigation, telemetry, and mission-planning utilities.
+
+Capabilities
+- Represent global positions with `Coordinate` (lat/lon/alt).
+- Represent local displacements with `VectorNED` (north/east/down).
+- Compute distance, bearing, normalization, and vector operations.
+
+Notes:
+- Several compatibility aliases are preserved to ease migration from older
+  DroneKit-style code.
+"""
 
 import json
 import math

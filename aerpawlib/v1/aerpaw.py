@@ -1,11 +1,26 @@
 """
-Functionality exclusive to the AERPAW platform
+AERPAW platform helpers for v1 scripts.
 
-The AERPAW_Platform singleton will automatically detect if a script is being
-run in an AERPAW experiment, in which case it enables additional AERPAW
-functionality.
+This module exposes a thin client for interacting with AERPAW-specific
+infrastructure such as the OEO console and the checkpoint service. These
+features are only meaningful when the script is running inside an AERPAW
+experiment; when run in SITL/standalone the module intentionally degrades
+gracefully and emits a one-time warning.
 
-@author: John Kesler (morzack)
+Capabilities
+- Send human-readable messages to the OEO console.
+- Publish simple topic values to the OEO pub/sub bridge.
+- Set/check boolean checkpoints and integer/string variables used to
+  coordinate distributed experiment nodes.
+
+Usage:
+- This module is entirely used within the CLI and does not/should not be used by the end user.
+
+
+Notes:
+- If not in an AERPAW environment the methods will either return safely
+  (often ``False``) or raise an informative exception. A one-time warning is
+  logged the first time non-platform functionality is invoked.
 """
 
 import base64
@@ -37,16 +52,18 @@ from .constants import (
 
 class AERPAW:
     """
-    Interface for interacting with the AERPAW platform services.
+    Client for AERPAW platform services used by v1 scripts.
 
-    This class provides methods for logging to the AERPAW OEO-Console and using the AERPAW checkpoint system.
+    Capabilities
+    - Send human-readable messages to the OEO console.
+    - Publish custom values to OEO user topics.
+    - Set/check checkpoint booleans, counters, and string values.
 
-    Attributes:
-        _forw_addr: The IP address of the forward server.
-        _forw_port: The port of the forward server service.
-        _connected: Whether the object is successfully connected to the AERPAW platform.
-        _connection_warning_displayed: Whether the connection warning has been shown.
-        _no_stdout: If True, suppresses printing to standard output.
+    Notes:
+    - Methods that require platform services either no-op/return safely or
+      raise informative exceptions when running outside AERPAW.
+    - This class is consumed by CLI internals; use `AERPAW_Platform` instead of
+      constructing instances directly.
     """
 
     _forw_addr: str
@@ -61,11 +78,11 @@ class AERPAW:
         forw_port: int = DEFAULT_FORWARD_SERVER_PORT,
     ) -> None:
         """
-        Initialize the AERPAW platform interface.
+        Initialize the platform client and probe connectivity.
 
         Args:
-            forw_addr: The IP address of the forward server. Defaults to DEFAULT_FORWARD_SERVER_IP.
-            forw_port: The port of the forward server service. Defaults to DEFAULT_FORWARD_SERVER_PORT.
+            forw_addr: IP or hostname of the AERPAW forward server.
+            forw_port: Port of the AERPAW forward server.
         """
         self._forw_addr = forw_addr
         self._forw_port = forw_port
@@ -74,8 +91,14 @@ class AERPAW:
 
     def attach_to_aerpaw_platform(self) -> bool:
         """
-        Attempts to attach this `AERPAW` object to the AERPAW platform/C-VM
-        hosting this experiment. Returns bool depending on success.
+        Attempt to detect whether the AERPAW platform is reachable.
+
+        Behavior:
+        - Sends a ping request to the forward server.
+        - Treats request failures as "not connected".
+
+        Returns:
+            `True` when the ping request succeeds, otherwise `False`.
         """
         try:
             requests.post(
@@ -88,22 +111,27 @@ class AERPAW:
 
     def _is_aerpaw_environment(self) -> bool:
         """
-        Check if we're running in the AERPAW platform environment.
+        Report whether platform connectivity has been established.
 
         Returns:
-            True if connected to AERPAW platform, False otherwise (standalone/SITL)
+            `True` when connected to AERPAW services, otherwise `False`.
         """
         return self._connected
 
     def _display_connection_warning(self) -> None:
         """
-        Displays a warning if the AERPAW platform is used outside of an AERPAW environment.
+        Log a one-time warning when platform-only features are used offline.
+
+        Notes:
+        - Logging is skipped when stdout mirroring is disabled.
+        - The warning is emitted at most once per process.
         """
         if self._connection_warning_displayed:
             return
         if not self._no_stdout:
             logger.info(
-                "the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment"
+                "the user script has attempted to use AERPAW platform functionality "
+                "without being in the AERPAW environment"
             )
         self._connection_warning_displayed = True
 
@@ -114,17 +142,20 @@ class AERPAW:
         agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID,
     ) -> None:
         """
-        Send a message to the OEO console, if connected.
+        Send a message to the OEO console.
 
-        Prints the message to stdout regardless of connection status, unless _no_stdout is True.
+        Behavior:
+        - Always mirrors the message to local logs unless `_no_stdout` is set.
+        - When connected, submits the message to the forward server.
+        - When disconnected, emits a one-time warning and returns.
 
         Args:
-            msg: The message to log.
-            severity: The severity level of the message. Defaults to OEO_MSG_SEV_INFO.
-            agent_id: The ID of the agent sending the message. Defaults to DEFAULT_HUMAN_READABLE_AGENT_ID.
+            msg: Human-readable message body.
+            severity: Severity label (`info`, `warn`, `error`, or `crit`).
+            agent_id: Optional message source identifier.
 
         Raises:
-            Exception: If the provided severity is not supported.
+            Exception: If `severity` is not one of the supported values.
         """
         if not self._no_stdout:
             if severity == OEO_MSG_SEV_INFO:
@@ -162,27 +193,27 @@ class AERPAW:
 
     def _checkpoint_build_request(self, var_type: str, var_name: str) -> str:
         """
-        Builds a checkpoint request URL.
+        Build a checkpoint endpoint URL.
 
         Args:
-            var_type: The type of the checkpoint variable ('bool', 'int', or 'string').
-            var_name: The name of the checkpoint variable.
+            var_type: Checkpoint value kind (`bool`, `int`, or `string`).
+            var_name: Name/key of the checkpoint value.
 
         Returns:
-            str: The full URL for the checkpoint request.
+            Full HTTP URL for the checkpoint request.
         """
         return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{var_name}"
-
-    # NOTE: unlike the above functionality, all checkpoint functions will cause an
-    # exception if they are run while not in the AERPAW platform, as there isn't a way
-    # to "recover" while maintaining the function's API contract
 
     def checkpoint_reset_server(self) -> None:
         """
         Reset the AERPAW checkpoint server.
 
-        This function should be called at the start of an experiment by an E-VM script
-        to ensure that no stored state remains between experiment runs.
+        Behavior:
+        - Clears checkpoint state from prior experiment runs.
+        - Requires an active AERPAW platform connection.
+
+        Raises:
+            Exception: If not connected or if the reset request fails.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -198,13 +229,17 @@ class AERPAW:
 
     def checkpoint_set(self, checkpoint_name: str) -> None:
         """
-        Set a boolean checkpoint in the AERPAW checkpoint system.
+        Set a boolean checkpoint to `True`.
+
+        Behavior:
+        - Creates the checkpoint if it does not already exist.
+        - Requires an active AERPAW platform connection.
 
         Args:
-            checkpoint_name: The name of the checkpoint to set.
+            checkpoint_name: Name of the checkpoint.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error.
+            Exception: If not connected or if the update request fails.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -220,16 +255,17 @@ class AERPAW:
 
     def checkpoint_check(self, checkpoint_name: str) -> bool:
         """
-        Check if a boolean checkpoint has been set.
+        Read a boolean checkpoint value.
 
         Args:
-            checkpoint_name: The name of the checkpoint to check.
+            checkpoint_name: Name of the checkpoint.
 
         Returns:
-            bool: True if the checkpoint is set, False otherwise.
+            `True` when the checkpoint is set, otherwise `False`.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error/malformed content.
+            Exception: If not connected, if the request fails, or if the
+                response content is malformed.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -253,13 +289,18 @@ class AERPAW:
 
     def checkpoint_increment_counter(self, counter_name: str) -> None:
         """
-        Increment an integer counter in the AERPAW checkpoint system.
+        Increment an integer counter.
+
+        Behavior:
+        - Increments the named counter by one.
+        - Creates the counter at `1` when it does not exist.
+        - Requires an active AERPAW platform connection.
 
         Args:
-            counter_name: The name of the counter to increment.
+            counter_name: Name of the counter.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error.
+            Exception: If not connected or if the update request fails.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -275,16 +316,17 @@ class AERPAW:
 
     def checkpoint_check_counter(self, counter_name: str) -> int:
         """
-        Get the current value of an integer counter.
+        Read the current value of an integer counter.
 
         Args:
-            counter_name: The name of the counter to check.
+            counter_name: Name of the counter.
 
         Returns:
-            int: The current value of the counter. Defaults to 0 if never incremented.
+            Current value of the counter.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error/malformed content.
+            Exception: If not connected, if the request fails, or if the
+                response content is not an integer.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -307,14 +349,18 @@ class AERPAW:
 
     def checkpoint_set_string(self, string_name: str, value: str) -> None:
         """
-        Set a string value in the AERPAW checkpoint system.
+        Store a string value in the checkpoint system.
+
+        Behavior:
+        - Writes `value` under the checkpoint key `string_name`.
+        - Requires an active AERPAW platform connection.
 
         Args:
-            string_name: The key for the string value.
-            value: The string value to store.
+            string_name: Key/name for the stored string.
+            value: String value to store.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error.
+            Exception: If not connected or if the update request fails.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -331,16 +377,16 @@ class AERPAW:
 
     def checkpoint_check_string(self, string_name: str) -> str:
         """
-        Get a string value from the AERPAW checkpoint system.
+        Read a string value from the checkpoint system.
 
         Args:
-            string_name: The key for the string value.
+            string_name: Key/name for the stored string.
 
         Returns:
-            str: The stored string value.
+            Stored string value for `string_name`.
 
         Raises:
-            Exception: If not in an AERPAW environment or if the server returns an error.
+            Exception: If not connected or if the request fails.
         """
         if not self._connected:
             self._display_connection_warning()
@@ -363,21 +409,21 @@ class AERPAW:
         agent_id: str = DEFAULT_HUMAN_READABLE_AGENT_ID,
     ) -> bool:
         """
-        Publish `value` to a user topic in the OEO system (can be added/is
-        visible on the OEO-console).
-        Use `agent_id` to provide an identifier for the message being sent. By
-        default, it uses the current node's number.
-        `topic` is used to structure the topic as received in the OEO system.
-        The message will be received internally "oeo/user/`topic`" and can be
-        viewed in the OEO-CONSOLE by adding `topic`. `topic` can include "/"s
-        to indicate a hierachy within the message (e.g. "radio_script/snr" and
-        "radio_script/throughput" could both be seen on the console by "add"ing
-        "radio_script").
-        returns bool based on success
+        Publish a value to a custom OEO user topic.
+
+        Behavior:
+        - Base64-encodes `topic`, `value`, and optional `agent_id`.
+        - Sends the payload through the forward server when connected.
+        - Returns `False` on connection or request failures.
+
+        Args:
+            value: Value payload to publish.
+            topic: Topic path (for example, `radio/snr`).
+            agent_id: Optional message source identifier.
+
+        Returns:
+            `True` if the publish request succeeds, otherwise `False`.
         """
-
-        # note for devs, the messages can be sent to http://oeo_console:port/oeo_pub/encoded_topic/encoded_value/(optional)encoded_agent
-
         if not self._connected:
             self._display_connection_warning()
             return False
@@ -410,20 +456,34 @@ class AERPAW:
 
 class _AERPAWLazyProxy:
     """
-    Lazy proxy for the AERPAW singleton.
+    Lazy proxy for the `AERPAW` singleton.
 
-    Defers construction of the actual AERPAW instance until first attribute
-    access, avoiding a ~1 second HTTP timeout on every import when running
-    outside the AERPAW environment.
+    Behavior:
+    - Defers construction of `AERPAW` until first attribute access.
+    - Uses a lock to keep singleton construction thread-safe.
+
+    Notes:
+    - Avoids import-time ping delays when running outside AERPAW.
     """
 
     def __init__(self) -> None:
-        """Initialise the proxy without constructing the underlying AERPAW client."""
+        """
+        Initialize the proxy without constructing the underlying client.
+
+        Behavior:
+        - Sets up empty singleton storage.
+        - Prepares a lock for thread-safe lazy initialization.
+        """
         self.__dict__["_instance"] = None
         self.__dict__["_lock"] = threading.Lock()
 
     def _get_instance(self) -> AERPAW:
-        """Create and memoize the underlying ``AERPAW`` singleton instance."""
+        """
+        Create and memoize the underlying `AERPAW` singleton instance.
+
+        Returns:
+            Lazily-created shared `AERPAW` instance.
+        """
         if self._instance is None:
             with self._lock:
                 # Double-check after acquiring lock
@@ -432,7 +492,15 @@ class _AERPAWLazyProxy:
         return self._instance
 
     def __getattr__(self, name: str) -> Any:
-        """Forward attribute lookups to the lazily-created ``AERPAW`` instance."""
+        """
+        Forward attribute lookup to the lazily-created `AERPAW` instance.
+
+        Args:
+            name: Attribute name requested on the proxy.
+
+        Returns:
+            Attribute value resolved from the underlying singleton instance.
+        """
         return getattr(self._get_instance(), name)
 
 

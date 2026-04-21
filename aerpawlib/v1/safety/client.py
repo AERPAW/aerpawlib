@@ -1,4 +1,18 @@
-"""ZMQ client for SafetyCheckerServer."""
+"""
+ZMQ client for the v1 `SafetyCheckerServer`.
+
+This module implements the REQ/REP client used by vehicle code to submit
+safety validation requests to the checker server.
+
+Capabilities
+- Submit waypoint, speed, takeoff, and landing validation requests.
+- Serialize requests using the safety wire format helpers.
+- Use bounded send/receive timeouts to avoid indefinite blocking.
+
+Usage:
+- Instantiate `SafetyCheckerClient` with server address/port and call the
+  validation helper methods before issuing movement commands.
+"""
 
 from typing import Dict, Tuple
 

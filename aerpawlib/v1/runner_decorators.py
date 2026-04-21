@@ -1,4 +1,19 @@
-"""Decorators and internal _State for v1 runners."""
+"""
+Decorators and internal state machinery for v1 runners.
+
+This module defines decorator primitives that annotate runner methods for
+entrypoints, state transitions, timed states, background jobs, and ZMQ
+exposure, plus the internal `_State` execution helper.
+
+Capabilities
+- Mark methods for discovery by `StateMachine._build()`.
+- Describe timed/looping state behavior through decorator metadata.
+- Mark methods/fields for ZMQ-driven control in `ZmqStateMachine`.
+
+Notes:
+- Decorators store marker attributes; scheduling behavior is implemented by
+  runner classes during build and execution.
+"""
 
 from __future__ import annotations
 

@@ -1,11 +1,18 @@
 """
-Core logic surrounding the various `Vehicle`s available to aerpawlib user
-scripts.
+Core vehicle infrastructure for the v1 API.
 
-This is the MAVSDK-based implementation of the v1 API, maintaining full
-backward compatibility with the original DroneKit-based interface.
+This module implements the shared MAVSDK-backed base behavior used by v1
+vehicle types, including connection lifecycle, telemetry synchronization,
+thread bridging, and safety-oriented initialization.
 
-@author: Julian Reder (quantumbagel)
+Capabilities
+- Manage dual-loop execution between runner code and MAVSDK operations.
+- Track telemetry through thread-safe wrappers and background subscriptions.
+- Provide shared preflight, arming, and shutdown behavior for vehicles.
+
+Notes:
+- Concrete movement behavior is implemented by `Drone` and `Rover` modules on
+  top of this shared base implementation.
 """
 
 import asyncio

@@ -1,4 +1,22 @@
-"""Runner, BasicRunner, StateMachine, and ZmqStateMachine (v1)."""
+"""
+Runner implementations for the v1 API.
+
+This module contains the concrete execution frameworks used by v1 scripts,
+including `BasicRunner`, `StateMachine`, and `ZmqStateMachine`.
+
+Capabilities
+- Provide a common `Runner` base class for execution frameworks.
+- Execute single-entry and finite-state mission workflows.
+- Support initialization hooks, background tasks, and optional ZMQ control.
+
+Usage:
+- Subclass a runner class, annotate methods with decorators from
+  `aerpawlib.v1.runner_decorators`, and execute through the CLI.
+
+Notes:
+- ZMQ-enabled flows require the proxy to be started separately before runner
+  startup.
+"""
 
 from __future__ import annotations
 

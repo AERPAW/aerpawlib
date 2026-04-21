@@ -1,24 +1,21 @@
 """
-AERPAW v1 API.
+Public entrypoint for the AERPAW v1 API.
 
-The v1 API preserves the original aerpawlib mission programming model while
-using MAVSDK-backed internals. This package re-exports the primary public v1
-surface (vehicles, runner/state-machine decorators, utilities, and safety
-helpers) so scripts can import from one namespace.
+This package re-exports the primary v1 symbols so mission scripts can import
+vehicles, runners, safety helpers, and utilities from one namespace.
 
-Create an experiment:
-1. Subclass ``BasicRunner`` (single flow) or ``StateMachine`` (FSM flow).
-2. Mark entry methods with ``@entrypoint`` or ``@state``/``@timed_state``.
-3. Use vehicle operations like ``await vehicle.takeoff(...)`` and
-   ``await vehicle.goto_coordinates(...)`` in your runner methods.
+Capabilities
+- Re-export core runner types (`Runner`, `BasicRunner`, `StateMachine`).
+- Re-export vehicle types (`Drone`, `Rover`, `Vehicle`).
+- Re-export safety, utility, and compatibility helpers.
 
-Run an experiment from the CLI:
-``aerpawlib --api-version v1 --script my_mission.py --vehicle drone --conn udpin://127.0.0.1:14550``
+Usage:
+- Import from `aerpawlib.v1` in mission scripts to keep imports stable.
 
-See also:
-- ``docs/CLI.md`` for CLI flags and config-file workflows.
-- ``docs/TUTORIALS.md`` for end-to-end walkthroughs.
-- ``docs/USER_GUIDE.md`` for operational guidance.
+Notes:
+- v1 preserves the historical dual-loop model (background MAVSDK loop plus
+  main runner loop). New greenfield code can prefer v2, while v1 remains
+  supported for existing scripts.
 """
 
 from .external import *

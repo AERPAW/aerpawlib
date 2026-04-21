@@ -4,7 +4,6 @@ Logging utilities for aerpawlib.
 Uses Python's standard logging with a colored console formatter.
 Shared by v1 and tests.
 
-@author: Julian Reder (quantumbagel)
 """
 
 from __future__ import annotations

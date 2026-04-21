@@ -1,21 +1,17 @@
 """
-Runner framework for AERPAW v1 experiments.
+High-level runner API for v1 experiments.
 
-Use this module to build runnable experiment classes:
-- ``BasicRunner`` for a single mission coroutine.
-- ``StateMachine`` for explicit state transitions.
-- ``ZmqStateMachine`` for externally coordinated, multi-vehicle state flows.
+This module re-exports runner implementations and decorators used to build v1
+missions with either a single-entry flow or a state-machine flow.
 
-Typical authoring pattern:
-1. Subclass one of the runner classes.
-2. Decorate mission methods with ``@entrypoint`` or ``@state`` decorators.
-3. Execute the script via the CLI with ``--api-version v1``.
+Capabilities
+- Re-export `Runner`, `BasicRunner`, `StateMachine`, and `ZmqStateMachine`.
+- Re-export runner decorators (`@entrypoint`, `@state`, `@timed_state`, etc.).
+- Provide a stable import surface for mission authoring.
 
-Example run command:
-``aerpawlib --api-version v1 --script my_mission.py --vehicle drone --conn udpin://127.0.0.1:14550``
-
-See ``docs/CLI.md`` and ``docs/TUTORIALS.md`` for full script and runtime
-workflows.
+Usage:
+- Import runner symbols from `aerpawlib.v1.runner` or `aerpawlib.v1` when
+  defining mission logic classes.
 """
 
 from .runner_decorators import (

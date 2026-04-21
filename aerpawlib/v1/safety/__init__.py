@@ -1,8 +1,17 @@
 """
-Safety services for AERPAW v1.
+Safety checker package for the v1 API.
 
-This package exposes the v1 safety checker server/client and wire-format
-helpers used to validate mission commands.
+This package exposes the client/server components used to validate mission
+commands against configured geofences and vehicle constraints.
+
+Capabilities
+- Re-export `SafetyCheckerServer` for ZMQ-based request validation.
+- Re-export `SafetyCheckerClient` for vehicle-side safety requests.
+- Re-export wire-format helpers for serialized request/response payloads.
+
+Usage:
+- Import safety symbols from `aerpawlib.v1.safety` in runners, vehicles, and
+  supporting tooling.
 """
 
 from .client import SafetyCheckerClient
