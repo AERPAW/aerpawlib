@@ -1,7 +1,5 @@
 """
-Geofence utilities for aerpawlib v2.
-
-Extracted from v1 util.
+.. include:: ../../docs/v2/geofence.md
 """
 
 from __future__ import annotations

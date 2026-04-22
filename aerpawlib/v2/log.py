@@ -1,7 +1,5 @@
 """
-Logging for aerpawlib v2 API.
-
-Wraps aerpawlib.log with v2-specific component names.
+.. include:: ../../docs/v2/log.md
 """
 
 from __future__ import annotations

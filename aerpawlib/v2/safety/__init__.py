@@ -1,8 +1,5 @@
 """
-Safety and connection helpers for AERPAW v2.
-
-Exports no-op and client safety checkers, connection handlers, and
-preflight validation helpers.
+.. include:: ../../docs/v2/safety.md
 """
 
 from .checker import NoOpSafetyChecker, SafetyCheckerClient

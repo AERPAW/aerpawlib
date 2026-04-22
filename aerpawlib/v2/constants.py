@@ -1,5 +1,5 @@
 """
-Constants for aerpawlib v2 API.
+.. include:: ../../docs/v2/constants.md
 """
 
 import os

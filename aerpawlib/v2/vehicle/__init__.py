@@ -1,7 +1,5 @@
 """
-Vehicle implementations for AERPAW v2.
-
-Re-exports the shared vehicle base along with drone and rover classes.
+.. include:: ../../docs/v2/vehicle.md
 """
 
 from .base import Vehicle, DummyVehicle

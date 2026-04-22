@@ -1,7 +1,5 @@
 """
-ZMQ utilities for aerpawlib v2.
-
-Reuses logic from v1.
+.. include:: ../../docs/v2/zmqutil.md
 """
 
 import socket

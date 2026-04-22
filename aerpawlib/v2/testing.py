@@ -1,7 +1,5 @@
 """
-Test helpers for aerpawlib v2.
-
-Provides mock vehicle and utilities for testing.
+.. include:: ../../docs/v2/testing.md
 """
 
 from __future__ import annotations

@@ -1,7 +1,5 @@
 """
-Exceptions for aerpawlib v2 API.
-
-Structured hierarchy with error codes and severity.
+.. include:: ../../docs/v2/exceptions.md
 """
 
 from __future__ import annotations

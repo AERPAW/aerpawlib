@@ -1,5 +1,5 @@
 """
-QGroundControl .plan file parsing for aerpawlib v2.
+.. include:: ../../docs/v2/plan.md
 """
 
 from __future__ import annotations

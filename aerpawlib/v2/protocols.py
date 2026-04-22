@@ -1,7 +1,5 @@
 """
-Protocols for aerpawlib v2 API.
-
-Used for testing, mocking, and avoiding circular imports.
+.. include:: ../../docs/v2/protocols.md
 """
 
 from __future__ import annotations

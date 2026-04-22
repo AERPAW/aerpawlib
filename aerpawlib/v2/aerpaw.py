@@ -1,7 +1,5 @@
 """
-AERPAW platform for aerpawlib v2.
-
-Minimal: connection loss and critical notifications via OEO.
+.. include:: ../../docs/v2/aerpaw.md
 """
 
 from __future__ import annotations

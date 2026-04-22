@@ -1,5 +1,5 @@
 """
-External process utilities for aerpawlib v2.
+.. include:: ../../docs/v2/external.md
 """
 
 from __future__ import annotations
