@@ -20,6 +20,8 @@ See also:
 - ``docs/USER_GUIDE.md`` for mission execution workflows.
 """
 
+# ruff: noqa: F403
+
 from .constants import *
 from .aerpaw import *
 from .exceptions import *

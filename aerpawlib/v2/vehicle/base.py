@@ -44,11 +44,9 @@ from ..log import LogComponent, get_logger
 from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 from .connection_helpers import (
     _validate_connection_string,
-    _validate_tolerance,
     _wait_for_condition,
 )
 from .state import VehicleState
-from .task import VehicleTask
 
 logger = get_logger(LogComponent.VEHICLE)
 

@@ -1,6 +1,5 @@
 """Integration tests for aerpawlib v1 Drone. Requires SITL (managed by pytest)."""
 
-import asyncio
 import time
 
 import pytest
@@ -41,7 +40,6 @@ class TestDroneConnection:
         assert isinstance(a.pitch, float)
         assert isinstance(a.roll, float)
         assert isinstance(a.yaw, float)
-
 
     @pytest.mark.asyncio
     async def test_battery_level_valid_range(self, connected_drone):
@@ -123,7 +121,6 @@ class TestDroneRTL:
 
         connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
-        home = connected_drone.home_coords
         target = connected_drone.position + VectorNED(40, 0, 0)
         await connected_drone.goto_coordinates(target, tolerance=3)
         await connected_drone.return_to_launch()
@@ -149,7 +146,7 @@ class TestDroneHeadingNonBlocking:
     @pytest.mark.asyncio
     async def test_set_heading_non_blocking_returns_quickly(self, connected_drone):
         """set_heading(blocking=False) should return without waiting."""
-        import time
+
         connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         start = time.time()
@@ -177,6 +174,7 @@ class TestDroneGotoWithHeading:
     @pytest.mark.asyncio
     async def test_goto_with_target_heading(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
+
         connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         start = connected_drone.position
@@ -193,6 +191,7 @@ class TestDroneMultiWaypoint:
     @pytest.mark.asyncio
     async def test_two_sequential_goto(self, connected_drone):
         from aerpawlib.v1.util import VectorNED
+
         connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         pos0 = connected_drone.position
@@ -213,6 +212,7 @@ class TestDroneVelocityControl:
         """Commanding a northward velocity should move the drone north."""
         import asyncio as _asyncio
         from aerpawlib.v1.util import VectorNED
+
         connected_drone._preflight_wait(should_arm=True)
         await connected_drone.takeoff(10)
         pos_before = connected_drone.position

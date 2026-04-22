@@ -12,7 +12,9 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 from aerpawlib.v2.geofence import do_intersect, inside, polygon_edges, read_geofence
 
 
-def path_inside_geofence(lon1: float, lat1: float, lon2: float, lat2: float, geofence: list) -> bool:
+def path_inside_geofence(
+    lon1: float, lat1: float, lon2: float, lat2: float, geofence: list
+) -> bool:
     """Check if both endpoints are inside and path does not cross polygon boundary."""
     if not inside(lon1, lat1, geofence) or not inside(lon2, lat2, geofence):
         return False

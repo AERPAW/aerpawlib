@@ -25,7 +25,9 @@ class PlanMission(BasicRunner):
         plan_path = os.path.join(script_dir, "mission.plan")
         if not os.path.exists(plan_path):
             print(f"[example] No mission.plan at {plan_path}")
-            print("[example] Create a .plan file in QGroundControl and save as mission.plan")
+            print(
+                "[example] Create a .plan file in QGroundControl and save as mission.plan"
+            )
             return
 
         waypoints = read_from_plan(plan_path)

@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v2 Coordinate and VectorNED."""
 
-import math
 import pytest
 
 from aerpawlib.v2.types import Coordinate, VectorNED

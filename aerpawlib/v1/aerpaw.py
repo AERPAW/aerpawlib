@@ -5,7 +5,6 @@
 import base64
 import threading
 from typing import Any
-from urllib.parse import quote as url_quote
 
 import requests
 
@@ -14,7 +13,7 @@ from aerpawlib.log import get_logger, LogComponent
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
 
-from .constants import (
+from .constants import (  # noqa: E402
     DEFAULT_FORWARD_SERVER_IP,
     DEFAULT_FORWARD_SERVER_PORT,
     DEFAULT_HUMAN_READABLE_AGENT_ID,

@@ -43,7 +43,6 @@ from .wire_format import deserialize_msg, serialize_response
 logger = get_logger(LogComponent.SAFETY)
 
 
-
 # noinspection PyUnusedLocal
 class SafetyCheckerServer:
     """

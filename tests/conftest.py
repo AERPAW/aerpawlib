@@ -87,7 +87,6 @@ def _find_sim_vehicle() -> Optional[Path]:
     return None
 
 
-
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add custom command-line options."""
     parser.addoption(
@@ -127,6 +126,7 @@ def pytest_configure(config: pytest.Config) -> None:
     # Force the logs to flow up to pytest's root interceptor
     aerpaw_logger.propagate = True
 
+
 def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
     """Auto-apply markers based on test path."""
     for item in items:
@@ -144,6 +144,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list) -> None:
 def origin_coordinate():
     """Coordinate at AERPAW Lake Wheeler."""
     from aerpawlib.v1.util import Coordinate
+
     return Coordinate(LAKE_WHEELER_LAT, LAKE_WHEELER_LON, 0)
 
 
@@ -151,6 +152,7 @@ def origin_coordinate():
 def nearby_coordinate():
     """Coordinate ~100m north of origin."""
     from aerpawlib.v1.util import Coordinate
+
     return Coordinate(LAKE_WHEELER_LAT + 0.0009, LAKE_WHEELER_LON, 0)
 
 
@@ -158,6 +160,7 @@ def nearby_coordinate():
 def zero_vector():
     """Zero VectorNED."""
     from aerpawlib.v1.util import VectorNED
+
     return VectorNED(0, 0, 0)
 
 
@@ -208,9 +211,12 @@ class SITLManager:
         cmd = [
             sys.executable,
             str(sim_vehicle),
-            "-v", self.vehicle_type,
-            "-I", str(self.instance_id),
-            "--out", f"127.0.0.1:{self.port}",
+            "-v",
+            self.vehicle_type,
+            "-I",
+            str(self.instance_id),
+            "--out",
+            f"127.0.0.1:{self.port}",
             "-w",
         ]
 
@@ -233,7 +239,9 @@ class SITLManager:
         )
 
         logger.debug(f"SITL process PID: {self._process.pid}")
-        logger.info(f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)...")
+        logger.info(
+            f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)..."
+        )
 
         # Wait for MAVLink port
         start = time.monotonic()
@@ -277,7 +285,7 @@ class SITLManager:
                 logger.warning("SITL didn't terminate, killing...")
                 self._process.kill()
             self._process = None
-            if hasattr(self, '_sitl_log'):
+            if hasattr(self, "_sitl_log"):
                 self._sitl_log.close()
             logger.info("SITL Stopped")
 
@@ -381,15 +389,23 @@ async def _full_sitl_reset(vehicle) -> None:
         try:
             # long BATTERY_RESET 1 100
             fields = {
-                "target_system": 1, "target_component": 1,
-                "command": 42651, "confirmation": 0,
-                "param1": 1.0, "param2": 100.0,
-                "param3": 0.0, "param4": 0.0,
-                "param5": 0.0, "param6": 0.0, "param7": 0.0,
+                "target_system": 1,
+                "target_component": 1,
+                "command": 42651,
+                "confirmation": 0,
+                "param1": 1.0,
+                "param2": 100.0,
+                "param3": 0.0,
+                "param4": 0.0,
+                "param5": 0.0,
+                "param6": 0.0,
+                "param7": 0.0,
             }
             msg = MavlinkMessage(
-                system_id=1, component_id=1,
-                target_system_id=1, target_component_id=1,
+                system_id=1,
+                component_id=1,
+                target_system_id=1,
+                target_component_id=1,
                 message_name="COMMAND_LONG",
                 fields_json=json.dumps(fields),
             )
@@ -431,15 +447,23 @@ async def _full_sitl_reset_v2(vehicle) -> None:
         pass
     try:
         fields = {
-            "target_system": 1, "target_component": 1,
-            "command": 42651, "confirmation": 0,
-            "param1": 1.0, "param2": 100.0,
-            "param3": 0.0, "param4": 0.0,
-            "param5": 0.0, "param6": 0.0, "param7": 0.0,
+            "target_system": 1,
+            "target_component": 1,
+            "command": 42651,
+            "confirmation": 0,
+            "param1": 1.0,
+            "param2": 100.0,
+            "param3": 0.0,
+            "param4": 0.0,
+            "param5": 0.0,
+            "param6": 0.0,
+            "param7": 0.0,
         }
         msg = MavlinkMessage(
-            system_id=1, component_id=1,
-            target_system_id=1, target_component_id=1,
+            system_id=1,
+            component_id=1,
+            target_system_id=1,
+            target_component_id=1,
             message_name="COMMAND_LONG",
             fields_json=json.dumps(fields),
         )

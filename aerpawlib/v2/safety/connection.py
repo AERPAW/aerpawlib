@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import signal
-import sys
 import time
-from typing import Callable, Optional, Protocol
+from typing import Callable, Optional
 
 from ..constants import (
     HEARTBEAT_CHECK_INTERVAL_S,

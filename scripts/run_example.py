@@ -21,7 +21,6 @@ Environment variables:
 from __future__ import annotations
 
 import argparse
-import errno
 import os
 import signal
 import socket
@@ -169,7 +168,7 @@ def start_sitl(
             except socket.timeout:
                 # No data received within 1 second. Loop will repeat.
                 pass
-            except OSError as e:
+            except OSError:
                 # If we actually DO get an OS error binding here, it means SITL
                 # is using 'udpin' and bound the port itself. We can treat this as ready
                 # (although this likely means QGC has the port and will crash farther down the line)

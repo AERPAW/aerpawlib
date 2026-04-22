@@ -317,7 +317,7 @@ class Drone(Vehicle):
                 timeout=timeout,
                 timeout_message=f"Drone failed to reach destination {coordinates} within {timeout}s",
             )
-            logger.debug(f"Arrived at destination")
+            logger.debug("Arrived at destination")
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
             self._ready_to_move = lambda _: True

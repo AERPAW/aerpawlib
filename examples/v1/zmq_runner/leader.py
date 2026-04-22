@@ -4,15 +4,9 @@ import re
 
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
-    at_init,
-    background,
-    in_background,
     sleep,
     state,
-    timed_state,
 )
-from aerpawlib.v1.util import Coordinate, Waypoint, read_from_plan_complete
-from aerpawlib.v1.vehicle import Drone
 
 from aerpawlib.v1.external import ExternalProcess
 
@@ -20,9 +14,7 @@ target_ip = "127.0.0.1"
 
 
 class LeaderRunner(ZmqStateMachine):
-    _ping_regex = re.compile(
-        r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms"
-    )
+    _ping_regex = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms")
 
     async def _ping_latency(self, address: str, count: int):
         """

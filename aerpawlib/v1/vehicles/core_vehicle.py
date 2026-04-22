@@ -16,8 +16,6 @@ Notes:
 """
 
 import asyncio
-import errno
-import socket
 
 from grpc.aio import AioRpcError
 
@@ -25,7 +23,7 @@ from aerpawlib.log import get_logger, LogComponent
 import math
 import time
 import threading
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -66,7 +64,6 @@ from aerpawlib.v1.helpers import (
     ThreadSafeValue,
 )
 from .connection import _parse_udp_connection_port, _validate_connection_string
-from .dummy_vehicle import DummyVehicle
 from .telemetry_compat import (
     _AttitudeCompat,
     _BatteryCompat,

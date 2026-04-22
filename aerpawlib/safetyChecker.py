@@ -19,4 +19,4 @@ warnings.warn(
 )
 
 # Re-export everything from v1 for backward compatibility
-from .v1.safety import *
+from .v1.safety import *  # noqa: E402,F403

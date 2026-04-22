@@ -49,7 +49,7 @@ class TestExternalProcess:
         await ep.start()
         try:
             buff = await ep.wait_until_output(r"bar")
-            assert any("bar" in (l or "") for l in buff)
+            assert any("bar" in (line or "") for line in buff)
         finally:
             await ep.aclose()
 
@@ -74,8 +74,8 @@ class TestExternalProcess:
                 line = await ep.read_line()
                 if line is not None:
                     lines.append(line)
-            assert any("line1" in l for l in lines)
-            assert any("line2" in l for l in lines)
+            assert any("line1" in line for line in lines)
+            assert any("line2" in line for line in lines)
         finally:
             await ep.aclose()
 
@@ -143,7 +143,7 @@ class TestExternalProcess:
         try:
             buff = await ep.wait_until_output(r"beta")
             # buff includes all lines up to and including the matching one
-            assert any("beta" in (l or "") for l in buff)
+            assert any("beta" in (line or "") for line in buff)
             # "gamma" may or may not be included, but shouldn't crash
         finally:
             await ep.aclose()
@@ -158,4 +158,3 @@ class TestExternalProcess:
             assert line is not None and "unique_token_xyz" in line
         finally:
             await ep.aclose()
-

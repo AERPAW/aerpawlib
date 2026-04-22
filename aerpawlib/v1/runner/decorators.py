@@ -248,5 +248,3 @@ def at_init(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     func._run_at_init = True
     return func
-
-

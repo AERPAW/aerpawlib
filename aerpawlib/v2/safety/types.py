@@ -5,7 +5,7 @@ Shared types for aerpawlib v2 safety module.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List
 
 
 @dataclass

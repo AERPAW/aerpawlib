@@ -21,9 +21,7 @@ class VehicleTaskDemo(BasicRunner):
         target = start + VectorNED(50, 0, 0)
 
         print("[example] Starting non-blocking goto...")
-        handle = await drone.goto_coordinates(
-            target, tolerance=3, blocking=False
-        )
+        handle = await drone.goto_coordinates(target, tolerance=3, blocking=False)
         assert handle is not None
 
         # Poll progress until done

@@ -32,7 +32,6 @@ def read_geofence(file_path: str) -> List[dict]:
         root = parser.fromstring(f.read())
 
     # Search the entire element tree for the first LinearRing coordinates
-    nsmap = {"kml": "http://www.opengis.net/kml/2.2"}
     coords_el = None
 
     # Try with the standard KML namespace first

@@ -96,9 +96,9 @@ class ExternalProcess:
         """
         executable = self._executable
         executable += " " + " ".join(self._params)
-        if not self._stdin is None:
+        if self._stdin is not None:
             executable += f" < {self._stdin}"
-        if not self._stdout is None:
+        if self._stdout is not None:
             executable += f" > {self._stdout}"
 
         self.process = await asyncio.create_subprocess_shell(

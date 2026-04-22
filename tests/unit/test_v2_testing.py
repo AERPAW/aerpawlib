@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v2 MockVehicle."""
 
-import pytest
 
 from aerpawlib.v2.testing import MockVehicle
 from aerpawlib.v2.types import Coordinate, Battery, GPSInfo

@@ -6,7 +6,6 @@ import pytest
 
 from aerpawlib import __main__ as cli_main
 from aerpawlib.cli.discovery import discover_runner
-import asyncio
 from typing import Any, Optional
 from aerpawlib.v1.exceptions import HeartbeatLostError
 
@@ -94,6 +93,7 @@ async def test_run_runner_without_disconnect_future():
             self.called = True
 
     runner = Runner()
+
     async def _run_runner_with_disconnect_guard(
         *, runner: Any, vehicle: Any, disconnect_future: Optional[asyncio.Future] = None
     ) -> None:

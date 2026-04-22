@@ -47,9 +47,7 @@ from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
 FLIGHT_ALT = 5  # m
 SQUARE_SIZE = 10  # m
-LOCATION_TOLERANCE = (
-    2  # m -- ~2 is safe in general, use 3 for the rover in SITL
-)
+LOCATION_TOLERANCE = 2  # m -- ~2 is safe in general, use 3 for the rover in SITL
 WAIT_TIME = 5  # s
 LEG_VELOCITY = 5  # m/s
 
@@ -66,9 +64,7 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
     vel = vehicle.velocity
     attitude = vehicle.attitude
     attitude_str = (
-        "("
-        + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll]))
-        + ")"
+        "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
     )
     writer.writerow(
         [
@@ -96,7 +92,9 @@ class SquareOff(StateMachine):
     def initialize_args(self, extra_args: List[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
-        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        default_file = (
+            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        )
 
         parser = ArgumentParser()
         parser.add_argument(

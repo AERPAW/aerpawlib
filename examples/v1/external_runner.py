@@ -38,9 +38,7 @@ class MyScript(BasicRunner):
         times = 5
         ping = ExternalProcess("ping", params=["127.0.0.1", "-c", str(times)])
         await ping.start()
-        ping_re = re.compile(
-            r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms"
-        )
+        ping_re = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms")
         while buff := await ping.wait_until_output(r"icmp_seq="):
             ping_re_match = ping_re.match(buff[-1])
             print(f"latency: {ping_re_match.group('time')}")

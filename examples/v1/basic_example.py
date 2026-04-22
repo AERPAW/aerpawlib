@@ -25,16 +25,14 @@ class SquareFlight(BasicRunner):
         takeoff_altitude = 10  # meters
         square_size = 10  # meters
 
-        print(f"[example] Starting square flight mission")
+        print("[example] Starting square flight mission")
         print(f"[example] Takeoff altitude: {takeoff_altitude}m")
         print(f"[example] Square size: {square_size}m x {square_size}m")
 
         # Take off
         print(f"[example] Taking off to {takeoff_altitude}m...")
         await drone.takeoff(takeoff_altitude)
-        print(
-            f"[example] Takeoff complete, altitude: {drone.position.alt:.1f}m"
-        )
+        print(f"[example] Takeoff complete, altitude: {drone.position.alt:.1f}m")
 
         # Save starting position
         start_position = drone.position
@@ -57,11 +55,11 @@ class SquareFlight(BasicRunner):
             print(f"[example] Arrived at {direction} waypoint")
 
         # Return to start position
-        print(f"[example] Returning to start position...")
+        print("[example] Returning to start position...")
         await drone.goto_coordinates(start_position)
-        print(f"[example] Back at start position")
+        print("[example] Back at start position")
 
         # Land
-        print(f"[example] Landing...")
+        print("[example] Landing...")
         await drone.land()
-        print(f"[example] Mission complete!")
+        print("[example] Mission complete!")

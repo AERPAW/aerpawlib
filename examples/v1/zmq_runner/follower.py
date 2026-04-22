@@ -2,22 +2,14 @@
 
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
-    at_init,
-    background,
-    in_background,
     sleep,
     state,
-    timed_state,
 )
 from aerpawlib.v1.util import (
     Coordinate,
     VectorNED,
-    Waypoint,
-    read_from_plan_complete,
 )
-from aerpawlib.v1.vehicle import Drone
 
-from aerpawlib.v1.external import ExternalProcess
 
 
 class FollowRunner(ZmqStateMachine):

@@ -33,6 +33,7 @@ class SquareStateMachine(StateMachine):
     async def log_position(self, drone: Drone):
         """Background: log position every 2 seconds."""
         import asyncio
+
         while True:
             pos = drone.position
             print(f"[bg] Position: {pos.lat:.6f}, {pos.lon:.6f}, alt={pos.alt:.1f}m")

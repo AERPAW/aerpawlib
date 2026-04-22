@@ -91,9 +91,7 @@ class TestReadGeofence:
 </Placemark>
 </Document>
 </kml>"""
-        with tempfile.NamedTemporaryFile(
-            mode="wb", suffix=".kml", delete=False
-        ) as f:
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".kml", delete=False) as f:
             f.write(kml.encode())
             path = f.name
         yield path

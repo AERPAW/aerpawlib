@@ -59,6 +59,7 @@ class TestBasicRunner:
     async def test_multiple_entrypoints_raises(self):
         # Py <3.12 wraps __set_name__ failures in RuntimeError; 3.12+ raises RunnerError.
         with pytest.raises((RuntimeError, RunnerError)) as excinfo:
+
             class MultiEntry(BasicRunner):
                 @entrypoint
                 async def run1(self, vehicle):
@@ -117,12 +118,14 @@ class TestStateMachine:
             async def bg(self, vehicle):
                 started.append(1)
                 import asyncio
+
                 while True:
                     await asyncio.sleep(0.1)
 
             @state(name="s", first=True)
             async def s(self, vehicle):
                 import asyncio
+
                 await asyncio.sleep(0.15)
                 return None
 
@@ -159,6 +162,7 @@ class TestStateMachine:
     @pytest.mark.asyncio
     async def test_multiple_initial_states_raises(self):
         with pytest.raises((RuntimeError, MultipleInitialStatesError)) as excinfo:
+
             class SM(StateMachine):
                 @state(name="a", first=True)
                 async def a(self, vehicle):
@@ -210,6 +214,7 @@ class TestStateMachine:
 
     def test_stacked_state_and_timed_state_raises(self):
         with pytest.raises(RunnerError) as excinfo:
+
             class Bad(StateMachine):
                 @state(name="a", first=True)
                 @timed_state(name="a", duration=1.0)
@@ -220,6 +225,7 @@ class TestStateMachine:
 
     def test_stacked_timed_state_and_state_raises(self):
         with pytest.raises(RunnerError) as excinfo:
+
             class Bad(StateMachine):
                 @timed_state(name="a", duration=1.0)
                 @state(name="a", first=True)
@@ -273,7 +279,9 @@ class TestZmqStateMachine:
 
         cfg = Z.config
         assert cfg.initial_state == "internal"
-        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
+        assert any(
+            spec.name == "internal" and spec.method_name == "s" for spec in cfg.states
+        )
         assert cfg.exposed_states["remote"] == "internal"
 
     def test_state_then_expose_zmq_registers_exposed_state(self):
@@ -285,11 +293,14 @@ class TestZmqStateMachine:
 
         cfg = Z.config
         assert cfg.initial_state == "internal"
-        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
+        assert any(
+            spec.name == "internal" and spec.method_name == "s" for spec in cfg.states
+        )
         assert cfg.exposed_states["remote"] == "internal"
 
     def test_expose_zmq_without_state_raises(self):
         with pytest.raises((RuntimeError, RunnerError)) as excinfo:
+
             class Z(ZmqStateMachine):
                 @expose_zmq("remote")
                 async def no_state(self, vehicle):
@@ -303,7 +314,7 @@ class TestZmqStateMachine:
 
 class TestConnectionHandler:
     @pytest.mark.asyncio
-    async def test_times_out_without_telemetry_ticks(self):
+    async def test_times_out_without_telemetry_ticks_wait_api(self):
         handler = ConnectionHandler(
             MockVehicle(),
             heartbeat_timeout=0.1,
@@ -408,13 +419,23 @@ class TestConnectionHandler:
         z._initialize_zmq_bindings("me", "127.0.0.1")
         vehicle = MockVehicle()
         # TRANSITION without next_state
-        await z._zmq_handle_message(vehicle, {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"})
+        await z._zmq_handle_message(
+            vehicle, {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"}
+        )
         # FIELD_REQUEST without field
-        await z._zmq_handle_message(vehicle, {"msg_type": ZMQ_TYPE_FIELD_REQUEST, "identifier": "me", "from": "x"})
+        await z._zmq_handle_message(
+            vehicle,
+            {"msg_type": ZMQ_TYPE_FIELD_REQUEST, "identifier": "me", "from": "x"},
+        )
         # FIELD_CALLBACK without field
-        await z._zmq_handle_message(vehicle, {"msg_type": ZMQ_TYPE_FIELD_CALLBACK, "identifier": "me", "from": "x"})
+        await z._zmq_handle_message(
+            vehicle,
+            {"msg_type": ZMQ_TYPE_FIELD_CALLBACK, "identifier": "me", "from": "x"},
+        )
         # Unknown msg_type - silently ignored
-        await z._zmq_handle_message(vehicle, {"msg_type": "unknown", "identifier": "me"})
+        await z._zmq_handle_message(
+            vehicle, {"msg_type": "unknown", "identifier": "me"}
+        )
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 
@@ -455,8 +476,10 @@ class TestConnectionHandler:
 
         async def _inject_reply():
             # Wait until query_field has registered its Event
-            while "responder" not in z._zmq_pending_fields or \
-                    "altitude" not in z._zmq_pending_fields.get("responder", {}):
+            while (
+                "responder" not in z._zmq_pending_fields
+                or "altitude" not in z._zmq_pending_fields.get("responder", {})
+            ):
                 await asyncio.sleep(0.005)
             reply = {
                 "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -542,5 +565,3 @@ class TestConnectionHandler:
                 await monitor
         else:
             await monitor
-
-

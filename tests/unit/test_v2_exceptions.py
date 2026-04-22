@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v2 exception types."""
 
-import pytest
 
 from aerpawlib.v2.exceptions import (
     AerpawlibError,
@@ -11,7 +10,6 @@ from aerpawlib.v2.exceptions import (
     LandingError,
     RTLError,
     ArmError,
-    NotArmableError,
     NoEntrypointError,
     InvalidStateError,
     NoInitialStateError,

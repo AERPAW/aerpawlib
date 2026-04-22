@@ -11,7 +11,7 @@ import argparse
 import asyncio
 import math
 
-from aerpawlib.v1.runner import StateMachine, state, in_background
+from aerpawlib.v1.runner import StateMachine, state
 from aerpawlib.v1.util import VectorNED, Coordinate
 from aerpawlib.v1.vehicle import Drone
 
@@ -47,9 +47,7 @@ class Circle(StateMachine):
     @state(name="fly_to_circumference")
     async def fly_out(self, drone: Drone):
         print("flying north to the circumference")
-        await drone.goto_coordinates(
-            self._target_center + VectorNED(CIRCLE_RAD, 0)
-        )
+        await drone.goto_coordinates(self._target_center + VectorNED(CIRCLE_RAD, 0))
         return "circularize"
 
     _lap = 0
@@ -84,13 +82,11 @@ class Circle(StateMachine):
         if len(self._previous_thetas) > 10:
             self._previous_thetas.pop(0)
         avg_theta = sum(self._previous_thetas) / len(self._previous_thetas)
-        if self._prev_avg_theta == None:
+        if self._prev_avg_theta is None:
             self._prev_avg_theta = avg_theta
 
         if self._point_to_center:
-            await drone.set_heading(
-                math.degrees(-avg_theta) - 90, blocking=False
-            )
+            await drone.set_heading(math.degrees(-avg_theta) - 90, blocking=False)
 
         # this condition fires when going from 3.14 rad -> -3.14 rad
         if self._prev_avg_theta > 0 and avg_theta < 0:

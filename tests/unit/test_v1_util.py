@@ -228,13 +228,16 @@ class TestCoordinate:
     def test_bearing_wrap_360_false(self):
         """With wrap_360=False, bearing can be negative or >360."""
         c1 = Coordinate(35.0, -78.0)
-        c2 = Coordinate(34.9, -78.0)   # south of c1 → bearing ~180
+        c2 = Coordinate(34.9, -78.0)  # south of c1 → bearing ~180
         b_wrapped = c1.bearing(c2, wrap_360=True)
         b_unwrapped = c1.bearing(c2, wrap_360=False)
         # wrap_360=True result is in [0, 360)
         assert 0 <= b_wrapped < 360
         # Both should represent the same compass direction (mod 360)
-        assert abs((b_wrapped - b_unwrapped) % 360) < 1e-6 or abs(b_unwrapped - b_wrapped) < 1e-6
+        assert (
+            abs((b_wrapped - b_unwrapped) % 360) < 1e-6
+            or abs(b_unwrapped - b_wrapped) < 1e-6
+        )
 
     def test_bearing_coincident_points_returns_zero(self):
         c = Coordinate(35.7274, -78.6960, 0)
@@ -247,7 +250,7 @@ class TestCoordinate:
     def test_add_vector_altitude(self):
         """Adding a vector with down component changes altitude."""
         c = Coordinate(35.0, -78.0, 50.0)
-        v = VectorNED(0, 0, 10)   # down=10 → altitude decreases by 10
+        v = VectorNED(0, 0, 10)  # down=10 → altitude decreases by 10
         r = c + v
         assert abs(r.alt - 40.0) < 1e-6
 
@@ -258,8 +261,8 @@ class TestCoordinate:
     def test_sub_vector_moves_opposite(self):
         """Subtracting a NED vector moves in the opposite direction."""
         c = Coordinate(35.0, -78.0, 100.0)
-        v = VectorNED(0, 100, 0)   # east 100 m
-        r = c - v                  # should move west
+        v = VectorNED(0, 100, 0)  # east 100 m
+        r = c - v  # should move west
         assert r.lon < c.lon
 
     def test_sub_coordinate_gives_vector(self):
@@ -307,9 +310,21 @@ class TestPlanFile:
             "fileType": "Plan",
             "mission": {
                 "items": [
-                    {"command": PLAN_CMD_TAKEOFF, "params": [0, 0, 0, 0, 35.7274, -78.6960, 10], "doJumpId": 1},
-                    {"command": PLAN_CMD_WAYPOINT, "params": [0, 0, 0, 0, 35.7284, -78.6960, 20], "doJumpId": 2},
-                    {"command": PLAN_CMD_RTL, "params": [0, 0, 0, 0, 0, 0, 0], "doJumpId": 3},
+                    {
+                        "command": PLAN_CMD_TAKEOFF,
+                        "params": [0, 0, 0, 0, 35.7274, -78.6960, 10],
+                        "doJumpId": 1,
+                    },
+                    {
+                        "command": PLAN_CMD_WAYPOINT,
+                        "params": [0, 0, 0, 0, 35.7284, -78.6960, 20],
+                        "doJumpId": 2,
+                    },
+                    {
+                        "command": PLAN_CMD_RTL,
+                        "params": [0, 0, 0, 0, 0, 0, 0],
+                        "doJumpId": 3,
+                    },
                 ]
             },
         }
@@ -395,9 +410,21 @@ class TestPlanFile:
             "fileType": "Plan",
             "mission": {
                 "items": [
-                    {"command": PLAN_CMD_TAKEOFF, "params": [0, 0, 0, 0, 35.72, -78.69, 10], "doJumpId": 1},
-                    {"command": PLAN_CMD_SPEED, "params": [0, 12.0, 0, 0, 0, 0, 0], "doJumpId": 2},
-                    {"command": PLAN_CMD_WAYPOINT, "params": [0, 0, 0, 0, 35.73, -78.69, 20], "doJumpId": 3},
+                    {
+                        "command": PLAN_CMD_TAKEOFF,
+                        "params": [0, 0, 0, 0, 35.72, -78.69, 10],
+                        "doJumpId": 1,
+                    },
+                    {
+                        "command": PLAN_CMD_SPEED,
+                        "params": [0, 12.0, 0, 0, 0, 0, 0],
+                        "doJumpId": 2,
+                    },
+                    {
+                        "command": PLAN_CMD_WAYPOINT,
+                        "params": [0, 0, 0, 0, 35.73, -78.69, 20],
+                        "doJumpId": 3,
+                    },
                 ]
             },
         }
@@ -496,7 +523,7 @@ class TestGeofence:
         # Counter-clockwise triplet
         assert orientation(0, 0, 1, 0, 0, 1) == 2
 
-    def test_orientation_clockwise(self):
+    def test_orientation_clockwise_large_triangle(self):
         # Clockwise: going right then down-right
         assert orientation(0, 0, 4, 4, 4, 0) == 1
 
@@ -551,7 +578,7 @@ class TestGeofence:
             {"lon": 5, "lat": 10},
             {"lon": 0, "lat": 0},
         ]
-        assert inside(5, 3, triangle) is True   # inside
+        assert inside(5, 3, triangle) is True  # inside
         assert inside(0, 11, triangle) is False  # outside above apex
 
     def test_inside_empty_fence_returns_false(self):

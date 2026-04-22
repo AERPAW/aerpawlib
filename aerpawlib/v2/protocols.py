@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional, Protocol, runtime_checkable
 
-from .types import Battery, Coordinate, GPSInfo, VectorNED
+from .types import Battery, Coordinate, GPSInfo
 
 
 @runtime_checkable

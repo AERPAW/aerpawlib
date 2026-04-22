@@ -27,6 +27,7 @@ class TestStateMachineWithSITL:
             @background
             async def log_pos(self, drone: Drone):
                 import asyncio
+
                 for _ in range(3):
                     _ = drone.position
                     await asyncio.sleep(0.5)

@@ -230,7 +230,7 @@ class SafetyCheckerClient:
             timeout_err = TimeoutError(
                 f"SafetyCheckerServer did not respond within {self._timeout_s}s"
             )
-            logger.error(f"SafetyCheckerClient: request timed out; socket reset")
+            logger.error("SafetyCheckerClient: request timed out; socket reset")
             raise timeout_err from e
         except Exception as e:
             self._reconnect()

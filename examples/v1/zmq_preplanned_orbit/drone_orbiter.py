@@ -2,24 +2,16 @@ import asyncio
 
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
-    at_init,
-    background,
     expose_field_zmq,
-    in_background,
-    sleep,
     state,
-    timed_state,
 )
 from aerpawlib.v1.util import (
     Coordinate,
     VectorNED,
-    Waypoint,
-    read_from_plan_complete,
 )
 from aerpawlib.v1.vehicle import Drone
 
-from aerpawlib.v1.external import ExternalProcess
-from consts import *
+from consts import ALT_DIFF, TAKEOFF_ALT, ZMQ_GROUND, ZMQ_TRACER
 
 
 class OrbiterRunner(ZmqStateMachine):
@@ -49,16 +41,12 @@ class OrbiterRunner(ZmqStateMachine):
     async def state_next_waypoint(self, drone: Drone):
         coords = await self.query_field(ZMQ_GROUND, "orbiter_next_waypoint")
         await drone.goto_coordinates(coords)
-        await self.transition_runner(
-            ZMQ_GROUND, "callback_orbiter_at_waypoint"
-        )
+        await self.transition_runner(ZMQ_GROUND, "callback_orbiter_at_waypoint")
         return "wait_loop"
 
     @state(name="orbit_tracer")
     async def state_orbit_tracer_start(self, drone: Drone):
-        self._orbit_coord_center = await self.query_field(
-            ZMQ_TRACER, "position"
-        )
+        self._orbit_coord_center = await self.query_field(ZMQ_TRACER, "position")
         self._orbit_end_position = drone.position
         self._previous_thetas = []
         self._prev_avg_theta = None

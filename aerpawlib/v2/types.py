@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass
-from typing import Tuple
 
 from .constants import (
     EARTH_RADIUS_KM,

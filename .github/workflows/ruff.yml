@@ -1,0 +1,25 @@
+name: Ruff Linter
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  lint_and_format:
+    name: Check Code Quality with Ruff
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Ruff Linter
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: 'check --output-format=github'
+
+      - name: Run Ruff Formatter
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: 'format --check'

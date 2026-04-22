@@ -21,9 +21,7 @@ class CancelGotoDemo(BasicRunner):
         target = start + VectorNED(80, 0, 0)
 
         print("[example] Starting non-blocking goto...")
-        handle = await drone.goto_coordinates(
-            target, tolerance=3, blocking=False
-        )
+        handle = await drone.goto_coordinates(target, tolerance=3, blocking=False)
         assert handle is not None
 
         # Cancel after ~5 seconds

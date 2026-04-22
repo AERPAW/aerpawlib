@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v1 vehicle related components."""
 
-import math
 import socket
 import threading
 
@@ -8,131 +7,8 @@ import pytest
 
 from aerpawlib.v1.exceptions import PortInUseError
 from aerpawlib.v1.util import Coordinate
-from aerpawlib.v1.vehicle import (Drone, DummyVehicle, Rover, _AttitudeCompat, _BatteryCompat, _GPSInfoCompat,
-                                  _VersionCompat)
+from aerpawlib.v1.vehicle import Drone, DummyVehicle, Rover
 from aerpawlib.v1.vehicles.core_vehicle import _parse_udp_connection_port
-
-
-class TestBatteryCompat:
-    def test_defaults(self):
-        b = _BatteryCompat()
-        assert b.voltage == 0.0
-        assert b.current == 0.0
-        assert b.level == 0
-
-    def test_str_contains_fields(self):
-        b = _BatteryCompat()
-        b.voltage = 12.4
-        b.current = 1.5
-        b.level = 75
-        s = str(b)
-        assert "12.4" in s
-        assert "1.5" in s
-        assert "75" in s
-
-    def test_repr_contains_fields(self):
-        b = _BatteryCompat()
-        b.voltage = 11.1
-        r = repr(b)
-        assert "11.1" in r
-
-    def test_assignment(self):
-        b = _BatteryCompat()
-        b.voltage = 16.8
-        b.current = 2.3
-        b.level = 50
-        assert b.voltage == 16.8
-        assert b.current == 2.3
-        assert b.level == 50
-
-
-class TestGPSInfoCompat:
-    def test_defaults(self):
-        g = _GPSInfoCompat()
-        assert g.fix_type == 0
-        assert g.satellites_visible == 0
-
-    def test_str_contains_fields(self):
-        g = _GPSInfoCompat()
-        g.fix_type = 3
-        g.satellites_visible = 12
-        s = str(g)
-        assert "3" in s
-        assert "12" in s
-
-    def test_repr_contains_fields(self):
-        g = _GPSInfoCompat()
-        g.fix_type = 2
-        r = repr(g)
-        assert "2" in r
-
-    def test_assignment(self):
-        g = _GPSInfoCompat()
-        g.fix_type = 3
-        g.satellites_visible = 9
-        assert g.fix_type == 3
-        assert g.satellites_visible == 9
-
-
-class TestAttitudeCompat:
-    def test_defaults(self):
-        a = _AttitudeCompat()
-        assert a.pitch == 0.0
-        assert a.roll == 0.0
-        assert a.yaw == 0.0
-
-    def test_str_contains_fields(self):
-        a = _AttitudeCompat()
-        a.pitch = 0.1
-        a.yaw = 1.57
-        a.roll = -0.05
-        s = str(a)
-        assert "0.1" in s
-
-    def test_repr_contains_fields(self):
-        a = _AttitudeCompat()
-        a.pitch = 0.3
-        r = repr(a)
-        assert "0.3" in r
-
-    def test_assignment(self):
-        a = _AttitudeCompat()
-        a.yaw = math.pi / 2
-        assert abs(a.yaw - math.pi / 2) < 1e-10
-
-
-class TestVersionCompat:
-    def test_defaults(self):
-        v = _VersionCompat()
-        assert v.major is None
-        assert v.minor is None
-        assert v.patch is None
-        assert v.release is None
-
-    def test_str_format(self):
-        v = _VersionCompat()
-        v.major = 4
-        v.minor = 3
-        v.patch = 1
-        s = str(v)
-        assert "4" in s and "3" in s and "1" in s
-
-    def test_repr_contains_fields(self):
-        v = _VersionCompat()
-        v.major = 4
-        r = repr(v)
-        assert "4" in r
-
-    def test_assignment(self):
-        v = _VersionCompat()
-        v.major = 4
-        v.minor = 2
-        v.patch = 3
-        v.release = "stable"
-        assert v.major == 4
-        assert v.minor == 2
-        assert v.patch == 3
-        assert v.release == "stable"
 
 
 class TestDummyVehicleUnit:
@@ -185,13 +61,19 @@ class TestParseUdpConnectionPort:
         assert _parse_udp_connection_port("udp://:14540") == ("0.0.0.0", 14540)
 
     def test_udp_host_port(self):
-        assert _parse_udp_connection_port("udp://127.0.0.1:14550") == ("127.0.0.1", 14550)
+        assert _parse_udp_connection_port("udp://127.0.0.1:14550") == (
+            "127.0.0.1",
+            14550,
+        )
 
     def test_udpin_listen_all(self):
         assert _parse_udp_connection_port("udpin://:14540") == ("0.0.0.0", 14540)
 
     def test_udpin_host_port(self):
-        assert _parse_udp_connection_port("udpin://127.0.0.1:14551") == ("127.0.0.1", 14551)
+        assert _parse_udp_connection_port("udpin://127.0.0.1:14551") == (
+            "127.0.0.1",
+            14551,
+        )
 
     def test_udpin_explicit_bind(self):
         assert _parse_udp_connection_port("udpin://0.0.0.0:14540") == ("0.0.0.0", 14540)

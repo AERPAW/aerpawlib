@@ -343,7 +343,7 @@ class StateMachine(Runner):
                         f"StateMachine: state transition '{spec.name}' -> '{next_state}'"
                     )
                 if self._current_state is None:
-                    logger.info(f"StateMachine: completed (final state returned None)")
+                    logger.info("StateMachine: completed (final state returned None)")
                     break
                 await asyncio.sleep(STATE_MACHINE_DELAY_S)
 

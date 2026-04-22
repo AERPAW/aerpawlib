@@ -1,7 +1,5 @@
 """Integration tests for aerpawlib v2 Drone. Requires SITL."""
 
-import asyncio
-import time
 
 import pytest
 
@@ -109,7 +107,6 @@ class TestDroneRTL:
 
         await connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)
-        home = connected_drone_v2.home_coords
         target = connected_drone_v2.position + VectorNED(40, 0, 0)
         await connected_drone_v2.goto_coordinates(target, tolerance=3)
         await connected_drone_v2.return_to_launch()
@@ -140,7 +137,7 @@ class TestDroneRunner:
 
     @pytest.mark.asyncio
     async def test_basic_runner_executes(self, connected_drone_v2):
-        from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
+        from aerpawlib.v2 import BasicRunner, Drone, entrypoint
 
         class MinimalRunner(BasicRunner):
             @entrypoint

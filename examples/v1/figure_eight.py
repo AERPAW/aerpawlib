@@ -53,9 +53,7 @@ class FigureEight(BasicRunner):
             f"[example] Figure-8 config: radius={self._radius}m, alt={self._altitude}m"
         )
 
-    def _generate_figure_8_waypoints(
-        self, center: Coordinate
-    ) -> List[Coordinate]:
+    def _generate_figure_8_waypoints(self, center: Coordinate) -> List[Coordinate]:
         """Generate waypoints for a figure-8 pattern."""
         waypoints = []
 

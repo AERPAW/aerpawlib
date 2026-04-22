@@ -37,8 +37,8 @@ from typing import List, TextIO
 import collections
 
 collections.MutableMapping = collections.abc.MutableMapping
-import dronekit as dk
-from aerpawlib.v1.runner import (
+import dronekit as dk  # noqa: E402
+from aerpawlib.v1.runner import (  # noqa: E402
     StateMachine,
     at_init,
     background,
@@ -47,17 +47,15 @@ from aerpawlib.v1.runner import (
     state,
     timed_state,
 )
-from aerpawlib.v1.util import (
+from aerpawlib.v1.util import (  # noqa: E402
     Coordinate,
-    VectorNED,
-    Waypoint,
     read_from_plan_complete,
 )
-from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
-from pymavlink import mavutil
+from aerpawlib.v1.vehicle import Drone, Vehicle  # noqa: E402
+from pymavlink import mavutil  # noqa: E402
 
-from aerpawlib.v1.aerpaw import AERPAW_Platform
-from aerpawlib.v1.external import ExternalProcess
+from aerpawlib.v1.aerpaw import AERPAW_Platform  # noqa: E402
+from aerpawlib.v1.external import ExternalProcess  # noqa: E402
 
 
 class PreplannedTrajectory(StateMachine):
@@ -76,15 +74,13 @@ class PreplannedTrajectory(StateMachine):
 
     def initialize_args(self, extra_args: List[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        default_file = (
+            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        )
 
         parser = ArgumentParser()
-        parser.add_argument(
-            "--file", help="Mission plan file path.", required=True
-        )
-        parser.add_argument(
-            "--ping", help="call ping coroutine", action="store_false"
-        )
+        parser.add_argument("--file", help="Mission plan file path.", required=True)
+        parser.add_argument("--ping", help="call ping coroutine", action="store_false")
         parser.add_argument(
             "--skipoutput",
             help="don't dump gps data to a file",
@@ -134,9 +130,9 @@ class PreplannedTrajectory(StateMachine):
         self._waypoint_fname = args.file
         self._no_plan_upload = args.noupload
 
-        if args.default_speed != None:
+        if args.default_speed is not None:
             self._default_leg_speed = args.default_speed
-        if args.default_heading != None:
+        if args.default_heading is not None:
             self._default_heading = args.default_heading
 
         if self._sampling:
@@ -144,9 +140,7 @@ class PreplannedTrajectory(StateMachine):
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
-    _ping_regex = re.compile(
-        r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms"
-    )
+    _ping_regex = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms")
 
     async def _ping_latency(self, address: str, count: int):
         """
@@ -179,9 +173,7 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
     def _dump_to_csv(self, vehicle: Vehicle, line_num: int, writer):
         """
@@ -240,19 +232,17 @@ class PreplannedTrajectory(StateMachine):
     @at_init
     async def initialize_flight(self, vehicle: Vehicle):
         default_speed = 5 if isinstance(vehicle, Drone) else 1
-        if self._default_leg_speed != None:
+        if self._default_leg_speed is not None:
             default_speed = self._default_leg_speed
 
-        AERPAW_Platform.log_to_oeo(f"Reading .plan file...")
-        self._waypoints = read_from_plan_complete(
-            self._waypoint_fname, default_speed
-        )
+        AERPAW_Platform.log_to_oeo("Reading .plan file...")
+        self._waypoints = read_from_plan_complete(self._waypoint_fname, default_speed)
 
         if self._no_plan_upload:
             return
 
         # Upload the plan file to the drone (DroneKit-specific; v1 uses MAVSDK)
-        AERPAW_Platform.log_to_oeo(f"Building CommandSequence...")
+        AERPAW_Platform.log_to_oeo("Building CommandSequence...")
         current_commands = vehicle._vehicle.commands  # type: ignore[union-attr]
 
         # Wait for the vehicle to be ready (so we can grab the commands)
@@ -290,10 +280,10 @@ class PreplannedTrajectory(StateMachine):
             current_commands.add(new_cmd)
 
         # Upload the command list to our drone
-        AERPAW_Platform.log_to_oeo(f"Uploading .plan file...")
+        AERPAW_Platform.log_to_oeo("Uploading .plan file...")
         current_commands.upload()
 
-        AERPAW_Platform.log_to_oeo(f".plan file uploaded!")
+        AERPAW_Platform.log_to_oeo(".plan file uploaded!")
 
     @state(name="take_off", first=True)
     async def take_off(self, vehicle: Vehicle):
@@ -319,9 +309,7 @@ class PreplannedTrajectory(StateMachine):
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
         in_background(
-            vehicle.goto_coordinates(
-                coords, target_heading=self._default_heading
-            )
+            vehicle.goto_coordinates(coords, target_heading=self._default_heading)
         )
         await asyncio.sleep(
             0.5
@@ -338,9 +326,7 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
         await vehicle.await_ready_to_move()
         return "at_waypoint"
@@ -361,9 +347,7 @@ class PreplannedTrajectory(StateMachine):
             avg_ping_latency = await self._ping_latency(
                 "127.0.0.1", 5
             )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
         return "next_waypoint"
 

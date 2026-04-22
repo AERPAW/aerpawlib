@@ -2,19 +2,13 @@ import asyncio
 
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
-    at_init,
-    background,
     expose_field_zmq,
-    in_background,
-    sleep,
     state,
-    timed_state,
 )
-from aerpawlib.v1.util import Coordinate, Waypoint, read_from_plan_complete
+from aerpawlib.v1.util import Coordinate
 from aerpawlib.v1.vehicle import Drone
 
-from aerpawlib.v1.external import ExternalProcess
-from consts import *
+from consts import TAKEOFF_ALT, ZMQ_GROUND
 
 
 class TracerRunner(ZmqStateMachine):
