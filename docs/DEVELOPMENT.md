@@ -34,12 +34,12 @@ Legacy shim: `aerpawlib.runner` re-exports v1 with a `DeprecationWarning`. Top-l
 
 ## Two APIs
 
-| | **v1** (`--api-version v1`, default) | **v2** (`--api-version v2`) |
-|---|--------------------------------------|-----------------------------|
+|             | **v1** (`--api-version v1`, default)                                                            | **v2** (`--api-version v2`)                                  |
+|-------------|-------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 | Concurrency | Background thread + dedicated asyncio loop for MAVSDK; main thread uses `asyncio` for user code | Single asyncio loop; telemetry and commands on the same loop |
-| State | `ThreadSafeValue` + polling in `core_vehicle` | Plain `VehicleState` updated from async telemetry generators |
-| Vehicles | `aerpawlib.v1.vehicles` (`Vehicle`, `Drone`, `Rover`, `DummyVehicle`) | `aerpawlib.v2` (`Drone.connect`, `Rover.connect`, …) |
-| Runners | `BasicRunner`, `StateMachine`, `ZmqStateMachine` | v2 `runner.py` with config dataclasses / decorators |
+| State       | `ThreadSafeValue` + polling in `core_vehicle`                                                   | Plain `VehicleState` updated from async telemetry generators |
+| Vehicles    | `aerpawlib.v1.vehicles` (`Vehicle`, `Drone`, `Rover`, `DummyVehicle`)                           | `aerpawlib.v2` (`Drone.connect`, `Rover.connect`, …)         |
+| Runners     | `BasicRunner`, `StateMachine`, `ZmqStateMachine`                                                | v2 `runner.py` with config dataclasses / decorators          |
 
 See [v1/compromises.md](v1/compromises.md) for v1 design tradeoffs and [v2/README.md](v2/README.md) for v2 usage.
 
@@ -171,12 +171,6 @@ Layout includes both **v1** (`test_v1_drone`, `test_v1_rover`, …) and **v2** (
 1. `aerpawlib/v1/runner.py`: decorator + wiring in `StateMachine._build()` (or relevant runner).
 2. `tests/unit/test_v1_runner.py`.
 
-### Safety checker (v1)
-
-1. Constants in `aerpawlib/v1/constants.py` if needed.
-2. Server/client in `SafetyCheckerServer` / `SafetyCheckerClient`.
-3. [v1/safety_checker.md](v1/safety_checker.md).
-
 ### Safety / validation (v2)
 
 See [v2/safety.md](v2/safety.md) and `aerpawlib/v2/safety/`.
@@ -194,11 +188,11 @@ Same `--structured-log` works for v1. Events include `telemetry` (throttled), `m
 
 ### Console log level (`aerpawlib` CLI)
 
-| Flags | Root log level |
-|-------|----------------|
-| *(none)* | INFO |
-| `-v` / `--verbose` | DEBUG |
-| `-q` / `--quiet` | WARNING |
+| Flags              | Root log level |
+|--------------------|----------------|
+| *(none)*           | INFO           |
+| `-v` / `--verbose` | DEBUG          |
+| `-q` / `--quiet`   | WARNING        |
 
 Optional `--log-file PATH` adds a file handler at **DEBUG** regardless of console level.
 
@@ -236,6 +230,5 @@ Setting `GRPC_ENABLE_FORK_SUPPORT=false` suppresses the message (cosmetic only).
 - [v1 README](v1/README.md) – v1 API reference
 - [v2 README](v2/README.md) – v2 API reference
 - [v1 compromises](v1/compromises.md) – v1 architecture tradeoffs
-- [v1 Safety Checker](v1/safety_checker.md) – v1 geofence / server
 - [v2 Safety](v2/safety.md) – v2 validation and clients
 - [Roadmap](ROADMAP.md) – Planned work

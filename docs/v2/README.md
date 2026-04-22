@@ -191,15 +191,15 @@ class MyMission(StateMachine):
 
 ### Decorators
 
-| Decorator | Class | Description |
-|-----------|-------|-------------|
-| `@entrypoint` | `BasicRunner` | Marks the single async entry point |
-| `@state(name, first=False)` | `StateMachine` | Defines a state; returns next state name or `None` |
-| `@timed_state(name, duration, loop=False, first=False)` | `StateMachine` | State that runs for a fixed duration |
-| `@background` | `StateMachine` | Runs concurrently with the state machine; restarted on exception |
-| `@at_init` | `StateMachine` | Runs once before arm and before the first state |
-| `@expose_zmq(name)` | `ZmqStateMachine` | Exposes a state for remote ZMQ transition |
-| `@expose_field_zmq(name)` | `ZmqStateMachine` | Exposes a method as a queryable ZMQ field |
+| Decorator                                               | Class             | Description                                                      |
+|---------------------------------------------------------|-------------------|------------------------------------------------------------------|
+| `@entrypoint`                                           | `BasicRunner`     | Marks the single async entry point                               |
+| `@state(name, first=False)`                             | `StateMachine`    | Defines a state; returns next state name or `None`               |
+| `@timed_state(name, duration, loop=False, first=False)` | `StateMachine`    | State that runs for a fixed duration                             |
+| `@background`                                           | `StateMachine`    | Runs concurrently with the state machine; restarted on exception |
+| `@at_init`                                              | `StateMachine`    | Runs once before arm and before the first state                  |
+| `@expose_zmq(name)`                                     | `ZmqStateMachine` | Exposes a state for remote ZMQ transition                        |
+| `@expose_field_zmq(name)`                               | `ZmqStateMachine` | Exposes a method as a queryable ZMQ field                        |
 
 #### `@at_init`
 

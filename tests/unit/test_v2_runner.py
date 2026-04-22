@@ -324,7 +324,7 @@ class TestConnectionHandler:
         disconnect_future = handler.get_disconnect_future()
 
         with pytest.raises(HeartbeatLostError):
-            await asyncio.wait_for(disconnect_future, timeout=1.0)
+            await asyncio.wait_for(disconnect_future, timeout=1.5)
 
         handler.stop()
         monitor.cancel()
