@@ -1,22 +1,5 @@
 """
-External process utilities for v1 scripts.
-
-This module provides `ExternalProcess`, an asyncio-friendly helper used by v1
-code to spawn and interact with subprocesses such as SITL, proxies, and other
-supporting tools.
-
-Capabilities:
-- Start subprocesses with optional stdin/stdout redirection.
-- Read process output and send interactive input.
-- Wait for output patterns or process exit conditions.
-
-Usage:
-- Use this helper inside runner coroutines when experiments need sidecar
-  processes managed from mission code.
-
-Notes:
-- When streams are redirected to files, interactive helpers may no-op or raise
-  a runtime error as documented on each method.
+.. include:: ../../docs/v1/external.md
 """
 
 import asyncio

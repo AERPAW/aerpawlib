@@ -1,7 +1,5 @@
 ## Overview
 
-Runner API for v1 experiments.
-
 This module provides runner implementations and decorators used to build v1
 missions with either a single-entry flow (`BasicRunner`) or a state-machine
 flow (`StateMachine` / `ZmqStateMachine`).

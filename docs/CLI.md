@@ -1,3 +1,5 @@
+# to remove
+
 # CLI Guide
 
 The `aerpawlib` CLI runs mission scripts with either the v1 or v2 API.

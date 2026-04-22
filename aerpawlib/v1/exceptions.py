@@ -1,18 +1,5 @@
 """
-Exception hierarchy for the v1 API.
-
-This module defines package-specific exception types used by v1 components so
-callers can catch broad categories (for example, connection errors) or specific
-failures (for example, takeoff errors).
-
-Capabilities:
-- Provide a shared base class (`AerpawlibError`) for v1-originated failures.
-- Organize errors by domain (connection, command, validation, state machine).
-- Preserve root causes through optional `original_error` chaining.
-
-Usage:
-- Catch `AerpawlibError` for coarse-grained handling, or concrete subclasses
-  for targeted recovery logic.
+.. include:: ../../docs/v1/exceptions.md
 """
 
 from typing import List, Optional

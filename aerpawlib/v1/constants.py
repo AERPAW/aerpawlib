@@ -1,18 +1,5 @@
 """
-Configuration constants for the v1 API.
-
-This module centralizes tunable values used across v1, including connection
-timeouts, movement tolerances, MAVLink command identifiers, and AERPAW/
-SITL-related defaults.
-
-Capabilities:
-- Define shared timeout and polling values used by vehicle and runner logic.
-- Define protocol and mode constants used by MAVLink and safety subsystems.
-- Define defaults used by CLI/runtime behavior in common mission flows.
-
-Notes:
-- Many values are safety-sensitive. Reducing timeouts can make startup and
-  telemetry handling less tolerant to transient delays.
+.. include:: ../../docs/v1/constants.md
 """
 
 import os

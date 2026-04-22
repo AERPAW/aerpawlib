@@ -1,26 +1,5 @@
 """
-AERPAW platform helpers for v1 scripts.
-
-This module exposes a thin client for interacting with AERPAW-specific
-infrastructure such as the OEO console and the checkpoint service. These
-features are only meaningful when the script is running inside an AERPAW
-experiment; when run in SITL/standalone the module intentionally degrades
-gracefully and emits a one-time warning.
-
-Capabilities:
-- Send human-readable messages to the OEO console.
-- Publish simple topic values to the OEO pub/sub bridge.
-- Set/check boolean checkpoints and integer/string variables used to
-  coordinate distributed experiment nodes.
-
-Usage:
-- This module is entirely used within the CLI and does not/should not be used by the end user.
-
-
-Notes:
-- If not in an AERPAW environment the methods will either return safely
-  (often ``False``) or raise an informative exception. A one-time warning is
-  logged the first time non-platform functionality is invoked.
+.. include:: ../../docs/v1/aerpaw.md
 """
 
 import base64

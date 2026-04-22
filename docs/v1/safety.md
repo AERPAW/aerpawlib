@@ -1,7 +1,5 @@
 ## Overview
 
-Safety API for v1 experiments.
-
 This module provides the client/server components and wire-format helpers
 used to validate mission commands against geofence and vehicle constraints.
 
