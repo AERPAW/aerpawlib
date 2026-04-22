@@ -1,5 +1,4 @@
-"""aerpawlib.v1.runner
-======================
+"""
 
 Runner API for v1 experiments.
 
@@ -71,6 +70,7 @@ convenience path for multi-vehicle experiments and exposes helpers for
 transitioning remote runners and querying remote fields.
 
 """
+import asyncio
 
 from .decorators import (
     at_init,
@@ -86,8 +86,6 @@ from .impl import (
     Runner,
     StateMachine,
     ZmqStateMachine,
-    in_background,
-    sleep,
 )
 
 __all__ = [
@@ -102,6 +100,9 @@ __all__ = [
     "expose_field_zmq",
     "background",
     "at_init",
-    "in_background",
-    "sleep",
 ]
+
+__pdoc__ = {name: False for name in __all__}
+
+in_background = asyncio.ensure_future
+sleep = asyncio.sleep

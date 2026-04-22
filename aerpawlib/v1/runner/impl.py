@@ -543,9 +543,3 @@ class ZmqStateMachine(StateMachine):
             "value": value,
         }
         await self._zmq_messages_sending.put(reply_obj)
-
-
-in_background = asyncio.ensure_future
-sleep = asyncio.sleep
-
-
