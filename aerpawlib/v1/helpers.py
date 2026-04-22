@@ -1,4 +1,3 @@
-the v1 codebase. The helpers favor simple, well-documented primitives that
 """
 Helper utilities for the v1 API.
 
