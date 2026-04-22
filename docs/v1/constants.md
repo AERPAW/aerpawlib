@@ -5,8 +5,7 @@ Shared constants for `aerpawlib.v1`.
 This module centralizes defaults and protocol values used across v1 vehicle,
 runner, safety, and platform integrations.
 
-Groups
-------
+### Groups
 - Connection/timeouts: startup waits, heartbeat intervals, polling delays.
 - Movement: tolerances, goto timeout, rover mode constants.
 - Safety protocol: request names and checker client/server defaults.

@@ -1,5 +1,5 @@
 You're not going to be able to write a script without a vehicle.
-This module provides the vehicle classes you interact with, which transltae your high-level Python commands into the low-level MAVSDK instructions needed to physically fly a drone or drive a rover.
+This module provides the vehicle classes you interact with, which translate your high-level Python commands into the low-level MAVSDK instructions needed to physically fly a drone or drive a rover.
 
 
 ## Example Usage

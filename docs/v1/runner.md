@@ -1,8 +1,4 @@
-Here is a rewritten version of the module documentation, blending technical depth with an accessible, pragmatic, and encouraging tone:
-
-***
-
-# Understanding aerpawlib Runners and Flow Control
+## Overview
 
 Operating autonomous vehicles means handling a lot of concurrent logic. This module provides the core runner implementations and decorators you need to build v1 missions in `aerpawlib`. 
 
@@ -18,6 +14,7 @@ When you're ready to write your mission logic, you'll choose one of these three 
 For simple scripts where you want to manually control the entire flow of the program, `BasicRunner` is your pragmatic, go-to choice. 
 * **How it works:** It looks for a single method in your script decorated with `@entrypoint` and executes it. 
 * **Guardrails:** If you accidentally include multiple entrypoints, it will raise a `StateMachineError` to prevent spaghetti logic. If you forget to include an entrypoint entirely, you'll get a `NoEntrypointError`.
+
 
 ### 2. `StateMachine`
 When your experiment logic gets more complex, `StateMachine` is the powerhouse framework. It allows you to build a map of distinct "states" and seamlessly transition between them.
@@ -83,14 +80,14 @@ class MyScript(BasicRunner):
 2. StateMachine
 ```python
 class MySm(StateMachine):
-    @state("start", first=True)
+    @state(name="start", first=True)
     async def start(self, vehicle: Vehicle):
         # Setup complete, let's move to the patrol state
         return "patrol"
 
-    @timed_state("patrol", duration=10)
+    @timed_state(name="patrol", duration=10)
     async def patrol(self, vehicle: Vehicle):
-        # This state is guaranteed to hold for 10 seconds 
+        # This state is guaranteed to hold for 10 seconds
         # before the runner accepts "land" and transitions.
         return "land"
 ```
