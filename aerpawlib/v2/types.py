@@ -1,6 +1,7 @@
 """
 .. include:: ../../docs/v2/types.md
 """
+
 from __future__ import annotations
 
 import json
