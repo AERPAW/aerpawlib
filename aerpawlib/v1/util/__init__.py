@@ -1,17 +1,5 @@
 """
-Utility re-exports for the v1 API.
-
-This package gathers shared geometry, plan parsing, geofence, and port helper
-symbols into a stable import surface used throughout v1 code.
-
-Capabilities:
-- Re-export coordinate and vector primitives.
-- Re-export plan, geofence, and intersection helpers.
-- Re-export TCP/UDP local port availability checks.
-
-Usage:
-- Import from `aerpawlib.v1.util` to keep mission and library code aligned with
-  the canonical v1 utility namespace.
+.. include:: ../../../docs/v1/util.md
 """
 
 from .geometry import Coordinate, VectorNED, Waypoint

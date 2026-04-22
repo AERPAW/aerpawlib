@@ -2,7 +2,7 @@
 
 Runner API for v1 experiments.
 
-This module re-exports runner implementations and decorators used to build v1
+This module provides runner implementations and decorators used to build v1
 missions with either a single-entry flow (`BasicRunner`) or a state-machine
 flow (`StateMachine` / `ZmqStateMachine`).
 
@@ -75,7 +75,7 @@ Key decorators and their behavior (see `aerpawlib/v1/runner/decorators.py`):
 - `_StateType`: enum used to distinguish normal and timed states.
 - `_State`: internal wrapper that knows how to execute a state function.
   For timed states, `_State.run` starts a background task that repeatedly
-  calls the wrapped function (if `loop` is True) and then waits for the
+  calls the wrapped function (if looping) and then waits for the
   minimum duration. The last returned value from the wrapped function is
   used as the next state's name.
 
@@ -152,4 +152,3 @@ self._initialize_zmq_bindings("leader", "127.0.0.1")
 # ask another runner for a field (awaitable):
 await self.query_field("follower", "position")
 ```
-
