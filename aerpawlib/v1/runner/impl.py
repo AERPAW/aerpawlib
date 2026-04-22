@@ -1,116 +1,11 @@
-"""Runner implementations for the v1 API.
+"""
+Runner implementations for the v1 API.
 
 This module contains the concrete Runner implementations used by the v1
 interface: ``Runner`` (the abstract base), ``BasicRunner``, ``StateMachine``,
 and ``ZmqStateMachine``.  The implementations here are intentionally small and
 opinionated to make mission code easy to write while keeping runtime
 behavior explicit and testable.
-
-High-level overview
--------------------
-- Runner
-  - Abstract base class. Subclasses should implement ``run(self, vehicle)``
-    with the execution model they want (basic single-entry scripts, state
-    machines, etc.). Optional hooks: ``initialize_args`` and ``cleanup``.
-
-- BasicRunner
-  - Discovers a single ``@entrypoint`` method on the instance and executes
-    it. Used for simple scripts where the user controls flow itself. If more
-    than one entrypoint is found, a ``StateMachineError`` is raised; if no
-    entrypoint is found, ``NoEntrypointError`` is raised.
-
-- StateMachine
-  - Builds a map of states from methods decorated with ``@state`` or
-    ``@timed_state`` (see ``aerpawlib.v1.runner.decorators``). One state
-    must be marked as the initial state (``first=True``) or a
-    ``NoInitialStateError`` is raised; multiple "first" states raise
-    ``MultipleInitialStatesError``.
-  - Execution model: the current state's wrapped function is awaited and the
-    returned string is used as the next state's name. Timed states are
-    supported via the internal ``_State`` wrapper; background tasks and
-    initialization tasks are supported and are discovered by method
-    attributes set by decorators (``@background``, ``@at_init``).
-  - Background tasks are run in the event loop as restarted tasks (they are
-    re-launched on exception) and cancelled cleanly when the state machine
-    stops. Initialization tasks are awaited once before the state loop
-    begins.
-  - Calling ``stop()`` causes the state machine to exit after the current
-    state finishes (equivalent to returning ``None`` from a state).
-
-- ZmqStateMachine
-  - Extends ``StateMachine`` to support remote control via a ZMQ proxy.
-    Methods annotated with ``@expose_zmq`` and ``@expose_field_zmq`` are
-    collected and served over ZMQ. Before calling ``run()`` on a
-    ``ZmqStateMachine`` you must initialize ZMQ bindings using
-    ``_initialize_zmq_bindings(vehicle_identifier, proxy_server_addr)`` (this
-    is typically wired to CLI flags). If bindings are missing ``run`` will
-    raise ``StateMachineError``.
-  - Provides two high-level async helpers used by mission code:
-    ``transition_runner(identifier, state)`` to request a remote runner
-    transition, and ``query_field(identifier, field, timeout=...)`` to ask a
-    remote runner for a field exposed via ``@expose_field_zmq``.
-
-Implementation notes and runtime behavior
-----------------------------------------
-- State discovery and execution rely on decorator-set attributes. Decorators
-  add attributes such as ``_is_state``, ``_state_name``, ``_state_type``,
-  ``_state_duration``, etc. The runners treat these as authoritative at
-  runtime.
-- Timed states are implemented by launching a short-lived background task
-  that repeatedly calls the wrapped function (if looping) and then awaiting
-  the configured duration before allowing the state's final returned value
-  to be used as the next state name.
-- Background tasks are scheduled with ``asyncio.ensure_future`` and are
-  automatically restarted if they raise an exception (a short sleep is used
-  between restarts). On shutdown these futures are cancelled and awaited to
-  ensure a clean stop.
-- ZMQ background pub/sub tasks are decorated with ``@background`` so they
-  run alongside the state loop. Messages to remote runners are sent using an
-  internal asyncio.Queue (``_zmq_messages_sending``), and incoming field
-  callbacks are stored in ``_zmq_received_fields`` and awaited by callers of
-  ``query_field``.
-
-Errors and exceptions
----------------------
-- ``NoEntrypointError``: Raised by ``BasicRunner`` when no ``@entrypoint``
-  is discovered.
-- ``NoInitialStateError``: Raised by ``StateMachine`` when no initial state
-  is found.
-- ``MultipleInitialStatesError``: Raised if more than one state is marked
-  as initial.
-- ``InvalidStateError``: Raised when the state machine transitions to a
-  state name that was not discovered during build.
-- ``StateMachineError``: Miscellaneous configuration/runtime errors (for
-  example, malformed ``@expose_zmq`` usage).
-
-Short examples
---------------
-BasicRunner::
-
-    class MyScript(BasicRunner):
-        @entrypoint
-        async def main(self, vehicle: Vehicle):
-            await vehicle.takeoff(5)
-
-StateMachine::
-
-    class MySm(StateMachine):
-        @state("start", first=True)
-        async def start(self, vehicle: Vehicle):
-            return "patrol"
-
-        @timed_state("patrol", duration=10)
-        async def patrol(self, vehicle: Vehicle):
-            return "land"
-
-ZmqStateMachine notes::
-
-    # before run(), call:
-    self._initialize_zmq_bindings("leader", "127.0.0.1")
-
-    # ask another runner for a field (awaitable):
-    await self.query_field("follower", "position")
-
 """
 
 from __future__ import annotations
