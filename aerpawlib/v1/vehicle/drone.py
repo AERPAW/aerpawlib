@@ -11,7 +11,7 @@ Capabilities:
 
 Notes:
 - Shared connection, telemetry, and lifecycle behavior comes from
-  `aerpawlib.v1.vehicles.core_vehicle`.
+  `aerpawlib.v1.vehicle.core_vehicle`.
 """
 
 import asyncio
@@ -50,7 +50,7 @@ from aerpawlib.v1.helpers import (
     normalize_heading,
     heading_difference,
 )
-from aerpawlib.v1.vehicles.core_vehicle import Vehicle
+from aerpawlib.v1.vehicle.core_vehicle import Vehicle
 
 logger = get_logger(LogComponent.DRONE)
 
@@ -154,9 +154,8 @@ class Drone(Vehicle):
             except OffboardError as e:
                 logger.warning("Failed to start offboard mode: %s", e)
 
-            self._ready_to_move = (
-                lambda s: heading_difference(heading, s.heading)
-                <= HEADING_TOLERANCE_DEG
+            self._ready_to_move = lambda s: (
+                heading_difference(heading, s.heading) <= HEADING_TOLERANCE_DEG
             )
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
@@ -210,8 +209,8 @@ class Drone(Vehicle):
             )
             await self._run_on_mavsdk_loop(self._system.action.takeoff())
 
-            self._ready_to_move = (
-                lambda s: s.position.alt >= target_alt * min_alt_tolerance
+            self._ready_to_move = lambda s: (
+                s.position.alt >= target_alt * min_alt_tolerance
             )
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
@@ -308,8 +307,8 @@ class Drone(Vehicle):
                 )
             )
 
-            self._ready_to_move = (
-                lambda s: coordinates.distance(s.position) <= tolerance
+            self._ready_to_move = lambda s: (
+                coordinates.distance(s.position) <= tolerance
             )
             await wait_for_condition(
                 lambda: self._ready_to_move(self),

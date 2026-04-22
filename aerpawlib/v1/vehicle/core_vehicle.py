@@ -1010,8 +1010,9 @@ class Vehicle:
         if self._postarm_init_in_progress:
             logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: self._initialization_complete
-                or not self._postarm_init_in_progress,
+                lambda: (
+                    self._initialization_complete or not self._postarm_init_in_progress
+                ),
                 poll_interval=POLLING_DELAY_S,
             )
             return

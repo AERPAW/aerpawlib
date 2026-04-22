@@ -1,6 +1,5 @@
 """Integration tests for aerpawlib v2 Drone. Requires SITL."""
 
-
 import pytest
 
 pytestmark = [pytest.mark.integration]

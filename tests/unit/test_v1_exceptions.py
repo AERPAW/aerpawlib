@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v1 exception hierarchy."""
 
-
 from aerpawlib.v1.exceptions import (
     AerpawConnectionError,
     AerpawlibError,

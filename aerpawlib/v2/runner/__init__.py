@@ -56,4 +56,3 @@ __all__ = [
     "StateMachine",
     "ZmqStateMachine",
 ]
-

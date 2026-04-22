@@ -62,8 +62,8 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     async def state_take_off(self, _):
         # make both drones take off at the same time
         print("taking off")
-        await self.transition_runner(ZMQ_TRACER, "take_off"),
-        await self.transition_runner(ZMQ_ORBITER, "take_off"),
+        (await self.transition_runner(ZMQ_TRACER, "take_off"),)
+        (await self.transition_runner(ZMQ_ORBITER, "take_off"),)
         print("taking off sent")
         return "await_taken_off"
 
@@ -103,8 +103,8 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         if waypoint["command"] == 20:  # RTL encountered, finish routine
             return "rtl"
 
-        await self.transition_runner(ZMQ_TRACER, "next_waypoint"),
-        await self.transition_runner(ZMQ_ORBITER, "next_waypoint"),
+        (await self.transition_runner(ZMQ_TRACER, "next_waypoint"),)
+        (await self.transition_runner(ZMQ_ORBITER, "next_waypoint"),)
 
         self._tracer_at_waypoint = False
         self._orbiter_at_waypoint = False
@@ -171,8 +171,8 @@ class GroundCoordinatorRunner(ZmqStateMachine):
 
     @state(name="rtl")
     async def state_rtl(self, _):
-        await self.transition_runner(ZMQ_TRACER, "rtl"),
-        await self.transition_runner(ZMQ_ORBITER, "rtl"),
+        (await self.transition_runner(ZMQ_TRACER, "rtl"),)
+        (await self.transition_runner(ZMQ_ORBITER, "rtl"),)
         self._tracer_rtl_done = False
         self._orbiter_rtl_done = False
         return "await_rtl_done"
@@ -195,7 +195,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
 
     @state(name="land")
     async def state_land(self, _):
-        await self.transition_runner(ZMQ_TRACER, "land"),
-        await self.transition_runner(ZMQ_ORBITER, "land"),
+        (await self.transition_runner(ZMQ_TRACER, "land"),)
+        (await self.transition_runner(ZMQ_ORBITER, "land"),)
         await asyncio.sleep(5)
         return

@@ -51,7 +51,7 @@ def _component_name(component: Union[object, str]) -> str:
     if isinstance(value, str):
         return value
     raise TypeError(
-        "component must be a logger name string or an enum with a string " "'value'"
+        "component must be a logger name string or an enum with a string 'value'"
     )
 
 

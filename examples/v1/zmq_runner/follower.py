@@ -11,7 +11,6 @@ from aerpawlib.v1.util import (
 )
 
 
-
 class FollowRunner(ZmqStateMachine):
     @state(name="launch_wait", first=True)
     async def state_start(self, _):

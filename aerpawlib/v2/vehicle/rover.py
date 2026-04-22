@@ -36,7 +36,9 @@ from ..aerpaw import AERPAW_Platform
 from ..exceptions import NavigationError, VelocityError
 from ..log import LogComponent, get_logger
 from ..types import Coordinate, VectorNED
-from .base import Vehicle, VehicleTask, _validate_tolerance, _wait_for_condition
+from .base import Vehicle, _wait_for_condition
+from .task import VehicleTask
+from .connection_helpers import _validate_tolerance
 
 logger = get_logger(LogComponent.ROVER)
 
@@ -206,8 +208,8 @@ class Rover(Vehicle):
             logger.error(f"Rover: goto_coordinates failed (ActionError): {e}")
             raise NavigationError(str(e), original_error=e)
 
-        self._ready_to_move = (
-            lambda s: coordinates.ground_distance(s.position) <= tolerance
+        self._ready_to_move = lambda s: (
+            coordinates.ground_distance(s.position) <= tolerance
         )
 
         if blocking:

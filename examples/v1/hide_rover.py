@@ -52,7 +52,6 @@ from aerpawlib.v1.util import (
 from aerpawlib.v1.vehicle import Vehicle
 
 
-
 class HideRover(StateMachine):
     _waypoints = []
     _waypoint_fname: str
@@ -214,12 +213,14 @@ class HideRover(StateMachine):
             min_lon = min(min_lon, coord["lon"])
             max_lon = max(max_lon, coord["lon"])
 
-        random_lat, random_lon = random.uniform(min_lat, max_lat), random.uniform(
-            min_lon, max_lon
+        random_lat, random_lon = (
+            random.uniform(min_lat, max_lat),
+            random.uniform(min_lon, max_lon),
         )
         while not inside(random_lon, random_lat, geofence):
-            random_lat, random_lon = random.uniform(min_lat, max_lat), random.uniform(
-                min_lon, max_lon
+            random_lat, random_lon = (
+                random.uniform(min_lat, max_lat),
+                random.uniform(min_lon, max_lon),
             )
 
         return Coordinate(random_lat, random_lon)

@@ -138,8 +138,7 @@ def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescript
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state"
+                "A method cannot be decorated with more than one of @state/@timed_state"
             )
         desc = _StateDescriptor(name, first=first, state_type=_StateType.STANDARD)
         desc.func = func
@@ -174,8 +173,7 @@ def timed_state(
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state"
+                "A method cannot be decorated with more than one of @state/@timed_state"
             )
         desc = _StateDescriptor(
             name,

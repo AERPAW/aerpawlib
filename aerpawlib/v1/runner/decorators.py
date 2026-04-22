@@ -118,8 +118,7 @@ def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _Decorat
         """Mark a method as a standard state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state"
+                "A method cannot be decorated with more than one of @state/@timed_state"
             )
         func._is_state = True
         func._state_name = name
@@ -156,8 +155,7 @@ def timed_state(
         """Mark a method as a timed state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state"
+                "A method cannot be decorated with more than one of @state/@timed_state"
             )
         func._is_state = True
         func._state_name = name

@@ -1,6 +1,5 @@
 """Unit tests for aerpawlib v2 exception types."""
 
-
 from aerpawlib.v2.exceptions import (
     AerpawlibError,
     ConnectionTimeoutError,

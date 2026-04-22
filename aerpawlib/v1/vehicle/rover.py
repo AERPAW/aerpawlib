@@ -55,7 +55,7 @@ from aerpawlib.v1.helpers import (
     wait_for_condition,
     validate_tolerance,
 )
-from aerpawlib.v1.vehicles.core_vehicle import Vehicle
+from aerpawlib.v1.vehicle.core_vehicle import Vehicle
 
 logger = get_logger(LogComponent.ROVER)
 
@@ -195,8 +195,8 @@ class Rover(Vehicle):
                 )
             )
 
-            self._ready_to_move = (
-                lambda s: coordinates.ground_distance(s.position) <= tolerance
+            self._ready_to_move = lambda s: (
+                coordinates.ground_distance(s.position) <= tolerance
             )
 
             logger.debug(f"Waiting to reach destination (tolerance={tolerance}m)...")

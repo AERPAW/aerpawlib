@@ -85,7 +85,9 @@ from ..exceptions import (
 )
 from ..log import LogComponent, get_logger
 from ..types import Coordinate, VectorNED
-from .base import Vehicle, VehicleTask, _validate_tolerance, _wait_for_condition
+from .base import Vehicle, _wait_for_condition
+from .connection_helpers import _validate_tolerance
+from .task import VehicleTask
 from .heading import _heading_diff, _normalize_heading
 
 logger = get_logger(LogComponent.DRONE)
@@ -189,8 +191,8 @@ class Drone(Vehicle):
                 await self._system.offboard.start()
             except OffboardError:
                 pass
-            self._ready_to_move = (
-                lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
+            self._ready_to_move = lambda s: (
+                _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             )
             await _wait_for_condition(
                 lambda: self.done_moving(), timeout=DEFAULT_GOTO_TIMEOUT_S
@@ -235,8 +237,8 @@ class Drone(Vehicle):
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
-            self._ready_to_move = (
-                lambda s: s.position.alt >= altitude * min_alt_tolerance
+            self._ready_to_move = lambda s: (
+                s.position.alt >= altitude * min_alt_tolerance
             )
             last_log = 0.0
             while not self.done_moving():

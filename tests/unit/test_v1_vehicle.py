@@ -8,7 +8,7 @@ import pytest
 from aerpawlib.v1.exceptions import PortInUseError
 from aerpawlib.v1.util import Coordinate
 from aerpawlib.v1.vehicle import Drone, DummyVehicle, Rover
-from aerpawlib.v1.vehicles.core_vehicle import _parse_udp_connection_port
+from aerpawlib.v1.vehicle.core_vehicle import _parse_udp_connection_port
 
 
 class TestDummyVehicleUnit:
@@ -131,7 +131,7 @@ class TestHeartbeatMonitoring:
 
     def _make_vehicle(self):
         """Return a bare Vehicle instance (no __init__ / MAVSDK)."""
-        from aerpawlib.v1.vehicles.core_vehicle import Vehicle
+        from aerpawlib.v1.vehicle.core_vehicle import Vehicle
 
         v = Vehicle.__new__(Vehicle)
         v._has_heartbeat = True

@@ -254,7 +254,6 @@ class PreplannedTrajectory(StateMachine):
 
         # Loop over waypoint list (ignore first 0,0,alt waypoint)
         for waypoint in self._waypoints[1:]:
-
             # AERPAW_Platform.log_to_oeo(str(waypoint["pos"]))
             wp_coord = Coordinate(*waypoint["pos"])
 
