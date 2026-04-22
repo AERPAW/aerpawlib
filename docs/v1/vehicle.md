@@ -23,24 +23,10 @@ High-level overview
 - `DummyVehicle`
   - Test/compatibility vehicle used by simulation or no-op flows.
 
-- Telemetry compatibility wrappers
-  - `_BatteryCompat`, `_GPSInfoCompat`, `_AttitudeCompat`, `_VersionCompat`
-  - Preserve legacy field shapes for existing v1 call sites.
-
-## Primary symbols
-
-- `Vehicle`
-- `DummyVehicle`
-- `Drone`
-- `Rover`
-- `_BatteryCompat`
-- `_GPSInfoCompat`
-- `_AttitudeCompat`
-- `_VersionCompat`
 
 ## Runtime model
 
-v1 vehicles use a dual-loop architecture:
+v1 vehicles use a two-loop architecture:
 
 - User runner code executes on the main asyncio loop.
 - MAVSDK operations execute on a dedicated background thread with its own
@@ -63,17 +49,6 @@ class Mission(BasicRunner):
         await vehicle.land()
 
 # Vehicle objects are created by the CLI runner; call close() on shutdown.
-```
-
-For standalone/manual creation, ensure cleanup is explicit:
-
-```python
-vehicle = Drone("udpin://127.0.0.1:14550")
-try:
-    # mission logic
-    pass
-finally:
-    vehicle.close()
 ```
 
 ## Errors

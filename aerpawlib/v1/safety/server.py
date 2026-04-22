@@ -21,7 +21,7 @@ Notes:
 import json
 import os
 from argparse import ArgumentParser
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import yaml
 import zmq
@@ -35,7 +35,6 @@ from ..constants import (
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_WAYPOINT_REQ,
     VEHICLE_TYPE_COPTER,
-    VEHICLE_TYPE_ROVER,
     DEFAULT_SAFETY_SERVER_PORT,
 )
 from ..util import Coordinate, do_intersect, inside, read_geofence
@@ -43,23 +42,6 @@ from .wire_format import deserialize_msg, serialize_response
 
 logger = get_logger(LogComponent.SAFETY)
 
-
-def _polygon_edges(
-    polygon: List[Dict[str, float]],
-) -> Iterator[Tuple[Dict[str, float], Dict[str, float]]]:
-    """
-    Yield consecutive (p1, p2) edge pairs for a polygon, including the
-    closing edge from the last vertex back to the first.
-
-    Args:
-        polygon: List of {'lat': ..., 'lon': ...} points.
-
-    Yields:
-        Tuple[dict, dict]: Pairs of adjacent vertices.
-    """
-    n = len(polygon)
-    for i in range(n):
-        yield polygon[i], polygon[(i + 1) % n]
 
 
 # noinspection PyUnusedLocal
@@ -259,7 +241,10 @@ class SafetyCheckerServer:
                     "Invalid waypoint. Waypoint (%s,%s) is inside a no-go zone. ABORTING!"
                     % (next_location.lat, next_location.lon),
                 )
-        for p1, p2 in _polygon_edges(dest_geofence):
+        n = len(dest_geofence)
+        for i in range(n):
+            p1 = dest_geofence[i]
+            p2 = dest_geofence[(i + 1) % n]
             if do_intersect(
                 p1["lon"],
                 p1["lat"],
@@ -282,7 +267,10 @@ class SafetyCheckerServer:
                 )
 
         for zone in self.exclude_geofences:
-            for p1, p2 in _polygon_edges(zone):
+            m = len(zone)
+            for j in range(m):
+                p1 = zone[j]
+                p2 = zone[(j + 1) % m]
                 if do_intersect(
                     p1["lon"],
                     p1["lat"],

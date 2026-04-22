@@ -3,7 +3,7 @@
 """
 
 from .client import SafetyCheckerClient
-from .server import SafetyCheckerServer, _polygon_edges, main_cli
+from .server import SafetyCheckerServer, main_cli
 from .wire_format import (
     deserialize_msg,
     serialize_msg,
@@ -14,7 +14,6 @@ from .wire_format import (
 __all__ = [
     "SafetyCheckerClient",
     "SafetyCheckerServer",
-    "_polygon_edges",
     "deserialize_msg",
     "serialize_msg",
     "serialize_request",
