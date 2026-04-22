@@ -1,6 +1,6 @@
 ## v1 API
 
-_Note_: This is documentation for the v1 API. For the latest version, see ``aerpawlib.v2``.
+*Note*: This is documentation for the v1 API. For the latest version, see ``aerpawlib.v2``.
 
 # Introduction
 

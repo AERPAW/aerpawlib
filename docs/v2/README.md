@@ -1,6 +1,6 @@
 ## v2 API
 
-_Note_: This is documentation for the v2 API. For the v1 API, see `aerpawlib.v1` and [v1 documentation](../v1/README.md).
+*Note*: This is documentation for the v2 API. For the v1 API, see ``aerpawlib.v1``.
 
 # aerpawlib v2 API
 
