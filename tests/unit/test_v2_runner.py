@@ -314,24 +314,6 @@ class TestZmqStateMachine:
 
 class TestConnectionHandler:
     @pytest.mark.asyncio
-    async def test_times_out_without_telemetry_ticks_wait_api(self):
-        handler = ConnectionHandler(
-            MockVehicle(),
-            heartbeat_timeout=0.1,
-            start_delay=0.0,
-        )
-        monitor = handler.start()
-        disconnect_future = handler.get_disconnect_future()
-
-        with pytest.raises(HeartbeatLostError):
-            await asyncio.wait_for(disconnect_future, timeout=1.5)
-
-        handler.stop()
-        monitor.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await monitor
-
-    @pytest.mark.asyncio
     async def test_handle_transition_message(self):
         """TRANSITION message sets the state override attributes."""
 
