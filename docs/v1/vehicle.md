@@ -1,42 +1,10 @@
-## Overview
-
-Vehicle API for v1 experiments.
-
-This module provides concrete v1 vehicle types and compatibility wrappers so
-scripts can use one import surface for vehicle interactions.
-
-High-level overview
--------------------
-- `Vehicle`
-  - Shared MAVSDK-backed base class used by v1 vehicle implementations.
-  - Owns connection lifecycle, telemetry synchronization, and command bridging
-    to the background MAVSDK event loop.
-
-- `Drone`
-  - Multirotor implementation with takeoff/land/RTL, goto helpers, heading
-    control, and velocity control.
-
-- `Rover`
-  - Ground vehicle implementation focused on 2D navigation and rover-specific
-    mode handling.
-
-- `DummyVehicle`
-  - Test/compatibility vehicle used by simulation or no-op flows.
+You're not going to be able to write a script without a vehicle.
+This module provides the vehicle classes you interact with, which transltae your high-level Python commands into the low-level MAVSDK instructions needed to physically fly a drone or drive a rover.
 
 
-## Runtime model
+## Example Usage
 
-v1 vehicles use a two-loop architecture:
-
-- User runner code executes on the main asyncio loop.
-- MAVSDK operations execute on a dedicated background thread with its own
-  event loop.
-- Vehicle methods bridge loops via internal helpers and thread-safe state
-  wrappers.
-- Telemetry streams update thread-safe values that power sync-style properties
-  (`position`, `armed`, `battery`, etc.).
-
-## Usage
+In practice, the CLI framework creates and passes the vehicle object to your script. All you have to do is fly it.
 
 ```python
 from aerpawlib.v1 import BasicRunner, Drone, entrypoint
@@ -44,51 +12,37 @@ from aerpawlib.v1 import BasicRunner, Drone, entrypoint
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
+        # We start by going up
         await vehicle.takeoff(10)
-        await vehicle.goto_coordinates(vehicle.position)
+        
+        # We can issue commands using the vehicle's telemetry data
+        target = vehicle.position  # We could add a VectorNED here to move
+        await vehicle.goto_coordinates(target)
+        
+        # Bring it home safely
         await vehicle.land()
-
-# Vehicle objects are created by the CLI runner; call close() on shutdown.
 ```
 
-## Errors
+*(Note: The `close()` method is called by the CLI runner during shutdown. If you are ever managing a vehicle lifecycle manually, ensure `close()` is called to properly sever connections and terminate background threads.)*
 
-Connection/setup (mostly from `Vehicle` base):
+---
 
-- `ConnectionTimeoutError`: no connection established within configured timeout.
-- `AerpawConnectionError`: MAVSDK transport/grpc/connectivity failures.
-- `PortInUseError`: requested MAVSDK server port is already bound.
-- `NotArmableError`: preflight checks fail or vehicle starts already armed.
+## Error Handling Guide
 
-Command-level failures:
+There are a lot of errors that can be raised by this module especially
 
-- `ArmError`, `DisarmError`: arming state transitions fail.
-- `TakeoffError`, `LandingError`, `RTLError`: multirotor action failures.
-- `NavigationError`: goto/action timeouts or command failures.
-- `VelocityError`: set-velocity/offboard command failures.
+### Connectivity and Startup Errors
+* `ConnectionTimeoutError`: The MAVSDK background process couldn't talk to the vehicle hardware within the allotted time.
+* `AerpawConnectionError`: A broader category for underlying transport, GRPC, or network failures.
+* `PortInUseError`: The network port required by the MAVSDK server is already blocked by another process.
+* `NotArmableError`: The vehicle failed its preflight safety checks or—crucially for `Drone`s—it powered on and found it was *already armed*, which triggers an immediate shutdown for safety.
 
-API contract errors:
+### Action Failures
+* `ArmError` / `DisarmError`: The vehicle failed to transition into the requested armed/disarmed state.
+* `TakeoffError` / `LandingError` / `RTLError`: The hardware rejected or failed to complete standard multirotor commands.
+* `NavigationError`: A `goto` command failed, timed out, or was interrupted before completion.
+* `VelocityError`: Failed to execute offboard velocity control commands.
 
-- `NotImplementedForVehicleError`: calling movement APIs on base `Vehicle`
-  instead of a concrete type.
-- Some low-level loop-bridge failures can surface as `RuntimeError` when the
-  MAVSDK loop is unavailable during shutdown/race conditions.
-
-## Implementation notes
-
-- `Vehicle.__init__` connects synchronously and starts internal telemetry/
-  command machinery before returning.
-- `Drone` waits for initial armed-state telemetry and rejects startup when the
-  vehicle is already armed.
-- `Rover` performs GUIDED-mode setup via direct MAVLink command before arming.
-- Blocking movement methods update `_ready_to_move` predicates and wait until
-  position/heading conditions are met.
-- `close()` cancels pending futures/tasks and stops background loop resources;
-  skipping it can leave lingering threads/sockets.
-
-## Notes
-
-- Prefer high-level APIs like `goto_coordinates(...)`, `set_velocity(...)`, and
-  `set_heading(...)` over direct MAVSDK calls.
-- Wrap mission commands in try/except for `AerpawlibError` subclasses when you
-  need explicit recovery behavior.
+### Developer API Errors
+* `NotImplementedForVehicleError`: You tried to call a movement API on the base `Vehicle` class instead of a concrete `Drone` or `Rover`.
+* `RuntimeError`: Occasionally raised during shutdown if you attempt to send a command while the internal MAVSDK background loop is already tearing down.

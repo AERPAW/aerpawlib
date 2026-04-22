@@ -1,130 +1,111 @@
-## Overview
+When you're operating autonomous vehicles, having robust guardrails is non-negotiable. This module provides a highly resilient client/server architecture designed to validate your mission commands against strict environmental and vehicle constraints—like geofences, speed limits, and altitude bounds, *before* the vehicle ever makes a move.
 
-This module provides the client/server components and wire-format helpers
-used to validate mission commands against geofence and vehicle constraints.
+Here is a breakdown of how the safety checker works, how to configure it, and how to wire it into your mission logic.
 
-High-level overview
--------------------
-- `SafetyCheckerClient`
-  - ZMQ REQ client used by vehicle/runner code to validate commands.
-  - Sends compressed JSON requests and returns `(result, message)` tuples.
-  - Uses send/receive timeouts and reconnects the socket after timeout.
+## The Architecture at a Glance
 
-- `SafetyCheckerServer`
-  - Blocking ZMQ REP server that loads safety config from YAML and validates
-    incoming requests.
-  - Enforces include/exclude geofences, speed bounds, and (for copters)
-    altitude bounds.
-  - Stores a takeoff point used by landing-distance validation.
+The safety module splits the workload between two primary components, communicating over a strictly enforced ZeroMQ (ZMQ) REQ/REP pattern:
 
-- Wire-format helpers (`serialize_request`, `serialize_response`, etc.)
-  - Encode/decode zlib-compressed JSON dictionaries for the safety protocol.
+### 1. `SafetyCheckerClient`
+This is your mission script's direct line to the safety authority. It acts as a ZMQ REQ client that asks for permission before executing maneuvers. 
+* **Resiliency built-in:** Networks aren't perfect. If the server takes too long to reply, the client will raise a `TimeoutError`. But pragmatically, it also automatically resets and reconnects its socket so that subsequent requests can still succeed without restarting your entire script.
 
-## Primary symbols
+### 2. `SafetyCheckerServer`
+This is the central authority. It runs a blocking ZMQ REP server that loads your safety configuration from a YAML file. 
+* **The Enforcer:** It evaluates every incoming request against your defined include/exclude geofences, speed limits, and (for copters) altitude bounds. It also remembers your takeoff point to validate landing distances later on.
 
-Primary symbols provided by the safety module:
+### 3. Wire-Format Helpers
+To keep network traffic lightweight without sacrificing readability, the protocol uses `zlib`-compressed JSON dictionaries. Helpers like `serialize_request` and `deserialize_msg` handle the encoding and decoding transparently.
 
-- `SafetyCheckerClient`
-- `SafetyCheckerServer`
-- `_polygon_edges`
-- `serialize_msg`
-- `deserialize_msg`
-- `serialize_request`
-- `serialize_response`
+---
 
-## Request types
+## What You Can Ask the Server
 
-The safety protocol uses request-function names from `aerpawlib.v1.constants`:
+The safety protocol routes requests using specific constants defined in `aerpawlib.v1.constants`. Under the hood, `SafetyCheckerServer.REQUEST_FUNCTIONS` maps these to their respective validation logic:
 
-- `server_status_req`
-- `validate_waypoint_req`
-- `validate_change_speed_req`
-- `validate_takeoff_req`
-- `validate_landing_req`
+* `server_status_req`
+* `validate_waypoint_req`
+* `validate_change_speed_req`
+* `validate_takeoff_req`
+* `validate_landing_req`
 
-These are routed by `SafetyCheckerServer.REQUEST_FUNCTIONS`.
+---
 
-## Usage
+## Putting It Into Practice
 
-1. Start a safety server process with a YAML config.
-2. Create a `SafetyCheckerClient` in mission code.
-3. Call validation helpers before movement-related vehicle commands.
-4. Continue only when validation returns `(True, "")`.
+Using the safety checker in your code is straightforward. You instantiate the client, perform a status check, and then validate your commands before executing them. 
+
+*Note: Validation methods return a tuple of `(result: bool, message: str)`. Always check the result before proceeding.*
 
 ```python
 from aerpawlib.v1 import Coordinate
 from aerpawlib.v1.safety import SafetyCheckerClient
 
+# Connect to the local safety server
 with SafetyCheckerClient("127.0.0.1", 14580) as checker:
+    # Always ensure the server is alive and happy first
     ok, msg = checker.check_server_status()
     if not ok:
-        raise RuntimeError(msg)
+        raise RuntimeError(f"Safety server is not ready: {msg}")
 
     cur = Coordinate(35.7275, -78.6960, 10)
     nxt = Coordinate(35.7280, -78.6955, 15)
+    
+    # Ask permission to move
     ok, msg = checker.validate_waypoint_command(cur, nxt)
     if not ok:
-        print(f"Waypoint rejected: {msg}")
+        print(f"Maneuver rejected by safety constraints: {msg}")
+        # Handle the rejection (e.g., transition to a loiter or RTL state)
 ```
 
-## Configuration expectations
+---
 
-`SafetyCheckerServer` expects a YAML file with:
+## Configuring the Server (The Rules of Engagement)
 
-- Required for all vehicle types:
-  - `vehicle_type` (`"copter"` or `"rover"`)
-  - `max_speed`
-  - `min_speed`
-  - `include_geofences` (KML paths)
-  - `exclude_geofences` (KML paths)
-- Additional required fields for copter:
-  - `max_alt`
-  - `min_alt`
+The `SafetyCheckerServer` expects a YAML file defining the strict limits for the vehicle. Note that geofence paths (KML files) are resolved relative to where this YAML file lives.
 
-Geofence paths are resolved relative to the config file directory.
+**Required for all vehicles:**
+* `vehicle_type`: Must be `"copter"` or `"rover"`.
+* `max_speed` / `min_speed`: Absolute speed limits.
+* `include_geofences`: KML paths defining where the vehicle *must* stay.
+* `exclude_geofences`: KML paths defining where the vehicle *cannot* go.
 
-## Errors
+**Required exclusively for `"copter"`:**
+* `max_alt` / `min_alt`: Absolute altitude limits.
 
-Client-side:
+*(Note: If your configuration is missing keys or has an invalid vehicle type, the server will raise a generic `Exception` during startup, failing fast so you can fix it.)*
 
-- `SafetyCheckerClient.send_request(...)` raises `TimeoutError` when the server
-  does not reply within the configured timeout.
-- On timeout, the client resets and reconnects its REQ socket before raising,
-  so later requests can still proceed.
-- `deserialize_msg(...)` raises `ValueError` for malformed compressed payloads
-  or invalid JSON.
+---
 
-Server-side:
+## Handling the Inevitable Bumps (Errors and Rejections)
 
-- Unknown request functions return `result=False` with an error message.
-- Handler exceptions are caught and returned as `result=False` responses.
-- Invalid config values during startup currently raise generic `Exception`
-  (for missing keys or invalid `vehicle_type`).
+When writing robust code, you have to plan for failures. Here is how the module handles them:
 
-Validation-result behavior (not exceptions):
+### Client-Side Issues
+* **`TimeoutError`:** Raised by `send_request(...)` if the server goes dark. As mentioned, the client handles the socket cleanup automatically.
+* **`ValueError`:** Raised by `deserialize_msg(...)` if the client receives a malformed compressed payload or invalid JSON.
 
-- Waypoint violations return `(False, "...")`.
-- Speed/takeoff/landing violations return `(False, "...")`.
-- Landing validation fails if no takeoff location was recorded first.
+### Server-Side Protections
+* **Graceful Rejections:** If you send an unknown request function or if the server encounters an unexpected exception while handling a valid request, it won't crash. It simply catches the error and returns a safe `(False, "error message")` response.
+* **Stateful Validation:** If you ask the server to validate a landing command, but you never recorded a takeoff point, the validation will fail outright.
 
-## Implementation notes
+---
 
-- `SafetyCheckerServer(...)` starts a blocking server loop in `__init__`.
-- ZMQ pattern is REQ/REP, so each request must receive exactly one reply.
-- Waypoint path checks use polygon-edge intersection testing via
-  `_polygon_edges(...)` and `do_intersect(...)`.
-- Payloads are compressed JSON (`zlib`) to keep messages compact while staying
-  human-readable after decompression.
+## Under the Hood: Implementation Details
 
-## CLI
+If you are digging into the source code, here are a few structural choices to keep in mind:
+* The `SafetyCheckerServer` initiates its blocking loop directly inside `__init__`.
+* Because ZMQ REQ/REP is a strict lock-step pattern, every single request *must* receive exactly one reply to prevent the socket from hanging.
+* Waypoint validation isn't just checking points; it tests the actual path. It uses polygon-edge intersection math (`_polygon_edges(...)` and `do_intersect(...)`) to ensure the line drawn between your current position and the next waypoint doesn't clip a no-fly zone.
 
-The package provides a legacy CLI entry via `main_cli`:
+---
+
+## CLI and Legacy Notes
+
+You can spin up the server directly from the command line using the provided CLI entry point:
 
 ```bash
 python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
 ```
 
-## Notes
-
-- `aerpawlib.v1.safetyChecker` remains as a deprecated alias; use
-  `aerpawlib.v1.safety` for new code.
+**Deprecation Warning:** You may see older code using `aerpawlib.v1.safetyChecker`. This is a legacy alias that is strictly deprecated. Always use `aerpawlib.v1.safety` for new development to ensure future compatibility.
