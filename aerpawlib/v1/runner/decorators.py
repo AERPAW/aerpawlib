@@ -1,10 +1,75 @@
-"""
-Decorators and internal state machinery for v1 runners.
+"""Utilities and decorators used to build v1 runners.
 
-This module was moved from ``aerpawlib.v1.runner_decorators`` into the
-``aerpawlib.v1.runner`` package. The implementation is identical to the
-previous module except that relative imports were adjusted for the new
-location.
+This module provides the decorator primitives and small internal types that
+``StateMachine`` / ``ZmqStateMachine`` and ``BasicRunner`` rely on.  The
+decorators annotate user-defined methods with marker attributes that the
+runner construction logic inspects (for example, ``StateMachine._build()``).
+
+Overview of decorators and what they add
+--------------------------------------
+- ``@entrypoint``
+  - Marks a single async entry function for ``BasicRunner``.
+  - Adds ``_entrypoint = True`` to the function object.
+
+- ``@state(name, first=False)``
+  - Marks a standard state method for a ``StateMachine``.
+  - Required attributes added: ``_is_state``, ``_state_name`` (str),
+    ``_state_first`` (bool), ``_state_type`` set to ``_StateType.STANDARD``.
+  - Raises ``InvalidStateNameError`` for empty names and ``StateMachineError``
+    if a method is decorated as more than one state.
+
+- ``@timed_state(name, duration, loop=False, first=False)``
+  - Marks a timed state which will run for at least ``duration`` seconds.
+  - Adds the same state markers as ``@state`` plus ``_state_type`` set to
+    ``_StateType.TIMED``, ``_state_duration`` (float), and ``_state_loop`` (bool).
+  - Timed states are executed in a small background task that repeatedly
+    invokes the wrapped function if ``loop`` is True; the runner sleeps for
+    ``duration`` seconds before allowing the state to finish.
+
+- ``@expose_zmq(name)`` / ``@expose_field_zmq(name)``
+  - Mark methods to be exposed over the ZMQ control/query API used by
+    ``ZmqStateMachine``. These set ``_is_exposed_zmq`` /
+    ``_is_exposed_field_zmq`` and ``_zmq_name``.
+
+- ``@background``
+  - Marks an async method to be executed repeatedly in the background while a
+    ``StateMachine`` is running. Sets ``_is_background = True``.
+
+- ``@at_init``
+  - Marks an async function to run once during vehicle initialization before
+    the vehicle is armed. Sets ``_run_at_init = True``.
+
+Internal types and semantics
+---------------------------
+- ``_StateType``: enum used to distinguish normal and timed states.
+- ``_State``: internal wrapper that knows how to execute a state function.
+  For timed states, ``_State.run`` starts a background task that repeatedly
+  calls the wrapped function (if ``loop`` is True) and then waits for the
+  minimum duration (using ``aerpawlib.v1.constants.STATE_MACHINE_DELAY_S``
+  between loop iterations). The last returned value from the wrapped
+  function is used as the next state's name.
+
+Usage notes and expectations
+---------------------------
+- Decorated functions are expected to be ``async`` coroutines; the runners
+  will ``await`` them.
+- State functions should return the next state's name (``str``) or ``None``
+  to finish the state machine.
+- Decorating a function with more than one state decorator will raise
+  ``StateMachineError``.
+
+Example
+-------
+    @state("start", first=True)
+    async def start(self, vehicle):
+        await vehicle.takeoff(5)
+        return "patrol"
+
+    @timed_state("patrol", duration=10, loop=True)
+    async def patrol(self, vehicle):
+        # called repeatedly while the timed state is active
+        return None
+
 """
 
 from __future__ import annotations
