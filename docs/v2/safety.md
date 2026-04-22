@@ -1,5 +1,3 @@
-# aerpawlib v2 Safety Model
-
 ## Overview
 
 v2 provides command validation (`can_takeoff`, `can_goto`, `can_land`) with optional integration to an external SafetyCheckerServer via `vehicle.safety`. Enforcement stays in the autopilot and C-VM (Controller VM) on AERPAW.

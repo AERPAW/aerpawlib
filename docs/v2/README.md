@@ -1,6 +1,12 @@
+## v2 API
+
+_Note_: This is documentation for the v2 API. For the v1 API, see `aerpawlib.v1` and [v1 documentation](../v1/README.md).
+
 # aerpawlib v2 API
 
 v2 is a modern, async-first replacement for the v1 API. It eliminates the dual-loop architecture, ThreadSafeValue overhead, and function-attribute runners in favor of a single event loop, native async telemetry, descriptor-based decorators, and built-in safety/connection handling.
+
+This gives v2 significant performance and usability benefits over v1.
 
 ## Quick Start
 
@@ -23,22 +29,6 @@ aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn udpin:/
 ### Structured JSONL (`--structured-log FILE`)
 
 Machine-readable events are written one JSON object per line: `mission_start` / `mission_end`, throttled `telemetry` (position, velocity, attitude, battery, GPS, mode, armed), `command` events (e.g. `set_velocity`, `stop_velocity`, takeoff, goto), and `arm` / `disarm`. Omit the flag to disable file output.
-
-## Architecture
-
-- No background threads for MAVSDK. All commands use direct `await`.
-- Subscriptions update plain attributes; no ThreadSafeValue.
-- Runners use config dataclass (`BasicRunnerConfig`, `StateMachineConfig`) or decorators.
-- Non-blocking commands with `progress`, `cancel()`, and `wait_done()`.
-
-## Key Types
-
-| Type                             | Purpose                                             |
-|----------------------------------|-----------------------------------------------------|
-| `Coordinate`                     | WGS84 position (lat, lon, alt)                      |
-| `VectorNED`                      | NED displacement (north, east, down) in meters      |
-| `Battery`, `GPSInfo`, `Attitude` | Telemetry dataclasses                               |
-| `VehicleTask`                    | Non-blocking command with progress and cancellation |
 
 ## Vehicle API
 
@@ -445,3 +435,23 @@ AerpawlibError
 ```
 
 `UnexpectedDisarmError` is raised automatically by `BasicRunner` and `StateMachine` when the vehicle disarms during a mission (e.g. motor failsafe), terminating the experiment cleanly.
+
+## Module reference
+
+Short per-module pages (mirroring [v1 module docs](../v1/)):
+
+* [aerpaw](aerpaw.md) — AERPAW platform singleton, OEO forwarding
+* [constants](constants.md) — shared defaults and protocol values
+* [event_log](event_log.md) — structured JSONL logger re-export
+* [exceptions](exceptions.md) — `AerpawlibError` hierarchy
+* [external](external.md) — `ExternalProcess` async subprocess helper
+* [geofence](geofence.md) — KML polygons, point-in-polygon, segment intersection
+* [log](log.md) — v2 `LogComponent` and logging helpers
+* [plan](plan.md) — QGroundControl `.plan` parsing
+* [protocols](protocols.md) — `Protocol` types for tests and `ConnectionHandler`
+* [runner](runner.md) — `BasicRunner`, `StateMachine`, `ZmqStateMachine`, decorators, config
+* [safety](safety.md) — validation, `SafetyCheckerClient`, CLI wiring
+* [testing](testing.md) — `MockVehicle` and test helpers
+* [types](types.md) — `Coordinate`, `VectorNED`, telemetry dataclasses
+* [vehicle](vehicle.md) — `Vehicle`, `Drone`, `Rover`, `DummyVehicle`, tasks
+* [zmqutil](zmqutil.md) — ZMQ proxy reachability and `run_zmq_proxy`
