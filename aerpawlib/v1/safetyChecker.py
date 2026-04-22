@@ -4,7 +4,7 @@ Deprecated compatibility shim for the v1 safety package.
 This module preserves the historical `aerpawlib.v1.safetyChecker` import path
 by re-exporting symbols from `aerpawlib.v1.safety`.
 
-Capabilities
+Capabilities:
 - Keep legacy imports working for older scripts and tests.
 - Emit a `DeprecationWarning` guiding users to the modern package path.
 

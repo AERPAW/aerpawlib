@@ -7,7 +7,7 @@ features are only meaningful when the script is running inside an AERPAW
 experiment; when run in SITL/standalone the module intentionally degrades
 gracefully and emits a one-time warning.
 
-Capabilities
+Capabilities:
 - Send human-readable messages to the OEO console.
 - Publish simple topic values to the OEO pub/sub bridge.
 - Set/check boolean checkpoints and integer/string variables used to
@@ -54,7 +54,7 @@ class AERPAW:
     """
     Client for AERPAW platform services used by v1 scripts.
 
-    Capabilities
+    Capabilities:
     - Send human-readable messages to the OEO console.
     - Publish custom values to OEO user topics.
     - Set/check checkpoint booleans, counters, and string values.

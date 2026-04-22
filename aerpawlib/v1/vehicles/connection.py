@@ -4,7 +4,7 @@ Connection string parsing and validation helpers for v1 vehicles.
 This module validates and parses MAVSDK-style connection URLs so startup errors
 can be surfaced early with clear messages.
 
-Capabilities
+Capabilities:
 - Validate scheme/format for supported MAVSDK connection strings.
 - Parse UDP bind host/port for local port-conflict checks.
 

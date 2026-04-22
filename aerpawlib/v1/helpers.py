@@ -5,7 +5,7 @@ This module contains small reusable primitives used across v1 runner and
 vehicle logic, including async polling helpers, navigation value helpers, and
 thread-safe containers for cross-thread telemetry access.
 
-Capabilities
+Capabilities:
 - Provide async wait helpers for condition/value polling with timeout support.
 - Provide tolerance and heading normalization helpers used by movement logic.
 - Provide `ThreadSafeValue` for safe data sharing across runner/MAVSDK threads.

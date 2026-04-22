@@ -4,7 +4,7 @@ High-level runner API for v1 experiments.
 This module re-exports runner implementations and decorators used to build v1
 missions with either a single-entry flow or a state-machine flow.
 
-Capabilities
+Capabilities:
 - Re-export `Runner`, `BasicRunner`, `StateMachine`, and `ZmqStateMachine`.
 - Re-export runner decorators (`@entrypoint`, `@state`, `@timed_state`, etc.).
 - Provide a stable import surface for mission authoring.
@@ -14,7 +14,7 @@ Usage:
   defining mission logic classes.
 """
 
-from .runner_decorators import (
+from .decorators import (
     at_init,
     background,
     entrypoint,
@@ -23,7 +23,7 @@ from .runner_decorators import (
     state,
     timed_state,
 )
-from .runner_impl import (
+from .impl import (
     BasicRunner,
     Runner,
     StateMachine,

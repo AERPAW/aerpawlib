@@ -4,7 +4,7 @@ Safety checker package for the v1 API.
 This package exposes the client/server components used to validate mission
 commands against configured geofences and vehicle constraints.
 
-Capabilities
+Capabilities:
 - Re-export `SafetyCheckerServer` for ZMQ-based request validation.
 - Re-export `SafetyCheckerClient` for vehicle-side safety requests.
 - Re-export wire-format helpers for serialized request/response payloads.

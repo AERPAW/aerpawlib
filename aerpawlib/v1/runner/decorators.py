@@ -1,18 +1,10 @@
 """
 Decorators and internal state machinery for v1 runners.
 
-This module defines decorator primitives that annotate runner methods for
-entrypoints, state transitions, timed states, background jobs, and ZMQ
-exposure, plus the internal `_State` execution helper.
-
-Capabilities
-- Mark methods for discovery by `StateMachine._build()`.
-- Describe timed/looping state behavior through decorator metadata.
-- Mark methods/fields for ZMQ-driven control in `ZmqStateMachine`.
-
-Notes:
-- Decorators store marker attributes; scheduling behavior is implemented by
-  runner classes during build and execution.
+This module was moved from ``aerpawlib.v1.runner_decorators`` into the
+``aerpawlib.v1.runner`` package. The implementation is identical to the
+previous module except that relative imports were adjusted for the new
+location.
 """
 
 from __future__ import annotations
@@ -21,12 +13,12 @@ import asyncio
 from enum import Enum, auto
 from typing import Any, Callable, Optional, TypeVar
 
-from .constants import STATE_MACHINE_DELAY_S
-from .exceptions import (
+from aerpawlib.v1.constants import STATE_MACHINE_DELAY_S
+from aerpawlib.v1.exceptions import (
     InvalidStateNameError,
     StateMachineError,
 )
-from .vehicle import Vehicle
+from aerpawlib.v1.vehicle import Vehicle
 
 _Runnable = Callable[..., Any]
 _DecoratedFunc = TypeVar("_DecoratedFunc", bound=Callable[..., Any])
@@ -256,3 +248,5 @@ def at_init(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     func._run_at_init = True
     return func
+
+

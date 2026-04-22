@@ -4,7 +4,7 @@ Placeholder vehicle implementation for v1.
 This module provides `DummyVehicle`, a no-op compatibility class for examples
 and tests that do not need a live MAVSDK vehicle connection.
 
-Capabilities
+Capabilities:
 - Provide a minimal vehicle-like interface for non-flight code paths.
 - Allow runner and helper code to execute without hardware/SITL dependencies.
 """

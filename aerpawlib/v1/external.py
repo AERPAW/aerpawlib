@@ -5,7 +5,7 @@ This module provides `ExternalProcess`, an asyncio-friendly helper used by v1
 code to spawn and interact with subprocesses such as SITL, proxies, and other
 supporting tools.
 
-Capabilities
+Capabilities:
 - Start subprocesses with optional stdin/stdout redirection.
 - Read process output and send interactive input.
 - Wait for output patterns or process exit conditions.

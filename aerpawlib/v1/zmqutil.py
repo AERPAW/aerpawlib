@@ -4,7 +4,7 @@ ZMQ proxy helpers for v1 runners.
 This module provides low-level helpers to check and run the synchronous ZMQ
 forwarder used by `ZmqStateMachine` flows.
 
-Capabilities
+Capabilities:
 - Check whether the proxy publish endpoint is reachable over TCP.
 - Run a blocking XSUB/XPUB proxy for inter-runner pub/sub traffic.
 

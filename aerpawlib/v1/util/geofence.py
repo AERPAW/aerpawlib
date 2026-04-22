@@ -4,7 +4,7 @@ Geofence parsing and polygon geometry helpers for v1.
 This module provides KML geofence parsing and geometric predicates used by v1
 safety validation, including point-in-polygon and segment intersection checks.
 
-Capabilities
+Capabilities:
 - Parse KML polygon coordinates into lat/lon vertex dictionaries.
 - Determine whether points lie inside configured geofence polygons.
 - Detect line-segment intersections for path boundary checks.

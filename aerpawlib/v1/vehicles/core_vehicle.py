@@ -5,7 +5,7 @@ This module implements the shared MAVSDK-backed base behavior used by v1
 vehicle types, including connection lifecycle, telemetry synchronization,
 thread bridging, and safety-oriented initialization.
 
-Capabilities
+Capabilities:
 - Manage dual-loop execution between runner code and MAVSDK operations.
 - Track telemetry through thread-safe wrappers and background subscriptions.
 - Provide shared preflight, arming, and shutdown behavior for vehicles.

@@ -17,7 +17,6 @@ Run an experiment from the CLI:
 
 See also:
 - ``docs/CLI.md`` for command reference and config merging.
-- ``docs/TUTORIALS.md`` for walkthroughs.
 - ``docs/USER_GUIDE.md`` for mission execution workflows.
 """
 

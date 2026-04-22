@@ -4,7 +4,7 @@ Compressed wire-format helpers for v1 safety messaging.
 This module provides utility functions for encoding and decoding safety checker
 request/response payloads as compressed JSON blobs.
 
-Capabilities
+Capabilities:
 - Serialize request and response dictionaries to zlib-compressed bytes.
 - Deserialize compressed payloads back into parsed JSON dictionaries.
 - Keep on-the-wire payloads compact while preserving debuggable structure.

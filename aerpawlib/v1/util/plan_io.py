@@ -4,7 +4,7 @@ QGroundControl plan file parsing helpers for v1.
 This module reads `.plan` JSON mission files and converts mission items into
 v1 waypoint structures used by runner and vehicle logic.
 
-Capabilities
+Capabilities:
 - Parse core mission commands (takeoff, waypoint, speed, RTL).
 - Produce tuple-based or detailed dictionary waypoint representations.
 - Convert waypoint entries into `Coordinate` objects.

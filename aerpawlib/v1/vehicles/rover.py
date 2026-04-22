@@ -4,7 +4,7 @@ Rover vehicle implementation for the v1 API.
 This module defines the MAVSDK-backed `Rover` class used for ground-vehicle
 mission execution in v1 scripts.
 
-Capabilities
+Capabilities:
 - Execute 2D ground navigation and velocity control commands.
 - Handle GUIDED mode transitions required by ArduPilot Rover flows.
 - Reuse shared connection and safety infrastructure from the core vehicle base.

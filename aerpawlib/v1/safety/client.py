@@ -4,7 +4,7 @@ ZMQ client for the v1 `SafetyCheckerServer`.
 This module implements the REQ/REP client used by vehicle code to submit
 safety validation requests to the checker server.
 
-Capabilities
+Capabilities:
 - Submit waypoint, speed, takeoff, and landing validation requests.
 - Serialize requests using the safety wire format helpers.
 - Use bounded send/receive timeouts to avoid indefinite blocking.

@@ -1,21 +1,5 @@
 """
 Runner implementations for the v1 API.
-
-This module contains the concrete execution frameworks used by v1 scripts,
-including `BasicRunner`, `StateMachine`, and `ZmqStateMachine`.
-
-Capabilities
-- Provide a common `Runner` base class for execution frameworks.
-- Execute single-entry and finite-state mission workflows.
-- Support initialization hooks, background tasks, and optional ZMQ control.
-
-Usage:
-- Subclass a runner class, annotate methods with decorators from
-  `aerpawlib.v1.runner_decorators`, and execute through the CLI.
-
-Notes:
-- ZMQ-enabled flows require the proxy to be started separately before runner
-  startup.
 """
 
 from __future__ import annotations
@@ -30,7 +14,7 @@ import zmq.asyncio
 
 from aerpawlib.log import LogComponent, get_logger
 
-from .constants import (
+from aerpawlib.v1.constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
@@ -39,16 +23,16 @@ from .constants import (
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_FIELD_CALLBACK,
 )
-from .exceptions import (
+from aerpawlib.v1.exceptions import (
     InvalidStateError,
     NoEntrypointError,
     NoInitialStateError,
     MultipleInitialStatesError,
     StateMachineError,
 )
-from .runner_decorators import _State, background
-from .vehicle import Vehicle
-from .zmqutil import check_zmq_proxy_reachable
+from .decorators import _State, background
+from aerpawlib.v1.vehicle import Vehicle
+from aerpawlib.v1.zmqutil import check_zmq_proxy_reachable
 
 logger = get_logger(LogComponent.RUNNER)
 
@@ -97,9 +81,6 @@ class BasicRunner(Runner):
     BasicRunners have a single entry point (specified by `entrypoint`) that is
     executed when the script is run. The function provided can be anything, as
     it will be run in parallel to background services used by aerpawlib.
-
-    For an example of a minimum viable `BasicRunner`, check out
-    `examples/basic_runner.py`
     """
 
     def _build(self) -> None:
@@ -133,14 +114,6 @@ class StateMachine(Runner):
 
     Each state returns the name of the next state to transition to.
     Supports background tasks and initialization tasks.
-
-    Attributes:
-        _states: Mapping of state names to _State objects.
-        _background_tasks: List of background functions to run.
-        _initialization_tasks: Functions to run at init.
-        _entrypoint: The name of the initial state.
-        _current_state: The name of the state currently being executed.
-        _running: Whether the state machine is active.
     """
 
     _states: Dict[str, _State]
@@ -272,12 +245,6 @@ class StateMachine(Runner):
 class ZmqStateMachine(StateMachine):
     """
     A StateMachine that can be controlled remotely via ZMQ.
-
-    Attributes:
-        _exported_states: States exposed for ZMQ transitions.
-        _exported_fields: Fields exposed for ZMQ queries.
-        _zmq_identifier: Unique name for this machine in the ZMQ network.
-        _zmq_proxy_server: Address of the ZMQ proxy.
     """
 
     _exported_states: Dict[str, _State]
@@ -309,16 +276,6 @@ class ZmqStateMachine(StateMachine):
     def _initialize_zmq_bindings(
         self, vehicle_identifier: str, proxy_server_addr: str
     ) -> None:
-        """
-        Configure ZMQ connection parameters.
-
-        The ZMQ proxy must be started before runners that use ZMQ bindings.
-        Use run_zmq_proxy() in a separate process, then start the runners.
-
-        Args:
-            vehicle_identifier: The identifier for this vehicle.
-            proxy_server_addr: The address of the ZMQ proxy server.
-        """
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
                 "ZMQ proxy at %s is not reachable. Ensure the proxy is started "
@@ -333,12 +290,6 @@ class ZmqStateMachine(StateMachine):
 
     @background
     async def _zmq_bg_sub(self, vehicle: Vehicle) -> None:
-        """
-        Background task to subscribe to ZMQ messages.
-
-        Args:
-            vehicle: The vehicle instance.
-        """
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
             io_loop=asyncio.get_running_loop(),
@@ -360,17 +311,6 @@ class ZmqStateMachine(StateMachine):
     async def _zmq_handle_request(
         self, vehicle: Vehicle, message: Dict[str, Any]
     ) -> None:
-        """
-        Handle an incoming ZMQ request.
-
-        Called inline (not as a spawned task) so handlers run sequentially and
-        shared state mutations on _override_next_state_transition / _next_state_overr
-        are race-free.
-
-        Args:
-            vehicle: The vehicle instance.
-            message: The received message object.
-        """
         msg_type = message.get("msg_type")
 
         if msg_type == ZMQ_TYPE_TRANSITION:
@@ -410,12 +350,6 @@ class ZmqStateMachine(StateMachine):
 
     @background
     async def _zmq_bg_pub(self, _: Vehicle) -> None:
-        """
-        Background task to publish ZMQ messages.
-
-        Args:
-            _: The vehicle instance.
-        """
         socket = zmq.asyncio.Socket(
             context=self._zmq_context,
             io_loop=asyncio.get_running_loop(),
@@ -430,16 +364,6 @@ class ZmqStateMachine(StateMachine):
             socket.close()
 
     async def run(self, vehicle: Vehicle, zmq_proxy: bool = False) -> None:
-        """
-        Execute the ZMQ-enabled state machine.
-
-        Args:
-            vehicle: The vehicle instance.
-            zmq_proxy: Unused, for compatibility.
-
-        Raises:
-            StateMachineError: If ZMQ bindings were not initialized.
-        """
         self._build()
 
         if (
@@ -455,10 +379,6 @@ class ZmqStateMachine(StateMachine):
         await super().run(vehicle, build_before_running=False)
 
     async def transition_runner(self, identifier: str, state: str) -> None:
-        """
-        Use zmq to transition a runner within the network specified by `identifier`.
-        The state to be transitioned to is specified with `state`
-        """
         transition_obj = {
             "msg_type": ZMQ_TYPE_TRANSITION,
             "from": self._zmq_identifier,
@@ -473,20 +393,6 @@ class ZmqStateMachine(StateMachine):
         field: str,
         timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
     ) -> Any:
-        """
-        Query a field from another ZMQ runner.
-
-        Args:
-            identifier: Identifier of the target runner.
-            field: Name of the field to query.
-            timeout: Max seconds to wait for reply (default: ZMQ_QUERY_FIELD_TIMEOUT_S).
-
-        Returns:
-            Any: The value returned by the target runner.
-
-        Raises:
-            asyncio.TimeoutError: If the target runner does not reply within timeout.
-        """
         if identifier not in self._zmq_received_fields:
             self._zmq_received_fields[identifier] = {}
         self._zmq_received_fields[identifier][field] = self._ZMQ_FIELD_PENDING
@@ -518,14 +424,6 @@ class ZmqStateMachine(StateMachine):
     async def _reply_queried_field(
         self, identifier: str, field: str, value: Any
     ) -> None:
-        """
-        Send a reply to a field query.
-
-        Args:
-            identifier: Identifier of the runner that requested the field.
-            field: Name of the field.
-            value: Value of the field.
-        """
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
             "from": self._zmq_identifier,
@@ -538,3 +436,5 @@ class ZmqStateMachine(StateMachine):
 
 in_background = asyncio.ensure_future
 sleep = asyncio.sleep
+
+

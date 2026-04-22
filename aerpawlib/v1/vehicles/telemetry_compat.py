@@ -4,7 +4,7 @@ Telemetry compatibility wrappers for v1 vehicles.
 This module defines lightweight adapter classes that preserve legacy
 DroneKit-style telemetry attribute layouts used by older scripts.
 
-Capabilities
+Capabilities:
 - Expose compatibility wrappers for battery, GPS, attitude, and version data.
 - Provide stable, lightweight containers for migrated call sites.
 

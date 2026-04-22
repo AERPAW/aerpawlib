@@ -12,8 +12,7 @@ Typical authoring flow:
 Example run command:
 ``aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn udpin://127.0.0.1:14550``
 
-For full command-line and walkthrough guidance, see ``docs/CLI.md`` and
-``docs/TUTORIALS.md``.
+For full command-line and walkthrough guidance, see ``docs/CLI.md``
 """
 
 from __future__ import annotations

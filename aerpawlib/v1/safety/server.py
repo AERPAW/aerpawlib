@@ -4,7 +4,7 @@ ZMQ safety server and geofence validation utilities.
 This module implements `SafetyCheckerServer`, a blocking REP server that loads
 vehicle constraints from configuration and validates incoming command requests.
 
-Capabilities
+Capabilities:
 - Validate waypoint paths against include/exclude geofence polygons.
 - Validate speed and altitude constraints for supported vehicle types.
 - Reply with structured pass/fail responses over the compressed wire format.

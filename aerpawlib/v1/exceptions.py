@@ -5,7 +5,7 @@ This module defines package-specific exception types used by v1 components so
 callers can catch broad categories (for example, connection errors) or specific
 failures (for example, takeoff errors).
 
-Capabilities
+Capabilities:
 - Provide a shared base class (`AerpawlibError`) for v1-originated failures.
 - Organize errors by domain (connection, command, validation, state machine).
 - Preserve root causes through optional `original_error` chaining.

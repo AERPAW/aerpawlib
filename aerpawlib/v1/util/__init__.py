@@ -4,7 +4,7 @@ Utility re-exports for the v1 API.
 This package gathers shared geometry, plan parsing, geofence, and port helper
 symbols into a stable import surface used throughout v1 code.
 
-Capabilities
+Capabilities:
 - Re-export coordinate and vector primitives.
 - Re-export plan, geofence, and intersection helpers.
 - Re-export TCP/UDP local port availability checks.
