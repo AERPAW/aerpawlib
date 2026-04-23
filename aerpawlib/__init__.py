@@ -1,5 +1,5 @@
 """
-.. include:: ../../docs/README.md
+.. include:: ../docs/README.md
 """
 
 __author__ = "John Kesler and Julian Reder"
