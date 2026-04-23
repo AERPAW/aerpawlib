@@ -58,18 +58,7 @@ aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [**docs/README.md**](docs/README.md) | Documentation index and API overview |
-| [**docs/TUTORIALS.md**](docs/TUTORIALS.md) | Step-by-step walkthroughs and getting started guides |
-| [**docs/USER_GUIDE.md**](docs/USER_GUIDE.md) | Supported workflows, features, running scripts |
-| [**docs/DEVELOPMENT.md**](docs/DEVELOPMENT.md) | Contributors: project structure, testing, conventions |
-| [**docs/v1/README.md**](docs/v1/README.md) | v1 API reference (full) |
-| [**docs/v2/README.md**](docs/v2/README.md) | v2 API reference (beta) |
-| [**docs/CLI.md**](docs/CLI.md) | CLI usage guide and command reference |
-| [**docs/ALIASES.md**](docs/ALIASES.md) | Backward-compatible alias modules and migration targets |
-| [**docs/pdoc/**](docs/pdoc/) | Generated pdoc API site (published on GitHub Pages) |
-| [**docs/ROADMAP.md**](docs/ROADMAP.md) | Planned features and improvements |
+There is a GitHub pages site with documentation for this project: https://aerpaw.github.io/aerpawlib
 
 ## Examples
 
