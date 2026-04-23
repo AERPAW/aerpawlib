@@ -1,8 +1,8 @@
 {
   "modules": [
-    "aerpawlib.v1",
-    "aerpawlib.v2",
-    "aerpawlib.cli",
+    "aerpawlib",
+    "!aerpawlib.log",
+    "!aerpawlib.structured_log",
     "!aerpawlib.v1.safetyChecker",
     "!aerpawlib.runner",
     "!aerpawlib.vehicle",

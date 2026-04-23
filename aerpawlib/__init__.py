@@ -1,12 +1,5 @@
 """
-AERPAW vehicle-control library.
-
-This package keeps a lazy compatibility surface for legacy
-``import aerpawlib`` usage while the maintained APIs live under
-``aerpawlib.v1`` and ``aerpawlib.v2``.
-
-For new code, prefer explicit versioned imports such as
-``from aerpawlib.v1 import Drone`` or ``from aerpawlib.v2 import Drone``.
+.. include:: ../../docs/README.md
 """
 
 __author__ = "John Kesler and Julian Reder"
@@ -15,6 +8,7 @@ __author__ = "John Kesler and Julian Reder"
 # Lazy load v1 API only when accessed
 # New code should be written using aerpawlib.v1.*, but legacy code uses aerpawlib.*.
 # We then lazy load the v1 module on first access.
+# This is so v2 code never has to import any v1 code unintentionally
 _v1_loaded = False
 _loading = False
 
