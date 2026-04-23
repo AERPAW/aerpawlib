@@ -1,8 +1,5 @@
 """
-CLI helpers for the ``aerpawlib`` command.
-
-This package contains argument parsing, runner discovery, and execution
-helpers used by ``aerpawlib.__main__.main``.
-
-See ``docs/CLI.md`` for user-facing command workflows.
+.. include:: ../../docs/cli/README.md
 """
+
+# This file only needs to exist because we want the cli documentation to appear in pdoc.

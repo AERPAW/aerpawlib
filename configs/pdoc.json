@@ -2,6 +2,7 @@
   "modules": [
     "aerpawlib.v1",
     "aerpawlib.v2",
+    "aerpawlib.cli",
     "!aerpawlib.v1.safetyChecker",
     "!aerpawlib.runner",
     "!aerpawlib.vehicle",
@@ -9,7 +10,15 @@
     "!aerpawlib.external",
     "!aerpawlib.aerpaw",
     "!aerpawlib.zmqutil",
-    "!aerpawlib.safetyChecker"
+    "!aerpawlib.safetyChecker",
+    "!aerpawlib.cli.config_merge",
+    "!aerpawlib.cli.disconnect",
+    "!aerpawlib.cli.discovery",
+    "!aerpawlib.cli.experiments_v1",
+    "!aerpawlib.cli.experiments_v2",
+    "!aerpawlib.cli.logging_setup",
+    "!aerpawlib.cli.paths"
+
   ],
   "output_directory": "docs/pdoc",
   "docformat": "google",

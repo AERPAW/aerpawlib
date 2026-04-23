@@ -1,5 +1,5 @@
 """
-.. include:: ../../docs/v2/vehicle.md
+.. include:: ../../../docs/v2/vehicle.md
 """
 
 from .base import Vehicle, DummyVehicle

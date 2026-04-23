@@ -1,5 +1,5 @@
 """
-.. include:: ../../../docs/v1/vehicles.md
+.. include:: ../../../docs/v1/vehicle.md
 """
 
 from .core_vehicle import Vehicle

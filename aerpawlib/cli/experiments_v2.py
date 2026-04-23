@@ -19,18 +19,6 @@ from aerpawlib.cli.constants import (
     API_CLASS_ROVER,
     API_CLASS_DUMMY_VEHICLE,
     API_CLASS_AERPAW_PLATFORM,
-    EVENT_MISSION_START,
-    EVENT_MISSION_END,
-    EVENT_CONNECTION_LOST,
-    INVALID_VEHICLE_TYPE_MSG,
-    STANDALONE_MODE_MSG,
-    SAFETY_CHECKER_NOT_PROVIDED_MSG,
-    SAFETY_CHECKER_REQUIRED_MSG_FMT,
-    SAFETY_CHECKER_FALLBACK_MSG_FMT,
-    AERPAWLIB_CONNECTION_LOST_LOG_MSG,
-    LOG_SEVERITY_CRITICAL,
-    LOCALHOST_ADDR,
-    AERPAWLIB_LOGGER_NAME,
 )
 
 from .disconnect import (
@@ -39,7 +27,7 @@ from .disconnect import (
 )
 from .discovery import discover_runner
 
-logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
+logger = logging.getLogger("aerpawlib")
 
 
 def run_v2_experiment(
@@ -69,7 +57,7 @@ def run_v2_experiment(
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
-        raise Exception(INVALID_VEHICLE_TYPE_MSG)
+        raise Exception("Please specify a valid vehicle type")
 
     logger.info("Starting experiment execution (v2)")
 
@@ -79,7 +67,9 @@ def run_v2_experiment(
 
         if no_aerpaw_env:
             aerpaw_platform = None
-            logger.info(STANDALONE_MODE_MSG)
+            logger.info(
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode."
+            )
         elif AERPAW_Platform:
             aerpaw_platform = AERPAW_Platform()
             aerpaw_platform.set_no_stdout(args.no_stdout)
@@ -103,9 +93,11 @@ def run_v2_experiment(
             else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
         )
         if effective_port is None:
-            safety_client = NoOpSafetyChecker(SAFETY_CHECKER_NOT_PROVIDED_MSG)
+            safety_client = NoOpSafetyChecker(
+                "Not in AERPAW environment and --safety-checker-port not provided."
+            )
         else:
-            safety_addr = LOCALHOST_ADDR
+            safety_addr = "127.0.0.1"
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = await client.check_server_status()
@@ -116,14 +108,14 @@ def run_v2_experiment(
             except Exception as e:
                 if is_aerpaw:
                     logger.critical(
-                        SAFETY_CHECKER_REQUIRED_MSG_FMT,
+                        "AERPAW environment requires SafetyCheckerServer. Connection to %s:%d failed: %s",
                         safety_addr,
                         effective_port,
                         e,
                     )
                     sys.exit(1)
                 logger.error(
-                    SAFETY_CHECKER_FALLBACK_MSG_FMT,
+                    "SafetyCheckerServer connection failed (%s:%d): %s. Using passthrough (all validations pass).",
                     safety_addr,
                     effective_port,
                     e,
@@ -173,16 +165,16 @@ def run_v2_experiment(
             vehicle.set_event_log(event_log)
             runner_instance.set_event_log(event_log)
             logger.info("Structured event logging -> %s", args.structured_log)
-            event_log.log_event(EVENT_MISSION_START)
+            event_log.log_event("mission_start")
 
         def _on_disconnect() -> None:
             """Publish disconnect events to OEO and structured logs."""
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
-                    AERPAWLIB_CONNECTION_LOST_LOG_MSG, severity=LOG_SEVERITY_CRITICAL
+                    "[aerpawlib] Connection lost", severity="CRITICAL"
                 )
             if event_log:
-                event_log.log_event(EVENT_CONNECTION_LOST)
+                event_log.log_event("connection_lost")
 
         try:
             from aerpawlib.v2.safety.connection import (
@@ -320,7 +312,7 @@ def run_v2_experiment(
                     logger.debug(f"Failed to close safety client cleanly: {e}")
             if event_log is not None:
                 try:
-                    event_log.log_event(EVENT_MISSION_END, success=success)
+                    event_log.log_event("mission_end", success=success)
                 except Exception:
                     pass
                 try:

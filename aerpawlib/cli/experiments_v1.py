@@ -5,12 +5,10 @@ import logging
 import os
 import signal
 import sys
-import time
 import traceback
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    VEHICLE_CONNECT_POLL_INTERVAL_S,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_ROVER,
@@ -21,12 +19,6 @@ from aerpawlib.cli.constants import (
     API_CLASS_DUMMY_VEHICLE,
     API_CLASS_AERPAW_PLATFORM,
     API_CLASS_HEARTBEAT_LOST_ERROR,
-    VEHICLE_ATTR_INTERNAL_CONNECTED,
-    VEHICLE_ATTR_CLOSED,
-    EVENT_MISSION_START,
-    EVENT_MISSION_END,
-    INVALID_VEHICLE_TYPE_MSG,
-    STANDALONE_MODE_MSG,
 )
 
 from .disconnect import (
@@ -35,9 +27,7 @@ from .disconnect import (
 )
 from .discovery import discover_runner
 
-from aerpawlib.cli.constants import AERPAWLIB_LOGGER_NAME
-
-logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
+logger = logging.getLogger("aerpawlib")
 
 
 def run_v1_experiment(
@@ -67,7 +57,7 @@ def run_v1_experiment(
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
-        raise Exception(INVALID_VEHICLE_TYPE_MSG)
+        raise Exception("Please specify a valid vehicle type")
 
     logger.info(f"Starting experiment execution ({version_name})")
 
@@ -76,23 +66,10 @@ def run_v1_experiment(
         event_log = None
         logger.info("Connecting to vehicle...")
         try:
-
-            async def create_vehicle_inner() -> Any:
-                """Instantiate the vehicle and wait for v1 connection readiness."""
-                v = await asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port)
-                if hasattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED):
-                    start = time.time()
-                    while (
-                        not getattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED)
-                        and (time.time() - start) < args.conn_timeout
-                    ):
-                        await asyncio.sleep(VEHICLE_CONNECT_POLL_INTERVAL_S)
-                    if not getattr(v, VEHICLE_ATTR_INTERNAL_CONNECTED):
-                        raise TimeoutError("Connection timeout")
-                return v
-
+            # v1 Vehicle.__init__ blocks until connected or raises; no async _connected poll.
             vehicle = await asyncio.wait_for(
-                create_vehicle_inner(), timeout=args.conn_timeout
+                asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),
+                timeout=args.conn_timeout,
             )
         except Exception as e:
             raise ConnectionError(f"Could not connect: {e}")
@@ -107,7 +84,7 @@ def run_v1_experiment(
                 )
             event_log = StructuredEventLogger(open(args.structured_log, "w"))
             vehicle.set_event_log(event_log)
-            event_log.log_event(EVENT_MISSION_START)
+            event_log.log_event("mission_start")
             logger.info("Structured event logging -> %s", args.structured_log)
 
         def handle_shutdown(signum: Any, frame: Any) -> None:
@@ -122,12 +99,13 @@ def run_v1_experiment(
 
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
         if no_aerpaw_env:
-            logger.info(STANDALONE_MODE_MSG)
+            logger.info(
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode."
+            )
             if AERPAW_Platform:
                 AERPAW_Platform._no_stdout = args.no_stdout
         elif AERPAW_Platform:
             AERPAW_Platform._no_stdout = args.no_stdout
-            _attempt_connect = AERPAW_Platform._connected
             if not AERPAW_Platform._connected:
                 logger.critical(
                     "It seems like we're in standalone mode but "
@@ -187,7 +165,7 @@ def run_v1_experiment(
                     pass
             if vehicle:
                 if (
-                    not getattr(vehicle, VEHICLE_ATTR_CLOSED)
+                    not getattr(vehicle, "_closed")
                     and vehicle.armed
                     and args.rtl_at_end
                     and not heartbeat_lost
@@ -204,7 +182,7 @@ def run_v1_experiment(
                 vehicle.close()
             if event_log is not None:
                 try:
-                    event_log.log_event(EVENT_MISSION_END, success=success)
+                    event_log.log_event("mission_end", success=success)
                 except Exception:
                     pass
                 try:

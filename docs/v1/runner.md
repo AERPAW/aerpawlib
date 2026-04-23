@@ -10,18 +10,18 @@ At the highest level, all scripts in `aerpawlib` are built on a foundational `Ru
 
 When you're ready to write your mission logic, you'll choose one of these three implementations:
 
-### 1. `BasicRunner`
+### `BasicRunner`
 For simple scripts where you want to manually control the entire flow of the program, `BasicRunner` is your pragmatic, go-to choice. 
 * **How it works:** It looks for a single method in your script decorated with `@entrypoint` and executes it. 
 * **Guardrails:** If you accidentally include multiple entrypoints, it will raise a `StateMachineError` to prevent spaghetti logic. If you forget to include an entrypoint entirely, you'll get a `NoEntrypointError`.
 
 
-### 2. `StateMachine`
+### `StateMachine`
 When your experiment logic gets more complex, `StateMachine` is the powerhouse framework. It allows you to build a map of distinct "states" and seamlessly transition between them.
 * **How it works:** You decorate your methods with `@state` or `@timed_state`. The state machine `await`s the current state's function, and whatever string you return becomes the next state it executes. 
 * **Initialization:** You *must* tell the runner where to start by marking exactly one state with `first=True`. If you don't, it raises a `NoInitialStateError`. If you mark more than one, you'll trigger a `MultipleInitialStatesError`.
 
-### 3. `ZmqStateMachine`
+### `ZmqStateMachine`
 Multi-vehicle control software is inherently difficult. `ZmqStateMachine` extends the standard state machine to support remote control and synchronization via a ZeroMQ (ZMQ) proxy. 
 * **How it works:** It collects any methods you've annotated with `@expose_zmq` and `@expose_field_zmq` and serves them over ZMQ, allowing other vehicles or a ground station to trigger transitions or query data.
 * **Important Setup:** Before calling `run()` on a `ZmqStateMachine`, you must initialize the ZMQ bindings using `_initialize_zmq_bindings(vehicle_identifier, proxy_server_addr)`—this is typically wired up via CLI flags. If you forget this step, `run()` will immediately raise a `StateMachineError`.
@@ -47,10 +47,10 @@ To make defining your mission logic as clean and Pythonic as possible, `aerpawli
 
 You usually don't need to worry about how `aerpawlib` manages state internally, but if you are debugging or writing advanced logic, here is what is happening behind the scenes:
 
-* **State Discovery:** The runners treat decorator-injected attributes as the ultimate source of truth at runtime. Decorators silently add attributes to your methods like `_is_state`, `_state_name`, `_state_type` (which distinguishes standard vs. timed states), and `_state_duration`. 
-* **Timed States:** When you use `@timed_state`, the internal `_State` wrapper launches a short-lived background task. It repeatedly calls your wrapped function (if `loop=True`) and then strictly waits for the configured duration. Only the *last* returned value from your function is passed along as the next state name.
-* **Resilient Background Tasks:** Background tasks are scheduled via `asyncio.ensure_future`. If your background task hits a snag and raises an exception, `aerpawlib` has your back—it will automatically catch the exception, sleep briefly, and restart the task. On shutdown, all futures are safely cancelled and awaited for a clean exit.
-* **ZMQ Mechanics:** Background pub/sub tasks for ZMQ are actually just decorated with `@background`, meaning they run neatly alongside your main state loop. Messages to remote runners are queued up via `asyncio.Queue`, and incoming callbacks are safely stored and awaited when you call `query_field`.
+* The runners treat decorator-injected attributes as the ultimate source of truth at runtime. Decorators silently add attributes to your methods like `_is_state`, `_state_name`, `_state_type` (which distinguishes standard vs. timed states), and `_state_duration`. 
+* When you use `@timed_state`, the internal `_State` wrapper launches a short-lived background task. It repeatedly calls your wrapped function (if `loop=True`) and then strictly waits for the configured duration. Only the *last* returned value from your function is passed along as the next state name.
+* Background tasks are scheduled via `asyncio.ensure_future`. If your background task hits a snag and raises an exception, `aerpawlib` will automatically catch the exception, sleep briefly, and restart the task. On shutdown, all futures are safely cancelled and awaited for a clean exit.
+* Background pub/sub tasks for ZMQ are actually just decorated with `@background`, meaning they run neatly alongside your main state loop. Messages to remote runners are queued up via `asyncio.Queue`, and incoming callbacks are safely stored and awaited when you call `query_field`.
 
 ---
 
@@ -58,17 +58,17 @@ You usually don't need to worry about how `aerpawlib` manages state internally, 
 
 `aerpawlib` uses specific exceptions to help you catch configuration and logic bugs early:
 
-* **`NoEntrypointError`:** Your `BasicRunner` can't find its `@entrypoint`.
-* **`NoInitialStateError`:** Your `StateMachine` doesn't know where to start (missing `first=True`).
-* **`MultipleInitialStatesError`:** You've accidentally set `first=True` on more than one state.
-* **`InvalidStateError`:** You returned a state name that doesn't exist (e.g., returning `"go_north"` when the state is actually named `"fly_north"`).
-* **`StateMachineError`:** A catch-all for various runtime or configuration issues (like forgetting to initialize ZMQ bindings).
+* `NoEntrypointError`: Your `BasicRunner` can't find its `@entrypoint`.
+* `NoInitialStateError`: Your `StateMachine` doesn't know where to start (missing `first=True`).
+* `MultipleInitialStatesError`: You've accidentally set `first=True` on more than one state.
+* `InvalidStateError`: You returned a state name that doesn't exist (e.g., returning `"go_north"` when the state is actually named `"fly_north"`).
+* `StateMachineError`: A catch-all for various runtime or configuration issues (like forgetting to initialize ZMQ bindings).
 
 ---
 
 ## Quick Reference Examples
 
-1. BasicRunner
+### BasicRunner
 ```python
 class MyScript(BasicRunner):
     @entrypoint
@@ -77,7 +77,7 @@ class MyScript(BasicRunner):
         await vehicle.takeoff(5)
 ```
 
-2. StateMachine
+### StateMachine
 ```python
 class MySm(StateMachine):
     @state(name="start", first=True)
@@ -92,7 +92,7 @@ class MySm(StateMachine):
         return "land"
 ```
 
-3. ZmqStateMachine
+### ZmqStateMachine
 ```python
 # During setup, before calling run():
 self._initialize_zmq_bindings("leader", "127.0.0.1")

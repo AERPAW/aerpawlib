@@ -3,8 +3,6 @@
 import json
 from typing import Any
 
-from aerpawlib.cli.constants import CONFIG_ARG_PAIR_SIZE
-
 
 def strip_config_argv(argv: list[str]) -> list[str]:
     """Remove --config PATH and --config=PATH tokens from argv."""
@@ -13,7 +11,7 @@ def strip_config_argv(argv: list[str]) -> list[str]:
     while i < len(argv):
         arg = argv[i]
         if arg == "--config" and i + 1 < len(argv):
-            i += CONFIG_ARG_PAIR_SIZE
+            i += 2
             continue
         if arg.startswith("--config="):
             i += 1

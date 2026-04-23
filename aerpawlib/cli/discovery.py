@@ -8,12 +8,9 @@ from aerpawlib.cli.constants import (
     API_CLASS_BASIC_RUNNER,
     API_CLASS_STATE_MACHINE,
     API_CLASS_ZMQ_STATE_MACHINE,
-    MULTIPLE_RUNNERS_ERROR_MSG,
-    NO_RUNNER_FOUND_ERROR_MSG,
-    AERPAWLIB_LOGGER_NAME,
 )
 
-logger = logging.getLogger(AERPAWLIB_LOGGER_NAME)
+logger = logging.getLogger("aerpawlib")
 
 
 def is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes):
@@ -54,13 +51,13 @@ def discover_runner(api_module, experimenter_script):
             logger.debug(f"Found ZmqStateMachine: {name}")
         if runner:
             logger.error("Multiple Runner classes found in script")
-            raise Exception(MULTIPLE_RUNNERS_ERROR_MSG)
+            raise Exception("You can only define one runner")
         logger.info(f"Found runner class: {name}")
         runner = val()
 
     if runner is None:
         logger.error("No Runner class found in script")
-        raise Exception(NO_RUNNER_FOUND_ERROR_MSG)
+        raise Exception("No Runner class found in script")
     assert runner is not None
 
     return runner, flag_zmq_runner
