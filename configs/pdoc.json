@@ -4,6 +4,8 @@
     "!aerpawlib.log",
     "!aerpawlib.structured_log",
     "!aerpawlib.v1.safetyChecker",
+    "!aerpawlib.v1.zmqutil",
+    "!aerpawlib.v2.zmqutil",
     "!aerpawlib.runner",
     "!aerpawlib.vehicle",
     "!aerpawlib.util",

@@ -27,39 +27,41 @@ This guide will take you through all the steps needed to get a basic aerpawlib d
 
 Before installing aerpawlib, there are a few dependencies that you need to grab:
 
-* `python` -- versions between 3.6 and 3.9 are supported
+* `python` -- versions between 3.9 and 3.14 are supported
 * `pip` -- should be bundled with python in most distributions
 
 To install aerpawlib:
 
 1. Clone this repo. Avoid changing the path if possible after installation.
-   `cd AERPAW-Dev/AHN/E-VM/Profile_software/vehicle_control/aerpawlib`
-2. Install as a local lib -- `pip install --user -e .`
+2. Install as a local lib: `pip install -e .`
 
 After following these steps, aerpawlib will now be usable in any python script, provided that the path isn't changed.
 
 To update aerpawlib, you can simply `git pull` inside the dir to sync with the upstream repo.
 
+
 ## Creating a basic runner
 
-aerpawlib is built so that any script made with it in mind can be run in the same way. To do this, it sacrifices a bit of functionality and enforces that scripts implement a `aerpawlib.runner.Runner`.
+*Note*: All API classes here start with `aerpawlib.v1`. Previously in aerpawlig legacy, you would import from `aerpawlib`. All previous imports are still supported and are deprecated in favor of `aerpawlib.v1` imports.
 
-There are two main runners used by aerpawlib -- the `aerpawlib.runner.BasicRunner`, and the `aerpawlib.runner.StateMachine`:
+aerpawlib is built so that any script made with it in mind can be run in the same way. To do this, it sacrifices a bit of functionality and enforces that scripts implement a `aerpawlib.v1.runner.Runner`.
 
-* `aerpawlib.runner.BasicRunner` -- has a single entry point, all flow control is handled by the user program
-* `aerpawlib.runner.StateMachine` -- has multiple states of various types, flow between states is handled by aerpawlib
+There are two main runners used by aerpawlib -- the `aerpawlib.v1.runner.BasicRunner`, and the `aerpawlib.v1.runner.StateMachine`:
 
-`aerpawlib.runner.BasicRunner` is appropriate for the most basic of scripts, so we'll use that here. It can be imported directly and linked to your script's `aerpawlib.runner.Runner` instance by doing the following:
+* `aerpawlib.v1.runner.BasicRunner` -- has a single entry point, all flow control is handled by the user program
+* `aerpawlib.v1.runner.StateMachine` -- has multiple states of various types, flow between states is handled by aerpawlib
+
+`aerpawlib.v1.runner.BasicRunner` is appropriate for the most basic of scripts, so we'll use that here. It can be imported directly and linked to your script's `aerpawlib.v1.runner.Runner` instance by doing the following:
 
 ```python
-from aerpawlib.runner import BasicRunner
-from aerpawlib.vehicle import Drone
+from aerpawlib.v1.runner import BasicRunner
+from aerpawlib.v1.vehicle import Drone
 
 class MyScript(BasicRunner):
     # more things...
 ```
 
-When using a `aerpawlib.runner.BasicRunner`, you're allowed to create a single function that serves as an entry point for your code. This function -- decorated by `aerpawlib.runner.entrypoint` -- will be called and passed a Vehicle at runtime that you can interact with.
+When using a `aerpawlib.v1.runner.BasicRunner`, you're allowed to create a single function that serves as an entry point for your code. This function -- decorated by `aerpawlib.v1.runner.entrypoint` -- will be called and passed a Vehicle at runtime that you can interact with.
 
 ```python
     # more things...
@@ -85,9 +87,9 @@ The above command assumes you have SITL installed and it's up and running. To in
 
 ## Interacting with vehicles
 
-As mentioned before, the function marked by `aerpawlib.runner.entrypoint` in your script will always be passed a `aerpawlib.vehicle.Vehicle` of some kind -- this vehicle is determined by the vehicle type passed to the command line tool.
+As mentioned before, the function marked by `aerpawlib.v1.runner.entrypoint` in your script will always be passed a `aerpawlib.v1.vehicle.Vehicle` of some kind -- this vehicle is determined by the vehicle type passed to the command line tool.
 
-There are a few kinds of vehicles that you can work with, each under `aerpawlib.vehicle`. For this script, we'll be using a Drone since it has more capabilities.
+There are a few kinds of vehicles that you can work with, each under `aerpawlib.v1.vehicle`. For this script, we'll be using a Drone since it has more capabilities.
 
 The aerpawlib CLI tool will fully initialize whatever vehicle you're using to be ready to use, however you must explicitly make it take off at the start of your script.
 
@@ -97,20 +99,20 @@ async def my_function(self, vehicle: Drone):
     await vehicle.takeoff(5) # take off to 5 meters
 ```
 
-Once the drone is in the air, you have full control over its position and heading by using `aerpawlib.vehicle.Vehicle.goto_coordinates` and `aerpawlib.vehicle.Drone.set_heading`.
+Once the drone is in the air, you have full control over its position and heading by using `aerpawlib.v1.vehicle.Vehicle.goto_coordinates` and `aerpawlib.v1.vehicle.Drone.set_heading`.
 
-Additionally, `aerpawlib.vehicle.Vehicle`s expose properties related to their current physical state, such as their battery level and current position.
+Additionally, `aerpawlib.v1.vehicle.Vehicle`s expose properties related to their current physical state, such as their battery level and current position.
 
 ## Using coordinates
 
 aerpawlib is designed to only have an understanding of absolute coordinates using latitude and longitude -- this removes an entire class of bugs and confusion related to whether or not a vehicle is moving relative to its start position or world-scale coordinates. Imagine if you tried to send a vehicle to (0, 0), but instead of coming home, it tried to fly out into the middle of the ocean!
 
-Keeping this in mind, aerpawlib wraps all positions inside the `aerpawlib.util.Coordinate` object. This is a representation of an absolute coordinate, with the altitude being relative to where the vehicle started.
+Keeping this in mind, aerpawlib wraps all positions inside the `aerpawlib.v1.util.Coordinate` object. This is a representation of an absolute coordinate, with the altitude being relative to where the vehicle started.
 
-To transform `aerpawlib.util.Coordinate`s, there's also a related `aerpawlib.util.VectorNED` class -- this is a 3 dimensional vector in the NED (north, east, down) schema. aerpawlib has overridden some of Python's operators so that you can cleanly combine coordinates with vectors.
+To transform `aerpawlib.v1.util.Coordinate`s, there's also a related `aerpawlib.v1.util.VectorNED` class -- this is a 3 dimensional vector in the NED (north, east, down) schema. aerpawlib has overridden some of Python's operators so that you can cleanly combine coordinates with vectors.
 
 ```python
-from aerpawlib.util import Coordinate, VectorNED
+from aerpawlib.v1.util import Coordinate, VectorNED
 
 x = Coordinate(35.771634, -78.674109)
 
@@ -182,7 +184,7 @@ One caveat of using `asyncio` is that you can't use any functions that would nor
 
 ## Background tasks
 
-One of the benefits of asyncio is that it allows for aerpawlib to cleanly implement tasks that run in the background. aerpawlib exposes this functionality through the `aerpawlib.runner.background()` decorator, which causes the decorated function to be repeatedly called in the background:
+One of the benefits of asyncio is that it allows for aerpawlib to cleanly implement tasks that run in the background. aerpawlib exposes this functionality through the `aerpawlib.v1.runner.background()` decorator, which causes the decorated function to be repeatedly called in the background:
 
 ```python
 class MyRunner(StateMachine):
@@ -192,19 +194,19 @@ class MyRunner(StateMachine):
         await asyncio.sleep(1)
 ```
 
-Note that background tasks are only available to runners that use the `aerpawlib.runner.StateMachine` framework.
+Note that background tasks are only available to runners that use the `aerpawlib.v1.runner.StateMachine` framework.
 
 ## Creating a state machine
 
-The more powerful of aerpawlib's two frameworks is `aerpawlib.runner.StateMachine`: this framework lets you create a runner with multiple "states" that can be transitioned between by the runner.
+The more powerful of aerpawlib's two frameworks is `aerpawlib.v1.runner.StateMachine`: this framework lets you create a runner with multiple "states" that can be transitioned between by the runner.
 
-A state is just a function decorated by the `aerpawlib.runner.state` decorator. This decorator allows for a state to be given a name -- this name is what aerpawlib uses to identify states when transitioning between them.
+A state is just a function decorated by the `aerpawlib.v1.runner.state` decorator. This decorator allows for a state to be given a name -- this name is what aerpawlib uses to identify states when transitioning between them.
 
 When the state function is done running, it should return a string that is the next state for the runner to run. If no string is returned, aerpawlib assumes that the script is done running.
 
 The first state used in a script must be designated by setting the first parameter to true when creating it.
 
-Finally, there's also a `aerpawlib.runner.timed_state()` decorator available. This decorator will make sure that a state is run for at least a set number of seconds before transitioning to the next state, even if the state exits early. If the function designated as a state takes longer than the allotted time, it will continue running until a value is returned or the function exits.
+Finally, there's also a `aerpawlib.v1.runner.timed_state()` decorator available. This decorator will make sure that a state is run for at least a set number of seconds before transitioning to the next state, even if the state exits early. If the function designated as a state takes longer than the allotted time, it will continue running until a value is returned or the function exits.
 
 Here's an example of a state machine that makes use of all the things we've talked about so far. It makes a drone continually "take measurements" spaced 10m apart until it gets a measurement that is 0, at which point it lands.
 

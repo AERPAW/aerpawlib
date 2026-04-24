@@ -1,5 +1,5 @@
 """
-.. include:: ../../docs/v2/zmqutil.md
+Implementation of ZMQ utilities for v2.
 """
 
 import socket

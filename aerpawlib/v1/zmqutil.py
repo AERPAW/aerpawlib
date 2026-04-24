@@ -1,5 +1,5 @@
 """
-.. include:: ../../docs/v1/zmqutil.md
+ZMQ proxy reachability check and runner for v1.
 """
 
 import socket
