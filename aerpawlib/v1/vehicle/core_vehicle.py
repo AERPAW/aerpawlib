@@ -19,7 +19,7 @@ import asyncio
 
 from grpc.aio import AioRpcError
 
-from aerpawlib.log import get_logger, LogComponent
+from aerpawlib.v1.log import get_logger, LogComponent
 import math
 import time
 import threading

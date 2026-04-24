@@ -18,7 +18,7 @@ from typing import Dict, Tuple
 
 import zmq
 
-from aerpawlib.log import LogComponent, get_logger
+from aerpawlib.v1.log import LogComponent, get_logger
 
 from ..constants import (
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,

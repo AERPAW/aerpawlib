@@ -22,7 +22,7 @@ from typing import AsyncGenerator, Optional
 import pytest
 import pytest_asyncio
 
-from aerpawlib.log import LogComponent, LogLevel, configure_logging, get_logger
+from aerpawlib.v1.log import LogComponent, LogLevel, configure_logging, get_logger
 
 logger = get_logger(LogComponent.SITL)
 

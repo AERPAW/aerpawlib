@@ -11,9 +11,10 @@ import logging
 import time
 from typing import Any, TextIO
 
-from aerpawlib.log import LogComponent, get_logger
+from aerpawlib.cli.log import LogComponent
+from aerpawlib.log import get_logger
 
-_logger = get_logger(LogComponent.ROOT)
+_logger = get_logger(LogComponent.STRUCTURED)
 
 
 class StructuredEventLogger:

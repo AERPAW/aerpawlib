@@ -1,14 +1,24 @@
 ## Overview
 
-Logging wrapper for the v2 stack. It reuses `aerpawlib.log`’s `configure_logging` and `get_logger` but tags messages with v2 component names so operator dashboards and file logs are easy to filter by subsystem.
+`aerpawlib.v2.log` tags messages with v2 component names so operator dashboards and file logs are easy to filter by subsystem. It subclasses the empty `aerpawlib.log.LogComponent` base and adds string constants for the v2 stack.
 
-`LogComponent` groups well-known string keys (`ROOT`, `VEHICLE`, `DRONE`, `ROVER`, `SAFETY`, `RUNNER`, `AERPAW`, `ZMQ`, and related paths). Pass a component to `get_logger` when you are extending the library, or use the default root logger in application code.
+It reuses `aerpawlib.log.configure_logging` and `aerpawlib.log.get_logger` but sets the default `root_name` to `aerpawlib.v2`.
+
+### `LogComponent` values
+
+| Member            | Logger name                               |
+|-------------------|-------------------------------------------|
+| `ROOT`            | `aerpawlib.v2`                            |
+| `VEHICLE`         | `aerpawlib.v2.vehicle`                    |
+| `DRONE` / `ROVER` | `aerpawlib.v2.vehicle.drone` / `...rover` |
+| `SAFETY`          | `aerpawlib.v2.safety`                     |
+| `RUNNER`          | `aerpawlib.v2.runner`                     |
+| `AERPAW`          | `aerpawlib.v2.aerpaw`                     |
+| `ZMQ`             | `aerpawlib.v2.zmq`                        |
 
 ### Primary symbols
-- `LogComponent`:  dotted logger name constants for v2.
-- `get_logger(component=...)`:  return a `logging.Logger` for that component.
-- `configure_logging(...)`:  v2-tuned entry point to `aerpawlib.log` configuration.
-- `set_level(...)`:  adjust verbosity in line with shared aerpawlib log settings.
 
-### Behavior notes
-- Mission code typically does not reconfigure logging; the CLI and experiment host set that up. Use this module when you are adding a new v2 submodule and want consistent names in log output.
+- `LogComponent`: Dotted logger name constants for v2.
+- `get_logger(component=...)`: Return a `logging.Logger` for that component.
+- `configure_logging(...)`: v2-tuned entry point; default root is `aerpawlib.v2`.
+- `set_level(...)`: Adjust verbosity in line with shared aerpawlib log settings.

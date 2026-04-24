@@ -5,7 +5,7 @@ ZMQ proxy reachability check and runner for v1.
 import socket
 import zmq
 
-from aerpawlib.log import get_logger, LogComponent
+from aerpawlib.v1.log import get_logger, LogComponent
 from .constants import (
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,

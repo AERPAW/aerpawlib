@@ -15,7 +15,7 @@ Notes:
 """
 
 import asyncio
-from aerpawlib.log import get_logger, LogComponent
+from aerpawlib.v1.log import get_logger, LogComponent
 import math
 import time
 from typing import Optional

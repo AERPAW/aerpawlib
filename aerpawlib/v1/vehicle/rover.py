@@ -16,7 +16,7 @@ Notes:
 import asyncio
 import json
 
-from aerpawlib.log import get_logger, LogComponent
+from aerpawlib.v1.log import get_logger, LogComponent
 import time
 from typing import Optional
 

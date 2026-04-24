@@ -4,6 +4,7 @@ import logging
 import sys
 from typing import Optional
 
+from aerpawlib.cli.log import LogComponent
 from aerpawlib.log import ColoredFormatter
 
 
@@ -57,4 +58,4 @@ def setup_logging(
         file_handler.setFormatter(file_formatter)
         root_logger.addHandler(file_handler)
 
-    return logging.getLogger("aerpawlib")
+    return logging.getLogger(LogComponent.ROOT)

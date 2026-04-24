@@ -8,14 +8,16 @@ import logging
 from typing import Optional, Union
 
 from aerpawlib.log import (
+    LogComponent as LogComponentBase,
     LogLevel,
     configure_logging as _configure_logging,
     get_logger as _get_logger,
+    set_level as _set_level,
 )
 
 
-class LogComponent:
-    """v2 logging components."""
+class LogComponent(LogComponentBase):
+    """v2 logging component names (dotted logger keys)."""
 
     ROOT = "aerpawlib.v2"
     VEHICLE = "aerpawlib.v2.vehicle"
@@ -38,19 +40,7 @@ def get_logger(
     Returns:
         A standard Python logger configured for the given component.
     """
-    name = _component_name(component)
-    return _get_logger(name)
-
-
-def _component_name(component: Union[object, str]) -> str:
-    if isinstance(component, str):
-        return component
-    value = getattr(component, "value", None)
-    if isinstance(value, str):
-        return value
-    raise TypeError(
-        "component must be a logger name string or an enum with a string 'value'"
-    )
+    return _get_logger(component)
 
 
 def configure_logging(
@@ -58,7 +48,7 @@ def configure_logging(
     format_str: Optional[str] = None,
     use_colors: bool = True,
     log_file: Optional[str] = None,
-    root_name: str = LogComponent.ROOT,
+    root_name: str = "aerpawlib.v2",
 ) -> None:
     """Configure logging for v2 modules.
 
@@ -79,15 +69,7 @@ def set_level(
     component: Optional[Union[object, str]] = None,
 ) -> None:
     """Set logging level for v2 root/component loggers."""
-    if isinstance(level, LogLevel):
-        level_value = level.value
-    elif isinstance(level, str):
-        level_value = LogLevel.from_string(level).value
-    else:
-        level_value = level
-
-    target = _component_name(component or LogComponent.ROOT)
-    logging.getLogger(target).setLevel(level_value)
+    _set_level(level, component or LogComponent.ROOT)
 
 
 __all__ = [

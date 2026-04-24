@@ -1,9 +1,5 @@
 """
-Logging utilities for aerpawlib.
-
-Uses Python's standard logging with a colored console formatter.
-Shared by v1 and tests.
-
+.. include:: ../docs/log.md
 """
 
 from __future__ import annotations
@@ -12,7 +8,7 @@ import datetime
 import logging
 import sys
 from enum import Enum
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 
 class LogLevel(Enum):
@@ -33,26 +29,30 @@ class LogLevel(Enum):
         return cls[level_upper]
 
 
-class LogComponent(Enum):
-    """Predefined logging components for categorized logging."""
+class LogComponent:
+    """Base for categorized logger names.
 
-    ROOT = "aerpawlib.v1"
-    VEHICLE = "aerpawlib.v1.vehicle"
-    DRONE = "aerpawlib.v1.vehicle.drone"
-    ROVER = "aerpawlib.v1.vehicle.rover"
-    SAFETY = "aerpawlib.v1.safety"
-    RUNNER = "aerpawlib.v1.runner"
-    TELEMETRY = "aerpawlib.v1.telemetry"
-    COMMAND = "aerpawlib.v1.command"
-    NAVIGATION = "aerpawlib.v1.navigation"
-    CONNECTION = "aerpawlib.v1.connection"
-    GEOFENCE = "aerpawlib.v1.geofence"
-    ZMQ = "aerpawlib.v1.zmq"
-    AERPAW = "aerpawlib.v1.aerpaw"
-    OEO = "aerpawlib.v1.oeo"
-    EXTERNAL = "aerpawlib.v1.external"
-    USER = "aerpawlib.v1.user"
-    SITL = "aerpawlib.sitl"
+    Concrete component sets live in :mod:`aerpawlib.v1.log`,
+    :mod:`aerpawlib.v2.log`, and :mod:`aerpawlib.cli.log`. Do not add members
+    here.
+    """
+
+    __slots__ = ()
+
+
+def _component_name(component: object) -> str:
+    """Resolve a logger name from a string, enum, or namespace with string values."""
+    if isinstance(component, str):
+        return component
+    if isinstance(component, Enum):
+        return str(component.value)
+    value = getattr(component, "value", None)
+    if isinstance(value, str):
+        return value
+    raise TypeError(
+        "component must be a logger name string, an enum member, or an object "
+        "with a string 'value'"
+    )
 
 
 class ColoredFormatter(logging.Formatter):
@@ -119,7 +119,7 @@ def configure_logging(
     format_str: Optional[str] = None,
     use_colors: bool = True,
     log_file: Optional[str] = None,
-    root_name: str = "aerpawlib.v1",
+    root_name: str = "aerpawlib",
 ) -> None:
     """
     Configure logging for aerpawlib.
@@ -129,8 +129,9 @@ def configure_logging(
         format_str: Custom format string (uses default if None)
         use_colors: Use colored output for console
         log_file: Optional path to log file
-        root_name: Logger name to configure (default: aerpawlib.v1).
-            Use "aerpawlib" to configure the whole package (e.g. for tests).
+        root_name: Logger name to configure (default: ``aerpawlib``).
+            Use :func:`aerpawlib.v1.log.configure_logging` or
+            :func:`aerpawlib.v2.log.configure_logging` for versioned roots.
     """
     global _configured
 
@@ -161,27 +162,26 @@ def configure_logging(
     _configured = True
 
 
-def get_logger(
-    component: Union[LogComponent, str] = LogComponent.ROOT,
-) -> logging.Logger:
+def get_logger(component: Any = "aerpawlib") -> logging.Logger:
     """
     Get a logger for the specified component.
 
     Args:
-        component: LogComponent enum value or string logger name.
+        component: Dotted logger name string, or a :class:`LogComponent` /
+            enum / object with a string ``value`` (see versioned log modules).
 
     Returns:
         A configured logging.Logger instance.
     """
-    name = component.value if isinstance(component, LogComponent) else component
+    name = _component_name(component)
     return logging.getLogger(name)
 
 
 def set_level(
     level: Union[LogLevel, str, int],
-    component: Optional[Union[LogComponent, str]] = None,
+    component: Optional[Any] = None,
 ) -> None:
-    """Set the log level for a component or the v1 root logger."""
+    """Set the log level for a component or the package root logger."""
     if isinstance(level, LogLevel):
         level_value = level.value
     elif isinstance(level, str):
@@ -190,11 +190,9 @@ def set_level(
         level_value = level
 
     if component is None:
-        logger_name = "aerpawlib.v1"
-    elif isinstance(component, LogComponent):
-        logger_name = component.value
+        logger_name = "aerpawlib"
     else:
-        logger_name = component
+        logger_name = _component_name(component)
     logging.getLogger(logger_name).setLevel(level_value)
 
 

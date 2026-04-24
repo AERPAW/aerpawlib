@@ -8,7 +8,7 @@ from typing import Any
 
 import requests
 
-from aerpawlib.log import get_logger, LogComponent
+from aerpawlib.v1.log import get_logger, LogComponent
 
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)

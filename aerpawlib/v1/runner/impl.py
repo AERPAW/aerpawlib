@@ -18,7 +18,7 @@ from typing import Any, Callable, Dict, List
 import zmq
 import zmq.asyncio
 
-from aerpawlib.log import LogComponent, get_logger
+from aerpawlib.v1.log import LogComponent, get_logger
 
 from aerpawlib.v1.constants import (
     STATE_MACHINE_DELAY_S,

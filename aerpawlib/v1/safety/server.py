@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import yaml
 import zmq
 
-from aerpawlib.log import LogComponent, get_logger
+from aerpawlib.v1.log import LogComponent, get_logger
 
 from ..constants import (
     SERVER_STATUS_REQ,

@@ -1,7 +1,6 @@
 {
   "modules": [
     "aerpawlib",
-    "!aerpawlib.log",
     "!aerpawlib.structured_log",
     "!aerpawlib.v1.safetyChecker",
     "!aerpawlib.v1.zmqutil",
