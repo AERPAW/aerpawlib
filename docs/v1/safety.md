@@ -6,17 +6,13 @@ Here is a breakdown of how the safety checker works, how to configure it, and ho
 
 The safety module splits the workload between two primary components, communicating over a strictly enforced ZeroMQ (ZMQ) REQ/REP pattern:
 
-### 1. `SafetyCheckerClient`
+### `SafetyCheckerClient`
 This is your mission script's direct line to the safety authority. It acts as a ZMQ REQ client that asks for permission before executing maneuvers. 
 * **Resiliency built-in:** Networks aren't perfect. If the server takes too long to reply, the client will raise a `TimeoutError`. But pragmatically, it also automatically resets and reconnects its socket so that subsequent requests can still succeed without restarting your entire script.
 
-### 2. `SafetyCheckerServer`
+### `SafetyCheckerServer`
 This is the central authority. It runs a blocking ZMQ REP server that loads your safety configuration from a YAML file. 
 * **The Enforcer:** It evaluates every incoming request against your defined include/exclude geofences, speed limits, and (for copters) altitude bounds. It also remembers your takeoff point to validate landing distances later on.
-
-### 3. Wire-Format Helpers
-To keep network traffic lightweight without sacrificing readability, the protocol uses `zlib`-compressed JSON dictionaries. Helpers like `serialize_request` and `deserialize_msg` handle the encoding and decoding transparently.
-
 ---
 
 ## What You Can Ask the Server
@@ -60,24 +56,24 @@ with SafetyCheckerClient("127.0.0.1", 14580) as checker:
 
 ---
 
-## Configuring the Server (The Rules of Engagement)
+## Configuring the Server
 
 The `SafetyCheckerServer` expects a YAML file defining the strict limits for the vehicle. Note that geofence paths (KML files) are resolved relative to where this YAML file lives.
 
 **Required for all vehicles:**
-* `vehicle_type`: Must be `"copter"` or `"rover"`.
+* `vehicle_type`: Must be `copter` or `rover`.
 * `max_speed` / `min_speed`: Absolute speed limits.
 * `include_geofences`: KML paths defining where the vehicle *must* stay.
 * `exclude_geofences`: KML paths defining where the vehicle *cannot* go.
 
-**Required exclusively for `"copter"`:**
+**Required exclusively for `copter`:**
 * `max_alt` / `min_alt`: Absolute altitude limits.
 
 *(Note: If your configuration is missing keys or has an invalid vehicle type, the server will raise a generic `Exception` during startup, failing fast so you can fix it.)*
 
 ---
 
-## Handling the Inevitable Bumps (Errors and Rejections)
+## Errors and Rejections
 
 When writing robust code, you have to plan for failures. Here is how the module handles them:
 
@@ -91,7 +87,7 @@ When writing robust code, you have to plan for failures. Here is how the module 
 
 ---
 
-## Under the Hood: Implementation Details
+## Implementation Details
 
 If you are digging into the source code, here are a few structural choices to keep in mind:
 * The `SafetyCheckerServer` initiates its blocking loop directly inside `__init__`.

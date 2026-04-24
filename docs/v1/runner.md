@@ -28,7 +28,7 @@ Multi-vehicle control software is inherently difficult. `ZmqStateMachine` extend
 
 ---
 
-## Your Decorator Toolkit
+## Available Decorators
 
 To make defining your mission logic as clean and Pythonic as possible, `aerpawlib` relies heavily on decorators. 
 
@@ -43,7 +43,7 @@ To make defining your mission logic as clean and Pythonic as possible, `aerpawli
 
 ---
 
-## Under the Hood: Implementation Semantics
+## Implementation Details
 
 You usually don't need to worry about how `aerpawlib` manages state internally, but if you are debugging or writing advanced logic, here is what is happening behind the scenes:
 
