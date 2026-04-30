@@ -6,6 +6,7 @@ File-based only; omit --structured-log to disable.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -42,7 +43,7 @@ class StructuredEventLogger:
         try:
             self._output.write(line)
             self._output.flush()
-        except (IOError, OSError):
+        except OSError:
             pass
         without_ts = {k: v for k, v in record.items() if k != "timestamp"}
         _logger.log(logging.DEBUG, "event: %s", json.dumps(without_ts))
@@ -51,7 +52,5 @@ class StructuredEventLogger:
         """Close the logger and release resources."""
         if not self._closed:
             self._closed = True
-            try:
+            with contextlib.suppress(OSError):
                 self._output.close()
-            except (IOError, OSError):
-                pass

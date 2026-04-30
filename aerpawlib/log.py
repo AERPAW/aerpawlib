@@ -8,7 +8,7 @@ import datetime
 import logging
 import sys
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any
 
 
 class LogLevel(Enum):
@@ -21,7 +21,7 @@ class LogLevel(Enum):
     CRITICAL = logging.CRITICAL
 
     @classmethod
-    def from_string(cls, level: str) -> "LogLevel":
+    def from_string(cls, level: str) -> LogLevel:
         """Convert string to LogLevel."""
         level_upper = level.upper()
         if level_upper == "WARN":
@@ -51,7 +51,7 @@ def _component_name(component: object) -> str:
         return value
     raise TypeError(
         "component must be a logger name string, an enum member, or an object "
-        "with a string 'value'"
+        "with a string 'value'",
     )
 
 
@@ -70,8 +70,8 @@ class ColoredFormatter(logging.Formatter):
 
     def __init__(
         self,
-        fmt: Optional[str] = None,
-        datefmt: Optional[str] = None,
+        fmt: str | None = None,
+        datefmt: str | None = None,
         use_colors: bool = True,
     ):
         super().__init__(fmt, datefmt)
@@ -94,7 +94,7 @@ class ColoredFormatter(logging.Formatter):
             name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
         timestamp = datetime.datetime.fromtimestamp(record.created).strftime(
-            "%H:%M:%S.%f"
+            "%H:%M:%S.%f",
         )
         level_letter = record.levelname[0]
 
@@ -115,10 +115,10 @@ _default_format = "[%(name)s] %(message)s"
 
 
 def configure_logging(
-    level: Union[LogLevel, str, int] = LogLevel.INFO,
-    format_str: Optional[str] = None,
+    level: LogLevel | str | int = LogLevel.INFO,
+    format_str: str | None = None,
     use_colors: bool = True,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
     root_name: str = "aerpawlib",
 ) -> None:
     """
@@ -178,8 +178,8 @@ def get_logger(component: Any = "aerpawlib") -> logging.Logger:
 
 
 def set_level(
-    level: Union[LogLevel, str, int],
-    component: Optional[Any] = None,
+    level: LogLevel | str | int,
+    component: Any | None = None,
 ) -> None:
     """Set the log level for a component or the package root logger."""
     if isinstance(level, LogLevel):
@@ -189,10 +189,7 @@ def set_level(
     else:
         level_value = level
 
-    if component is None:
-        logger_name = "aerpawlib"
-    else:
-        logger_name = _component_name(component)
+    logger_name = "aerpawlib" if component is None else _component_name(component)
     logging.getLogger(logger_name).setLevel(level_value)
 
 

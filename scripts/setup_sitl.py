@@ -28,7 +28,8 @@ def _project_root() -> Path:
 
 
 def _workarea() -> Path:
-    """Where to clone ardupilot. Prefer project_root/ardupilot for conftest compatibility."""
+    """Where to clone ardupilot.
+    Prefer project_root/ardupilot for conftest compatibility."""
     root = _project_root()
     return root / "ardupilot"
 
@@ -73,13 +74,13 @@ def setup_sitl(skip_compile: bool = False) -> bool:
                 ARDUPILOT_BRANCH,
                 "--single-branch",
                 str(workarea),
-            ]
+            ],
         ):
             return False
 
         print("Initializing submodules...")
         if not _run(
-            ["git", "submodule", "update", "--recursive", "--init"], cwd=workarea
+            ["git", "submodule", "update", "--recursive", "--init"], cwd=workarea,
         ):
             return False
 

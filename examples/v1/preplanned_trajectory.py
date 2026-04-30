@@ -27,17 +27,20 @@ State vis:
 """
 
 import asyncio
+import collections
 import csv
 import datetime
 import os
 import re
 from argparse import ArgumentParser
-from typing import List, TextIO
-
-import collections
+from typing import TextIO
 
 collections.MutableMapping = collections.abc.MutableMapping
 import dronekit as dk  # noqa: E402
+from pymavlink import mavutil  # noqa: E402
+
+from aerpawlib.v1.aerpaw import AERPAW_Platform  # noqa: E402
+from aerpawlib.v1.external import ExternalProcess  # noqa: E402
 from aerpawlib.v1.runner import (  # noqa: E402
     StateMachine,
     at_init,
@@ -52,10 +55,6 @@ from aerpawlib.v1.util import (  # noqa: E402
     read_from_plan_complete,
 )
 from aerpawlib.v1.vehicle import Drone, Vehicle  # noqa: E402
-from pymavlink import mavutil  # noqa: E402
-
-from aerpawlib.v1.aerpaw import AERPAW_Platform  # noqa: E402
-from aerpawlib.v1.external import ExternalProcess  # noqa: E402
 
 
 class PreplannedTrajectory(StateMachine):
@@ -72,7 +71,7 @@ class PreplannedTrajectory(StateMachine):
     _csv_writer: object
     _log_file: TextIO
 
-    def initialize_args(self, extra_args: List[str]):
+    def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
         default_file = (
             f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
@@ -110,7 +109,9 @@ class PreplannedTrajectory(StateMachine):
         )
         parser.add_argument(
             "--look-at-heading",
-            help="heading to maintain while flying, if set. attitude is autopilot controlled if not set",
+            help=(
+            "heading to maintain while flying, if set. attitude is autopilot controlled if not set"
+        ),
             required=False,
             default=None,
             action="store",
@@ -156,22 +157,21 @@ class PreplannedTrajectory(StateMachine):
         while buff:
             buff = await ping.wait_until_output(r"icmp_seq=")
             ping_re_match = self._ping_regex.match(
-                buff[-1]
+                buff[-1],
             )  # last line contains useful data
             latencies.append(float(ping_re_match.group("time")))
             if ping_re_match.group("seq") == str(
-                count
+                count,
             ):  # if icmp_seq shows we've sent everything
                 break
-        avg_latency = sum(latencies) / len(latencies)
-        return avg_latency
+        return sum(latencies) / len(latencies)
 
     @at_init
     async def ping_before_running(self, _):
         # do a few pings before waiting for the drone to arm
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
+                "127.0.0.1", 5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -212,7 +212,7 @@ class PreplannedTrajectory(StateMachine):
                 timestamp,
                 fix,
                 num_sat,
-            ]
+            ],
         )
 
     @background
@@ -308,10 +308,10 @@ class PreplannedTrajectory(StateMachine):
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
         in_background(
-            vehicle.goto_coordinates(coords, target_heading=self._default_heading)
+            vehicle.goto_coordinates(coords, target_heading=self._default_heading),
         )
         await asyncio.sleep(
-            0.5
+            0.5,
         )  # TODO to deal with MAV_CMD_DO_CHANGE_SPEED race condition -- needs field testing!
         await vehicle.set_groundspeed(target_speed)
         return "in_transit"
@@ -323,7 +323,7 @@ class PreplannedTrajectory(StateMachine):
         # also as an example, measure ping latency while on the move
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
+                "127.0.0.1", 5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -344,7 +344,7 @@ class PreplannedTrajectory(StateMachine):
         # example: measure average ping latency
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
+                "127.0.0.1", 5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -359,7 +359,7 @@ class PreplannedTrajectory(StateMachine):
             vehicle.position.alt,
         )
         await vehicle.goto_coordinates(
-            home_coords, target_heading=self._default_heading
+            home_coords, target_heading=self._default_heading,
         )
         if isinstance(vehicle, Drone):
             await vehicle.land()

@@ -11,7 +11,7 @@ Run with:
         --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 """
 
-from aerpawlib.v2.runner import ZmqStateMachine, state, expose_zmq
+from aerpawlib.v2.runner import ZmqStateMachine, expose_zmq, state
 from aerpawlib.v2.vehicle import Drone
 
 
@@ -29,4 +29,4 @@ class RemoteMission(ZmqStateMachine):
         print("[example] Flying - takeoff and hover")
         await drone.takeoff(altitude=5)
         await drone.land()
-        return None
+        return

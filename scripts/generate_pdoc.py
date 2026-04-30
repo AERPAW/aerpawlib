@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 
 def _repo_root() -> Path:
@@ -30,7 +30,7 @@ def _resolve_from_repo(path_value: str) -> Path:
     return _repo_root() / path
 
 
-def _load_config(config_path: Path) -> Dict[str, Any]:
+def _load_config(config_path: Path) -> dict[str, Any]:
     """Load and validate the JSON pdoc configuration file."""
     raw = json.loads(config_path.read_text())
     if not isinstance(raw, dict):
@@ -44,7 +44,7 @@ def _bool_flag(option_name: str, enabled: bool) -> str:
     return f"--{cli_key}" if enabled else f"--no-{cli_key}"
 
 
-def _build_pdoc_command(config: Dict[str, Any], output_dir: Path) -> List[str]:
+def _build_pdoc_command(config: dict[str, Any], output_dir: Path) -> list[str]:
     """Build the pdoc CLI command from config."""
     modules = config.get("modules")
     if (

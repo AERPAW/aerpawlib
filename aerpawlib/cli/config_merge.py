@@ -28,7 +28,7 @@ def merge_config_json_files(paths: list[str]) -> dict[str, Any]:
     """
     merged: dict[str, Any] = {}
     for path in paths:
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
         if not isinstance(data, dict):
             raise ValueError(f"Config must be a JSON object: {path}")

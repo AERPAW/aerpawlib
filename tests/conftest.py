@@ -8,6 +8,7 @@ Full SITL reset (disarm, clear mission, battery reset) runs between each test.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import errno
 import json
 import logging
@@ -17,12 +18,15 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
 
 from aerpawlib.v1.log import LogComponent, LogLevel, configure_logging, get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = get_logger(LogComponent.SITL)
 
@@ -30,7 +34,8 @@ logger = get_logger(LogComponent.SITL)
 DEFAULT_SITL_PORT = 14550
 DEFAULT_SITL_PORT_DRONE = 14550
 DEFAULT_SITL_PORT_ROVER = 14560
-# SITL instance IDs - each instance uses different internal TCP ports (5760 + instance*10)
+# SITL instance IDs - each instance uses different internal TCP ports (5760 +
+# instance*10)
 # This allows running drone and rover concurrently without port conflicts
 DEFAULT_SITL_INSTANCE_DRONE = 0  # Uses TCP 5760-5769
 DEFAULT_SITL_INSTANCE_ROVER = 1  # Uses TCP 5770-5779
@@ -65,7 +70,7 @@ def is_udp_port_in_use(host: str, port: int) -> bool:
             return True
 
 
-def _find_sim_vehicle() -> Optional[Path]:
+def _find_sim_vehicle() -> Path | None:
     """Locate sim_vehicle.py from ARDUPILOT_HOME or common paths."""
     project_root = Path(__file__).resolve().parent.parent
     # Check for both 'ardupilot' and versioned directories like 'ardupilot-4.6.3'
@@ -184,8 +189,8 @@ class SITLManager:
         self.vehicle_type = vehicle_type
         self.manage = manage
         self.instance_id = instance_id
-        self._process: Optional[subprocess.Popen] = None
-        self._sim_vehicle_path: Optional[Path] = None
+        self._process: subprocess.Popen | None = None
+        self._sim_vehicle_path: Path | None = None
 
     def start(self) -> str:
         """Start SITL and return connection string."""
@@ -205,7 +210,8 @@ class SITLManager:
         env = os.environ.copy()
         env["ARDUPILOT_HOME"] = str(ardupilot_home)
         env.setdefault("SIM_SPEEDUP", "5")
-        # Prevent sim_vehicle's run_in_terminal_window.sh from opening a new Terminal window in GUI environments
+        # Prevent sim_vehicle's run_in_terminal_window.sh from opening a new Terminal
+        # window in GUI environments
         env.pop("DISPLAY", None)
 
         cmd = [
@@ -240,7 +246,7 @@ class SITLManager:
 
         logger.debug(f"SITL process PID: {self._process.pid}")
         logger.info(
-            f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)..."
+            f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
         )
 
         # Wait for MAVLink port
@@ -253,7 +259,7 @@ class SITLManager:
             # Check if process died
             if self._process.poll() is not None:
                 self._sitl_log.close()
-                with open(sitl_log_path, "r") as f:
+                with open(sitl_log_path) as f:
                     output = f.read()
                 sitl_process_log = f"/tmp/{self.vehicle_type}.log"
                 msg = (
@@ -373,14 +379,10 @@ async def _full_sitl_reset(vehicle) -> None:
         return
 
     async def _reset():
-        try:
+        with contextlib.suppress(Exception):
             await system.mission.clear_mission()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             await system.geofence.clear_geofence()
-        except Exception:
-            pass
         try:
             await system.action.return_to_launch()
             await asyncio.sleep(2)
@@ -412,10 +414,8 @@ async def _full_sitl_reset(vehicle) -> None:
             await system.mavlink_direct.send_message(msg)
         except Exception:
             pass
-        try:
+        with contextlib.suppress(Exception):
             await system.action.disarm()
-        except Exception:
-            pass
 
     try:
         await vehicle._run_on_mavsdk_loop(_reset())
@@ -432,14 +432,10 @@ async def _full_sitl_reset_v2(vehicle) -> None:
     if not system:
         return
 
-    try:
+    with contextlib.suppress(Exception):
         await system.mission.clear_mission()
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         await system.geofence.clear_geofence()
-    except Exception:
-        pass
     try:
         await system.action.return_to_launch()
         await asyncio.sleep(2)
@@ -470,10 +466,8 @@ async def _full_sitl_reset_v2(vehicle) -> None:
         await system.mavlink_direct.send_message(msg)
     except Exception:
         pass
-    try:
+    with contextlib.suppress(Exception):
         await system.action.disarm()
-    except Exception:
-        pass
     await asyncio.sleep(2)
 
 
@@ -496,7 +490,7 @@ async def _connect_and_wait_gps(
 
     try:
         vehicle = await asyncio.to_thread(
-            vehicle_class, connection_string, mavsdk_server_port=mavsdk_server_port
+            vehicle_class, connection_string, mavsdk_server_port=mavsdk_server_port,
         )
     except ConnectionTimeoutError:
         pytest.fail(f"Connection timeout to {connection_string}")

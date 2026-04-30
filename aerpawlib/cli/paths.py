@@ -1,15 +1,18 @@
-"""Resolve CLI filesystem paths relative to the directory the user invoked the CLI from."""
+"""Resolve CLI filesystem paths relative to the
+directory the user invoked the CLI from."""
+from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 
-def find_repo_root_containing_examples() -> Optional[str]:
-    """If *aerpawlib* is installed under a checkout that has ``examples/``, return that root.
+def find_repo_root_containing_examples() -> str | None:
+    """If *aerpawlib* is installed under a checkout that has ``examples/``,
+    return that root.
 
-    When the package lives only under ``site-packages`` (no sibling ``examples/``), returns
-    ``None`` so callers can fall back to other heuristics.
+    When the package lives only under ``site-packages`` (no sibling
+    ``examples/``), returns ``None`` so callers can fall back to other
+    heuristics.
     """
     cli_dir = Path(__file__).resolve().parent
     pkg_dir = cli_dir.parent
@@ -20,7 +23,8 @@ def find_repo_root_containing_examples() -> Optional[str]:
 
 
 def resolve_script_path(relative: str, invocation_cwd: str) -> str:
-    """Resolve a script path: first against *invocation_cwd*, then against the repo root if needed."""
+    """Resolve a script path: first against *invocation_cwd*,
+    then against the repo root if needed."""
     p = resolve_cli_path(relative, invocation_cwd)
     if os.path.isfile(p):
         return p
@@ -34,8 +38,9 @@ def resolve_script_path(relative: str, invocation_cwd: str) -> str:
     return p
 
 
-def resolve_cli_path(path: Optional[str], invocation_cwd: str) -> Optional[str]:
-    """If *path* is relative, resolve it against *invocation_cwd*; return normalized absolute path."""
+def resolve_cli_path(path: str | None, invocation_cwd: str) -> str | None:
+    """If *path* is relative, resolve it
+    against *invocation_cwd*; return normalized absolute path."""
     if path is None or path == "":
         return path
     if os.path.isabs(path):

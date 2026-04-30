@@ -2,17 +2,17 @@
 .. include:: ../../../docs/v1/util.md
 """
 
-from .geometry import Coordinate, VectorNED, Waypoint
 from .geofence import (
-    doIntersect,
     do_intersect,
+    doIntersect,
     inside,
-    liesOnSegment,
     lies_on_segment,
+    liesOnSegment,
     orientation,
-    readGeofence,
     read_geofence,
+    readGeofence,
 )
+from .geometry import Coordinate, VectorNED, Waypoint
 from .plan_io import (
     get_location_from_waypoint,
     read_from_plan,

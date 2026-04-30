@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import List, Optional
 
 
 class ExternalProcess:
@@ -19,15 +18,15 @@ class ExternalProcess:
     def __init__(
         self,
         executable: str,
-        params: Optional[List[str]] = None,
-        stdin: Optional[str] = None,
-        stdout: Optional[str] = None,
+        params: list[str] | None = None,
+        stdin: str | None = None,
+        stdout: str | None = None,
     ) -> None:
         self._executable = executable
         self._params = params or []
         self._stdin = stdin
         self._stdout = stdout
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: asyncio.subprocess.Process | None = None
 
     async def start(self) -> None:
         """Start the process."""
@@ -40,7 +39,7 @@ class ExternalProcess:
             stdout=stdout,
         )
 
-    async def read_line(self) -> Optional[str]:
+    async def read_line(self) -> str | None:
         """Read one line from stdout."""
         if self.process is None or self.process.stdout is None:
             return None
@@ -61,7 +60,7 @@ class ExternalProcess:
         if self.process is None or self.process.stdin is None:
             raise RuntimeError(
                 "Cannot send input: stdin is not available "
-                "(was it redirected to a file?)"
+                "(was it redirected to a file?)",
             )
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
@@ -72,7 +71,7 @@ class ExternalProcess:
             return
         await self.process.wait()
 
-    async def wait_until_output(self, output_regex: str) -> List[str]:
+    async def wait_until_output(self, output_regex: str) -> list[str]:
         """Block until a stdout line matches the given regex.
 
         Args:
@@ -82,7 +81,7 @@ class ExternalProcess:
             All lines read up to and including the matching line, or all lines
             collected if the process ends before a match is found.
         """
-        buff: List[str] = []
+        buff: list[str] = []
         while True:
             out = await self.read_line()
             if out is None:

@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 import asyncio
+import contextlib
 import logging
 import types
+from typing import Any
 
 import pytest
 
 from aerpawlib import __main__ as cli_main
 from aerpawlib.cli.discovery import discover_runner
-from typing import Any, Optional
 from aerpawlib.v1.exceptions import HeartbeatLostError
 
 
@@ -95,7 +98,7 @@ async def test_run_runner_without_disconnect_future():
     runner = Runner()
 
     async def _run_runner_with_disconnect_guard(
-        *, runner: Any, vehicle: Any, disconnect_future: Optional[asyncio.Future] = None
+        *, runner: Any, vehicle: Any, disconnect_future: asyncio.Future | None = None,
     ) -> None:
         # Mirror the small behavior expected by the tests: run runner.run(vehicle)
         # and propagate a disconnect_future exception if provided.
@@ -109,16 +112,14 @@ async def test_run_runner_without_disconnect_future():
             return
 
         done, _ = await asyncio.wait(
-            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED
+            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED,
         )
 
         if disconnect_future in done:
             if not run_task.done():
                 run_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await run_task
-                except asyncio.CancelledError:
-                    pass
             await disconnect_future
 
         await run_task
@@ -150,7 +151,7 @@ async def test_run_runner_plain_run_races_disconnect_future():
         disconnect_future.set_exception(RuntimeError("lost"))
 
     async def _run_runner_with_disconnect_guard(
-        *, runner: Any, vehicle: Any, disconnect_future: Optional[asyncio.Future] = None
+        *, runner: Any, vehicle: Any, disconnect_future: asyncio.Future | None = None,
     ) -> None:
         if disconnect_future is not None and disconnect_future.done():
             await disconnect_future
@@ -162,16 +163,14 @@ async def test_run_runner_plain_run_races_disconnect_future():
             return
 
         done, _ = await asyncio.wait(
-            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED
+            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED,
         )
 
         if disconnect_future in done:
             if not run_task.done():
                 run_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await run_task
-                except asyncio.CancelledError:
-                    pass
             await disconnect_future
 
         await run_task
@@ -198,7 +197,7 @@ async def test_v1_connection_loss_waiter_raises_on_disconnect_timeout():
             self._connection_error = None
 
     async def _wait_for_v1_connection_loss(
-        *, vehicle: Any, heartbeat_timeout: float, heartbeat_error_cls: Exception
+        *, vehicle: Any, heartbeat_timeout: float, heartbeat_error_cls: Exception,
     ) -> None:
         if not getattr(vehicle, "connected", False):
             raise heartbeat_error_cls()
@@ -229,7 +228,7 @@ async def test_run_runner_disconnect_guard_raises_disconnect_error():
     disconnect_future.set_exception(RuntimeError("lost"))
 
     async def _run_runner_with_disconnect_guard(
-        *, runner: Any, vehicle: Any, disconnect_future: Optional[asyncio.Future] = None
+        *, runner: Any, vehicle: Any, disconnect_future: asyncio.Future | None = None,
     ) -> None:
         if disconnect_future is not None and disconnect_future.done():
             await disconnect_future
@@ -241,16 +240,14 @@ async def test_run_runner_disconnect_guard_raises_disconnect_error():
             return
 
         done, _ = await asyncio.wait(
-            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED
+            {run_task, disconnect_future}, return_when=asyncio.FIRST_COMPLETED,
         )
 
         if disconnect_future in done:
             if not run_task.done():
                 run_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await run_task
-                except asyncio.CancelledError:
-                    pass
             await disconnect_future
 
         await run_task

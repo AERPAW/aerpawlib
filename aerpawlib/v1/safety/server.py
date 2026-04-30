@@ -17,27 +17,28 @@ Notes:
 - Request payloads use the compressed JSON format defined in
   `aerpawlib.v1.safety.wire_format`.
 """
+from __future__ import annotations
 
 import json
 import os
 from argparse import ArgumentParser
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable
 
 import yaml
 import zmq
 
-from aerpawlib.v1.log import LogComponent, get_logger
-
-from ..constants import (
+from aerpawlib.v1.constants import (
+    DEFAULT_SAFETY_SERVER_PORT,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
     VALIDATE_LANDING_REQ,
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_WAYPOINT_REQ,
     VEHICLE_TYPE_COPTER,
-    DEFAULT_SAFETY_SERVER_PORT,
 )
-from ..util import Coordinate, do_intersect, inside, read_geofence
+from aerpawlib.v1.log import LogComponent, get_logger
+from aerpawlib.v1.util import Coordinate, do_intersect, inside, read_geofence
+
 from .wire_format import deserialize_msg, serialize_response
 
 logger = get_logger(LogComponent.SAFETY)
@@ -80,7 +81,8 @@ class SafetyCheckerServer:
 
         Args:
             vehicle_config_filename: Path to the YAML configuration file.
-            server_port: Port to bind the server to. Defaults to DEFAULT_SAFETY_SERVER_PORT.
+            server_port: Port to bind the server to. Defaults to
+                DEFAULT_SAFETY_SERVER_PORT.
         """
         self.REQUEST_FUNCTIONS = {
             SERVER_STATUS_REQ: self.server_status_handler,
@@ -90,7 +92,7 @@ class SafetyCheckerServer:
             VALIDATE_LANDING_REQ: self.validate_landing_handler,
         }
 
-        with open(vehicle_config_filename, "r") as vehicle_config_file:
+        with open(vehicle_config_filename) as vehicle_config_file:
             config = yaml.safe_load(vehicle_config_file)
 
         self.validate_config(config, vehicle_config_filename)
@@ -121,7 +123,7 @@ class SafetyCheckerServer:
         self,
         port: int,
         *,
-        context_factory: Optional[Callable[[], Any]] = None,
+        context_factory: Callable[[], Any] | None = None,
     ) -> None:
         """
         Start the ZMQ server loop. Blocks until the program is terminated.
@@ -129,7 +131,8 @@ class SafetyCheckerServer:
         Args:
             port: The port to bind to.
             context_factory: Optional callable returning a ZMQ-like context with
-                ``socket(type)`` and ``term()`` (for tests). Defaults to ``zmq.Context``.
+                ``socket(type)`` and ``term()`` (for tests). Defaults to
+                ``zmq.Context``.
         """
         ctx_factory = zmq.Context if context_factory is None else context_factory
         context = ctx_factory()
@@ -175,7 +178,7 @@ class SafetyCheckerServer:
             socket.close()
             context.term()
 
-    def validate_config(self, config: Dict, vehicle_config_filename: str) -> None:
+    def validate_config(self, config: dict, vehicle_config_filename: str) -> None:
         """
         Ensures that the provided config dict contains all necessary parameters.
 
@@ -189,28 +192,32 @@ class SafetyCheckerServer:
         for param in self.REQUIRED_PARAMS:
             if param not in config:
                 raise Exception(
-                    f"Required parameter {param} not found in {vehicle_config_filename}!"
+                    f"Required parameter {param} not found in "
+                    f"{vehicle_config_filename}!",
                 )
 
         if config["vehicle_type"] not in self.VEHICLE_TYPES:
             raise Exception(
-                f"Vehicle type in {vehicle_config_filename} is invalid! Must be one of {self.VEHICLE_TYPES}"
+                f"Vehicle type in {vehicle_config_filename} is invalid! Must be "
+                f"one of {self.VEHICLE_TYPES}",
             )
 
         if config["vehicle_type"] == VEHICLE_TYPE_COPTER:
             for param in self.REQUIRED_COPTER_PARAMS:
                 if param not in config:
                     raise Exception(
-                        f"Required copter parameter {param} not found in {vehicle_config_filename}!"
+                        f"Required copter parameter {param} not found in "
+                        f"{vehicle_config_filename}!",
                     )
 
     def validate_waypoint_command(
-        self, current_location: Coordinate, next_location: Coordinate
-    ) -> Tuple[bool, str]:
+        self, current_location: Coordinate, next_location: Coordinate,
+    ) -> tuple[bool, str]:
         """
-        Makes sure path from current location to next waypoint stays inside geofence and avoids no-go zones.
-        Returns a tuple (bool, str)
-        (False, <error message>) if the waypoint violates geofence or no-go zone constraints, else (True, "").
+        Makes sure path from current location to next waypoint stays inside
+        geofence and avoids no-go zones. Returns a tuple (bool, str)
+        (False, <error message>) if the waypoint violates geofence or no-go zone
+        constraints, else (True, "").
         """
         logger.debug(f"Validating {next_location}")
 
@@ -218,8 +225,10 @@ class SafetyCheckerServer:
             if next_location.alt < self.min_alt or next_location.alt > self.max_alt:
                 return (
                     False,
-                    "Invalid waypoint. Altitude of %s m is not within restrictions! ABORTING!"
-                    % next_location.alt,
+                    (
+                        f"Invalid waypoint. Altitude of {next_location.alt} m is "
+                        "not within restrictions! ABORTING!"
+                    ),
                 )
 
         dest_geofence = None
@@ -230,15 +239,19 @@ class SafetyCheckerServer:
         if dest_geofence is None:
             return (
                 False,
-                "Invalid waypoint. Waypoint (%s,%s) is outside of the geofence. ABORTING!"
-                % (next_location.lat, next_location.lon),
+                (
+                    f"Invalid waypoint. Waypoint ({next_location.lat},"
+                    f"{next_location.lon}) is outside of the geofence. ABORTING!"
+                ),
             )
         for zone in self.exclude_geofences:
             if inside(next_location.lon, next_location.lat, zone):
                 return (
                     False,
-                    "Invalid waypoint. Waypoint (%s,%s) is inside a no-go zone. ABORTING!"
-                    % (next_location.lat, next_location.lon),
+                    (
+                        f"Invalid waypoint. Waypoint ({next_location.lat},"
+                        f"{next_location.lon}) is inside a no-go zone. ABORTING!"
+                    ),
                 )
         n = len(dest_geofence)
         for i in range(n):
@@ -256,12 +269,11 @@ class SafetyCheckerServer:
             ):
                 return (
                     False,
-                    "Invalid waypoint. Path from (%s,%s) to waypoint (%s,%s) leaves geofence. ABORTING!"
-                    % (
-                        current_location.lat,
-                        current_location.lon,
-                        next_location.lat,
-                        next_location.lon,
+                    (
+                        f"Invalid waypoint. Path from "
+                        f"({current_location.lat},{current_location.lon}) to "
+                        f"waypoint ({next_location.lat},{next_location.lon}) "
+                        "leaves geofence. ABORTING!"
                     ),
                 )
 
@@ -282,74 +294,76 @@ class SafetyCheckerServer:
                 ):
                     return (
                         False,
-                        "Invalid waypoint. Path from (%s,%s) to waypoint (%s,%s) enters no-go zone. ABORTING!"
-                        % (
-                            current_location.lat,
-                            current_location.lon,
-                            next_location.lat,
-                            next_location.lon,
+                        (
+                            f"Invalid waypoint. Path from "
+                            f"({current_location.lat},{current_location.lon}) to "
+                            f"waypoint ({next_location.lat},{next_location.lon}) "
+                            "enters no-go zone. ABORTING!"
                         ),
                     )
 
         return True, ""
 
     def validateWaypointCommand(
-        self, curLoc: Coordinate, nextLoc: Coordinate
-    ) -> Tuple[bool, str]:
+        self, curLoc: Coordinate, nextLoc: Coordinate,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
 
-    def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
+    def validate_change_speed_command(self, new_speed: float) -> tuple[bool, str]:
         """
-        Makes sure the provided newSpeed lies within the configured vehicle constraints
-        Returns (False, <error message>) if the speed violates constraints, else (True, "").
+        Makes sure the provided newSpeed lies within the configured vehicle
+        constraints. Returns (False, <error message>) if the speed violates
+        constraints, else (True, "").
         """
         if new_speed > self.max_speed:
             return (
                 False,
-                "Invalid speed (%s) greater than maximum (%s)"
-                % (new_speed, self.max_speed),
+                f"Invalid speed ({new_speed}) greater than maximum "
+                f"({self.max_speed})",
             )
         if new_speed < self.min_speed:
             return (
                 False,
-                "Invalid speed (%s) less than minimum (%s)"
-                % (new_speed, self.min_speed),
+                f"Invalid speed ({new_speed}) less than minimum "
+                f"({self.min_speed})",
             )
         return True, ""
 
-    def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
+    def validateChangeSpeedCommand(self, newSpeed: float) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_change_speed_command`."""
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
-        self, takeoff_alt: float, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, takeoff_alt: float, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """
-        Makes sure the takeoff altitude lies within the vehicle constraints
-        Returns (False, <error message>) if the altitude violates constraints, else (True, "").
+        Makes sure the takeoff altitude lies within the vehicle constraints.
+        Returns (False, <error message>) if the altitude violates constraints,
+        else (True, "").
         """
         if self.vehicle_type == VEHICLE_TYPE_COPTER:
             if takeoff_alt < self.min_alt or takeoff_alt > self.max_alt:
                 return (
                     False,
-                    "Invalid takeoff altitude of %s m." % takeoff_alt,
+                    f"Invalid takeoff altitude of {takeoff_alt} m.",
                 )
         self.takeoff_location = Coordinate(current_lat, current_lon, alt=0)
         return True, ""
 
     def validateTakeoffCommand(
-        self, takeoffAlt: float, currentLat: float, currentLon: float
-    ) -> Tuple[bool, str]:
+        self, takeoffAlt: float, currentLat: float, currentLon: float,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
-        self, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """
-        Ensure the copter is attempting to land within 5 meters of the takeoff location
-        Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
+        Ensure the copter is attempting to land within 5 meters of the takeoff
+        location. Returns (False, <error message>) if the copter is not within
+        5 meters, else (True, "").
         """
         if not hasattr(self, "takeoff_location") or self.takeoff_location is None:
             return (
@@ -363,14 +377,15 @@ class SafetyCheckerServer:
         if distance > 5:
             return (
                 False,
-                "Invalid landing location. Must be within 5 meters of takeoff location. Attempted landing location (%s,%s) is %f meters from takeoff location."
-                % (current_lat, current_lon, distance),
+                f"Invalid landing location. Must be within 5 meters of takeoff "
+                f"location. Attempted landing location ({current_lat},"
+                f"{current_lon}) is {distance:f} meters from takeoff location.",
             )
         return True, ""
 
     def validateLandingCommand(
-        self, currentLat: float, currentLon: float
-    ) -> Tuple[bool, str]:
+        self, currentLat: float, currentLon: float,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)
 
@@ -381,15 +396,14 @@ class SafetyCheckerServer:
         Returns:
             bytes: Serialized successful response.
         """
-        msg = serialize_response(request_function=SERVER_STATUS_REQ, result=True)
-        return msg
+        return serialize_response(request_function=SERVER_STATUS_REQ, result=True)
 
     def serverStatusHandler(self, *_params: Any) -> bytes:
         """Backward-compatible alias for :meth:`server_status_handler`."""
         return self.server_status_handler(*_params)
 
     def validate_waypoint_handler(
-        self, current_json_location: str, next_json_location: str, *_params: Any
+        self, current_json_location: str, next_json_location: str, *_params: Any,
     ) -> bytes:
         """
         Handler for waypoint validation requests.
@@ -415,17 +429,16 @@ class SafetyCheckerServer:
         )
 
         result, message = self.validate_waypoint_command(
-            current_location, next_location
+            current_location, next_location,
         )
-        msg = serialize_response(
+        return serialize_response(
             request_function=VALIDATE_WAYPOINT_REQ,
             result=result,
             message=message,
         )
-        return msg
 
     def validateWaypointHandler(
-        self, curLocJSON: str, nextLocJSON: str, *_params: Any
+        self, curLocJSON: str, nextLocJSON: str, *_params: Any,
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_waypoint_handler`."""
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
@@ -441,12 +454,11 @@ class SafetyCheckerServer:
             bytes: Serialized validation response.
         """
         result, message = self.validate_change_speed_command(new_speed)
-        msg = serialize_response(
+        return serialize_response(
             request_function=VALIDATE_CHANGE_SPEED_REQ,
             result=result,
             message=message,
         )
-        return msg
 
     def validateChangeSpeedHandler(self, newSpeed: float, *_params: Any) -> bytes:
         """Backward-compatible alias for :meth:`validate_change_speed_handler`."""
@@ -471,14 +483,13 @@ class SafetyCheckerServer:
             bytes: Serialized validation response.
         """
         result, message = self.validate_takeoff_command(
-            takeoff_alt, current_lat, current_lon
+            takeoff_alt, current_lat, current_lon,
         )
-        msg = serialize_response(
+        return serialize_response(
             request_function=VALIDATE_TAKEOFF_REQ,
             result=result,
             message=message,
         )
-        return msg
 
     def validateTakeoffHandler(
         self,
@@ -489,11 +500,11 @@ class SafetyCheckerServer:
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_takeoff_handler`."""
         return self.validate_takeoff_handler(
-            takeoffAlt, currentLat, currentLon, *_params
+            takeoffAlt, currentLat, currentLon, *_params,
         )
 
     def validate_landing_handler(
-        self, current_lat: float, current_lon: float, *_params: Any
+        self, current_lat: float, current_lon: float, *_params: Any,
     ) -> bytes:
         """
         Handler for landing validation requests.
@@ -506,15 +517,14 @@ class SafetyCheckerServer:
             bytes: Serialized validation response.
         """
         result, message = self.validate_landing_command(current_lat, current_lon)
-        msg = serialize_response(
+        return serialize_response(
             request_function=VALIDATE_LANDING_REQ,
             result=result,
             message=message,
         )
-        return msg
 
     def validateLandingHandler(
-        self, currentLat: float, currentLon: float, *_params: Any
+        self, currentLat: float, currentLon: float, *_params: Any,
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_landing_handler`."""
         return self.validate_landing_handler(currentLat, currentLon, *_params)

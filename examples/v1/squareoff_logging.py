@@ -33,15 +33,15 @@ State vis:
                     └────────┘      └──────┘
 """
 
-from argparse import ArgumentParser
 import asyncio
 import csv
 import datetime
-import time
-from typing import List, TextIO
 import os
+import time
+from argparse import ArgumentParser
+from typing import TextIO
 
-from aerpawlib.v1.runner import StateMachine, state, background, timed_state
+from aerpawlib.v1.runner import StateMachine, background, state, timed_state
 from aerpawlib.v1.util import VectorNED
 from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
@@ -78,7 +78,7 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
             timestamp,
             fix,
             num_sat,
-        ]
+        ],
     )
 
 
@@ -89,7 +89,7 @@ class SquareOff(StateMachine):
     _csv_writer: object
     _log_file: TextIO
 
-    def initialize_args(self, extra_args: List[str]):
+    def initialize_args(self, extra_args: list[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
         default_file = (
@@ -144,7 +144,7 @@ class SquareOff(StateMachine):
         # allow for more generic scripts
         if isinstance(vehicle, Drone):
             return "take_off"
-        elif isinstance(vehicle, Rover):
+        if isinstance(vehicle, Rover):
             return self._legs[self._current_leg]
         raise Exception("Vehicle not supported")
 
@@ -206,9 +206,10 @@ class SquareOff(StateMachine):
         if isinstance(vehicle, Drone):
             # land drones
             return "land"
-        elif isinstance(vehicle, Rover):
+        if isinstance(vehicle, Rover):
             # rovers are done without anything special
             print("done!")
+        return None
             # remember that returning nothing == script over
 
     @state(name="land")

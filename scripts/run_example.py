@@ -28,7 +28,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Optional
 
 # Defaults mirroring tests/conftest.py
 DEFAULT_PORT_DRONE = 14550
@@ -38,7 +37,7 @@ DEFAULT_INSTANCE_ROVER = 1
 SITL_STARTUP_TIMEOUT = 90
 
 
-def _find_sim_vehicle() -> Optional[Path]:
+def _find_sim_vehicle() -> Path | None:
     """Locate sim_vehicle.py from ARDUPILOT_HOME or project ardupilot* directories."""
     project_root = Path(__file__).resolve().parent.parent
     ardupilot_dirs = list(project_root.glob("ardupilot*"))
@@ -136,7 +135,7 @@ def start_sitl(
     )
 
     print(
-        f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)..."
+        f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
     )
     deadline = time.monotonic() + SITL_STARTUP_TIMEOUT
     server_ready = False
@@ -158,7 +157,8 @@ def start_sitl(
                 # Set a 1-second timeout so we don't hang forever
                 s.settimeout(1.0)
 
-                # Attempt to read data. If SITL is running, it will be sending heartbeats.
+                # Attempt to read data. If SITL is running, it will be sending
+                # heartbeats.
                 data, addr = s.recvfrom(1024)
 
                 # If we get past recvfrom without a timeout, data has arrived!
@@ -171,7 +171,8 @@ def start_sitl(
             except OSError:
                 # If we actually DO get an OS error binding here, it means SITL
                 # is using 'udpin' and bound the port itself. We can treat this as ready
-                # (although this likely means QGC has the port and will crash farther down the line)
+                # (although this likely means QGC has the port and will crash farther
+                # down the line)
                 server_ready = True
                 break
 
@@ -188,7 +189,7 @@ def start_sitl(
     print("  SITL is available to connect to.")
 
 
-def stop_sitl(process: Optional[subprocess.Popen]) -> None:
+def stop_sitl(process: subprocess.Popen | None) -> None:
     """Terminate SITL gracefully, kill if it doesn't stop in time."""
     if process is None or process.poll() is not None:
         return
@@ -281,7 +282,7 @@ def main() -> None:
     port = args.sitl_port if args.sitl_port is not None else default_port
     conn_str = f"udpin://127.0.0.1:{port}"
 
-    sitl_proc: Optional[subprocess.Popen] = None
+    sitl_proc: subprocess.Popen | None = None
     try:
         sitl_proc = start_sitl(sitl_vehicle, port, instance, args.speedup)
 

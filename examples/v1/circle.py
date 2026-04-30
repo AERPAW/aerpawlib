@@ -12,7 +12,7 @@ import asyncio
 import math
 
 from aerpawlib.v1.runner import StateMachine, state
-from aerpawlib.v1.util import VectorNED, Coordinate
+from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone
 
 FLIGHT_ALT = 5  # m

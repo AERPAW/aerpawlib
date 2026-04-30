@@ -7,9 +7,8 @@ Usage:
 
 import re
 
-from aerpawlib.v1.runner import BasicRunner, entrypoint
-
 from aerpawlib.v1.external import ExternalProcess
+from aerpawlib.v1.runner import BasicRunner, entrypoint
 
 
 class MyScript(BasicRunner):

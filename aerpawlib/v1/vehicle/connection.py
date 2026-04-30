@@ -12,21 +12,21 @@ Notes:
 - Validation is intentionally early to avoid delayed failures during MAVSDK
   server initialization.
 """
+from __future__ import annotations
 
 import re
-from typing import Optional, Tuple
 from urllib.parse import urlparse
 
 from aerpawlib.v1.exceptions import AerpawConnectionError
 
 _MAVSDK_VALID_SCHEMES = frozenset(
-    ("udpin", "udpout", "tcpin", "tcpout", "serial", "tcp", "udp")
+    ("udpin", "udpout", "tcpin", "tcpout", "serial", "tcp", "udp"),
 )
 
 
 def _parse_udp_connection_port(
     connection_string: str,
-) -> Optional[Tuple[str, int]]:
+) -> tuple[str, int] | None:
     """
     Parse host and port from a UDP connection string for port-in-use checks.
 
@@ -84,11 +84,11 @@ def _validate_connection_string(conn_str: str) -> None:
             f"Invalid connection string {conn_str!r}: missing '://'. "
             "Expected format e.g. 'udpin://0.0.0.0:14550', "
             "'udpout://host:port', 'tcpin://host:port', "
-            "'tcpout://host:port', or 'serial:///dev/path[:baud]'."
+            "'tcpout://host:port', or 'serial:///dev/path[:baud]'.",
         )
     scheme = s.split("://")[0].lower()
     if scheme not in _MAVSDK_VALID_SCHEMES:
         raise AerpawConnectionError(
             f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
-            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}."
+            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}.",
         )

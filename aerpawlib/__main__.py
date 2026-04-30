@@ -12,22 +12,31 @@ example:
     aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 \
             --vehicle drone
 """
+from __future__ import annotations
 
 import importlib
 import importlib.util
-import logging
 import os
 import sys
 import time
 from argparse import ArgumentParser
-from typing import Optional
+from typing import TYPE_CHECKING
 
 from aerpawlib.cli.config_merge import (
     config_dict_to_cli_args,
     merge_config_json_files,
     strip_config_argv,
 )
-
+from aerpawlib.cli.constants import (
+    DEFAULT_CONNECTION_TIMEOUT_S,
+    DEFAULT_HEARTBEAT_TIMEOUT_S,
+    DEFAULT_MAVSDK_PORT,
+    DEFAULT_SAFETY_CHECKER_PORT,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_NONE,
+    VEHICLE_TYPE_ROVER,
+)
 from aerpawlib.cli.experiments_v1 import run_v1_experiment
 from aerpawlib.cli.experiments_v2 import run_v2_experiment
 from aerpawlib.cli.logging_setup import setup_logging
@@ -36,19 +45,12 @@ from aerpawlib.cli.paths import (
     resolve_cli_path,
     resolve_script_path,
 )
-from aerpawlib.cli.constants import (
-    DEFAULT_CONNECTION_TIMEOUT_S,
-    DEFAULT_HEARTBEAT_TIMEOUT_S,
-    DEFAULT_MAVSDK_PORT,
-    DEFAULT_SAFETY_CHECKER_PORT,
-    VEHICLE_TYPE_GENERIC,
-    VEHICLE_TYPE_DRONE,
-    VEHICLE_TYPE_ROVER,
-    VEHICLE_TYPE_NONE,
-)
 
-logger: Optional[logging.Logger] = None
-start_time: Optional[float] = None
+if TYPE_CHECKING:
+    import logging
+
+logger: logging.Logger | None = None
+start_time: float | None = None
 
 
 def main() -> None:
@@ -62,7 +64,7 @@ def main() -> None:
     current_file = os.path.abspath(__file__)
 
     project_root = find_repo_root_containing_examples() or os.path.dirname(
-        os.path.dirname(current_file)
+        os.path.dirname(current_file),
     )
 
     os.chdir(project_root)
@@ -100,7 +102,7 @@ def main() -> None:
     proxy_mode = "--run-proxy" in cli_args
 
     parser = ArgumentParser(
-        description="aerpawlib - wrap and run aerpaw experimenter scripts"
+        description="aerpawlib - wrap and run aerpaw experimenter scripts",
     )
     parser.add_argument(
         "--config",
@@ -119,7 +121,7 @@ def main() -> None:
         required=not proxy_mode,
     )
     core_grp.add_argument(
-        "--conn", "--connection", help="connection string", required=not proxy_mode
+        "--conn", "--connection", help="connection string", required=not proxy_mode,
     )
     core_grp.add_argument(
         "--vehicle",
@@ -175,7 +177,7 @@ def main() -> None:
         dest="run_zmq_proxy",
     )
     zmq_grp.add_argument(
-        "--zmq-identifier", help="zmq identifier", dest="zmq_identifier"
+        "--zmq-identifier", help="zmq identifier", dest="zmq_identifier",
     )
     zmq_grp.add_argument(
         "--zmq-proxy-server",
@@ -219,7 +221,10 @@ def main() -> None:
     )
     conn_grp.add_argument(
         "--heartbeat-timeout",
-        help="max seconds without heartbeat before considered disconnected (default: 5)",
+        help=(
+            "max seconds without heartbeat before considered disconnected "
+            "(default: 5)"
+        ),
         type=float,
         default=DEFAULT_HEARTBEAT_TIMEOUT_S,
         dest="heartbeat_timeout",
@@ -235,8 +240,11 @@ def main() -> None:
     )
     conn_grp.add_argument(
         "--safety-checker-port",
-        help=f"Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to {DEFAULT_SAFETY_CHECKER_PORT}; "
-        "outside AERPAW, optional. If connection fails: AERPAW=crash, non-AERPAW=passthrough.",
+        help=(
+            f"Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to "
+            f"{DEFAULT_SAFETY_CHECKER_PORT}; outside AERPAW, optional. If "
+            "connection fails: AERPAW=crash, non-AERPAW=passthrough."
+        ),
         type=int,
         default=None,
         dest="safety_checker_port",
@@ -324,13 +332,13 @@ def main() -> None:
             experimenter_script = importlib.util.module_from_spec(spec)
             if spec.loader is None:
                 raise ImportError(
-                    f"Cannot load module from {script_path}: no loader available"
+                    f"Cannot load module from {script_path}: no loader available",
                 )
             spec.loader.exec_module(experimenter_script)
         else:
             experimenter_script = importlib.import_module(script_arg)
         logger.debug(
-            f"Time to import experimenter script: {time.time() - start_time:.2f}s"
+            f"Time to import experimenter script: {time.time() - start_time:.2f}s",
         )
     except Exception as e:
         logger.error(f"Failed to import script '{args.script}': {e}")
@@ -338,7 +346,7 @@ def main() -> None:
 
     if api_version == "v2":
         run_v2_experiment(
-            args, unknown_args, api_module, experimenter_script, start_time
+            args, unknown_args, api_module, experimenter_script, start_time,
         )
     elif api_version == "v1":
         run_v1_experiment(

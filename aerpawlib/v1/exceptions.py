@@ -1,8 +1,7 @@
 """
 .. include:: ../../docs/v1/exceptions.md
 """
-
-from typing import List, Optional
+from __future__ import annotations
 
 
 class AerpawlibError(Exception):
@@ -18,7 +17,7 @@ class AerpawlibError(Exception):
     """
 
     def __init__(
-        self, message: str, original_error: Optional[Exception] = None
+        self, message: str, original_error: Exception | None = None,
     ) -> None:
         self.message = message
         self.original_error = original_error
@@ -44,7 +43,7 @@ class AerpawConnectionError(AerpawlibError):
 class ConnectionTimeoutError(AerpawConnectionError):
     """Raised when connection to the vehicle times out."""
 
-    def __init__(self, timeout_seconds: float, message: Optional[str] = None) -> None:
+    def __init__(self, timeout_seconds: float, message: str | None = None) -> None:
         self.timeout_seconds = timeout_seconds
         msg = message or f"Connection timed out after {timeout_seconds} seconds"
         super().__init__(msg)
@@ -54,7 +53,7 @@ class HeartbeatLostError(AerpawConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
     def __init__(
-        self, last_heartbeat_age: float = 0.0, message: Optional[str] = None
+        self, last_heartbeat_age: float = 0.0, message: str | None = None,
     ) -> None:
         self.last_heartbeat_age = last_heartbeat_age
         msg = (
@@ -74,7 +73,7 @@ class MAVSDKNotInstalledError(AerpawConnectionError):
 class PortInUseError(AerpawConnectionError):
     """Raised when the MAVSDK server port is already in use."""
 
-    def __init__(self, port: int, message: Optional[str] = None) -> None:
+    def __init__(self, port: int, message: str | None = None) -> None:
         msg = message or f"Port {port} is already in use (MAVSDK server cannot bind)"
         super().__init__(msg)
         self.port = port
@@ -97,7 +96,7 @@ class NotInAERPAWEnvironmentError(AERPAWPlatformError):
     def __init__(self, feature: str) -> None:
         super().__init__(
             f"'{feature}' requires AERPAW platform environment. "
-            "This feature is not available in standalone/SITL mode."
+            "This feature is not available in standalone/SITL mode.",
         )
         self.feature = feature
 
@@ -119,7 +118,7 @@ class ArmError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Failed to arm vehicle: {reason}", original_error)
 
@@ -130,7 +129,7 @@ class DisarmError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Failed to disarm vehicle: {reason}", original_error)
 
@@ -141,7 +140,7 @@ class TakeoffError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Takeoff failed: {reason}", original_error)
 
@@ -152,7 +151,7 @@ class LandingError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Landing failed: {reason}", original_error)
 
@@ -163,7 +162,7 @@ class NavigationError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Navigation failed: {reason}", original_error)
 
@@ -174,7 +173,7 @@ class VelocityError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Set velocity failed: {reason}", original_error)
 
@@ -185,7 +184,7 @@ class HeadingError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Set heading failed: {reason}", original_error)
 
@@ -196,7 +195,7 @@ class RTLError(CommandError):
     def __init__(
         self,
         reason: str = "Unknown",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         super().__init__(f"Return to launch failed: {reason}", original_error)
 
@@ -269,7 +268,7 @@ class InvalidAltitudeError(ValidationError):
 
     def __init__(self, value: float, min_val: float, max_val: float) -> None:
         super().__init__(
-            f"Invalid altitude {value}m: must be between {min_val}m and {max_val}m"
+            f"Invalid altitude {value}m: must be between {min_val}m and {max_val}m",
         )
         self.value = value
         self.min_val = min_val
@@ -281,7 +280,7 @@ class InvalidSpeedError(ValidationError):
 
     def __init__(self, value: float, min_val: float, max_val: float) -> None:
         super().__init__(
-            f"Invalid speed {value} m/s: must be between {min_val} and {max_val} m/s"
+            f"Invalid speed {value} m/s: must be between {min_val} and {max_val} m/s",
         )
         self.value = value
         self.min_val = min_val
@@ -323,9 +322,9 @@ class NoEntrypointError(StateMachineError):
 class InvalidStateError(StateMachineError):
     """Raised when state machine enters an unknown state."""
 
-    def __init__(self, state_name: str, available_states: List[str]) -> None:
+    def __init__(self, state_name: str, available_states: list[str]) -> None:
         super().__init__(
-            f"Illegal state '{state_name}'. Available states: {available_states}"
+            f"Illegal state '{state_name}'. Available states: {available_states}",
         )
         self.state_name = state_name
         self.available_states = available_states

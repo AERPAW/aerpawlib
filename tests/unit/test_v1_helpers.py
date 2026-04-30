@@ -55,7 +55,7 @@ class TestWaitForCondition:
 
         asyncio.create_task(setter())
         result = await wait_for_value_change(
-            lambda: state["val"], 42, timeout=1.0, poll_interval=0.01
+            lambda: state["val"], 42, timeout=1.0, poll_interval=0.01,
         )
         assert result == 42
 
@@ -114,7 +114,7 @@ class TestWaitForCondition:
 
         asyncio.create_task(setter())
         result = await wait_for_value_change(
-            lambda: val[0], 7, timeout=1.0, poll_interval=0.005
+            lambda: val[0], 7, timeout=1.0, poll_interval=0.005,
         )
         assert result == 7
 
@@ -128,7 +128,7 @@ class TestWaitForCondition:
 
         asyncio.create_task(setter())
         result = await wait_for_value_change(
-            lambda: val[0], None, timeout=1.0, poll_interval=0.005
+            lambda: val[0], None, timeout=1.0, poll_interval=0.005,
         )
         assert result is None
 

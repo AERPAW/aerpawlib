@@ -1,17 +1,18 @@
 """
 .. include:: ../../docs/v1/helpers.md
 """
+from __future__ import annotations
 
 import asyncio
 import math
 import threading
 import time
-from typing import Callable, Optional, TypeVar, Any
+from typing import Any, Callable, TypeVar
 
 from .constants import (
-    POLLING_DELAY_S,
-    MIN_POSITION_TOLERANCE_M,
     MAX_POSITION_TOLERANCE_M,
+    MIN_POSITION_TOLERANCE_M,
+    POLLING_DELAY_S,
 )
 from .exceptions import InvalidToleranceError
 
@@ -20,7 +21,7 @@ T = TypeVar("T")
 
 async def wait_for_condition(
     condition: Callable[[], bool],
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     poll_interval: float = POLLING_DELAY_S,
     timeout_message: str = "Operation timed out",
 ) -> bool:
@@ -55,7 +56,7 @@ async def wait_for_condition(
 async def wait_for_value_change(
     getter: Callable[[], T],
     target_value: T,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,
     poll_interval: float = POLLING_DELAY_S,
     timeout_message: str = "Timeout waiting for value change",
 ) -> T:

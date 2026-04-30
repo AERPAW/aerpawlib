@@ -95,7 +95,8 @@ class TestPortInUse:
     """Port-in-use fails fast instead of hanging."""
 
     def test_udp_port_in_use_raises_immediately(self):
-        """When UDP port from connection string is in use, Drone raises PortInUseError immediately."""
+        """When UDP port from connection string
+        is in use, Drone raises PortInUseError immediately."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.bind(("0.0.0.0", 0))

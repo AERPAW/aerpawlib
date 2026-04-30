@@ -2,17 +2,17 @@
 
 from aerpawlib.v2.exceptions import (
     AerpawlibError,
+    ArmError,
     ConnectionTimeoutError,
     HeartbeatLostError,
-    TakeoffError,
-    NavigationError,
-    LandingError,
-    RTLError,
-    ArmError,
-    NoEntrypointError,
     InvalidStateError,
-    NoInitialStateError,
+    LandingError,
     MultipleInitialStatesError,
+    NavigationError,
+    NoEntrypointError,
+    NoInitialStateError,
+    RTLError,
+    TakeoffError,
 )
 
 

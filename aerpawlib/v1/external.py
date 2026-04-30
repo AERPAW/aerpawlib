@@ -1,10 +1,12 @@
 """
 .. include:: ../../docs/v1/external.md
 """
+from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
-from typing import List, Optional, Pattern, Union
+from re import Pattern
 
 
 class ExternalProcess:
@@ -25,9 +27,9 @@ class ExternalProcess:
     def __init__(
         self,
         executable: str,
-        params: Optional[List[str]] = None,
-        stdin: Optional[str] = None,
-        stdout: Optional[str] = None,
+        params: list[str] | None = None,
+        stdin: str | None = None,
+        stdout: str | None = None,
     ) -> None:
         """
         Prepare external process for execution.
@@ -44,13 +46,13 @@ class ExternalProcess:
         self._params = params if params is not None else []
         self._stdin = stdin
         self._stdout = stdout
-        self.process: Optional[asyncio.subprocess.Process] = None
+        self.process: asyncio.subprocess.Process | None = None
 
     async def aclose(self) -> None:
         """Reap the subprocess and close streams.
 
-        Avoids PytestUnraisableExceptionWarning from deferred ``BaseSubprocessTransport``
-        cleanup after the asyncio loop is closed.
+        Avoids PytestUnraisableExceptionWarning from deferred
+        ``BaseSubprocessTransport`` cleanup after the asyncio loop is closed.
         """
         proc = self.process
         if proc is None:
@@ -68,15 +70,10 @@ class ExternalProcess:
         for name in ("stdout", "stderr"):
             stream = getattr(proc, name, None)
             if stream is not None:
-                try:
+                with contextlib.suppress(
+                BrokenPipeError, ConnectionResetError, ValueError, OSError,
+            ):
                     await stream.read()
-                except (
-                    BrokenPipeError,
-                    ConnectionResetError,
-                    ValueError,
-                    OSError,
-                ):
-                    pass
         if proc.stdin is not None:
             try:
                 proc.stdin.close()
@@ -107,7 +104,7 @@ class ExternalProcess:
             stdin=None if self._stdin is not None else asyncio.subprocess.PIPE,
         )
 
-    async def read_line(self) -> Optional[str]:
+    async def read_line(self) -> str | None:
         """
         Read one line from the stdout buffer.
 
@@ -135,7 +132,7 @@ class ExternalProcess:
         if self.process.stdin is None:
             raise RuntimeError(
                 "Cannot send input: stdin is not available "
-                "(was it redirected to a file?)"
+                "(was it redirected to a file?)",
             )
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()
@@ -147,8 +144,8 @@ class ExternalProcess:
         await self.process.wait()
 
     async def wait_until_output(
-        self, output_regex: Union[str, Pattern[str]]
-    ) -> List[str]:
+        self, output_regex: str | Pattern[str],
+    ) -> list[str]:
         """
         Block and wait until a line matching the given regex is found in stdout.
 

@@ -1,6 +1,7 @@
 """Run experimenter scripts using the v1 API."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -9,16 +10,16 @@ import traceback
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    VEHICLE_TYPE_GENERIC,
-    VEHICLE_TYPE_DRONE,
-    VEHICLE_TYPE_ROVER,
-    VEHICLE_TYPE_NONE,
-    API_CLASS_VEHICLE,
-    API_CLASS_DRONE,
-    API_CLASS_ROVER,
-    API_CLASS_DUMMY_VEHICLE,
     API_CLASS_AERPAW_PLATFORM,
+    API_CLASS_DRONE,
+    API_CLASS_DUMMY_VEHICLE,
     API_CLASS_HEARTBEAT_LOST_ERROR,
+    API_CLASS_ROVER,
+    API_CLASS_VEHICLE,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_NONE,
+    VEHICLE_TYPE_ROVER,
 )
 
 from .disconnect import (
@@ -53,7 +54,7 @@ def run_v1_experiment(
         VEHICLE_TYPE_DRONE: Drone,
         VEHICLE_TYPE_ROVER: Rover,
         VEHICLE_TYPE_NONE: DummyVehicle,
-    }.get(args.vehicle, None)
+    }.get(args.vehicle)
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
@@ -66,7 +67,8 @@ def run_v1_experiment(
         event_log = None
         logger.info("Connecting to vehicle...")
         try:
-            # v1 Vehicle.__init__ blocks until connected or raises; no async _connected poll.
+            # v1 Vehicle.__init__ blocks until connected or raises; no async _connected
+            # poll.
             vehicle = await asyncio.wait_for(
                 asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),
                 timeout=args.conn_timeout,
@@ -100,7 +102,8 @@ def run_v1_experiment(
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
         if no_aerpaw_env:
             logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode."
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
+                "running in standalone mode.",
             )
             if AERPAW_Platform:
                 AERPAW_Platform._no_stdout = args.no_stdout
@@ -111,7 +114,7 @@ def run_v1_experiment(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
                     "Pass --no-aerpaw-environment to run outside the AERPAW "
-                    "environment."
+                    "environment.",
                 )
                 sys.exit(1)
 
@@ -123,19 +126,19 @@ def run_v1_experiment(
             if not args.zmq_identifier or not args.zmq_server_addr:
                 logger.error(
                     "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
                 )
                 raise ValueError(
-                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
                 )
             runner_instance._initialize_zmq_bindings(
-                args.zmq_identifier, args.zmq_server_addr
+                args.zmq_identifier, args.zmq_server_addr,
             )
 
         success = False
         heartbeat_lost = False
         heartbeat_error_cls = getattr(
-            api_module, API_CLASS_HEARTBEAT_LOST_ERROR, Exception
+            api_module, API_CLASS_HEARTBEAT_LOST_ERROR, Exception,
         )
         disconnect_task = None
         try:
@@ -144,7 +147,7 @@ def run_v1_experiment(
                     vehicle=vehicle,
                     heartbeat_timeout=args.heartbeat_timeout,
                     heartbeat_error_cls=heartbeat_error_cls,
-                )
+                ),
             )
             await run_runner_with_disconnect_guard(
                 runner=runner_instance,
@@ -159,10 +162,8 @@ def run_v1_experiment(
         finally:
             if disconnect_task is not None and not disconnect_task.done():
                 disconnect_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await disconnect_task
-                except asyncio.CancelledError:
-                    pass
             if vehicle:
                 if (
                     not getattr(vehicle, "_closed")
@@ -181,10 +182,8 @@ def run_v1_experiment(
                         traceback.print_exc()
                 vehicle.close()
             if event_log is not None:
-                try:
+                with contextlib.suppress(Exception):
                     event_log.log_event("mission_end", success=success)
-                except Exception:
-                    pass
                 try:
                     event_log.close()
                 except Exception as e:

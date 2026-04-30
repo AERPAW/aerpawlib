@@ -11,10 +11,9 @@ Run with:
 
 import math
 from argparse import ArgumentParser
-from typing import List
 
 from aerpawlib.v1.runner import BasicRunner, entrypoint
-from aerpawlib.v1.util import VectorNED, Coordinate
+from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone
 
 # Configuration
@@ -30,7 +29,7 @@ class FigureEight(BasicRunner):
     _altitude: float = FLIGHT_ALT
     _waypoints_per_loop: int = NUM_WAYPOINTS
 
-    def initialize_args(self, extra_args: List[str]):
+    def initialize_args(self, extra_args: list[str]):
         """Parse custom arguments."""
         parser = ArgumentParser()
         parser.add_argument(
@@ -50,10 +49,10 @@ class FigureEight(BasicRunner):
         self._radius = args.radius
         self._altitude = args.altitude
         print(
-            f"[example] Figure-8 config: radius={self._radius}m, alt={self._altitude}m"
+            f"[example] Figure-8 config: radius={self._radius}m, alt={self._altitude}m",
         )
 
-    def _generate_figure_8_waypoints(self, center: Coordinate) -> List[Coordinate]:
+    def _generate_figure_8_waypoints(self, center: Coordinate) -> list[Coordinate]:
         """Generate waypoints for a figure-8 pattern."""
         waypoints = []
 
@@ -105,7 +104,7 @@ class FigureEight(BasicRunner):
             wp_in_loop = i % self._waypoints_per_loop + 1
 
             print(
-                f"[example] Loop {loop_num}, waypoint {wp_in_loop}/{self._waypoints_per_loop}"
+                f"[example] Loop {loop_num}, waypoint {wp_in_loop}/{self._waypoints_per_loop}",
             )
             await drone.goto_coordinates(target, tolerance=2)
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, TypeVar
+from typing import TypeVar
 
 V = TypeVar("V")
 
@@ -36,35 +36,35 @@ class StateMachineConfig:
     """Config for StateMachine. Set explicitly or via @state, @timed_state, etc."""
 
     initial_state: str
-    states: List[StateSpec] = field(default_factory=list)
-    backgrounds: List[str] = field(default_factory=list)
-    at_init: List[str] = field(default_factory=list)
+    states: list[StateSpec] = field(default_factory=list)
+    backgrounds: list[str] = field(default_factory=list)
+    at_init: list[str] = field(default_factory=list)
 
 
 @dataclass
 class ZmqStateMachineConfig(StateMachineConfig):
     """Config for ZmqStateMachine. Adds exposed_states and exposed_fields."""
 
-    exposed_states: Dict[str, str] = field(
-        default_factory=dict
+    exposed_states: dict[str, str] = field(
+        default_factory=dict,
     )  # zmq_name -> state_name
-    exposed_fields: Dict[str, str] = field(
-        default_factory=dict
+    exposed_fields: dict[str, str] = field(
+        default_factory=dict,
     )  # zmq_name -> method_name
 
 
-def _nearest_parent_state_machine_config(owner: type) -> Optional[StateMachineConfig]:
+def _nearest_parent_state_machine_config(owner: type) -> StateMachineConfig | None:
     """Return closest inherited StateMachineConfig, if any."""
     for base in owner.__mro__[1:]:
         if "config" in base.__dict__ and isinstance(
-            base.__dict__["config"], StateMachineConfig
+            base.__dict__["config"], StateMachineConfig,
         ):
             return base.__dict__["config"]
     return None
 
 
 def _ensure_state_machine_config(
-    owner: type, require_zmq: bool = False
+    owner: type, require_zmq: bool = False,
 ) -> StateMachineConfig:
     """Ensure owner has an isolated config copy; optionally upgrade to ZMQ config."""
     cfg = owner.__dict__.get("config")

@@ -5,24 +5,25 @@ Rover vehicle for aerpawlib v2.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
-from typing import Optional
 
 from mavsdk.action import ActionError
 from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, VelocityNedYaw
 from pymavlink import mavutil
 
-from ..constants import (
+from aerpawlib.v2.aerpaw import AERPAW_Platform
+from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
-    GPS_3D_FIX_TYPE,
     GOTO_LOG_INTERVAL_S,
     GOTO_NB_LOG_INTERVAL_S,
     GOTO_POLL_INTERVAL_S,
+    GPS_3D_FIX_TYPE,
     MAVLINK_MSG_COMMAND_LONG,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
@@ -32,13 +33,13 @@ from ..constants import (
     VELOCITY_LOOP_HANDOFF_DELAY_S,
     VELOCITY_UPDATE_DELAY_S,
 )
-from ..aerpaw import AERPAW_Platform
-from ..exceptions import NavigationError, VelocityError
-from ..log import LogComponent, get_logger
-from ..types import Coordinate, VectorNED
+from aerpawlib.v2.exceptions import NavigationError, VelocityError
+from aerpawlib.v2.log import LogComponent, get_logger
+from aerpawlib.v2.types import Coordinate, VectorNED
+
 from .base import Vehicle, _wait_for_condition
-from .task import VehicleTask
 from .connection_helpers import _validate_tolerance
+from .task import VehicleTask
 
 logger = get_logger(LogComponent.ROVER)
 
@@ -68,12 +69,12 @@ class Rover(Vehicle):
             if time.monotonic() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
                     f"Rover: timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). "
-                    f"Status: {self._get_health_summary()}"
+                    f"Status: {self._get_health_summary()}",
                 )
                 break
             if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
                 logger.debug(
-                    f"Rover: waiting for armable... {self._get_health_summary()}"
+                    f"Rover: waiting for armable... {self._get_health_summary()}",
                 )
                 last_log = time.monotonic()
             await asyncio.sleep(POLLING_DELAY_S)
@@ -89,11 +90,11 @@ class Rover(Vehicle):
         """
         if self.mode == "OFFBOARD":
             logger.debug(
-                "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch"
+                "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch",
             )
             return
         logger.info(
-            f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})"
+            f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )
         try:
             # COMMAND_LONG payload for MAV_CMD_DO_SET_MODE -> GUIDED.
@@ -131,13 +132,16 @@ class Rover(Vehicle):
             await _wait_for_condition(
                 lambda: self.mode == "OFFBOARD",
                 timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
-                timeout_message=f"Rover did not enter GUIDED (OFFBOARD) mode within {ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s",
+                timeout_message=(
+                    f"Rover did not enter GUIDED (OFFBOARD) mode within "
+                    f"{ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"
+                ),
             )
             logger.info("Rover: GUIDED (OFFBOARD) mode confirmed")
         except TimeoutError:
             logger.warning(
                 f"Rover: mode switch timeout (current mode={self.mode!r}); "
-                "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode"
+                "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode",
             )
 
     async def _arm_vehicle(self) -> None:
@@ -170,10 +174,10 @@ class Rover(Vehicle):
         self,
         coordinates: Coordinate,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Navigate to a target coordinate using ground-distance arrival.
 
         Args:
@@ -220,7 +224,7 @@ class Rover(Vehicle):
                     elapsed = time.monotonic() - start
                     if elapsed > timeout:
                         raise TimeoutError(
-                            f"Rover failed to reach destination within {timeout}s"
+                            f"Rover failed to reach destination within {timeout}s",
                         )
                     now = time.monotonic()
                     if now - last_log >= GOTO_LOG_INTERVAL_S:
@@ -299,7 +303,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` north from current position."""
         target = self.position + VectorNED(meters, 0, 0)
         return await self.goto_coordinates(
@@ -315,7 +319,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` east from current position."""
         target = self.position + VectorNED(0, meters, 0)
         return await self.goto_coordinates(
@@ -331,7 +335,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` south from current position."""
         target = self.position + VectorNED(-meters, 0, 0)
         return await self.goto_coordinates(
@@ -347,7 +351,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` west from current position."""
         target = self.position + VectorNED(0, -meters, 0)
         return await self.goto_coordinates(
@@ -365,7 +369,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go by NED offset from current position.
 
         Args:
@@ -391,7 +395,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Drive along ``bearing_deg`` for ``distance_m`` metres from current position.
 
         Bearing: 0=north, 90=east, 180=south, 270=west.
@@ -411,7 +415,7 @@ class Rover(Vehicle):
         self,
         velocity_vector: VectorNED,
         global_relative: bool = True,
-        duration: Optional[float] = None,
+        duration: float | None = None,
     ) -> None:
         """Set rover velocity using MAVSDK offboard mode.
 
@@ -456,12 +460,10 @@ class Rover(Vehicle):
                     velocity_vector.east,
                     0,  # Vertical command is always zero for ground vehicles.
                     0,
-                )
+                ),
             )
-            try:
+            with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            except OffboardError:
-                pass
 
             self._ready_to_move = lambda _: True
             self._velocity_loop_active = True
@@ -475,22 +477,20 @@ class Rover(Vehicle):
                             self._velocity_loop_active = False
                             try:
                                 await self._system.offboard.set_velocity_ned(
-                                    VelocityNedYaw(0, 0, 0, 0)
+                                    VelocityNedYaw(0, 0, 0, 0),
                                 )
                                 await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                                 await self._system.offboard.stop()
                             except Exception as e:
                                 logger.debug(
-                                    "Rover velocity stop cleanup failed: %s", e
+                                    "Rover velocity stop cleanup failed: %s", e,
                                 )
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                 except Exception as e:
                     logger.error("Rover velocity helper error: %s", e)
-                    try:
+                    with contextlib.suppress(Exception):
                         await self._system.offboard.stop()
-                    except Exception:
-                        pass
 
             vel_task = asyncio.ensure_future(_velocity_helper())
             self._command_tasks.append(vel_task)

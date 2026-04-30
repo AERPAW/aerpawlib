@@ -7,46 +7,45 @@ Single async loop, direct MAVSDK calls, native telemetry.
 from __future__ import annotations
 
 import asyncio
-import time
-from typing import Any, Callable, List, Optional, TYPE_CHECKING, Tuple
 import json
-
 import math
-
-if TYPE_CHECKING:
-    pass
+import time
+from typing import TYPE_CHECKING, Any, Callable
 
 from mavsdk import System
 from mavsdk.action import ActionError
 
-from ..aerpaw import AERPAW_Platform
-from ..constants import (
+from aerpawlib.v2.constants import (
     ARMING_SEQUENCE_DELAY_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_MAVSDK_SERVER_PORT,
     GPS_3D_FIX_TYPE,
     HOME_POSITION_TIMEOUT_S,
-    MIN_POSITION_TOLERANCE_M,
-    MAX_POSITION_TOLERANCE_M,
     MAV_SYS_STATUS_PREARM_CHECK,
+    MAX_POSITION_TOLERANCE_M,
+    MIN_POSITION_TOLERANCE_M,
     MOCK_LAT,
     MOCK_LON,
     POLLING_DELAY_S,
     READY_MOVE_LOG_INTERVAL_S,
 )
-from ..exceptions import (
+from aerpawlib.v2.exceptions import (
     ArmError,
     ConnectionTimeoutError,
     DisarmError,
     NotArmableError,
 )
-from ..log import LogComponent, get_logger
-from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
+from aerpawlib.v2.log import LogComponent, get_logger
+
 from .connection_helpers import (
     _validate_connection_string,
     _wait_for_condition,
 )
 from .state import VehicleState
+
+if TYPE_CHECKING:
+    from aerpawlib.v2.aerpaw import AERPAW_Platform
+    from aerpawlib.v2.types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 
 logger = get_logger(LogComponent.VEHICLE)
 
@@ -62,7 +61,7 @@ class Vehicle:
         connection_string: str,
         mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
-        safety: Optional[Any] = None,
+        safety: Any | None = None,
     ) -> None:
         """
         Args:
@@ -76,20 +75,20 @@ class Vehicle:
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._state = VehicleState()
-        self._telemetry_tasks: List[asyncio.Task] = []
-        self._command_tasks: List[asyncio.Task] = []
+        self._telemetry_tasks: list[asyncio.Task] = []
+        self._command_tasks: list[asyncio.Task] = []
         self._running = True
         self._closed = False
-        self._ready_to_move: Callable[["Vehicle"], bool] = lambda _: True
-        self._heartbeat_tick_cb: Optional[Callable[[], None]] = None
-        self._mission_start_time: Optional[float] = None
+        self._ready_to_move: Callable[[Vehicle], bool] = lambda _: True
+        self._heartbeat_tick_cb: Callable[[], None] | None = None
+        self._mission_start_time: float | None = None
         self._will_arm: bool = True
         self._expecting_disarm: bool = False
         self._unexpected_disarm_event: asyncio.Event = asyncio.Event()
-        self.safety: Optional[Any] = safety
-        self._event_log: Optional[Any] = None
+        self.safety: Any | None = safety
+        self._event_log: Any | None = None
 
-    def set_event_log(self, event_log: Optional[Any]) -> None:
+    def set_event_log(self, event_log: Any | None) -> None:
         """Set the structured event logger for mission events."""
         self._event_log = event_log
 
@@ -156,7 +155,7 @@ class Vehicle:
         return self._state.position
 
     @property
-    def home_coords(self) -> Optional[Coordinate]:
+    def home_coords(self) -> Coordinate | None:
         """Return the stored home coordinate, if available."""
         return self._state.home_coords
 
@@ -211,8 +210,8 @@ class Vehicle:
         return self._state.ekf_ready
 
     async def can_takeoff(
-        self, altitude: float, min_battery_percent: float = 10.0
-    ) -> Tuple[bool, str]:
+        self, altitude: float, min_battery_percent: float = 10.0,
+    ) -> tuple[bool, str]:
         """
         Check if takeoff would succeed. Local checks plus optional SafetyCheckerClient.
 
@@ -220,26 +219,26 @@ class Vehicle:
             (ok, message) - ok is True if command would succeed.
         """
         logger.debug(
-            f"can_takeoff: checking altitude={altitude}m battery>={min_battery_percent}%"
+            f"can_takeoff: checking altitude={altitude}m battery>={min_battery_percent}%",
         )
         if not self._state.armable:
             logger.debug(
-                f"can_takeoff: rejected (not armable) {self._get_health_summary()}"
+                f"can_takeoff: rejected (not armable) {self._get_health_summary()}",
             )
             return False, f"Vehicle not armable: {self._get_health_summary()}"
         if self.gps.fix_type < 3:
             logger.debug(
-                f"can_takeoff: rejected (no 3D GPS fix_type={self.gps.fix_type})"
+                f"can_takeoff: rejected (no 3D GPS fix_type={self.gps.fix_type})",
             )
             return False, f"No 3D GPS fix (fix_type={self.gps.fix_type})"
         if self.battery.level < min_battery_percent:
             logger.debug(
-                f"can_takeoff: rejected (battery {self.battery.level}% < {min_battery_percent}%)"
+                f"can_takeoff: rejected (battery {self.battery.level}% < {min_battery_percent}%)",
             )
             return False, f"Battery {self.battery.level}% below {min_battery_percent}%"
         if self.safety is not None:
             ok, msg = await self.safety.validate_takeoff(
-                altitude, self.position.lat, self.position.lon
+                altitude, self.position.lat, self.position.lon,
             )
             logger.debug(f"can_takeoff: safety check ok={ok} msg={msg!r}")
             if not ok:
@@ -251,7 +250,7 @@ class Vehicle:
         self,
         target: Coordinate,
         tolerance: float = 2.0,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Check if goto would succeed. Local checks plus optional SafetyCheckerClient.
 
@@ -259,7 +258,7 @@ class Vehicle:
             (ok, message) - ok is True if command would succeed.
         """
         logger.debug(
-            f"can_goto: checking target=({target.lat:.6f},{target.lon:.6f}) tol={tolerance}m"
+            f"can_goto: checking target=({target.lat:.6f},{target.lon:.6f}) tol={tolerance}m",
         )
         if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
             return False, (
@@ -274,7 +273,7 @@ class Vehicle:
         logger.debug("can_goto: passed")
         return True, ""
 
-    async def can_land(self) -> Tuple[bool, str]:
+    async def can_land(self) -> tuple[bool, str]:
         """
         Check if land would succeed. Optional SafetyCheckerClient only.
 
@@ -282,11 +281,11 @@ class Vehicle:
             (ok, message) - ok is True if command would succeed.
         """
         logger.debug(
-            f"can_land: checking pos=({self.position.lat:.6f},{self.position.lon:.6f})"
+            f"can_land: checking pos=({self.position.lat:.6f},{self.position.lon:.6f})",
         )
         if self.safety is not None:
             ok, msg = await self.safety.validate_landing(
-                self.position.lat, self.position.lon
+                self.position.lat, self.position.lon,
             )
             logger.debug(f"can_land: safety check ok={ok} msg={msg!r}")
             if not ok:
@@ -301,8 +300,8 @@ class Vehicle:
         mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
-        safety: Optional[Any] = None,
-    ) -> "Vehicle":
+        safety: Any | None = None,
+    ) -> Vehicle:
         """Connect to vehicle and start telemetry.
 
         Args:
@@ -320,7 +319,7 @@ class Vehicle:
         """
         logger.info(
             f"Connecting to vehicle at {connection_string} "
-            f"(port={mavsdk_server_port}, timeout={timeout}s)"
+            f"(port={mavsdk_server_port}, timeout={timeout}s)",
         )
         _validate_connection_string(connection_string)
         system = System(port=mavsdk_server_port)
@@ -356,7 +355,7 @@ class Vehicle:
     async def _start_telemetry(self) -> None:
         """Start telemetry subscriptions on same loop."""
         logger.debug(
-            "Starting telemetry subscriptions (position, attitude, velocity, gps, battery, mode, armed, health, home)"
+            "Starting telemetry subscriptions (position, attitude, velocity, gps, battery, mode, armed, health, home)",
         )
 
         # Throttle interval for periodic telemetry debug logs (seconds)
@@ -364,7 +363,7 @@ class Vehicle:
         last_struct_telem = [0.0]
 
         def _telem_log_throttle(
-            last: list, interval: float = _telem_log_interval
+            last: list, interval: float = _telem_log_interval,
         ) -> bool:
             """Return True if we should log (throttled). Mutates last[0]."""
             now = time.monotonic()
@@ -389,12 +388,12 @@ class Vehicle:
                 self._heartbeat_tick()
                 if first[0]:
                     logger.info(
-                        f"Telemetry: position stream active (lat={position.latitude_deg:.6f}, lon={position.longitude_deg:.6f}, alt={position.relative_altitude_m:.1f}m)"
+                        f"Telemetry: position stream active (lat={position.latitude_deg:.6f}, lon={position.longitude_deg:.6f}, alt={position.relative_altitude_m:.1f}m)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: position lat={position.latitude_deg:.6f} lon={position.longitude_deg:.6f} alt={position.relative_altitude_m:.1f}m"
+                        f"Telemetry: position lat={position.latitude_deg:.6f} lon={position.longitude_deg:.6f} alt={position.relative_altitude_m:.1f}m",
                     )
                 if self._event_log and _telem_log_throttle(last_struct_telem):
                     self._log_structured_telemetry_snapshot()
@@ -413,12 +412,12 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: attitude stream active (roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg)"
+                        f"Telemetry: attitude stream active (roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: attitude roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg"
+                        f"Telemetry: attitude roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg",
                     )
 
         async def _velocity_update() -> None:
@@ -431,12 +430,12 @@ class Vehicle:
                 self._state.update_velocity(vel.north_m_s, vel.east_m_s, vel.down_m_s)
                 if first[0]:
                     logger.info(
-                        f"Telemetry: velocity stream active (N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s)"
+                        f"Telemetry: velocity stream active (N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: velocity N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s"
+                        f"Telemetry: velocity N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s",
                     )
 
         async def _gps_update() -> None:
@@ -454,12 +453,12 @@ class Vehicle:
                 self._state.update_gps(fix, gps.num_satellites)
                 if first[0]:
                     logger.info(
-                        f"Telemetry: gps stream active (fix_type={fix}, sats={gps.num_satellites})"
+                        f"Telemetry: gps stream active (fix_type={fix}, sats={gps.num_satellites})",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: gps fix_type={fix} sats={gps.num_satellites}"
+                        f"Telemetry: gps fix_type={fix} sats={gps.num_satellites}",
                     )
 
         async def _battery_update() -> None:
@@ -471,16 +470,16 @@ class Vehicle:
                     return
                 current = getattr(bat, "current_battery_a", 0.0) or 0.0
                 self._state.update_battery(
-                    bat.voltage_v, current, int(bat.remaining_percent)
+                    bat.voltage_v, current, int(bat.remaining_percent),
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: battery stream active ({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)"
+                        f"Telemetry: battery stream active ({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: battery {bat.voltage_v:.1f}V {current:.1f}A {int(bat.remaining_percent)}%"
+                        f"Telemetry: battery {bat.voltage_v:.1f}V {current:.1f}A {int(bat.remaining_percent)}%",
                     )
 
         async def _flight_mode_update() -> None:
@@ -494,13 +493,13 @@ class Vehicle:
                 self._state.update_mode(mode_name)
                 if first[0]:
                     logger.info(
-                        f"Telemetry: flight_mode stream active (mode={mode_name})"
+                        f"Telemetry: flight_mode stream active (mode={mode_name})",
                     )
                     first[0] = False
                     prev_mode[0] = mode_name
                 elif prev_mode[0] != mode_name:
                     logger.info(
-                        f"Telemetry: flight_mode changed {prev_mode[0]} -> {mode_name}"
+                        f"Telemetry: flight_mode changed {prev_mode[0]} -> {mode_name}",
                     )
                     prev_mode[0] = mode_name
 
@@ -527,7 +526,7 @@ class Vehicle:
                     ):
                         logger.warning(
                             "Vehicle disarmed unexpectedly! "
-                            "Signalling experiment termination."
+                            "Signalling experiment termination.",
                         )
                         self._unexpected_disarm_event.set()
                     prev_armed[0] = armed
@@ -546,7 +545,7 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: health stream active (armable={health.is_armable})"
+                        f"Telemetry: health stream active (armable={health.is_armable})",
                     )
                     first[0] = False
 
@@ -564,7 +563,7 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: home stream active (lat={home.latitude_deg:.6f} lon={home.longitude_deg:.6f} alt={home.relative_altitude_m:.1f}m)"
+                        f"Telemetry: home stream active (lat={home.latitude_deg:.6f} lon={home.longitude_deg:.6f} alt={home.relative_altitude_m:.1f}m)",
                     )
                     first[0] = False
 
@@ -578,7 +577,7 @@ class Vehicle:
                     health = fields.get("onboard_control_sensors_health", 0)
                     self._state.update_prearm_bits(
                         (health & MAV_SYS_STATUS_PREARM_CHECK)
-                        == MAV_SYS_STATUS_PREARM_CHECK
+                        == MAV_SYS_STATUS_PREARM_CHECK,
                     )
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
@@ -587,7 +586,7 @@ class Vehicle:
             """Subscribe to EKF_STATUS_REPORT (ArduPilot) for takeoff readiness."""
             try:
                 async for msg in self._system.mavlink_direct.message(
-                    "EKF_STATUS_REPORT"
+                    "EKF_STATUS_REPORT",
                 ):
                     if not self._running:
                         return
@@ -599,7 +598,7 @@ class Vehicle:
                         logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
             except Exception as e:
                 logger.debug(
-                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e
+                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e,
                 )
 
         for coro in [
@@ -628,7 +627,7 @@ class Vehicle:
         asyncio.create_task(
             platform.log_to_oeo_async(
                 "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",
-            )
+            ),
         )
         logger.info("Waiting for safety pilot to arm vehicle...")
         await _wait_for_condition(
@@ -775,7 +774,7 @@ class Vehicle:
         self,
         coordinates: Coordinate,
         tolerance: float = 2.0,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
     ) -> None:
         """Navigate to the given coordinates.
 
@@ -795,7 +794,7 @@ class Vehicle:
 class DummyVehicle(Vehicle):
     """No-op vehicle for testing without hardware."""
 
-    def __init__(self, *, safety: Optional[Any] = None) -> None:
+    def __init__(self, *, safety: Any | None = None) -> None:
         """Initialise a no-op vehicle with default state suitable for dry-runs.
 
         Args:
@@ -835,8 +834,8 @@ class DummyVehicle(Vehicle):
         mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
-        safety: Optional[Any] = None,
-    ) -> "DummyVehicle":
+        safety: Any | None = None,
+    ) -> DummyVehicle:
         """Return a DummyVehicle without opening any real connection.
 
         Args:
@@ -852,9 +851,9 @@ class DummyVehicle(Vehicle):
 
     async def goto_coordinates(
         self,
-        coordinates: "Coordinate",
+        coordinates: Coordinate,
         tolerance: float = 2.0,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
     ) -> None:
         """No-op for dry-run."""
         pass

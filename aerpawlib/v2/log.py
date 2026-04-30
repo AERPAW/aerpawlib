@@ -4,16 +4,26 @@
 
 from __future__ import annotations
 
-import logging
-from typing import Optional, Union
+from typing import TYPE_CHECKING
 
 from aerpawlib.log import (
     LogComponent as LogComponentBase,
+)
+from aerpawlib.log import (
     LogLevel,
+)
+from aerpawlib.log import (
     configure_logging as _configure_logging,
+)
+from aerpawlib.log import (
     get_logger as _get_logger,
+)
+from aerpawlib.log import (
     set_level as _set_level,
 )
+
+if TYPE_CHECKING:
+    import logging
 
 
 class LogComponent(LogComponentBase):
@@ -30,7 +40,7 @@ class LogComponent(LogComponentBase):
 
 
 def get_logger(
-    component: Union[object, str] = LogComponent.ROOT,
+    component: object | str = LogComponent.ROOT,
 ) -> logging.Logger:
     """Return a logger for the specified v2 component.
 
@@ -44,10 +54,10 @@ def get_logger(
 
 
 def configure_logging(
-    level: Union[LogLevel, str, int] = LogLevel.INFO,
-    format_str: Optional[str] = None,
+    level: LogLevel | str | int = LogLevel.INFO,
+    format_str: str | None = None,
     use_colors: bool = True,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
     root_name: str = "aerpawlib.v2",
 ) -> None:
     """Configure logging for v2 modules.
@@ -65,8 +75,8 @@ def configure_logging(
 
 
 def set_level(
-    level: Union[LogLevel, str, int],
-    component: Optional[Union[object, str]] = None,
+    level: LogLevel | str | int,
+    component: object | str | None = None,
 ) -> None:
     """Set logging level for v2 root/component loggers."""
     _set_level(level, component or LogComponent.ROOT)

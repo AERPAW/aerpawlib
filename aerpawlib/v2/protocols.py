@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Optional, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-from .types import Battery, Coordinate, GPSInfo
+if TYPE_CHECKING:
+    from .types import Battery, Coordinate, GPSInfo
 
 
 @runtime_checkable
@@ -44,7 +45,7 @@ class VehicleProtocol(Protocol):
         ...
 
     @property
-    def home_coords(self) -> Optional[Coordinate]:
+    def home_coords(self) -> Coordinate | None:
         """Return the home coordinate when available."""
         ...
 

@@ -1,8 +1,9 @@
 """Disconnect detection and runner racing for CLI experiments."""
+from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
-from typing import Optional
 
 from aerpawlib.cli.constants import RUNNER_DISCONNECT_POLL_INTERVAL_S
 
@@ -11,7 +12,7 @@ def build_connection_loss_error(
     heartbeat_error_cls,
     age: float,
     message: str,
-    original_error: Optional[Exception] = None,
+    original_error: Exception | None = None,
 ) -> Exception:
     """Build a connection-loss exception for both v1 and v2 constructors.
 
@@ -104,10 +105,8 @@ async def run_runner_with_disconnect_guard(
     )
     if disconnect_future in done:
         run_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await run_task
-        except asyncio.CancelledError:
-            pass
         exc = None if disconnect_future.cancelled() else disconnect_future.exception()
         if exc is not None:
             raise exc

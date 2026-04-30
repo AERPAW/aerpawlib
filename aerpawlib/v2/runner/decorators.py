@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import types
 from enum import Enum, auto
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, cast
 
-from ..exceptions import (
+from aerpawlib.v2.exceptions import (
     InvalidStateNameError,
     MultipleInitialStatesError,
     RunnerError,
 )
+
 from .config import (
     BasicRunnerConfig,
     StateSpec,
@@ -24,7 +25,7 @@ class _EntrypointDescriptor:
 
     def __init__(self, func: Callable) -> None:
         self.func = func
-        self.name: Optional[str] = None
+        self.name: str | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
@@ -33,17 +34,17 @@ class _EntrypointDescriptor:
                 raise RunnerError(
                     f"Only one @entrypoint is allowed per runner class. "
                     f"Already registered '{owner.config.entrypoint}', "
-                    f"cannot also register '{name}'."
+                    f"cannot also register '{name}'.",
                 )
             return
         owner.config = BasicRunnerConfig(entrypoint=name)
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
         if self.func is None:
             raise RuntimeError("Expose-field decorator not applied to function")
-        func = cast(Callable, self.func)
+        func = cast("Callable", self.func)
         return types.MethodType(func, obj)
 
 
@@ -86,9 +87,9 @@ class _StateDescriptor:
         self.state_type = state_type
         self.duration = duration
         self.loop = loop
-        self.func: Optional[Callable] = None
+        self.func: Callable | None = None
 
-    def __call__(self, func: Callable) -> "_StateDescriptor":
+    def __call__(self, func: Callable) -> _StateDescriptor:
         self.func = func
         return self
 
@@ -105,16 +106,16 @@ class _StateDescriptor:
                 first=self.first,
                 duration=self.duration,
                 loop=self.loop,
-            )
+            ),
         )
 
         zmq_name = getattr(self.func, "zmq_name", None)
         if zmq_name is not None:
             zmq_cfg = _ensure_state_machine_config(owner, require_zmq=True)
             if isinstance(zmq_cfg, ZmqStateMachineConfig):
-                zmq_cfg.exposed_states[cast(str, zmq_name)] = cast(str, self.name)
+                zmq_cfg.exposed_states[cast("str", zmq_name)] = cast("str", self.name)
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
         if self.func is None:
@@ -138,7 +139,8 @@ def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescript
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of @state/@timed_state"
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state",
             )
         desc = _StateDescriptor(name, first=first, state_type=_StateType.STANDARD)
         desc.func = func
@@ -173,7 +175,8 @@ def timed_state(
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of @state/@timed_state"
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state",
             )
         desc = _StateDescriptor(
             name,
@@ -193,17 +196,17 @@ class _BackgroundDescriptor:
 
     def __init__(self, func: Callable) -> None:
         self.func = func
-        self.name: Optional[str] = None
+        self.name: str | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
         cfg = _ensure_state_machine_config(owner)
         cfg.backgrounds.append(name)
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(cast(Callable, self.func), obj)
+        return types.MethodType(cast("Callable", self.func), obj)
 
 
 def background(func: Callable) -> _BackgroundDescriptor:
@@ -226,17 +229,17 @@ class _AtInitDescriptor:
 
     def __init__(self, func: Callable) -> None:
         self.func = func
-        self.name: Optional[str] = None
+        self.name: str | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
         cfg = _ensure_state_machine_config(owner)
         cfg.at_init.append(name)
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
-        return types.MethodType(cast(Callable, self.func), obj)
+        return types.MethodType(cast("Callable", self.func), obj)
 
 
 def at_init(func: Callable) -> _AtInitDescriptor:
@@ -275,11 +278,11 @@ class _ExposeZmqDescriptor:
                 break
         if state_name is None:
             raise RunnerError(
-                "@expose_zmq can only be used on @state/@timed_state methods"
+                "@expose_zmq can only be used on @state/@timed_state methods",
             )
         cfg.exposed_states[self.zmq_name] = state_name
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
         if hasattr(self.wrapped, "__get__"):
@@ -310,22 +313,22 @@ class _ExposeFieldZmqDescriptor:
         if not zmq_name:
             raise InvalidStateNameError()
         self.zmq_name = zmq_name
-        self.func: Optional[Callable] = None
+        self.func: Callable | None = None
 
     def __set_name__(self, owner: type, name: str) -> None:
         cfg = _ensure_state_machine_config(owner, require_zmq=True)
         if isinstance(cfg, ZmqStateMachineConfig):
-            cfg.exposed_fields[cast(str, self.zmq_name)] = cast(str, name)
+            cfg.exposed_fields[cast("str", self.zmq_name)] = cast("str", name)
 
-    def __get__(self, obj: Any, objtype: Optional[type] = None) -> Any:
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
             return self
         func = self.func
         if func is None:
             raise RuntimeError("Expose-field decorator not applied to function")
-        return types.MethodType(cast(Callable, func), obj)
+        return types.MethodType(cast("Callable", func), obj)
 
-    def __call__(self, func: Callable) -> "_ExposeFieldZmqDescriptor":
+    def __call__(self, func: Callable) -> _ExposeFieldZmqDescriptor:
         self.func = func
         return self
 

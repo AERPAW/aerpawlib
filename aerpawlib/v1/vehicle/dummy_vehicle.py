@@ -8,21 +8,24 @@ Capabilities:
 - Provide a minimal vehicle-like interface for non-flight code paths.
 - Allow runner and helper code to execute without hardware/SITL dependencies.
 """
+from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 
 class DummyVehicle:
     """
-    A placeholder vehicle class for scripts that do not require physical vehicle interaction.
+    A placeholder vehicle class for scripts that do not require physical vehicle
+    interaction.
 
-    This class provides the same interface as `Vehicle` but with empty implementations.
+    This class provides the same interface as `Vehicle` but with empty
+    implementations.
     """
 
     def __init__(self) -> None:
         self._closed = False
 
-    def set_event_log(self, event_log: Optional[Any]) -> None:
+    def set_event_log(self, event_log: Any | None) -> None:
         """No-op: DummyVehicle ignores structured logging."""
         pass
 

@@ -4,16 +4,19 @@
 
 from __future__ import annotations
 
-from typing import Generator, List, Tuple
+from typing import TYPE_CHECKING
 
 from pykml import parser
 
 from .log import LogComponent, get_logger
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
 logger = get_logger(LogComponent.VEHICLE)
 
 
-def read_geofence(file_path: str) -> List[dict]:
+def read_geofence(file_path: str) -> list[dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
@@ -46,7 +49,8 @@ def read_geofence(file_path: str) -> List[dict]:
 
     if coords_el is None or not coords_el.text:
         raise ValueError(
-            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: {file_path}"
+            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: "
+            f"{file_path}",
         )
 
     coords_str = coords_el.text.strip()
@@ -66,7 +70,7 @@ def read_geofence(file_path: str) -> List[dict]:
     return polygon
 
 
-def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
+def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
     """Check if point (lon, lat) is inside the polygon using ray-casting.
 
     Handles degenerate (horizontal) edges safely by skipping
@@ -98,7 +102,7 @@ def inside(lon: float, lat: float, geofence: List[dict]) -> bool:
 
 
 def _lies_on_segment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
 ) -> bool:
     """Return True if point Q lies on segment PR.
 
@@ -119,7 +123,7 @@ def _lies_on_segment(
 
 
 def _orientation(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
 ) -> int:
     """Return the orientation of the ordered triple (P, Q, R).
 
@@ -179,14 +183,12 @@ def do_intersect(
         return True
     if (o3 == 0) and _lies_on_segment(rx, ry, px, py, sx, sy):
         return True
-    if (o4 == 0) and _lies_on_segment(rx, ry, qx, qy, sx, sy):
-        return True
-    return False
+    return bool(o4 == 0 and _lies_on_segment(rx, ry, qx, qy, sx, sy))
 
 
 def polygon_edges(
-    polygon: List[dict],
-) -> Generator[Tuple[dict, dict], None, None]:
+    polygon: list[dict],
+) -> Generator[tuple[dict, dict], None, None]:
     """Yield consecutive edge pairs (p1, p2) for the given polygon.
 
     Args:

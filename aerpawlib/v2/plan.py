@@ -5,25 +5,24 @@
 from __future__ import annotations
 
 import json
-from typing import List, Tuple
 
 from .constants import (
     DEFAULT_WAYPOINT_SPEED,
-    PLAN_CMD_TAKEOFF,
-    PLAN_CMD_WAYPOINT,
     PLAN_CMD_RTL,
     PLAN_CMD_SPEED,
+    PLAN_CMD_TAKEOFF,
+    PLAN_CMD_WAYPOINT,
 )
 from .exceptions import PlanError
 from .types import Coordinate
 
 # Waypoint tuple: (command, x/lat, y/lon, z/alt, waypoint_id, speed)
-Waypoint = Tuple[int, float, float, float, int, float]
+Waypoint = tuple[int, float, float, float, int, float]
 
 
 def read_from_plan(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
-) -> List[Waypoint]:
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+) -> list[Waypoint]:
     """
     Parse a QGroundControl .plan file into a list of waypoints.
 
@@ -37,7 +36,7 @@ def read_from_plan(
     Raises:
         Exception: If the file is not a valid .plan file.
     """
-    waypoints: List[Waypoint] = []
+    waypoints: list[Waypoint] = []
     try:
         with open(path) as f:
             data = json.load(f)
@@ -45,11 +44,11 @@ def read_from_plan(
         raise PlanError(f"Plan file not found: {path!r}", original_error=e) from e
     except json.JSONDecodeError as e:
         raise PlanError(
-            f"Plan file is not valid JSON: {path!r}", original_error=e
+            f"Plan file is not valid JSON: {path!r}", original_error=e,
         ) from e
     if data["fileType"] != "Plan":
         raise PlanError(
-            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r})."
+            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).",
         )
     current_speed = default_speed
     for item in data["mission"]["items"]:
@@ -58,12 +57,13 @@ def read_from_plan(
             params = item["params"]
         except KeyError as e:
             raise PlanError(
-                f"Plan item missing required key {e}: {item!r}", original_error=e
+                f"Plan item missing required key {e}: {item!r}", original_error=e,
             ) from e
         if command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             if len(params) < 7:
                 raise PlanError(
-                    f"Plan item 'params' too short (need at least 7, got {len(params)}): {item!r}"
+                    f"Plan item 'params' too short (need at least 7, got "
+                    f"{len(params)}): {item!r}",
                 )
             x, y, z = params[4:7]
             waypoint_id = item["doJumpId"]
@@ -87,8 +87,8 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
 
 
 def read_from_plan_complete(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
-) -> List[dict]:
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+) -> list[dict]:
     """
     Read a .plan file and return detailed waypoint dictionaries.
 
@@ -101,7 +101,7 @@ def read_from_plan_complete(
     Returns:
         List of waypoint dicts with id, command, pos, wait_for, speed.
     """
-    waypoints: List[dict] = []
+    waypoints: list[dict] = []
     try:
         with open(path) as f:
             data = json.load(f)
@@ -109,11 +109,11 @@ def read_from_plan_complete(
         raise PlanError(f"Plan file not found: {path!r}", original_error=e) from e
     except json.JSONDecodeError as e:
         raise PlanError(
-            f"Plan file is not valid JSON: {path!r}", original_error=e
+            f"Plan file is not valid JSON: {path!r}", original_error=e,
         ) from e
     if data["fileType"] != "Plan":
         raise PlanError(
-            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r})."
+            f"Wrong file type -- use a .plan file (got {data.get('fileType')!r}).",
         )
     current_speed = default_speed
     for item in data["mission"]["items"]:
@@ -122,14 +122,15 @@ def read_from_plan_complete(
             params = item["params"]
         except KeyError as e:
             raise PlanError(
-                f"Plan item missing required key {e}: {item!r}", original_error=e
+                f"Plan item missing required key {e}: {item!r}", original_error=e,
             ) from e
         if command in [PLAN_CMD_SPEED]:
             current_speed = params[1]
         elif command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             if len(params) < 7:
                 raise PlanError(
-                    f"Plan item 'params' too short (need at least 7, got {len(params)}): {item!r}"
+                    f"Plan item 'params' too short (need at least 7, got "
+                    f"{len(params)}): {item!r}",
                 )
             x, y, z = params[4:7]
             waypoint_id = item["doJumpId"]
@@ -141,6 +142,6 @@ def read_from_plan_complete(
                     "pos": [x, y, z],
                     "wait_for": delay,
                     "speed": current_speed,
-                }
+                },
             )
     return waypoints

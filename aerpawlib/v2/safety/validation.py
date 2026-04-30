@@ -6,9 +6,13 @@ Integrated into vehicle lifecycle.
 
 from __future__ import annotations
 
-from ..constants import DEFAULT_MIN_BATTERY_PERCENT, GPS_3D_FIX_TYPE
-from ..log import LogComponent, get_logger
-from ..protocols import VehicleProtocol
+from typing import TYPE_CHECKING
+
+from aerpawlib.v2.constants import DEFAULT_MIN_BATTERY_PERCENT, GPS_3D_FIX_TYPE
+from aerpawlib.v2.log import LogComponent, get_logger
+
+if TYPE_CHECKING:
+    from aerpawlib.v2.protocols import VehicleProtocol
 
 logger = get_logger(LogComponent.SAFETY)
 
@@ -28,17 +32,19 @@ class PreflightChecks:
         """
         if vehicle.gps.fix_type >= GPS_3D_FIX_TYPE:
             logger.debug(
-                f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})"
+                f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, "
+                f"sats={vehicle.gps.satellites_visible})",
             )
             return True
         logger.warning(
-            f"Preflight: No 3D GPS fix (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})"
+            f"Preflight: No 3D GPS fix (fix_type={vehicle.gps.fix_type}, "
+            f"sats={vehicle.gps.satellites_visible})",
         )
         return False
 
     @staticmethod
     def check_battery(
-        vehicle: VehicleProtocol, min_percent: float = DEFAULT_MIN_BATTERY_PERCENT
+        vehicle: VehicleProtocol, min_percent: float = DEFAULT_MIN_BATTERY_PERCENT,
     ) -> bool:
         """Check that the vehicle battery is above the minimum threshold.
 
@@ -51,11 +57,11 @@ class PreflightChecks:
         """
         if vehicle.battery.level >= min_percent:
             logger.debug(
-                f"Preflight: Battery OK ({vehicle.battery.level}% >= {min_percent}%)"
+                f"Preflight: Battery OK ({vehicle.battery.level}% >= {min_percent}%)",
             )
             return True
         logger.warning(
-            f"Preflight: Battery {vehicle.battery.level}% below {min_percent}%"
+            f"Preflight: Battery {vehicle.battery.level}% below {min_percent}%",
         )
         return False
 
@@ -74,6 +80,6 @@ class PreflightChecks:
         bat_ok = PreflightChecks.check_battery(vehicle)
         passed = gps_ok and bat_ok
         logger.info(
-            f"PreflightChecks: gps={gps_ok}, battery={bat_ok}, all_pass={passed}"
+            f"PreflightChecks: gps={gps_ok}, battery={bat_ok}, all_pass={passed}",
         )
         return passed

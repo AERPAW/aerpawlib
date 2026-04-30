@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, List, Optional
+from typing import Callable
 
-from ..log import LogComponent, get_logger
+from aerpawlib.v2.log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.VEHICLE)
 
@@ -21,9 +21,9 @@ class VehicleTask:
         self._done = asyncio.Event()
         self._cancelled = False
         self._progress: float = 0.0
-        self._error: Optional[Exception] = None
-        self._on_cancel: Optional[Callable[[], object]] = None
-        self._cancel_tasks: List[asyncio.Task] = []
+        self._error: Exception | None = None
+        self._on_cancel: Callable[[], object] | None = None
+        self._cancel_tasks: list[asyncio.Task] = []
 
     @property
     def progress(self) -> float:
@@ -53,7 +53,8 @@ class VehicleTask:
         self._on_cancel = callback
 
     def cancel(self) -> None:
-        """Request cancellation. Invokes on_cancel callback if set to stop the vehicle."""
+        """Request cancellation. Invokes on_cancel callback
+        if set to stop the vehicle."""
         logger.debug("VehicleTask: cancel requested")
         self._cancelled = True
         if self._on_cancel:
@@ -66,7 +67,8 @@ class VehicleTask:
             except RuntimeError:
                 logger.warning(
                     "VehicleTask.cancel() called outside an async context; "
-                    "on_cancel callback will not run. The vehicle may continue its current task."
+                    "on_cancel callback will not run. The vehicle may "
+                    "continue its current task.",
                 )
 
     def is_cancelled(self) -> bool:

@@ -1,13 +1,21 @@
 import asyncio
+
 import pytest
 
+from aerpawlib.v1.exceptions import (
+    InvalidStateError,
+    InvalidStateNameError,
+    MultipleInitialStatesError,
+    NoInitialStateError,
+    StateMachineError,
+)
 from aerpawlib.v1.runner import (
     BasicRunner,
     Runner,
     StateMachine,
     ZmqStateMachine,
-    background,
     at_init,
+    background,
     entrypoint,
     expose_field_zmq,
     expose_zmq,
@@ -15,13 +23,6 @@ from aerpawlib.v1.runner import (
     timed_state,
 )
 from aerpawlib.v1.vehicle import DummyVehicle
-from aerpawlib.v1.exceptions import (
-    InvalidStateError,
-    MultipleInitialStatesError,
-    NoInitialStateError,
-    InvalidStateNameError,
-    StateMachineError,
-)
 
 
 class TestBasicRunner:
@@ -120,7 +121,7 @@ class TestStateMachine:
             @state("only", first=True)
             async def only_state(self, vehicle):
                 ran.append(1)
-                return None
+                return
 
         await R().run(DummyVehicle())
         assert ran == [1]
@@ -143,7 +144,7 @@ class TestStateMachine:
             @state("third")
             async def third_state(self, vehicle):
                 ran.append("third")
-                return None
+                return
 
         await R().run(DummyVehicle())
         assert ran == ["first", "second", "third"]
@@ -314,7 +315,7 @@ class TestStateMachineLifecycle:
             @state("second")
             async def second_state(self, vehicle):
                 ran.append("second")
-                return None
+                return
 
         await R().run(DummyVehicle())
         # "second" should never execute because stop() was called
@@ -377,7 +378,7 @@ class TestBackgroundTasks:
             async def wait_state(self, vehicle):
                 # Let the background task run for a bit
                 await asyncio.sleep(0.15)
-                return None
+                return
 
         await R().run(DummyVehicle())
         # Background task should have fired multiple times
@@ -414,7 +415,7 @@ class TestAtInitTasks:
             @state("start", first=True)
             async def start_state(self, vehicle):
                 log.append("start")
-                return None
+                return
 
         await R().run(DummyVehicle())
         assert log.index("init") < log.index("start")
@@ -451,7 +452,7 @@ class TestTimedStateLoop:
             @timed_state("loop", duration=0.3, loop=True, first=True)
             async def looping_state(self, vehicle):
                 call_count[0] += 1
-                return None  # next state doesn't matter during duration
+                return  # next state doesn't matter during duration
 
         await R().run(DummyVehicle())
         # Should have been called multiple times during 0.3 s
@@ -466,7 +467,7 @@ class TestTimedStateLoop:
             @timed_state("once", duration=0.2, loop=False, first=True)
             async def once_state(self, vehicle):
                 call_count[0] += 1
-                return None
+                return
 
         await R().run(DummyVehicle())
         assert call_count[0] == 1

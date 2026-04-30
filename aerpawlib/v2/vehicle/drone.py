@@ -49,23 +49,24 @@ base class and shared helpers.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import math
 import time
-from typing import Optional
 
 from mavsdk.action import ActionError
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
-from ..constants import (
+from aerpawlib.v2.aerpaw import AERPAW_Platform
+from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
     CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
-    GPS_3D_FIX_TYPE,
     GOTO_LOG_INTERVAL_S,
     GOTO_NB_LOG_INTERVAL_S,
+    GPS_3D_FIX_TYPE,
     HEADING_TOLERANCE_DEG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     POLLING_DELAY_S,
@@ -75,20 +76,20 @@ from ..constants import (
     TAKEOFF_LOG_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
 )
-from ..aerpaw import AERPAW_Platform
-from ..exceptions import (
+from aerpawlib.v2.exceptions import (
     LandingError,
     NavigationError,
     RTLError,
     TakeoffError,
     VelocityError,
 )
-from ..log import LogComponent, get_logger
-from ..types import Coordinate, VectorNED
+from aerpawlib.v2.log import LogComponent, get_logger
+from aerpawlib.v2.types import Coordinate, VectorNED
+
 from .base import Vehicle, _wait_for_condition
 from .connection_helpers import _validate_tolerance
-from .task import VehicleTask
 from .heading import _heading_diff, _normalize_heading
+from .task import VehicleTask
 
 logger = get_logger(LogComponent.DRONE)
 
@@ -99,7 +100,7 @@ class Drone(Vehicle):
     def __init__(self, *args, **kwargs) -> None:
         """Initialise the Drone, forwarding all arguments to Vehicle."""
         super().__init__(*args, **kwargs)
-        self._current_heading: Optional[float] = None
+        self._current_heading: float | None = None
         self._velocity_loop_active = False
         self._offboard_in_use: bool = False
 
@@ -112,7 +113,7 @@ class Drone(Vehicle):
             if time.monotonic() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
                     f"Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). "
-                    f"Status: {self._get_health_summary()}"
+                    f"Status: {self._get_health_summary()}",
                 )
                 break
             if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
@@ -150,7 +151,7 @@ class Drone(Vehicle):
 
     async def set_heading(
         self,
-        heading: Optional[float],
+        heading: float | None,
         blocking: bool = True,
         lock_in: bool = True,
     ) -> None:
@@ -185,17 +186,15 @@ class Drone(Vehicle):
             north_m, east_m = 0.0, 0.0
         try:
             await self._system.offboard.set_position_ned(
-                PositionNedYaw(north_m, east_m, -self.position.alt, heading)
+                PositionNedYaw(north_m, east_m, -self.position.alt, heading),
             )
-            try:
+            with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            except OffboardError:
-                pass
             self._ready_to_move = lambda s: (
                 _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             )
             await _wait_for_condition(
-                lambda: self.done_moving(), timeout=DEFAULT_GOTO_TIMEOUT_S
+                lambda: self.done_moving(), timeout=DEFAULT_GOTO_TIMEOUT_S,
             )
         except (OffboardError, ActionError) as e:
             logger.warning(f"set_heading error: {e}")
@@ -221,7 +220,7 @@ class Drone(Vehicle):
         """
         if self._event_log:
             self._event_log.log_event(
-                "command", type="takeoff", arguments={"altitude": altitude}
+                "command", type="takeoff", arguments={"altitude": altitude},
             )
         await self.await_ready_to_move()
         time_since_arm = time.monotonic() - self._state.last_arm_time
@@ -233,7 +232,7 @@ class Drone(Vehicle):
             self._mission_start_time = time.time()
         try:
             logger.debug(
-                f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()"
+                f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()",
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
@@ -252,7 +251,7 @@ class Drone(Vehicle):
                     last_log = now
                 await asyncio.sleep(POLLING_DELAY_S)
             await asyncio.sleep(
-                POST_TAKEOFF_STABILIZATION_S
+                POST_TAKEOFF_STABILIZATION_S,
             )  # Justified: stabilization
             if self._event_log:
                 self._event_log.log_event(
@@ -323,10 +322,10 @@ class Drone(Vehicle):
         self,
         coordinates: Coordinate,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Fly to the given coordinates.
 
         Args:
@@ -373,7 +372,7 @@ class Drone(Vehicle):
             logger.warning(
                 "Drone: home AMSL altitude is 0.0 and home position not yet received. "
                 "goto_coordinates altitude may be incorrect (treating coordinates.alt as AMSL). "
-                "Use --skip-init only when the vehicle is already armed and home is set."
+                "Use --skip-init only when the vehicle is already armed and home is set.",
             )
         try:
             logger.debug(
@@ -385,7 +384,7 @@ class Drone(Vehicle):
             )
             self._ready_to_move = lambda _: False
             await self._system.action.goto_location(
-                coordinates.lat, coordinates.lon, target_alt, heading
+                coordinates.lat, coordinates.lon, target_alt, heading,
             )
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")
@@ -487,10 +486,10 @@ class Drone(Vehicle):
         self,
         meters: float,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` north from current position.
 
         Args:
@@ -516,10 +515,10 @@ class Drone(Vehicle):
         self,
         meters: float,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` east from current position."""
         target = self.position + VectorNED(0, meters, 0)
         return await self.goto_coordinates(
@@ -534,10 +533,10 @@ class Drone(Vehicle):
         self,
         meters: float,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` south from current position."""
         target = self.position + VectorNED(-meters, 0, 0)
         return await self.goto_coordinates(
@@ -552,10 +551,10 @@ class Drone(Vehicle):
         self,
         meters: float,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go ``meters`` west from current position."""
         target = self.position + VectorNED(0, -meters, 0)
         return await self.goto_coordinates(
@@ -572,10 +571,10 @@ class Drone(Vehicle):
         east: float,
         down: float = 0,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Go by NED offset from current position.
 
         Args:
@@ -604,10 +603,10 @@ class Drone(Vehicle):
         bearing_deg: float,
         distance_m: float,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
         blocking: bool = True,
-    ) -> Optional[VehicleTask]:
+    ) -> VehicleTask | None:
         """Fly along ``bearing_deg`` for ``distance_m`` metres from current position.
 
         Bearing: 0=north, 90=east, 180=south, 270=west.
@@ -637,7 +636,7 @@ class Drone(Vehicle):
         self,
         velocity: VectorNED,
         global_relative: bool = True,
-        duration: Optional[float] = None,
+        duration: float | None = None,
     ) -> None:
         """Set the drone's velocity in the NED frame.
 
@@ -657,7 +656,7 @@ class Drone(Vehicle):
         """
         logger.info(
             f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, "
-            f"{velocity.down:.2f}) m/s, duration={duration}s"
+            f"{velocity.down:.2f}) m/s, duration={duration}s",
         )
         await self.await_ready_to_move()
         self._velocity_loop_active = False
@@ -680,12 +679,10 @@ class Drone(Vehicle):
             )
         try:
             await self._system.offboard.set_velocity_ned(
-                VelocityNedYaw(velocity.north, velocity.east, velocity.down, yaw)
+                VelocityNedYaw(velocity.north, velocity.east, velocity.down, yaw),
             )
-            try:
+            with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            except OffboardError:
-                pass
             self._offboard_in_use = True
             self._ready_to_move = lambda _: True
             target_end = time.monotonic() + duration if duration else None
@@ -696,11 +693,11 @@ class Drone(Vehicle):
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
                             logger.debug(
-                                "Drone: set_velocity duration reached, stopping offboard"
+                                "Drone: set_velocity duration reached, stopping offboard",
                             )
                             self._velocity_loop_active = False
                             await self._system.offboard.set_velocity_ned(
-                                VelocityNedYaw(0, 0, 0, yaw)
+                                VelocityNedYaw(0, 0, 0, yaw),
                             )
                             await asyncio.sleep(0.05)
                             await self._system.offboard.stop()
@@ -714,7 +711,7 @@ class Drone(Vehicle):
                     self._velocity_loop_active = False
                     try:
                         await self._system.offboard.set_velocity_ned(
-                            VelocityNedYaw(0, 0, 0, 0)
+                            VelocityNedYaw(0, 0, 0, 0),
                         )
                         await self._system.offboard.stop()
                     except Exception:
@@ -747,7 +744,7 @@ class Drone(Vehicle):
             return
         try:
             await self._system.offboard.set_velocity_ned(
-                VelocityNedYaw(0, 0, 0, self.heading)
+                VelocityNedYaw(0, 0, 0, self.heading),
             )
             await self._system.offboard.stop()
         except Exception:

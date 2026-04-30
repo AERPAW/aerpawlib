@@ -49,4 +49,4 @@ class AtInitMission(StateMachine):
     @state(name="land")
     async def land(self, drone: Drone):
         await drone.land()
-        return None
+        return

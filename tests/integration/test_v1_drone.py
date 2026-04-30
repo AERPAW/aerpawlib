@@ -211,6 +211,7 @@ class TestDroneVelocityControl:
     async def test_set_velocity_moves_drone(self, connected_drone):
         """Commanding a northward velocity should move the drone north."""
         import asyncio as _asyncio
+
         from aerpawlib.v1.util import VectorNED
 
         connected_drone._preflight_wait(should_arm=True)

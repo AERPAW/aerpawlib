@@ -64,4 +64,4 @@ class SquareStateMachine(StateMachine):
     async def land(self, drone: Drone):
         await drone.land()
         print("[state] land -> done")
-        return None
+        return

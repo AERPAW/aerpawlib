@@ -2,13 +2,12 @@
 
 import re
 
+from aerpawlib.v1.external import ExternalProcess
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
     sleep,
     state,
 )
-
-from aerpawlib.v1.external import ExternalProcess
 
 target_ip = "127.0.0.1"
 
@@ -39,7 +38,7 @@ class LeaderRunner(ZmqStateMachine):
                 break
         if not latencies:
             raise RuntimeError(
-                f"Ping to {address} produced no parseable output (process may have exited early)"
+                f"Ping to {address} produced no parseable output (process may have exited early)",
             )
         return sum(latencies) / len(latencies)
 

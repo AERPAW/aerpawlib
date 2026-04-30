@@ -28,7 +28,7 @@ class VectorNED:
     east: float
     down: float = 0.0
 
-    def rotate_by_angle(self, angle_deg: float) -> "VectorNED":
+    def rotate_by_angle(self, angle_deg: float) -> VectorNED:
         """Rotate the vector by the given angle.
 
         Args:
@@ -56,7 +56,7 @@ class VectorNED:
             return math.hypot(self.north, self.east)
         return math.sqrt(self.north**2 + self.east**2 + self.down**2)
 
-    def norm(self) -> "VectorNED":
+    def norm(self) -> VectorNED:
         """Return the unit vector in the same direction.
 
         Returns:
@@ -67,7 +67,7 @@ class VectorNED:
             return VectorNED(0, 0, 0)
         return VectorNED(self.north / h, self.east / h, self.down / h)
 
-    def cross_product(self, other: "VectorNED") -> "VectorNED":
+    def cross_product(self, other: VectorNED) -> VectorNED:
         """Return the cross product of self and other (self × other).
 
         Args:
@@ -87,13 +87,13 @@ class VectorNED:
             self.north * other.east - self.east * other.north,
         )
 
-    def __add__(self, o: "VectorNED") -> "VectorNED":
+    def __add__(self, o: VectorNED) -> VectorNED:
         return VectorNED(self.north + o.north, self.east + o.east, self.down + o.down)
 
-    def __sub__(self, o: "VectorNED") -> "VectorNED":
+    def __sub__(self, o: VectorNED) -> VectorNED:
         return VectorNED(self.north - o.north, self.east - o.east, self.down - o.down)
 
-    def __mul__(self, scalar: float) -> "VectorNED":
+    def __mul__(self, scalar: float) -> VectorNED:
         return VectorNED(self.north * scalar, self.east * scalar, self.down * scalar)
 
     __rmul__ = __mul__
@@ -109,7 +109,7 @@ class Coordinate:
     lon: float
     alt: float = 0.0
 
-    def ground_distance(self, other: "Coordinate") -> float:
+    def ground_distance(self, other: Coordinate) -> float:
         """Return the horizontal (2D) distance to another coordinate in meters.
 
         Args:
@@ -126,7 +126,7 @@ class Coordinate:
         other = Coordinate(other.lat, other.lon, self.alt)
         return self.distance(other)
 
-    def distance(self, other: "Coordinate") -> float:
+    def distance(self, other: Coordinate) -> float:
         """Return the 3D distance to another coordinate in meters.
 
         Uses the Haversine formula for ground distance then combines with
@@ -156,7 +156,7 @@ class Coordinate:
         d_ground = EARTH_RADIUS_KM * c * 1000  # km to m
         return math.hypot(d_ground, other.alt - self.alt)
 
-    def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
+    def bearing(self, other: Coordinate, wrap_360: bool = True) -> float:
         """Return the bearing from this coordinate to another in degrees.
 
         Args:
@@ -180,7 +180,7 @@ class Coordinate:
             bearing %= 360
         return bearing
 
-    def __add__(self, o: VectorNED) -> "Coordinate":
+    def __add__(self, o: VectorNED) -> Coordinate:
         if not isinstance(o, VectorNED):
             raise TypeError()
         earth_radius = EARTH_RADIUS_M
@@ -192,7 +192,7 @@ class Coordinate:
             self.alt + (-o.down),
         )
 
-    def __sub__(self, o: "VectorNED | Coordinate") -> "Coordinate | VectorNED":
+    def __sub__(self, o: VectorNED | Coordinate) -> Coordinate | VectorNED:
         if isinstance(o, VectorNED):
             return self + VectorNED(-o.north, -o.east, -o.down)
         if isinstance(o, Coordinate):

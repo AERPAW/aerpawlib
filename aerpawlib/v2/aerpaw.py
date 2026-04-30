@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import base64
-from typing import Optional
 
 import aiohttp
 import requests
@@ -33,13 +32,13 @@ class AERPAW_Platform:
     Used for disconnect and critical notifications.
     """
 
-    _instance: Optional["AERPAW_Platform"] = None
+    _instance: AERPAW_Platform | None = None
     _forw_addr: str = DEFAULT_FORWARD_SERVER_IP
     _forw_port: int = DEFAULT_FORWARD_SERVER_PORT
     _connected: bool = False
     _no_stdout: bool = False
 
-    def __new__(cls) -> "AERPAW_Platform":
+    def __new__(cls) -> AERPAW_Platform:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
@@ -61,12 +60,14 @@ class AERPAW_Platform:
                 timeout=AERPAW_PING_TIMEOUT_S,
             )
             logger.info(
-                f"AERPAW platform: connected to forward server {self._forw_addr}:{self._forw_port}"
+                f"AERPAW platform: connected to forward server "
+                f"{self._forw_addr}:{self._forw_port}",
             )
             return True
         except requests.exceptions.RequestException as e:
             logger.debug(
-                f"AERPAW platform: not in AERPAW environment ({self._forw_addr}:{self._forw_port} unreachable: {e})"
+                f"AERPAW platform: not in AERPAW environment "
+                f"({self._forw_addr}:{self._forw_port} unreachable: {e})",
             )
             return False
 
@@ -95,7 +96,7 @@ class AERPAW_Platform:
         else:
             logger.info(msg)
 
-    def _oeo_message_url(self, msg: str, severity: str, agent_id: Optional[str]) -> str:
+    def _oeo_message_url(self, msg: str, severity: str, agent_id: str | None) -> str:
         """Build the HTTP URL for publishing *msg* to the OEO forward server."""
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
         url = f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded}"
@@ -107,7 +108,7 @@ class AERPAW_Platform:
         self,
         msg: str,
         severity: str = OEO_MSG_SEV_INFO,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
     ) -> None:
         """Send a message to the OEO console.
 
@@ -136,7 +137,7 @@ class AERPAW_Platform:
         self,
         msg: str,
         severity: str = OEO_MSG_SEV_INFO,
-        agent_id: Optional[str] = None,
+        agent_id: str | None = None,
     ) -> None:
         """Async variant of ``log_to_oeo`` for use from asyncio (non-blocking HTTP)."""
         self._log_to_oeo_local(msg, severity)

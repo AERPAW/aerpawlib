@@ -12,13 +12,13 @@ Capabilities:
 Notes:
 - Rover navigation ignores vertical velocity components by design.
 """
+from __future__ import annotations
 
 import asyncio
 import json
-
-from aerpawlib.v1.log import get_logger, LogComponent
 import time
-from typing import Optional
+
+from aerpawlib.v1.log import LogComponent, get_logger
 
 try:
     from mavsdk.action import ActionError
@@ -26,36 +26,40 @@ except ImportError:
     ActionError = Exception
 
 try:
-    from mavsdk.offboard import VelocityNedYaw, OffboardError
+    from mavsdk.offboard import OffboardError, VelocityNedYaw
 except ImportError:
     VelocityNedYaw = None  # type: ignore[assignment,misc]
     OffboardError = Exception  # type: ignore[assignment,misc]
 
+from typing import TYPE_CHECKING
+
 from mavsdk.mavlink_direct import MavlinkMessage
 from pymavlink import mavutil
 
-from aerpawlib.v1 import util
 from aerpawlib.v1.constants import (
-    POLLING_DELAY_S,
-    DEFAULT_ROVER_POSITION_TOLERANCE_M,
     DEFAULT_GOTO_TIMEOUT_S,
-    ROVER_GUIDED_MODE,
-    ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
-    OFFBOARD_STOP_SETTLE_DELAY_S,
-    VELOCITY_UPDATE_DELAY_S,
+    DEFAULT_ROVER_POSITION_TOLERANCE_M,
+    GUIDED_MODE_NAME,
     MAVLINK_COMMAND_TIMEOUT_S,
     MAVLINK_MSG_COMMAND_LONG,
-    GUIDED_MODE_NAME,
+    OFFBOARD_STOP_SETTLE_DELAY_S,
+    POLLING_DELAY_S,
+    ROVER_GUIDED_MODE,
+    ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+    VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
     NavigationError,
     VelocityError,
 )
 from aerpawlib.v1.helpers import (
-    wait_for_condition,
     validate_tolerance,
+    wait_for_condition,
 )
 from aerpawlib.v1.vehicle.core_vehicle import Vehicle
+
+if TYPE_CHECKING:
+    from aerpawlib.v1 import util
 
 logger = get_logger(LogComponent.ROVER)
 
@@ -94,12 +98,13 @@ class Rover(Vehicle):
         """
         if self._mode.get() == GUIDED_MODE_NAME:
             logger.debug(
-                f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch"
+                f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, "
+                "skipping mode switch",
             )
             return
         logger.info(
             f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode "
-            f"(current mode={self._mode.get()!r})"
+            f"(current mode={self._mode.get()!r})",
         )
         fields = {
             "target_system": 1,
@@ -130,7 +135,7 @@ class Rover(Vehicle):
             future.result(timeout=MAVLINK_COMMAND_TIMEOUT_S)
         except Exception as e:
             logger.warning(
-                f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}"
+                f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
             )
             return
 
@@ -140,7 +145,8 @@ class Rover(Vehicle):
                 logger.warning(
                     f"Rover: mode switch timeout "
                     f"(current mode={self._mode.get()!r}); "
-                    f"arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode"
+                    f"arming may fail if vehicle is not in GUIDED "
+                    f"({GUIDED_MODE_NAME}) mode",
                 )
                 return
             time.sleep(POLLING_DELAY_S)
@@ -155,8 +161,8 @@ class Rover(Vehicle):
         self,
         coordinates: util.Coordinate,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
-        timeout: Optional[float] = DEFAULT_GOTO_TIMEOUT_S,
+        target_heading: float | None = None,
+        timeout: float | None = DEFAULT_GOTO_TIMEOUT_S,
     ) -> None:
         """
         Make the vehicle go to provided coordinates.
@@ -165,7 +171,8 @@ class Rover(Vehicle):
             coordinates: Target position
             tolerance: Distance in meters to consider destination reached
             target_heading: Ignored for rovers (they can't strafe)
-            timeout: Timeout in seconds for mavsdk action to complete (default: DEFAULT_GOTO_TIMEOUT_S)
+            timeout: Timeout in seconds for mavsdk action to complete
+                (default: DEFAULT_GOTO_TIMEOUT_S)
 
         Raises:
             ValueError: If tolerance is out of acceptable range
@@ -175,7 +182,7 @@ class Rover(Vehicle):
 
         logger.debug(
             f"goto_coordinates(lat={coordinates.lat}, lon={coordinates.lon}, "
-            f"tolerance={tolerance}, target_heading={target_heading}) called"
+            f"tolerance={tolerance}, target_heading={target_heading}) called",
         )
         await self.await_ready_to_move()
 
@@ -192,7 +199,7 @@ class Rover(Vehicle):
                     coordinates.lon,
                     self.home_amsl,  # Rovers use home altitude
                     0,  # Heading
-                )
+                ),
             )
 
             self._ready_to_move = lambda s: (
@@ -204,10 +211,14 @@ class Rover(Vehicle):
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
-                timeout_message=f"Rover failed to reach destination {coordinates} within {timeout}s",
+                timeout_message=(
+                    f"Rover failed to reach destination {coordinates} within "
+                    f"{timeout}s"
+                ),
             )
             logger.debug(
-                f"Arrived at destination, distance: {coordinates.ground_distance(self.position)}m"
+                f"Arrived at destination, distance: "
+                f"{coordinates.ground_distance(self.position)}m",
             )
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
@@ -220,7 +231,7 @@ class Rover(Vehicle):
         self,
         velocity_vector: util.VectorNED,
         global_relative: bool = True,
-        duration: Optional[float] = None,
+        duration: float | None = None,
     ) -> None:
         """Set rover velocity using MAVSDK offboard mode.
 
@@ -267,8 +278,8 @@ class Rover(Vehicle):
                         velocity_vector.east,
                         0,  # Rovers don't fly
                         0,
-                    )
-                )
+                    ),
+                ),
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
@@ -288,17 +299,17 @@ class Rover(Vehicle):
                             try:
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.set_velocity_ned(
-                                        VelocityNedYaw(0, 0, 0, 0)
-                                    )
+                                        VelocityNedYaw(0, 0, 0, 0),
+                                    ),
                                 )
                                 await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                                 await self._run_on_mavsdk_loop(
-                                    self._system.offboard.stop()
+                                    self._system.offboard.stop(),
                                 )
                                 self._offboard_active = False
                             except Exception as e:
                                 logger.debug(
-                                    "Rover velocity stop cleanup failed: %s", e
+                                    "Rover velocity stop cleanup failed: %s", e,
                                 )
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)

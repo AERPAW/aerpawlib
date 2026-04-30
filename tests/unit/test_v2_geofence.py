@@ -2,9 +2,10 @@
 
 import os
 import tempfile
+
 import pytest
 
-from aerpawlib.v2.geofence import inside, do_intersect, read_geofence, polygon_edges
+from aerpawlib.v2.geofence import do_intersect, inside, polygon_edges, read_geofence
 
 
 class TestInside:

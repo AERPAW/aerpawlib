@@ -6,25 +6,28 @@ Async ZMQ client for external geofence validation.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 import zlib
-from typing import Tuple
+from typing import TYPE_CHECKING
 
 import zmq
 import zmq.asyncio
-import asyncio
 
-from ..constants import (
+from aerpawlib.v2.constants import (
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     SERVER_STATUS_REQ,
-    VALIDATE_WAYPOINT_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
-    VALIDATE_TAKEOFF_REQ,
     VALIDATE_LANDING_REQ,
+    VALIDATE_TAKEOFF_REQ,
+    VALIDATE_WAYPOINT_REQ,
 )
-from ..exceptions import AerpawlibError
-from ..log import LogComponent, get_logger
-from ..types import Coordinate
+from aerpawlib.v2.exceptions import AerpawlibError
+from aerpawlib.v2.log import LogComponent, get_logger
+
+if TYPE_CHECKING:
+    from aerpawlib.v2.types import Coordinate
 
 logger = get_logger(LogComponent.SAFETY)
 
@@ -95,8 +98,8 @@ class NoOpSafetyChecker:
         )
 
     async def validate_takeoff(
-        self, takeoff_alt: float, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, takeoff_alt: float, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """Passthrough takeoff validation — always returns True.
 
         Args:
@@ -108,13 +111,13 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true."
+            "NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true.",
         )
         return True, ""
 
     async def validate_waypoint(
-        self, current: Coordinate, next_loc: Coordinate
-    ) -> Tuple[bool, str]:
+        self, current: Coordinate, next_loc: Coordinate,
+    ) -> tuple[bool, str]:
         """Passthrough waypoint validation — always returns True.
 
         Args:
@@ -125,11 +128,11 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true."
+            "NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true.",
         )
         return True, ""
 
-    async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+    async def validate_change_speed(self, new_speed: float) -> tuple[bool, str]:
         """Passthrough speed validation — always returns True.
 
         Args:
@@ -139,13 +142,13 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true."
+            "NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true.",
         )
         return True, ""
 
     async def validate_landing(
-        self, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """Passthrough landing validation — always returns True.
 
         Args:
@@ -156,7 +159,7 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true."
+            "NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true.",
         )
         return True, ""
 
@@ -181,7 +184,7 @@ class SafetyCheckerClient:
         self._port = port
         self._timeout_s = timeout_s
         logger.info(
-            f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)"
+            f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)",
         )
         try:
             self._ctx = zmq.asyncio.Context()
@@ -195,12 +198,11 @@ class SafetyCheckerClient:
             ) from e
 
     def _reconnect(self) -> None:
-        """Recreate the REQ socket after a send/recv error to recover from a stuck state."""
+        """Recreate the REQ socket after a send/recv
+        error to recover from a stuck state."""
         logger.warning("SafetyCheckerClient: reconnecting socket after error")
-        try:
+        with contextlib.suppress(Exception):
             self._socket.close()
-        except Exception:
-            pass
         self._socket = self._ctx.socket(zmq.REQ)
         self._socket.connect(f"tcp://{self._addr}:{self._port}")
 
@@ -210,7 +212,7 @@ class SafetyCheckerClient:
         self._socket.close()
         self._ctx.term()
 
-    async def _send_request(self, msg: bytes) -> Tuple[bool, str]:
+    async def _send_request(self, msg: bytes) -> tuple[bool, str]:
         """Send a serialised request and await the response.
 
         Args:
@@ -228,7 +230,7 @@ class SafetyCheckerClient:
         except asyncio.TimeoutError as e:
             self._reconnect()
             timeout_err = TimeoutError(
-                f"SafetyCheckerServer did not respond within {self._timeout_s}s"
+                f"SafetyCheckerServer did not respond within {self._timeout_s}s",
             )
             logger.error("SafetyCheckerClient: request timed out; socket reset")
             raise timeout_err from e
@@ -247,11 +249,11 @@ class SafetyCheckerClient:
             ) from e
         message = resp.get("message", "")
         logger.debug(
-            f"SafetyCheckerClient: response result={result}, message={message}"
+            f"SafetyCheckerClient: response result={result}, message={message}",
         )
         return result, message
 
-    async def check_server_status(self) -> Tuple[bool, str]:
+    async def check_server_status(self) -> tuple[bool, str]:
         """Query the server status endpoint.
 
         Returns:
@@ -261,8 +263,8 @@ class SafetyCheckerClient:
         return await self._send_request(msg)
 
     async def validate_waypoint(
-        self, current: Coordinate, next_loc: Coordinate
-    ) -> Tuple[bool, str]:
+        self, current: Coordinate, next_loc: Coordinate,
+    ) -> tuple[bool, str]:
         """Validate a waypoint navigation command with the server.
 
         Args:
@@ -274,7 +276,7 @@ class SafetyCheckerClient:
         """
         logger.debug(
             f"SafetyCheckerClient: validate_waypoint current=({current.lat:.6f},{current.lon:.6f}) "
-            f"next=({next_loc.lat:.6f},{next_loc.lon:.6f})"
+            f"next=({next_loc.lat:.6f},{next_loc.lon:.6f})",
         )
         msg = _serialize_request(
             VALIDATE_WAYPOINT_REQ,
@@ -282,7 +284,7 @@ class SafetyCheckerClient:
         )
         return await self._send_request(msg)
 
-    async def validate_change_speed(self, new_speed: float) -> Tuple[bool, str]:
+    async def validate_change_speed(self, new_speed: float) -> tuple[bool, str]:
         """Validate a speed change command with the server.
 
         Args:
@@ -295,8 +297,8 @@ class SafetyCheckerClient:
         return await self._send_request(msg)
 
     async def validate_takeoff(
-        self, takeoff_alt: float, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, takeoff_alt: float, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """Validate a takeoff command with the server.
 
         Args:
@@ -308,13 +310,13 @@ class SafetyCheckerClient:
             Tuple of (ok, message). ok is False if the server rejects the takeoff.
         """
         msg = _serialize_request(
-            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon]
+            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon],
         )
         return await self._send_request(msg)
 
     async def validate_landing(
-        self, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """Validate a landing command with the server.
 
         Args:

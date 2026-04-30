@@ -3,36 +3,38 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Dict, List, Optional, cast
+import contextlib
+from typing import Any, cast
 
 import zmq
 import zmq.asyncio
 
-from ..constants import (
+from aerpawlib.v2.constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
     ZMQ_QUERY_FIELD_TIMEOUT_S,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_FIELD_CALLBACK,
+    ZMQ_TYPE_FIELD_REQUEST,
+    ZMQ_TYPE_TRANSITION,
 )
-from ..exceptions import (
+from aerpawlib.v2.exceptions import (
     InvalidStateError,
     NoEntrypointError,
     NoInitialStateError,
     RunnerError,
     UnexpectedDisarmError,
 )
-from ..log import LogComponent, get_logger
+from aerpawlib.v2.log import LogComponent, get_logger
+from aerpawlib.v2.zmqutil import check_zmq_proxy_reachable
+
 from .config import (
     BasicRunnerConfig,
     StateMachineConfig,
     StateSpec,
-    ZmqStateMachineConfig,
     V,
+    ZmqStateMachineConfig,
 )
-from ..zmqutil import check_zmq_proxy_reachable
 
 logger = get_logger(LogComponent.RUNNER)
 
@@ -52,7 +54,7 @@ class Runner:
         """
         pass
 
-    def initialize_args(self, args: List[str]) -> None:
+    def initialize_args(self, args: list[str]) -> None:
         """Parse additional CLI arguments.
 
         Args:
@@ -65,13 +67,15 @@ class Runner:
         pass
 
     async def _run_with_disarm_guard(self, vehicle: Any, coro: Any) -> None:
-        """Run *coro* but raise UnexpectedDisarmError if the vehicle disarms unexpectedly.
+        """Run *coro* but raise UnexpectedDisarmError if the vehicle disarms
+        unexpectedly.
 
-        Uses ``asyncio.wait(FIRST_COMPLETED)`` to race the main coroutine against the
-        vehicle's unexpected-disarm event.  If the event fires first the main task is
-        cancelled and ``UnexpectedDisarmError`` is raised so the experiment terminates
-        cleanly.  If the vehicle object has no ``_unexpected_disarm_event`` attribute
-        (e.g. DummyVehicle in tests) the coro is awaited directly without the guard.
+        Uses ``asyncio.wait(FIRST_COMPLETED)`` to race the main coroutine
+        against the vehicle's unexpected-disarm event.  If the event fires first
+        the main task is cancelled and ``UnexpectedDisarmError`` is raised so the
+        experiment terminates cleanly.  If the vehicle object has no
+        ``_unexpected_disarm_event`` attribute (e.g. DummyVehicle in tests) the
+        coro is awaited directly without the guard.
         """
         disarm_event = getattr(vehicle, "_unexpected_disarm_event", None)
         if disarm_event is None:
@@ -100,10 +104,8 @@ class Runner:
 
         for task in pending:
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError, Exception):
                 await task
-            except (asyncio.CancelledError, Exception):
-                pass
 
         if disarm_triggered:
             raise UnexpectedDisarmError()
@@ -149,9 +151,9 @@ class StateMachine(Runner):
 
     def __init__(self) -> None:
         """Initialise runtime state for one execution of the state machine."""
-        self._current_state: Optional[str] = None
+        self._current_state: str | None = None
         self._running = False
-        self._background_futures: List[asyncio.Future] = []
+        self._background_futures: list[asyncio.Future] = []
 
     def _get_config(self) -> StateMachineConfig:
         """Return the StateMachineConfig for this class.
@@ -164,7 +166,7 @@ class StateMachine(Runner):
             raise NoInitialStateError()
         return config
 
-    def _get_states(self) -> Dict[str, StateSpec]:
+    def _get_states(self) -> dict[str, StateSpec]:
         """Return a mapping of state name to StateSpec for this runner.
 
         Returns:
@@ -187,7 +189,7 @@ class StateMachine(Runner):
             raise NoInitialStateError()
         return cfg.initial_state
 
-    def _get_backgrounds(self) -> List[str]:
+    def _get_backgrounds(self) -> list[str]:
         """Return method names registered as background tasks.
 
         Returns:
@@ -195,7 +197,7 @@ class StateMachine(Runner):
         """
         return self._get_config().backgrounds
 
-    def _get_at_init(self) -> List[str]:
+    def _get_at_init(self) -> list[str]:
         """Return method names registered to run at initialisation.
 
         Returns:
@@ -219,8 +221,7 @@ class StateMachine(Runner):
         method = getattr(self, spec.method_name)
         logger.debug(f"StateMachine: entering state '{spec.name}'")
         if spec.duration <= 0:
-            next_state = await method(vehicle)
-            return next_state
+            return await method(vehicle)
         stop_event = asyncio.Event()
         last_state = ""
 
@@ -240,12 +241,11 @@ class StateMachine(Runner):
         task = asyncio.create_task(_bg())
         logger.debug(
             f"StateMachine: timed_state '{spec.name}' "
-            f"(duration={spec.duration}s, loop={spec.loop})"
+            f"(duration={spec.duration}s, loop={spec.loop})",
         )
         await asyncio.sleep(spec.duration)
         stop_event.set()
-        next_state = await task
-        return next_state
+        return await task
 
     async def run(self, vehicle: Any) -> None:
         """Run the state machine from the initial state to completion.
@@ -266,7 +266,7 @@ class StateMachine(Runner):
         self._running = True
         logger.info(
             f"StateMachine: starting with initial state '{self._current_state}' "
-            f"(states: {list(states.keys())})"
+            f"(states: {list(states.keys())})",
         )
 
         async def _main_loop() -> None:
@@ -274,7 +274,7 @@ class StateMachine(Runner):
             at_init_list = self._get_at_init()
             if at_init_list:
                 logger.debug(
-                    f"StateMachine: running {len(at_init_list)} at_init task(s)"
+                    f"StateMachine: running {len(at_init_list)} at_init task(s)",
                 )
             for name in at_init_list:
                 logger.debug(f"StateMachine: at_init '{name}'")
@@ -284,7 +284,7 @@ class StateMachine(Runner):
             backgrounds = self._get_backgrounds()
             if backgrounds:
                 logger.info(
-                    f"StateMachine: starting {len(backgrounds)} background task(s)"
+                    f"StateMachine: starting {len(backgrounds)} background task(s)",
                 )
             MAX_BACKGROUND_RETRIES = 10
             for name in backgrounds:
@@ -326,7 +326,7 @@ class StateMachine(Runner):
                 if current_state not in states:
                     logger.error(
                         f"StateMachine: invalid state '{current_state}' "
-                        f"(valid: {list(states.keys())})"
+                        f"(valid: {list(states.keys())})",
                     )
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
@@ -335,12 +335,14 @@ class StateMachine(Runner):
                     self._override_next_state_transition = False
                     self._current_state = getattr(self, "_next_state_overr", next_state)
                     logger.info(
-                        f"StateMachine: state transition (override) -> '{self._current_state}'"
+                        f"StateMachine: state transition (override) -> "
+                        f"'{self._current_state}'",
                     )
                 else:
                     self._current_state = next_state
                     logger.info(
-                        f"StateMachine: state transition '{spec.name}' -> '{next_state}'"
+                        f"StateMachine: state transition '{spec.name}' -> "
+                        f"'{next_state}'",
                     )
                 if self._current_state is None:
                     logger.info("StateMachine: completed (final state returned None)")
@@ -362,7 +364,7 @@ class StateMachine(Runner):
     def stop(self) -> None:
         """Stop the state machine after current state."""
         logger.debug(
-            f"StateMachine: stop() called (current state: {self._current_state})"
+            f"StateMachine: stop() called (current state: {self._current_state})",
         )
         self._running = False
 
@@ -387,16 +389,16 @@ class ZmqStateMachine(StateMachine):
     def __init__(self) -> None:
         """Initialise ZMQ transport state in addition to base StateMachine state."""
         super().__init__()
-        self._zmq_identifier: Optional[str] = None
-        self._zmq_proxy_server: Optional[str] = None
-        self._zmq_context: Optional[zmq.asyncio.Context] = None
-        self._zmq_send_queue: Optional[asyncio.Queue] = None
-        self._zmq_pending_fields: Dict[str, Dict[str, Any]] = {}
+        self._zmq_identifier: str | None = None
+        self._zmq_proxy_server: str | None = None
+        self._zmq_context: zmq.asyncio.Context | None = None
+        self._zmq_send_queue: asyncio.Queue | None = None
+        self._zmq_pending_fields: dict[str, dict[str, Any]] = {}
         self._override_next_state_transition: bool = False
         self._next_state_overr: str = ""
 
     def _initialize_zmq_bindings(
-        self, vehicle_identifier: str, proxy_server_addr: str
+        self, vehicle_identifier: str, proxy_server_addr: str,
     ) -> None:
         """Configure ZMQ connection. Call before run()."""
         if not check_zmq_proxy_reachable(proxy_server_addr):
@@ -481,10 +483,10 @@ class ZmqStateMachine(StateMachine):
             next_state = message.get("next_state")
             if not next_state:
                 logger.warning(
-                    "ZmqStateMachine: TRANSITION message missing 'next_state'"
+                    "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
                 return
-            self._next_state_overr = cast(str, next_state)
+            self._next_state_overr = cast("str", next_state)
             self._override_next_state_transition = True
             logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
 
@@ -494,11 +496,11 @@ class ZmqStateMachine(StateMachine):
             if not field or not sender:
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_REQUEST "
-                    "(missing 'field' or 'from')"
+                    "(missing 'field' or 'from')",
                 )
                 return
-            field_name = cast(str, field)
-            sender_name = cast(str, sender)
+            field_name = cast("str", field)
+            sender_name = cast("str", sender)
             cfg = self._get_zmq_config()
             return_val = None
             method_name = cfg.exposed_fields.get(field_name)
@@ -513,11 +515,11 @@ class ZmqStateMachine(StateMachine):
             if not field or sender is None:
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_CALLBACK "
-                    "(missing 'field' or 'from')"
+                    "(missing 'field' or 'from')",
                 )
                 return
-            field_name = cast(str, field)
-            sender_name = cast(str, sender)
+            field_name = cast("str", field)
+            sender_name = cast("str", sender)
             value = message.get("value")
             pending = self._zmq_pending_fields.get(sender_name, {})
             waiting = pending.get(field_name)
@@ -529,7 +531,7 @@ class ZmqStateMachine(StateMachine):
                     self._zmq_pending_fields[sender_name] = {}
                 self._zmq_pending_fields[sender_name][field_name] = value
 
-    def _get_backgrounds(self) -> List[str]:
+    def _get_backgrounds(self) -> list[str]:
         """Return base backgrounds plus mandatory ZMQ send/receive loops."""
         base = list(super()._get_backgrounds())
         if "_zmq_recv_loop" not in base:
@@ -543,7 +545,7 @@ class ZmqStateMachine(StateMachine):
         if self._zmq_identifier is None or self._zmq_proxy_server is None:
             raise RunnerError(
                 "ZmqStateMachine requires _initialize_zmq_bindings before run. "
-                "Pass --zmq-identifier and --zmq-proxy-server."
+                "Pass --zmq-identifier and --zmq-proxy-server.",
             )
         if self._zmq_send_queue is None:
             self._zmq_send_queue = asyncio.Queue()
@@ -569,11 +571,11 @@ class ZmqStateMachine(StateMachine):
                 "from": self._zmq_identifier,
                 "identifier": identifier,
                 "next_state": state_name,
-            }
+            },
         )
 
     async def query_field(
-        self, identifier: str, field: str, timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S
+        self, identifier: str, field: str, timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
     ) -> Any:
         """Query a field from another ZMQ runner and return the value.
 
@@ -594,7 +596,7 @@ class ZmqStateMachine(StateMachine):
         """
         if self._zmq_send_queue is None:
             raise RuntimeError(
-                "ZMQ not initialized; call _initialize_zmq_bindings first"
+                "ZMQ not initialized; call _initialize_zmq_bindings first",
             )
         if identifier not in self._zmq_pending_fields:
             self._zmq_pending_fields[identifier] = {}
@@ -606,15 +608,14 @@ class ZmqStateMachine(StateMachine):
                 "from": self._zmq_identifier,
                 "identifier": identifier,
                 "field": field,
-            }
+            },
         )
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
         except asyncio.TimeoutError:
             self._zmq_pending_fields.get(identifier, {}).pop(field, None)
             raise
-        value = self._zmq_pending_fields[identifier].pop(field)
-        return value
+        return self._zmq_pending_fields[identifier].pop(field)
 
     async def _zmq_send_reply(self, identifier: str, field: str, value: Any) -> None:
         """Send a field-query reply to the requesting runner.
@@ -633,5 +634,5 @@ class ZmqStateMachine(StateMachine):
                 "identifier": identifier,
                 "field": field,
                 "value": value,
-            }
+            },
         )

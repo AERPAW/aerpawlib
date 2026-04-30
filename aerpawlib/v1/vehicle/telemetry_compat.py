@@ -11,8 +11,7 @@ Capabilities:
 Notes:
 - These wrappers are compatibility-focused and intentionally minimal.
 """
-
-from typing import Optional
+from __future__ import annotations
 
 
 class _BatteryCompat:
@@ -38,7 +37,10 @@ class _BatteryCompat:
         )
 
     def __repr__(self) -> str:
-        return f"_BatteryCompat(voltage={self.voltage}, current={self.current}, level={self.level})"
+        return (
+            f"_BatteryCompat(voltage={self.voltage}, current={self.current}, "
+            f"level={self.level})"
+        )
 
 
 class _GPSInfoCompat:
@@ -60,7 +62,10 @@ class _GPSInfoCompat:
         return f"GPSInfo:fix={self.fix_type},num_sat={self.satellites_visible}"
 
     def __repr__(self) -> str:
-        return f"_GPSInfoCompat(fix_type={self.fix_type}, satellites_visible={self.satellites_visible})"
+        return (
+            f"_GPSInfoCompat(fix_type={self.fix_type}, "
+            f"satellites_visible={self.satellites_visible})"
+        )
 
 
 class _AttitudeCompat:
@@ -103,13 +108,16 @@ class _VersionCompat:
     __slots__ = ("major", "minor", "patch", "release")
 
     def __init__(self):
-        self.major: Optional[int] = None
-        self.minor: Optional[int] = None
-        self.patch: Optional[int] = None
-        self.release: Optional[str] = None
+        self.major: int | None = None
+        self.minor: int | None = None
+        self.patch: int | None = None
+        self.release: str | None = None
 
     def __str__(self) -> str:
         return f"{self.major}.{self.minor}.{self.patch}"
 
     def __repr__(self) -> str:
-        return f"_VersionCompat(major={self.major}, minor={self.minor}, patch={self.patch})"
+        return (
+            f"_VersionCompat(major={self.major}, minor={self.minor}, "
+            f"patch={self.patch})"
+        )

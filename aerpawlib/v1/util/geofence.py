@@ -14,12 +14,11 @@ Notes:
   the snake_case function names.
 """
 
-from typing import Dict, List
 
 from pykml import parser
 
 
-def read_geofence(filePath: str) -> List[Dict]:
+def read_geofence(filePath: str) -> list[dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
@@ -45,12 +44,12 @@ def read_geofence(filePath: str) -> List[Dict]:
     return polygon
 
 
-def readGeofence(filePath: str) -> List[Dict]:
+def readGeofence(filePath: str) -> list[dict]:
     """Backward-compatible alias for :func:`read_geofence`."""
     return read_geofence(filePath)
 
 
-def inside(lon: float, lat: float, geofence: List[Dict]) -> bool:
+def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
     """
     Determine if a point is inside a polygon using ray-casting.
 
@@ -84,7 +83,7 @@ def inside(lon: float, lat: float, geofence: List[Dict]) -> bool:
 
 
 def lies_on_segment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
 ) -> bool:
     """
     Check if point Q lies on line segment PR.
@@ -97,25 +96,23 @@ def lies_on_segment(
     Returns:
         bool: True if Q is on PR.
     """
-    if (
-        (qx <= max(px, rx))
-        and (qx >= min(px, rx))
-        and (qy <= max(py, ry))
-        and (qy >= min(py, ry))
-    ):
-        return True
-    return False
+    return bool(
+        qx <= max(px, rx)
+        and qx >= min(px, rx)
+        and qy <= max(py, ry)
+        and qy >= min(py, ry),
+    )
 
 
 def liesOnSegment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
 ) -> bool:
     """Backward-compatible alias for :func:`lies_on_segment`."""
     return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
 def orientation(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float
+    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
 ) -> int:
     """
     Find the orientation of an ordered triplet (p, q, r).
@@ -129,10 +126,9 @@ def orientation(
     val = (float(qy - py) * (rx - qx)) - (float(qx - px) * (ry - qy))
     if val > 0:
         return 1
-    elif val < 0:
+    if val < 0:
         return 2
-    else:
-        return 0
+    return 0
 
 
 def do_intersect(
@@ -169,10 +165,7 @@ def do_intersect(
         return True
     if (o3 == 0) and lies_on_segment(rx, ry, px, py, sx, sy):
         return True
-    if (o4 == 0) and lies_on_segment(rx, ry, qx, qy, sx, sy):
-        return True
-
-    return False
+    return bool(o4 == 0 and lies_on_segment(rx, ry, qx, qy, sx, sy))
 
 
 def doIntersect(

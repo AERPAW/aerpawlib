@@ -4,8 +4,8 @@ import inspect
 import logging
 
 from aerpawlib.cli.constants import (
-    API_CLASS_RUNNER,
     API_CLASS_BASIC_RUNNER,
+    API_CLASS_RUNNER,
     API_CLASS_STATE_MACHINE,
     API_CLASS_ZMQ_STATE_MACHINE,
 )

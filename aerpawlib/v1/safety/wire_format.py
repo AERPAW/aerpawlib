@@ -16,7 +16,6 @@ Usage:
 
 import json
 import zlib
-from typing import Dict
 
 
 def serialize_msg(raw_json: str) -> bytes:
@@ -29,8 +28,7 @@ def serialize_msg(raw_json: str) -> bytes:
     Returns:
         bytes: Compressed data.
     """
-    compressed_msg = zlib.compress(raw_json.encode("utf-8"))
-    return compressed_msg
+    return zlib.compress(raw_json.encode("utf-8"))
 
 
 def serialize_request(request_function: str, params: list) -> bytes:
@@ -48,7 +46,7 @@ def serialize_request(request_function: str, params: list) -> bytes:
         {
             "request_function": request_function,
             "params": params,
-        }
+        },
     )
     return serialize_msg(raw_msg)
 
@@ -70,12 +68,12 @@ def serialize_response(request_function: str, result: bool, message: str = "") -
             "request_function": request_function,
             "result": result,
             "message": message,
-        }
+        },
     )
     return serialize_msg(raw_msg)
 
 
-def deserialize_msg(compressed_msg: bytes) -> Dict:
+def deserialize_msg(compressed_msg: bytes) -> dict:
     """
     Decompress and parse a JSON message using zlib.
 

@@ -1,4 +1,5 @@
-"""Integration tests for aerpawlib v1 Rover. Requires Rover SITL (managed by pytest on port 14560)."""
+"""Integration tests for aerpawlib v1 Rover. Requires
+Rover SITL (managed by pytest on port 14560)."""
 
 import pytest
 

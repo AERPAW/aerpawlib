@@ -1,8 +1,8 @@
 """CLI logging configuration for aerpawlib."""
+from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
 
 from aerpawlib.cli.log import LogComponent
 from aerpawlib.log import ColoredFormatter
@@ -11,7 +11,7 @@ from aerpawlib.log import ColoredFormatter
 def setup_logging(
     verbose: bool = False,
     quiet: bool = False,
-    log_file: Optional[str] = None,
+    log_file: str | None = None,
 ) -> logging.Logger:
     """
     Configure logging for aerpawlib and user scripts.

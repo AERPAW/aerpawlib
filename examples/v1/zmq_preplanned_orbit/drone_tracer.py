@@ -1,5 +1,7 @@
 import asyncio
 
+from consts import TAKEOFF_ALT, ZMQ_GROUND
+
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
     expose_field_zmq,
@@ -7,8 +9,6 @@ from aerpawlib.v1.runner import (
 )
 from aerpawlib.v1.util import Coordinate
 from aerpawlib.v1.vehicle import Drone
-
-from consts import TAKEOFF_ALT, ZMQ_GROUND
 
 
 class TracerRunner(ZmqStateMachine):
@@ -44,7 +44,7 @@ class TracerRunner(ZmqStateMachine):
     @state(name="rtl")
     async def state_rtl(self, drone: Drone):
         home_coords = Coordinate(
-            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt
+            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt,
         )
         await drone.goto_coordinates(home_coords)
         await self.transition_runner(ZMQ_GROUND, "callback_tracer_rtl_done")

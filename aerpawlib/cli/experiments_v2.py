@@ -1,6 +1,7 @@
 """Run experimenter scripts using the v2 API."""
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -9,16 +10,16 @@ import traceback
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    DEFAULT_SAFETY_CHECKER_PORT,
-    VEHICLE_TYPE_GENERIC,
-    VEHICLE_TYPE_DRONE,
-    VEHICLE_TYPE_ROVER,
-    VEHICLE_TYPE_NONE,
-    API_CLASS_VEHICLE,
-    API_CLASS_DRONE,
-    API_CLASS_ROVER,
-    API_CLASS_DUMMY_VEHICLE,
     API_CLASS_AERPAW_PLATFORM,
+    API_CLASS_DRONE,
+    API_CLASS_DUMMY_VEHICLE,
+    API_CLASS_ROVER,
+    API_CLASS_VEHICLE,
+    DEFAULT_SAFETY_CHECKER_PORT,
+    VEHICLE_TYPE_DRONE,
+    VEHICLE_TYPE_GENERIC,
+    VEHICLE_TYPE_NONE,
+    VEHICLE_TYPE_ROVER,
 )
 
 from .disconnect import (
@@ -53,7 +54,7 @@ def run_v2_experiment(
         VEHICLE_TYPE_DRONE: Drone,
         VEHICLE_TYPE_ROVER: Rover,
         VEHICLE_TYPE_NONE: DummyVehicle,
-    }.get(args.vehicle, None)
+    }.get(args.vehicle)
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
@@ -68,7 +69,8 @@ def run_v2_experiment(
         if no_aerpaw_env:
             aerpaw_platform = None
             logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode."
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
+                "running in standalone mode.",
             )
         elif AERPAW_Platform:
             aerpaw_platform = AERPAW_Platform()
@@ -78,7 +80,7 @@ def run_v2_experiment(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
                     "Pass --no-aerpaw-environment to run outside the AERPAW "
-                    "environment."
+                    "environment.",
                 )
                 sys.exit(1)
         else:
@@ -94,7 +96,7 @@ def run_v2_experiment(
         )
         if effective_port is None:
             safety_client = NoOpSafetyChecker(
-                "Not in AERPAW environment and --safety-checker-port not provided."
+                "Not in AERPAW environment and --safety-checker-port not provided.",
             )
         else:
             safety_addr = "127.0.0.1"
@@ -108,20 +110,22 @@ def run_v2_experiment(
             except Exception as e:
                 if is_aerpaw:
                     logger.critical(
-                        "AERPAW environment requires SafetyCheckerServer. Connection to %s:%d failed: %s",
+                        "AERPAW environment requires SafetyCheckerServer. "
+                        "Connection to %s:%d failed: %s",
                         safety_addr,
                         effective_port,
                         e,
                     )
                     sys.exit(1)
                 logger.error(
-                    "SafetyCheckerServer connection failed (%s:%d): %s. Using passthrough (all validations pass).",
+                    "SafetyCheckerServer connection failed (%s:%d): %s. Using "
+                    "passthrough (all validations pass).",
                     safety_addr,
                     effective_port,
                     e,
                 )
                 safety_client = NoOpSafetyChecker(
-                    f"Connection to {safety_addr}:{effective_port} failed: {e}"
+                    f"Connection to {safety_addr}:{effective_port} failed: {e}",
                 )
 
         event_log = None
@@ -171,7 +175,7 @@ def run_v2_experiment(
             """Publish disconnect events to OEO and structured logs."""
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
-                    "[aerpawlib] Connection lost", severity="CRITICAL"
+                    "[aerpawlib] Connection lost", severity="CRITICAL",
                 )
             if event_log:
                 event_log.log_event("connection_lost")
@@ -210,7 +214,7 @@ def run_v2_experiment(
         try:
             if args.initialize and hasattr(vehicle, "_preflight_wait"):
                 preflight_task = asyncio.create_task(
-                    vehicle._preflight_wait(args.initialize)
+                    vehicle._preflight_wait(args.initialize),
                 )
                 preflight_waits: list[asyncio.Task] = [
                     preflight_task,
@@ -219,7 +223,7 @@ def run_v2_experiment(
                 disconnect_guard_task = None
                 if disconnect_future is not None:
                     disconnect_guard_task = asyncio.create_task(
-                        await_disconnect_future(disconnect_future)
+                        await_disconnect_future(disconnect_future),
                     )
                     preflight_waits.append(disconnect_guard_task)
                 # Race preflight against shutdown/disconnect so we do not keep
@@ -230,10 +234,8 @@ def run_v2_experiment(
                 )
                 if preflight_task not in done:
                     preflight_task.cancel()
-                    try:
+                    with contextlib.suppress(asyncio.CancelledError):
                         await preflight_task
-                    except asyncio.CancelledError:
-                        pass
                 if shutdown_event.is_set():
                     return success
                 if disconnect_guard_task is not None and disconnect_guard_task in done:
@@ -245,13 +247,13 @@ def run_v2_experiment(
                 if not args.zmq_identifier or not args.zmq_server_addr:
                     logger.error(
                         "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1"
+                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
                     )
                     raise ValueError(
-                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server"
+                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
                     )
                 runner_instance._initialize_zmq_bindings(
-                    args.zmq_identifier, args.zmq_server_addr
+                    args.zmq_identifier, args.zmq_server_addr,
                 )
 
             run_task = asyncio.create_task(
@@ -259,7 +261,7 @@ def run_v2_experiment(
                     runner=runner_instance,
                     vehicle=vehicle,
                     disconnect_future=disconnect_future,
-                )
+                ),
             )
             tasks = [run_task, shutdown_task]
             done, pending = await asyncio.wait(
@@ -271,10 +273,8 @@ def run_v2_experiment(
                     t.cancel()
             if shutdown_event.is_set():
                 run_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await run_task
-                except asyncio.CancelledError:
-                    pass
             else:
                 await run_task
                 success = True
@@ -311,10 +311,8 @@ def run_v2_experiment(
                 except Exception as e:
                     logger.debug(f"Failed to close safety client cleanly: {e}")
             if event_log is not None:
-                try:
+                with contextlib.suppress(Exception):
                     event_log.log_event("mission_end", success=success)
-                except Exception:
-                    pass
                 try:
                     event_log.close()
                 except Exception as e:

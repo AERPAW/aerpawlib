@@ -13,32 +13,34 @@ from __future__ import annotations
 import asyncio
 import inspect
 import traceback
-from typing import Any, Callable, Dict, List
+from typing import TYPE_CHECKING, Any, Callable
 
 import zmq
 import zmq.asyncio
-
-from aerpawlib.v1.log import LogComponent, get_logger
 
 from aerpawlib.v1.constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
     ZMQ_QUERY_FIELD_TIMEOUT_S,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_FIELD_CALLBACK,
+    ZMQ_TYPE_FIELD_REQUEST,
+    ZMQ_TYPE_TRANSITION,
 )
 from aerpawlib.v1.exceptions import (
     InvalidStateError,
+    MultipleInitialStatesError,
     NoEntrypointError,
     NoInitialStateError,
-    MultipleInitialStatesError,
     StateMachineError,
 )
-from .decorators import _State, background
-from aerpawlib.v1.vehicle import Vehicle
+from aerpawlib.v1.log import LogComponent, get_logger
 from aerpawlib.v1.zmqutil import check_zmq_proxy_reachable
+
+from .decorators import _State, background
+
+if TYPE_CHECKING:
+    from aerpawlib.v1.vehicle import Vehicle
 
 logger = get_logger(LogComponent.RUNNER)
 
@@ -66,7 +68,7 @@ class Runner:
         """
         pass
 
-    def initialize_args(self, _: List[str]) -> None:
+    def initialize_args(self, _: list[str]) -> None:
         """
         Parse and handle additional command-line arguments.
 
@@ -99,7 +101,7 @@ class BasicRunner(Runner):
                 if self._entry is not None:
                     raise StateMachineError(
                         "Multiple @entrypoint decorators found. "
-                        "BasicRunner supports exactly one entry point."
+                        "BasicRunner supports exactly one entry point.",
                     )
                 self._entry = method
 
@@ -122,14 +124,14 @@ class StateMachine(Runner):
     Supports background tasks and initialization tasks.
     """
 
-    _states: Dict[str, _State]
-    _background_tasks: List[_BackgroundTask]
-    _initialization_tasks: List[_InitializationTask]
+    _states: dict[str, _State]
+    _background_tasks: list[_BackgroundTask]
+    _initialization_tasks: list[_InitializationTask]
     _entrypoint: str
     _current_state: str
     _override_next_state_transition: bool
     _running: bool
-    _background_task_futures: List[asyncio.Future]
+    _background_task_futures: list[asyncio.Future]
 
     def _build(self) -> None:
         """
@@ -253,7 +255,7 @@ class ZmqStateMachine(StateMachine):
     A StateMachine that can be controlled remotely via ZMQ.
     """
 
-    _exported_states: Dict[str, _State]
+    _exported_states: dict[str, _State]
 
     def _build(self) -> None:
         """Build base state maps and collect ZMQ-exposed states/fields."""
@@ -266,10 +268,10 @@ class ZmqStateMachine(StateMachine):
             if hasattr(method, "_is_exposed_zmq"):
                 if not hasattr(method, "_is_state"):
                     raise StateMachineError(
-                        "@expose_zmq can only be used on @state/@timed_state methods"
+                        "@expose_zmq can only be used on @state/@timed_state methods",
                     )
                 self._exported_states[method._zmq_name] = _State(
-                    method, method._zmq_name
+                    method, method._zmq_name,
                 )
             elif hasattr(method, "_is_exposed_field_zmq"):
                 self._exported_fields[method._zmq_name] = method
@@ -280,7 +282,7 @@ class ZmqStateMachine(StateMachine):
     _ZMQ_FIELD_PENDING = object()
 
     def _initialize_zmq_bindings(
-        self, vehicle_identifier: str, proxy_server_addr: str
+        self, vehicle_identifier: str, proxy_server_addr: str,
     ) -> None:
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
@@ -315,7 +317,7 @@ class ZmqStateMachine(StateMachine):
             socket.close()
 
     async def _zmq_handle_request(
-        self, vehicle: Vehicle, message: Dict[str, Any]
+        self, vehicle: Vehicle, message: dict[str, Any],
     ) -> None:
         msg_type = message.get("msg_type")
 
@@ -323,7 +325,7 @@ class ZmqStateMachine(StateMachine):
             next_state = message.get("next_state")
             if not next_state:
                 logger.warning(
-                    "ZmqStateMachine: TRANSITION message missing 'next_state'"
+                    "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
                 return
             self._next_state_overr = next_state
@@ -334,7 +336,8 @@ class ZmqStateMachine(StateMachine):
             sender = message.get("from")
             if not field or not sender:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')"
+                    "ZmqStateMachine: malformed FIELD_REQUEST "
+                    "(missing 'field' or 'from')",
                 )
                 return
             return_val = None
@@ -346,7 +349,8 @@ class ZmqStateMachine(StateMachine):
             msg_from = message.get("from")
             if not field or msg_from is None:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')"
+                    "ZmqStateMachine: malformed FIELD_CALLBACK "
+                    "(missing 'field' or 'from')",
                 )
                 return
             value = message.get("value")
@@ -379,7 +383,7 @@ class ZmqStateMachine(StateMachine):
             raise StateMachineError(
                 "ZMQ bindings not initialized. Pass --zmq-identifier and "
                 "--zmq-proxy-server when running (e.g. --zmq-identifier leader "
-                "--zmq-proxy-server 127.0.0.1)"
+                "--zmq-proxy-server 127.0.0.1)",
             )
 
         await super().run(vehicle, build_before_running=False)
@@ -428,7 +432,7 @@ class ZmqStateMachine(StateMachine):
         return self._zmq_received_fields[identifier][field]
 
     async def _reply_queried_field(
-        self, identifier: str, field: str, value: Any
+        self, identifier: str, field: str, value: Any,
     ) -> None:
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,

@@ -2,7 +2,7 @@
 .. include:: ../../../docs/v2/vehicle.md
 """
 
-from .base import Vehicle, DummyVehicle
+from .base import DummyVehicle, Vehicle
 from .drone import Drone
 from .rover import Rover
 

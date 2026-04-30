@@ -14,7 +14,8 @@ thus, to make a drone do something, we transition their state from the central c
 
 import asyncio
 from argparse import ArgumentParser
-from typing import List
+
+from consts import ZMQ_ORBITER, ZMQ_TRACER
 
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
@@ -23,14 +24,12 @@ from aerpawlib.v1.runner import (
 )
 from aerpawlib.v1.util import Coordinate, read_from_plan_complete
 
-from consts import ZMQ_ORBITER, ZMQ_TRACER
-
 
 class GroundCoordinatorRunner(ZmqStateMachine):
     _waypoints = []
     _current_waypoint: int = 0
 
-    def initialize_args(self, extra_args: List[str]):
+    def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
         parser = ArgumentParser()
         parser.add_argument("--file", help="Mission plan file path.", required=True)
@@ -73,7 +72,8 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     @state(name="await_taken_off")
     async def state_await_taken_off(self, _):
         # wait for both drones to finish taking off
-        # this will be done by waiting for two flags to be set; each flag is set by transitioning to a special state
+        # this will be done by waiting for two flags to be set; each flag is set by
+        # transitioning to a special state
         if not (self._tracer_taken_off and self._orbiter_taken_off):
             return "await_taken_off"
         return "next_waypoint"
@@ -93,7 +93,8 @@ class GroundCoordinatorRunner(ZmqStateMachine):
 
     @state(name="next_waypoint")
     async def state_next_waypoint(self, _):
-        # send the tracer to a specific point, make the orbiter follow the same *vector* (i.e. they take two parallel paths)
+        # send the tracer to a specific point, make the orbiter follow the same *vector*
+        # (i.e. they take two parallel paths)
         self._current_waypoint += 1
         if self._current_waypoint >= len(self._waypoints):
             return "rtl"
@@ -115,8 +116,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
     @expose_field_zmq(name="tracer_next_waypoint")
     async def get_tracer_next_waypoint(self, _):
         waypoint = self._waypoints[self._current_waypoint]
-        coords = Coordinate(*waypoint["pos"])
-        return coords
+        return Coordinate(*waypoint["pos"])
 
     @expose_field_zmq(name="orbiter_next_waypoint")
     async def get_orbiter_next_waypoint(self, _):
@@ -126,13 +126,13 @@ class GroundCoordinatorRunner(ZmqStateMachine):
         tracer_pos = await self.query_field(ZMQ_TRACER, "position")
         tracer_delta = coords - tracer_pos
         orbiter_pos = await self.query_field(ZMQ_ORBITER, "position")
-        orbiter_next_pos = orbiter_pos + tracer_delta
-        return orbiter_next_pos
+        return orbiter_pos + tracer_delta
 
     @state(name="await_in_transit")
     async def state_await_in_transit(self, _):
         # wait for both drones to finish moving
-        # this will be done by waiting for two flags to be set; each flag is set by transitioning to a special state
+        # this will be done by waiting for two flags to be set; each flag is set by
+        # transitioning to a special state
         if not (self._tracer_at_waypoint and self._orbiter_at_waypoint):
             return "await_in_transit"
         return "orbiter_start_orbit"

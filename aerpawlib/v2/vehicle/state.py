@@ -8,10 +8,9 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Optional
 
-from ..constants import EKF_READY_FLAGS
-from ..types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
+from aerpawlib.v2.constants import EKF_READY_FLAGS
+from aerpawlib.v2.types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 
 
 class VehicleState:
@@ -37,7 +36,7 @@ class VehicleState:
         # GPS
         self._gps: GPSInfo = GPSInfo(0, 0)
         # Home
-        self._home: Optional[Coordinate] = None
+        self._home: Coordinate | None = None
         self._home_abs_alt: float = 0.0
         # Armed / mode
         self._armed: bool = False
@@ -59,7 +58,7 @@ class VehicleState:
         return Coordinate(self._position_lat, self._position_lon, self._position_alt)
 
     @property
-    def home_coords(self) -> Optional[Coordinate]:
+    def home_coords(self) -> Coordinate | None:
         """Return the home coordinate, or None if not yet received."""
         return self._home
 
@@ -114,7 +113,7 @@ class VehicleState:
         return self._last_arm_time
 
     def update_position(
-        self, lat: float, lon: float, rel_alt: float, abs_alt: float
+        self, lat: float, lon: float, rel_alt: float, abs_alt: float,
     ) -> None:
         """Update position from a telemetry message.
 
@@ -227,7 +226,7 @@ class VehicleState:
         self._ekf_ready = (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS
 
     def update_home(
-        self, lat: float, lon: float, rel_alt: float, abs_alt: float
+        self, lat: float, lon: float, rel_alt: float, abs_alt: float,
     ) -> None:
         """Update the home position.
 

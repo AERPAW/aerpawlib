@@ -12,7 +12,7 @@ Run with:
 import os
 
 from aerpawlib.v2 import BasicRunner, Drone, entrypoint
-from aerpawlib.v2.constants import PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL
+from aerpawlib.v2.constants import PLAN_CMD_RTL, PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT
 from aerpawlib.v2.plan import get_location_from_waypoint, read_from_plan
 
 
@@ -26,7 +26,7 @@ class PlanMission(BasicRunner):
         if not os.path.exists(plan_path):
             print(f"[example] No mission.plan at {plan_path}")
             print(
-                "[example] Create a .plan file in QGroundControl and save as mission.plan"
+                "[example] Create a .plan file in QGroundControl and save as mission.plan",
             )
             return
 

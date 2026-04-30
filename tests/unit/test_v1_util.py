@@ -8,11 +8,11 @@ import tempfile
 import pytest
 
 from aerpawlib.v1.constants import (
+    DEFAULT_WAYPOINT_SPEED,
     PLAN_CMD_RTL,
+    PLAN_CMD_SPEED,
     PLAN_CMD_TAKEOFF,
     PLAN_CMD_WAYPOINT,
-    PLAN_CMD_SPEED,
-    DEFAULT_WAYPOINT_SPEED,
 )
 from aerpawlib.v1.util import (
     Coordinate,
@@ -325,7 +325,7 @@ class TestPlanFile:
                         "params": [0, 0, 0, 0, 0, 0, 0],
                         "doJumpId": 3,
                     },
-                ]
+                ],
             },
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
@@ -387,7 +387,7 @@ class TestPlanFile:
                         "params": [0, 0, 0, 0, 0, 0, 0],
                         "doJumpId": 4,
                     },
-                ]
+                ],
             },
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
@@ -425,7 +425,7 @@ class TestPlanFile:
                         "params": [0, 0, 0, 0, 35.73, -78.69, 20],
                         "doJumpId": 3,
                     },
-                ]
+                ],
             },
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
@@ -460,8 +460,8 @@ class TestPlanFile:
                         "command": PLAN_CMD_RTL,
                         "params": [0, 0, 0, 0, 0, 0, 0],
                         "doJumpId": 1,
-                    }
-                ]
+                    },
+                ],
             },
         }
         with tempfile.NamedTemporaryFile(mode="w", suffix=".plan", delete=False) as f:
@@ -545,7 +545,8 @@ class TestGeofence:
 
     def test_do_intersect_t_shape(self):
         """T-shape: one segment's endpoint touches the middle of another."""
-        # Horizontal segment (0,5)-(10,5), vertical segment (5,0)-(5,5) ending at midpoint
+        # Horizontal segment (0,5)-(10,5), vertical segment (5,0)-(5,5) ending at
+        # midpoint
         assert do_intersect(0, 5, 10, 5, 5, 0, 5, 5) is True
 
     def test_do_intersect_collinear_non_overlapping(self):
@@ -555,7 +556,7 @@ class TestGeofence:
     def test_doIntersect_alias(self):
         """doIntersect is an alias for do_intersect."""
         assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) == do_intersect(
-            0, 0, 10, 10, 0, 10, 10, 0
+            0, 0, 10, 10, 0, 10, 10, 0,
         )
 
     def test_inside_on_boundary_behaviour(self):

@@ -13,44 +13,47 @@ Notes:
 - Shared connection, telemetry, and lifecycle behavior comes from
   `aerpawlib.v1.vehicle.core_vehicle`.
 """
+from __future__ import annotations
 
 import asyncio
-from aerpawlib.v1.log import get_logger, LogComponent
 import math
 import time
-from typing import Optional
+from typing import TYPE_CHECKING
 
-from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, OffboardError
 from mavsdk.action import ActionError
+from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
-from aerpawlib.v1 import util
 from aerpawlib.v1.constants import (
-    POLLING_DELAY_S,
-    DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
-    POST_TAKEOFF_STABILIZATION_S,
-    HEADING_TOLERANCE_DEG,
-    VELOCITY_UPDATE_DELAY_S,
-    DEFAULT_POSITION_TOLERANCE_M,
-    MIN_ARM_TO_TAKEOFF_DELAY_S,
     DEFAULT_GOTO_TIMEOUT_S,
-    TELEMETRY_SUBSCRIPTION_TIMEOUT_S,
+    DEFAULT_POSITION_TOLERANCE_M,
+    DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
+    HEADING_TOLERANCE_DEG,
+    MIN_ARM_TO_TAKEOFF_DELAY_S,
     OFFBOARD_STOP_SETTLE_DELAY_S,
+    POLLING_DELAY_S,
+    POST_TAKEOFF_STABILIZATION_S,
+    TELEMETRY_SUBSCRIPTION_TIMEOUT_S,
+    VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
-    TakeoffError,
     LandingError,
-    RTLError,
     NavigationError,
-    VelocityError,
     NotArmableError,
+    RTLError,
+    TakeoffError,
+    VelocityError,
 )
 from aerpawlib.v1.helpers import (
-    wait_for_condition,
-    validate_tolerance,
-    normalize_heading,
     heading_difference,
+    normalize_heading,
+    validate_tolerance,
+    wait_for_condition,
 )
+from aerpawlib.v1.log import LogComponent, get_logger
 from aerpawlib.v1.vehicle.core_vehicle import Vehicle
+
+if TYPE_CHECKING:
+    from aerpawlib.v1 import util
 
 logger = get_logger(LogComponent.DRONE)
 
@@ -87,7 +90,7 @@ class Drone(Vehicle):
         while not self._armed_telemetry_received.get():
             if time.time() - start > TELEMETRY_SUBSCRIPTION_TIMEOUT_S:
                 logger.warning(
-                    "Timeout waiting for armed-state telemetry; proceeding anyway"
+                    "Timeout waiting for armed-state telemetry; proceeding anyway",
                 )
                 break
             time.sleep(POLLING_DELAY_S)
@@ -96,7 +99,7 @@ class Drone(Vehicle):
 
     async def set_heading(
         self,
-        heading: Optional[float],
+        heading: float | None,
         blocking: bool = True,
         lock_in: bool = True,
     ) -> None:
@@ -145,8 +148,8 @@ class Drone(Vehicle):
                         east_m,
                         -self._position_alt.get(),
                         heading,
-                    )
-                )
+                    ),
+                ),
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
@@ -182,8 +185,8 @@ class Drone(Vehicle):
 
         Args:
             target_alt: Target altitude Above Ground Level (meters).
-            min_alt_tolerance: Fraction of target altitude
-                to reach before continuing. Defaults to DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE.
+            min_alt_tolerance: Fraction of target altitude to reach before
+                continuing. Defaults to DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE.
 
         Raises:
             TakeoffError: If the takeoff command fails or is rejected by the autopilot.
@@ -195,7 +198,8 @@ class Drone(Vehicle):
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
             logger.debug(
-                f"Delaying takeoff by {delay:.2f}s to satisfy minimum arm-to-takeoff time"
+                f"Delaying takeoff by {delay:.2f}s to satisfy minimum "
+                "arm-to-takeoff time",
             )
             await asyncio.sleep(delay)
 
@@ -205,7 +209,7 @@ class Drone(Vehicle):
         try:
             logger.debug(f"Takeoff to {target_alt}m")
             await self._run_on_mavsdk_loop(
-                self._system.action.set_takeoff_altitude(target_alt)
+                self._system.action.set_takeoff_altitude(target_alt),
             )
             await self._run_on_mavsdk_loop(self._system.action.takeoff())
 
@@ -237,7 +241,7 @@ class Drone(Vehicle):
             await self._run_on_mavsdk_loop(coro)
             self._ready_to_move = lambda _: False
             await wait_for_condition(
-                lambda: not self.armed, poll_interval=POLLING_DELAY_S
+                lambda: not self.armed, poll_interval=POLLING_DELAY_S,
             )
             logger.debug(f"{name} complete")
         except ActionError as e:
@@ -251,14 +255,14 @@ class Drone(Vehicle):
     async def return_to_launch(self) -> None:
         """Command the drone to RTL and wait for it to land and disarm."""
         await self._action_wait_disarm(
-            self._system.action.return_to_launch(), "RTL", RTLError
+            self._system.action.return_to_launch(), "RTL", RTLError,
         )
 
     async def goto_coordinates(
         self,
         coordinates: util.Coordinate,
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: Optional[float] = None,
+        target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
     ) -> None:
         """
@@ -293,10 +297,11 @@ class Drone(Vehicle):
             if self.home_amsl == 0.0 and self.home_coords is None:
                 logger.warning(
                     "home_amsl is 0.0 and home position is not set; altitude may be "
-                    "incorrect. Use --skip-init only after home position is confirmed."
+                    "incorrect. Use --skip-init only after home position is confirmed.",
                 )
             logger.debug(
-                f"Goto: {coordinates.lat}, {coordinates.lon}, alt={target_alt}, heading={heading}"
+                f"Goto: {coordinates.lat}, {coordinates.lon}, alt={target_alt}, "
+                f"heading={heading}",
             )
             await self._run_on_mavsdk_loop(
                 self._system.action.goto_location(
@@ -304,7 +309,7 @@ class Drone(Vehicle):
                     coordinates.lon,
                     target_alt,
                     heading if not math.isnan(heading) else 0,
-                )
+                ),
             )
 
             self._ready_to_move = lambda s: (
@@ -314,7 +319,10 @@ class Drone(Vehicle):
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
-                timeout_message=f"Drone failed to reach destination {coordinates} within {timeout}s",
+                timeout_message=(
+                    f"Drone failed to reach destination {coordinates} within "
+                    f"{timeout}s"
+                ),
             )
             logger.debug("Arrived at destination")
         except ActionError as e:
@@ -332,7 +340,7 @@ class Drone(Vehicle):
         self,
         velocity_vector: util.VectorNED,
         global_relative: bool = True,
-        duration: Optional[float] = None,
+        duration: float | None = None,
     ) -> None:
         """
         Set the drone's velocity in NED frame.
@@ -379,8 +387,8 @@ class Drone(Vehicle):
                         velocity_vector.east,
                         velocity_vector.down,
                         yaw,
-                    )
-                )
+                    ),
+                ),
             )
             try:
                 await self._run_on_mavsdk_loop(self._system.offboard.start())
@@ -403,15 +411,15 @@ class Drone(Vehicle):
                             try:
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.set_velocity_ned(
-                                        VelocityNedYaw(0, 0, 0, yaw)
-                                    )
+                                        VelocityNedYaw(0, 0, 0, yaw),
+                                    ),
                                 )
                                 await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                             except (OffboardError, ActionError):
                                 pass
                             try:
                                 await self._run_on_mavsdk_loop(
-                                    self._system.offboard.stop()
+                                    self._system.offboard.stop(),
                                 )
                                 self._offboard_active = False
                             except (OffboardError, ActionError):
@@ -423,8 +431,8 @@ class Drone(Vehicle):
                     try:
                         await self._run_on_mavsdk_loop(
                             self._system.offboard.set_velocity_ned(
-                                VelocityNedYaw(0, 0, 0, 0)
-                            )
+                                VelocityNedYaw(0, 0, 0, 0),
+                            ),
                         )
                         await self._run_on_mavsdk_loop(self._system.offboard.stop())
                         self._offboard_active = False
@@ -448,8 +456,8 @@ class Drone(Vehicle):
             try:
                 await self._run_on_mavsdk_loop(
                     self._system.offboard.set_velocity_ned(
-                        VelocityNedYaw(0, 0, 0, self.heading)
-                    )
+                        VelocityNedYaw(0, 0, 0, self.heading),
+                    ),
                 )
                 await self._run_on_mavsdk_loop(self._system.offboard.stop())
             except Exception as e:

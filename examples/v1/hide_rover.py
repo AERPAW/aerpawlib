@@ -33,7 +33,7 @@ import datetime
 import os
 import random
 from argparse import ArgumentParser
-from typing import List, TextIO
+from typing import TextIO
 
 from aerpawlib.v1.runner import (
     StateMachine,
@@ -46,8 +46,8 @@ from aerpawlib.v1.runner import (
 from aerpawlib.v1.util import (
     Coordinate,
     inside,
-    readGeofence,
     read_from_plan_complete,
+    readGeofence,
 )
 from aerpawlib.v1.vehicle import Vehicle
 
@@ -69,7 +69,7 @@ class HideRover(StateMachine):
     _log_file: TextIO
     _hide_geofence: list
 
-    def initialize_args(self, extra_args: List[str]):
+    def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
         default_file = (
             f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
@@ -179,7 +179,7 @@ class HideRover(StateMachine):
                 timestamp,
                 fix,
                 num_sat,
-            ]
+            ],
         )
 
     @background
@@ -200,7 +200,8 @@ class HideRover(StateMachine):
         # generates a random coordinate within the provided geofence
 
         # creates a maximum square that completely covers the geofence,
-        # then generates random coordinates within this square until a coordinate that is within the geofence is generated
+        # then generates random coordinates within this square until a coordinate that
+        # is within the geofence is generated
         min_lat, max_lat, min_lon, max_lon = (
             geofence[0]["lat"],
             geofence[0]["lat"],
@@ -234,22 +235,24 @@ class HideRover(StateMachine):
 
         self._waypoints = read_from_plan_complete(self._waypoint_fname, default_speed)
 
-        # check if hide_latitude and hide_longitude are inside geofence if specified via arguments
+        # check if hide_latitude and hide_longitude are inside geofence if specified via
+        # arguments
         if (
             self._hide_latitude is not None
             and self._hide_longitude is not None
             and not inside(
-                self._hide_longitude, self._hide_latitude, self._hide_geofence
+                self._hide_longitude, self._hide_latitude, self._hide_geofence,
             )
         ):
             print(
-                "WARNING: Specified latitude, longitude not inside provided geofence."
+                "WARNING: Specified latitude, longitude not inside provided geofence.",
             )
 
-        # checks if only one coordinate was specified via arguments (this is invalid, so the script will stop)
+        # checks if only one coordinate was specified via arguments (this is invalid, so
+        # the script will stop)
         if (self._hide_latitude is None) ^ (self._hide_longitude is None):
             print(
-                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script"
+                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script",
             )
             return None
 
@@ -279,7 +282,7 @@ class HideRover(StateMachine):
         target_speed = waypoint["speed"]
         await vehicle.set_groundspeed(target_speed)
         in_background(
-            vehicle.goto_coordinates(coords, target_heading=self._default_heading)
+            vehicle.goto_coordinates(coords, target_heading=self._default_heading),
         )
         return "in_transit"
 
@@ -304,10 +307,10 @@ class HideRover(StateMachine):
         # head to hiding location and stop the script
         print("Hiding")
         hide_coords = Coordinate(
-            self._hide_latitude, self._hide_longitude, vehicle.position.alt
+            self._hide_latitude, self._hide_longitude, vehicle.position.alt,
         )
         await vehicle.goto_coordinates(
-            hide_coords, target_heading=self._default_heading
+            hide_coords, target_heading=self._default_heading,
         )
         print("done!")
-        return None
+        return

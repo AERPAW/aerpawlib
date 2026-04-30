@@ -13,19 +13,19 @@ Notes:
 - Several compatibility aliases are preserved to ease migration from older
   DroneKit-style code.
 """
+from __future__ import annotations
 
 import json
 import math
-from typing import Tuple, Union
 
-from ..constants import (
+from aerpawlib.v1.constants import (
+    COORDINATE_EPSILON,
     EARTH_RADIUS_KM,
     EARTH_RADIUS_M,
-    RAD_TO_DEG_FACTOR,
-    COORDINATE_EPSILON,
-    LAT_M_PER_DEG,
     LAT_COEFF_2,
     LAT_COEFF_4,
+    LAT_M_PER_DEG,
+    RAD_TO_DEG_FACTOR,
 )
 
 VectorNEDType = "VectorNED"
@@ -53,7 +53,7 @@ class VectorNED:
         self.east = east
         self.down = down
 
-    def rotate_by_angle(self, angle: float) -> "VectorNED":
+    def rotate_by_angle(self, angle: float) -> VectorNED:
         """
         Rotate the vector by a given angle in the horizontal plane.
 
@@ -71,7 +71,7 @@ class VectorNED:
 
         return VectorNED(north, east, self.down)
 
-    def cross_product(self, o: "VectorNED") -> "VectorNED":
+    def cross_product(self, o: VectorNED) -> VectorNED:
         """
         Calculate the cross product of this vector and another.
 
@@ -105,10 +105,9 @@ class VectorNED:
         """
         if ignore_down:
             return math.hypot(self.north, self.east)
-        else:
-            return math.sqrt(self.north**2 + self.east**2 + self.down**2)
+        return math.sqrt(self.north**2 + self.east**2 + self.down**2)
 
-    def norm(self) -> "VectorNED":
+    def norm(self) -> VectorNED:
         """
         Returns a unit vector in the same direction as this vector.
 
@@ -121,18 +120,18 @@ class VectorNED:
             return VectorNED(0, 0, 0)
         return (1 / hypot) * self
 
-    def __add__(self, o: "VectorNED") -> "VectorNED":
+    def __add__(self, o: VectorNED) -> VectorNED:
         if not isinstance(o, VectorNED):
             raise TypeError()
         return VectorNED(self.north + o.north, self.east + o.east, self.down + o.down)
 
-    def __sub__(self, o: "VectorNED") -> "VectorNED":
+    def __sub__(self, o: VectorNED) -> VectorNED:
         if not isinstance(o, VectorNED):
             raise TypeError()
         return VectorNED(self.north - o.north, self.east - o.east, self.down - o.down)
 
-    def __mul__(self, o: Union[float, int]) -> "VectorNED":
-        if not (isinstance(o, float) or isinstance(o, int)):
+    def __mul__(self, o: float | int) -> VectorNED:
+        if not (isinstance(o, (float, int))):
             raise TypeError()
         return VectorNED(self.north * o, self.east * o, self.down * o)
 
@@ -161,7 +160,7 @@ class Coordinate:
         self.lon = lon
         self.alt = alt
 
-    def ground_distance(self, other: "Coordinate") -> float:
+    def ground_distance(self, other: Coordinate) -> float:
         """
         Calculate the horizontal distance to another coordinate.
 
@@ -180,7 +179,7 @@ class Coordinate:
         other = Coordinate(other.lat, other.lon, self.alt)
         return self.distance(other)
 
-    def distance(self, other: "Coordinate") -> float:
+    def distance(self, other: Coordinate) -> float:
         """
         Calculate the 3D distance to another coordinate.
 
@@ -202,13 +201,13 @@ class Coordinate:
         dlon = (other.lon - self.lon) * d2r
         dlat = (other.lat - self.lat) * d2r
         a = math.pow(math.sin(dlat / 2), 2) + math.cos(self.lat * d2r) * math.cos(
-            other.lat * d2r
+            other.lat * d2r,
         ) * math.pow(math.sin(dlon / 2), 2)
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         d = EARTH_RADIUS_KM * c
         return math.hypot(d * 1000, other.alt - self.alt)
 
-    def bearing(self, other: "Coordinate", wrap_360: bool = True) -> float:
+    def bearing(self, other: Coordinate, wrap_360: bool = True) -> float:
         """
         Calculate the bearing (compass angle) to another coordinate.
 
@@ -237,7 +236,7 @@ class Coordinate:
             bearing %= 360
         return bearing
 
-    def __add__(self, o: VectorNED) -> "Coordinate":
+    def __add__(self, o: VectorNED) -> Coordinate:
         if isinstance(o, VectorNED):
             north = o.north
             east = o.east
@@ -256,7 +255,7 @@ class Coordinate:
     def __sub__(self, o):
         if isinstance(o, VectorNED):
             return self + VectorNED(-o.north, -o.east, -o.down)
-        elif isinstance(o, Coordinate):
+        if isinstance(o, Coordinate):
             lat_mid = (self.lat + o.lat) * math.pi / 360
 
             d_lat = self.lat - o.lat
@@ -272,8 +271,7 @@ class Coordinate:
                 d_lon * (LAT_M_PER_DEG * math.cos(lat_mid)),
                 o.alt - self.alt,
             )
-        else:
-            raise TypeError()
+        raise TypeError()
 
     def __str__(self) -> str:
         return f"({self.lat},{self.lon},{self.alt})"
@@ -292,4 +290,4 @@ class Coordinate:
         return self.to_json()
 
 
-Waypoint = Tuple[int, float, float, float, int, float]
+Waypoint = tuple[int, float, float, float, int, float]

@@ -1,13 +1,17 @@
 """Shared top-level constants for CLI."""
 
 VEHICLE_CONNECT_POLL_INTERVAL_S = 0.1
-"""Polling interval while waiting for vehicle objects to report connected. Keep this pretty small to avoid busy-waiting while still reacting quickly (v1 only)"""
+"""Polling interval while waiting for vehicle objects to report connected.
+Keep this pretty small to avoid busy-waiting while still reacting quickly
+(v1 only)"""
 
 RUNNER_DISCONNECT_POLL_INTERVAL_S = 0.1
-"""Polling interval used by the connection loss detector within the CLI. This should also be kept pretty small. (v1 only)"""
+"""Polling interval used by the connection loss detector within the CLI. This
+should also be kept pretty small. (v1 only)"""
 
 DEFAULT_CONNECTION_TIMEOUT_S = 30.0
-"""Timeout used by the CLI when attempting to connect to the vehicle for the first time."""
+"""Timeout used by the CLI when attempting to connect to the vehicle for the
+first time."""
 
 DEFAULT_HEARTBEAT_TIMEOUT_S = 5.0
 """Timeout used by the CLI for ending the experiment when the heartbeat drops"""

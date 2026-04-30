@@ -1,31 +1,32 @@
 """Unit tests for aerpawlib v2 BasicRunner, StateMachine, and ZmqStateMachine."""
 
 import asyncio
+
 import pytest
 
+from aerpawlib.v2.constants import (
+    ZMQ_TYPE_FIELD_CALLBACK,
+    ZMQ_TYPE_FIELD_REQUEST,
+    ZMQ_TYPE_TRANSITION,
+)
+from aerpawlib.v2.exceptions import (
+    HeartbeatLostError,
+    MultipleInitialStatesError,
+    NoEntrypointError,
+    NoInitialStateError,
+    RunnerError,
+)
 from aerpawlib.v2.runner import (
     BasicRunner,
     StateMachine,
     ZmqStateMachine,
-    entrypoint,
-    state,
-    expose_zmq,
-    expose_field_zmq,
-    timed_state,
-    background,
     at_init,
-)
-from aerpawlib.v2.constants import (
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_FIELD_CALLBACK,
-)
-from aerpawlib.v2.exceptions import (
-    HeartbeatLostError,
-    NoEntrypointError,
-    NoInitialStateError,
-    MultipleInitialStatesError,
-    RunnerError,
+    background,
+    entrypoint,
+    expose_field_zmq,
+    expose_zmq,
+    state,
+    timed_state,
 )
 from aerpawlib.v2.safety.connection import ConnectionHandler
 from aerpawlib.v2.testing import MockVehicle
@@ -57,7 +58,8 @@ class TestBasicRunner:
 
     @pytest.mark.asyncio
     async def test_multiple_entrypoints_raises(self):
-        # Py <3.12 wraps __set_name__ failures in RuntimeError; 3.12+ raises RunnerError.
+        # Py <3.12 wraps __set_name__ failures in RuntimeError; 3.12+ raises
+        # RunnerError.
         with pytest.raises((RuntimeError, RunnerError)) as excinfo:
 
             class MultiEntry(BasicRunner):
@@ -91,7 +93,7 @@ class TestStateMachine:
             @state(name="b")
             async def b(self, vehicle):
                 order.append("b")
-                return None
+                return
 
         await SM().run(MockVehicle())
         assert order == ["a", "b"]
@@ -104,7 +106,7 @@ class TestStateMachine:
             @timed_state(name="t", duration=0.1, first=True)
             async def t(self, vehicle):
                 order.append("t")
-                return None
+                return
 
         await SM().run(MockVehicle())
         assert "t" in order
@@ -127,7 +129,7 @@ class TestStateMachine:
                 import asyncio
 
                 await asyncio.sleep(0.15)
-                return None
+                return
 
         await SM().run(MockVehicle())
         assert len(started) == 1
@@ -144,7 +146,7 @@ class TestStateMachine:
             @state(name="s", first=True)
             async def s(self, vehicle):
                 order.append("s")
-                return None
+                return
 
         await SM().run(MockVehicle())
         assert order == ["init", "s"]
@@ -184,7 +186,7 @@ class TestStateMachine:
             @state(name="start", first=True)
             async def start(self, vehicle):
                 calls.append("start")
-                return None
+                return
 
         class Child(Base):
             @background
@@ -204,7 +206,7 @@ class TestStateMachine:
             @state(name="s", first=True)
             async def s(self, vehicle):
                 await asyncio.sleep(0.02)
-                return None
+                return
 
         sm = SM()
         await sm.run(MockVehicle())
@@ -338,7 +340,8 @@ class TestConnectionHandler:
 
     @pytest.mark.asyncio
     async def test_handle_field_callback_sets_value_and_signals_event(self):
-        """FIELD_CALLBACK stores value and sets the asyncio.Event for a pending query."""
+        """FIELD_CALLBACK stores value and sets
+        the asyncio.Event for a pending query."""
 
         class Z(ZmqStateMachine):
             @state(name="s", first=True)
@@ -365,7 +368,8 @@ class TestConnectionHandler:
 
     @pytest.mark.asyncio
     async def test_unsolicited_field_callback_stored_without_error(self):
-        """An unsolicited FIELD_CALLBACK (no pending Event) is stored without raising."""
+        """An unsolicited FIELD_CALLBACK (no pending
+        Event) is stored without raising."""
 
         class Z(ZmqStateMachine):
             @state(name="s", first=True)
@@ -402,7 +406,7 @@ class TestConnectionHandler:
         vehicle = MockVehicle()
         # TRANSITION without next_state
         await z._zmq_handle_message(
-            vehicle, {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"}
+            vehicle, {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"},
         )
         # FIELD_REQUEST without field
         await z._zmq_handle_message(
@@ -416,7 +420,7 @@ class TestConnectionHandler:
         )
         # Unknown msg_type - silently ignored
         await z._zmq_handle_message(
-            vehicle, {"msg_type": "unknown", "identifier": "me"}
+            vehicle, {"msg_type": "unknown", "identifier": "me"},
         )
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
@@ -444,7 +448,8 @@ class TestConnectionHandler:
 
     @pytest.mark.asyncio
     async def test_query_field_returns_value_on_reply(self):
-        """query_field resolves immediately when a FIELD_CALLBACK arrives concurrently."""
+        """query_field resolves immediately when
+        a FIELD_CALLBACK arrives concurrently."""
 
         class Z(ZmqStateMachine):
             @state(name="s", first=True)
@@ -474,7 +479,7 @@ class TestConnectionHandler:
 
         asyncio.create_task(_inject_reply())
         result = await asyncio.wait_for(
-            z.query_field("responder", "altitude", timeout=1.0), timeout=2.0
+            z.query_field("responder", "altitude", timeout=1.0), timeout=2.0,
         )
         assert result == 100.0
         assert "altitude" not in z._zmq_pending_fields["responder"]
@@ -498,7 +503,11 @@ class TestConnectionHandler:
 
     @pytest.mark.asyncio
     async def test_zmq_override_not_discarded_when_state_returns_none(self):
-        """StateMachine.run respects ZMQ override even when state returns None (Bug #2 fix)."""
+        """
+        Test that:
+        StateMachine.run respects ZMQ override
+        even when state returns None
+        """
         visited = []
 
         class Z(ZmqStateMachine):
@@ -507,12 +516,12 @@ class TestConnectionHandler:
                 # Simulate a ZMQ transition arriving while we're running
                 self._next_state_overr = "end"
                 self._override_next_state_transition = True
-                return None  # would normally terminate — override should redirect
+                return  # would normally terminate — override should redirect
 
             @state(name="end")
             async def end(self, vehicle):
                 visited.append("end")
-                return None
+                return
 
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
@@ -535,7 +544,7 @@ class TestConnectionHandler:
         disconnect_future = handler.get_disconnect_future()
 
         done, _ = await asyncio.wait(
-            [disconnect_future], timeout=2.5, return_when=asyncio.FIRST_COMPLETED
+            [disconnect_future], timeout=2.5, return_when=asyncio.FIRST_COMPLETED,
         )
         assert disconnect_future in done
         assert isinstance(disconnect_future.exception(), HeartbeatLostError)

@@ -37,7 +37,7 @@ class FollowRunner(ZmqStateMachine):
     @state(name="rtl")
     async def state_rtl(self, drone):
         home_coords = Coordinate(
-            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt
+            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt,
         )
         await drone.goto_coordinates(home_coords)
         await sleep(5)

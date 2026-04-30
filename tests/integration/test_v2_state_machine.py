@@ -46,7 +46,7 @@ class TestStateMachineWithSITL:
             @state(name="land")
             async def land(self, drone: Drone):
                 await drone.land()
-                return None
+                return
 
         sm = TestSM()
         await sm.run(connected_drone_v2)

@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal
 
 Severity = Literal["warning", "error", "critical"]
 
@@ -25,7 +25,7 @@ class AerpawlibError(Exception):
         message: str,
         code: str = "UNKNOWN",
         severity: Severity = "error",
-        original_error: Optional[Exception] = None,
+        original_error: Exception | None = None,
     ) -> None:
         self.message = message
         self.code = code
@@ -54,14 +54,15 @@ class ConnectionTimeoutError(AerpawConnectionError):
     def __init__(
         self,
         timeout_seconds: float,
-        message: Optional[str] = None,
+        message: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize with the timeout duration.
 
         Args:
             timeout_seconds: How many seconds elapsed before the timeout.
-            message: Optional custom message; defaults to a standard timeout description.
+            message: Optional custom message; defaults to a standard timeout
+                description.
         """
         self.timeout_seconds = timeout_seconds
         kwargs.setdefault("code", "CONNECTION_TIMEOUT")
@@ -75,7 +76,7 @@ class HeartbeatLostError(AerpawConnectionError):
     def __init__(
         self,
         last_heartbeat_age: float = 0.0,
-        message: Optional[str] = None,
+        message: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize with the age of the last received heartbeat.
@@ -94,7 +95,7 @@ class HeartbeatLostError(AerpawConnectionError):
 class PortInUseError(AerpawConnectionError):
     """Port already in use."""
 
-    def __init__(self, port: int, message: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, port: int, message: str | None = None, **kwargs: Any) -> None:
         """Initialize with the conflicting port number.
 
         Args:
@@ -149,7 +150,7 @@ class NavigationError(CommandError):
 
     def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
-            f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs
+            f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs,
         )
 
 
@@ -158,7 +159,7 @@ class VelocityError(CommandError):
 
     def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
-            f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs
+            f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs,
         )
 
 
@@ -215,7 +216,7 @@ class InvalidStateError(RunnerError):
     """Raised when a state machine transitions to an unknown state."""
 
     def __init__(
-        self, state_name: str, available_states: List[str], **kwargs: Any
+        self, state_name: str, available_states: list[str], **kwargs: Any,
     ) -> None:
         """Initialize with the invalid state name and the list of valid states.
 

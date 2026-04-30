@@ -11,14 +11,16 @@ from __future__ import annotations
 
 import asyncio
 from enum import Enum, auto
-from typing import Any, Callable, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from aerpawlib.v1.constants import STATE_MACHINE_DELAY_S
 from aerpawlib.v1.exceptions import (
     InvalidStateNameError,
     StateMachineError,
 )
-from aerpawlib.v1.vehicle import Vehicle
+
+if TYPE_CHECKING:
+    from aerpawlib.v1.vehicle import Vehicle
 
 _Runnable = Callable[..., Any]
 _DecoratedFunc = TypeVar("_DecoratedFunc", bound=Callable[..., Any])
@@ -47,7 +49,7 @@ class _State:
         self._name = name
         self._func = func
 
-    async def run(self, runner: Any, vehicle: Vehicle) -> Optional[str]:
+    async def run(self, runner: Any, vehicle: Vehicle) -> str | None:
         """
         Run the function associated with this state.
 
@@ -60,13 +62,13 @@ class _State:
         """
         if self._func._state_type == _StateType.STANDARD:
             return await self._func.__func__(runner, vehicle)
-        elif self._func._state_type == _StateType.TIMED:
+        if self._func._state_type == _StateType.TIMED:
             running = True
 
-            async def _bg() -> Optional[str]:
+            async def _bg() -> str | None:
                 """Run a timed state until duration elapses or loop exits."""
                 nonlocal running
-                last_state: Optional[str] = None
+                last_state: str | None = None
                 while running:
                     last_state = await self._func.__func__(runner, vehicle)
                     if not running:
@@ -80,8 +82,7 @@ class _State:
             r = asyncio.ensure_future(_bg())
             await asyncio.sleep(self._func._state_duration)
             running = False
-            next_state = await r
-            return next_state
+            return await r
         return None
 
 
@@ -118,7 +119,8 @@ def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _Decorat
         """Mark a method as a standard state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
-                "A method cannot be decorated with more than one of @state/@timed_state"
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state",
             )
         func._is_state = True
         func._state_name = name
@@ -130,7 +132,7 @@ def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _Decorat
 
 
 def timed_state(
-    name: str, duration: float, loop: bool = False, first: bool = False
+    name: str, duration: float, loop: bool = False, first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator for a state that runs for a fixed duration.
@@ -155,7 +157,8 @@ def timed_state(
         """Mark a method as a timed state."""
         if hasattr(func, "_is_state"):
             raise StateMachineError(
-                "A method cannot be decorated with more than one of @state/@timed_state"
+                "A method cannot be decorated with more than one of "
+                "@state/@timed_state",
             )
         func._is_state = True
         func._state_name = name

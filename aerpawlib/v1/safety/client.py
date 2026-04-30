@@ -14,13 +14,12 @@ Usage:
   validation helper methods before issuing movement commands.
 """
 
-from typing import Dict, Tuple
+
+import contextlib
 
 import zmq
 
-from aerpawlib.v1.log import LogComponent, get_logger
-
-from ..constants import (
+from aerpawlib.v1.constants import (
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
@@ -28,7 +27,9 @@ from ..constants import (
     VALIDATE_TAKEOFF_REQ,
     VALIDATE_WAYPOINT_REQ,
 )
-from ..util import Coordinate
+from aerpawlib.v1.log import LogComponent, get_logger
+from aerpawlib.v1.util import Coordinate
+
 from .wire_format import deserialize_msg, serialize_request
 
 logger = get_logger(LogComponent.SAFETY)
@@ -75,10 +76,8 @@ class SafetyCheckerClient:
 
     def _reconnect(self):
         """Recreate the ZMQ REQ socket to restore a clean send state after an error."""
-        try:
+        with contextlib.suppress(Exception):
             self.socket.close()
-        except Exception:
-            pass
         self.socket = self.context.socket(zmq.REQ)
         timeout_ms = int(self._timeout_s * 1000)
         self.socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
@@ -92,7 +91,7 @@ class SafetyCheckerClient:
         self.close()
         return False
 
-    def send_request(self, msg: bytes) -> Dict:
+    def send_request(self, msg: bytes) -> dict:
         """
         Generic function to send a request to the safety checker server.
 
@@ -113,17 +112,17 @@ class SafetyCheckerClient:
         except zmq.Again:
             self._reconnect()
             raise TimeoutError(
-                f"Safety checker server did not respond within {self._timeout_s}s"
+                f"Safety checker server did not respond within {self._timeout_s}s",
             )
         message = deserialize_msg(raw_msg)
         logger.debug(f"Received reply [{message}]")
         return message
 
-    def sendRequest(self, msg: bytes) -> Dict:
+    def sendRequest(self, msg: bytes) -> dict:
         """Backward-compatible alias for :meth:`send_request`."""
         return self.send_request(msg)
 
-    def parse_response(self, response: Dict) -> Tuple[bool, str]:
+    def parse_response(self, response: dict) -> tuple[bool, str]:
         """
         Parse a response dictionary from the safety checker server.
 
@@ -135,11 +134,11 @@ class SafetyCheckerClient:
         """
         return response["result"], response["message"]
 
-    def parseResponse(self, response: Dict) -> Tuple[bool, str]:
+    def parseResponse(self, response: dict) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`parse_response`."""
         return self.parse_response(response)
 
-    def check_server_status(self) -> Tuple[bool, str]:
+    def check_server_status(self) -> tuple[bool, str]:
         """
         Verify the safety checker server is reachable and active.
 
@@ -150,17 +149,18 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def checkServerStatus(self) -> Tuple[bool, str]:
+    def checkServerStatus(self) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`check_server_status`."""
         return self.check_server_status()
 
     def validate_waypoint_command(
-        self, current_location: Coordinate, next_location: Coordinate
-    ) -> Tuple[bool, str]:
+        self, current_location: Coordinate, next_location: Coordinate,
+    ) -> tuple[bool, str]:
         """
-        Makes sure path from current location to next waypoint stays inside geofence and avoids no-go zones.
-        Returns a tuple (bool, str)
-        (False, <error message>) if the waypoint violates geofence or no-go zone constraints, else (True, "").
+        Makes sure path from current location to next waypoint stays inside
+        geofence and avoids no-go zones. Returns a tuple (bool, str)
+        (False, <error message>) if the waypoint violates geofence or no-go zone
+        constraints, else (True, "").
         """
         msg = serialize_request(
             VALIDATE_WAYPOINT_REQ,
@@ -170,56 +170,59 @@ class SafetyCheckerClient:
         return self.parse_response(resp)
 
     def validateWaypointCommand(
-        self, curLoc: Coordinate, nextLoc: Coordinate
-    ) -> Tuple[bool, str]:
+        self, curLoc: Coordinate, nextLoc: Coordinate,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
 
-    def validate_change_speed_command(self, new_speed: float) -> Tuple[bool, str]:
+    def validate_change_speed_command(self, new_speed: float) -> tuple[bool, str]:
         """
-        Makes sure the provided new_speed lies within the configured vehicle constraints
-        Returns (False, <error message>) if the speed violates constraints, else (True, "").
+        Makes sure the provided new_speed lies within the configured vehicle
+        constraints. Returns (False, <error message>) if the speed violates
+        constraints, else (True, "").
         """
         msg = serialize_request(VALIDATE_CHANGE_SPEED_REQ, [new_speed])
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateChangeSpeedCommand(self, newSpeed: float) -> Tuple[bool, str]:
+    def validateChangeSpeedCommand(self, newSpeed: float) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_change_speed_command`."""
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
-        self, takeoff_alt: float, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, takeoff_alt: float, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """
-        Makes sure the takeoff altitude lies within the vehicle constraints
-        Returns (False, <error message>) if the altitude violates constraints, else (True, "").
+        Makes sure the takeoff altitude lies within the vehicle constraints.
+        Returns (False, <error message>) if the altitude violates constraints,
+        else (True, "").
         """
         msg = serialize_request(
-            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon]
+            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon],
         )
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
     def validateTakeoffCommand(
-        self, takeoffAlt: float, currentLat: float, currentLon: float
-    ) -> Tuple[bool, str]:
+        self, takeoffAlt: float, currentLat: float, currentLon: float,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
-        self, current_lat: float, current_lon: float
-    ) -> Tuple[bool, str]:
+        self, current_lat: float, current_lon: float,
+    ) -> tuple[bool, str]:
         """
-        Ensure the copter is attempting to land within 5 meters of the takeoff location
-        Returns (False, <error message>) if the coper is not within 5 meters, else (True, "").
+        Ensure the copter is attempting to land within 5 meters of the takeoff
+        location. Returns (False, <error message>) if the copter is not within
+        5 meters, else (True, "").
         """
         msg = serialize_request(VALIDATE_LANDING_REQ, [current_lat, current_lon])
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
     def validateLandingCommand(
-        self, currentLat: float, currentLon: float
-    ) -> Tuple[bool, str]:
+        self, currentLat: float, currentLon: float,
+    ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)

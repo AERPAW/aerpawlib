@@ -1,4 +1,5 @@
-"""Integration tests for aerpawlib v2 safety: PreflightChecks, command validation. Requires SITL."""
+"""Integration tests for aerpawlib v2
+safety: PreflightChecks, command validation. Requires SITL."""
 
 import pytest
 

@@ -4,8 +4,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from .types import Battery, Coordinate, GPSInfo
 
 
@@ -14,8 +12,8 @@ class MockVehicle:
 
     def __init__(
         self,
-        position: Optional[Coordinate] = None,
-        home: Optional[Coordinate] = None,
+        position: Coordinate | None = None,
+        home: Coordinate | None = None,
         armed: bool = False,
         connected: bool = True,
     ):
@@ -51,7 +49,7 @@ class MockVehicle:
         return self._position
 
     @property
-    def home_coords(self) -> Optional[Coordinate]:
+    def home_coords(self) -> Coordinate | None:
         """Return the mock home coordinate."""
         return self._home
 

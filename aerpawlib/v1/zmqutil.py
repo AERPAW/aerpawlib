@@ -3,13 +3,15 @@ ZMQ proxy reachability check and runner for v1.
 """
 
 import socket
+
 import zmq
 
-from aerpawlib.v1.log import get_logger, LogComponent
+from aerpawlib.v1.log import LogComponent, get_logger
+
 from .constants import (
+    ZMQ_PROXY_CHECK_TIMEOUT_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
-    ZMQ_PROXY_CHECK_TIMEOUT_S,
 )
 
 # Configure logger
@@ -17,7 +19,7 @@ logger = get_logger(LogComponent.ZMQ)
 
 
 def check_zmq_proxy_reachable(
-    proxy_addr: str, timeout_s: float = ZMQ_PROXY_CHECK_TIMEOUT_S
+    proxy_addr: str, timeout_s: float = ZMQ_PROXY_CHECK_TIMEOUT_S,
 ) -> bool:
     """
     Check if the ZMQ proxy is reachable before starting a runner.
@@ -34,10 +36,10 @@ def check_zmq_proxy_reachable(
     """
     try:
         with socket.create_connection(
-            (proxy_addr, int(ZMQ_PROXY_OUT_PORT)), timeout=timeout_s
+            (proxy_addr, int(ZMQ_PROXY_OUT_PORT)), timeout=timeout_s,
         ) as _:
             return True
-    except (socket.error, OSError, ValueError):
+    except (OSError, ValueError):
         return False
 
 

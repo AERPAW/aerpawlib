@@ -15,21 +15,21 @@ Usage:
 """
 
 import json
-from typing import Dict, List
 
-from ..constants import (
+from aerpawlib.v1.constants import (
     DEFAULT_WAYPOINT_SPEED,
     PLAN_CMD_RTL,
     PLAN_CMD_SPEED,
     PLAN_CMD_TAKEOFF,
     PLAN_CMD_WAYPOINT,
 )
+
 from .geometry import Coordinate, Waypoint
 
 
 def read_from_plan(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
-) -> List[Waypoint]:
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+) -> list[Waypoint]:
     """
     Parse a QGroundControl .plan file into a list of Waypoints.
 
@@ -77,8 +77,8 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
 
 
 def read_from_plan_complete(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED
-) -> List[Dict]:
+    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+) -> list[dict]:
     """
     Read a .plan file and return detailed waypoint dictionaries.
 
@@ -114,6 +114,6 @@ def read_from_plan_complete(
                     "pos": [x, y, z],
                     "wait_for": delay,
                     "speed": current_speed,
-                }
+                },
             )
     return waypoints

@@ -25,14 +25,16 @@ HEARTBEAT_CHECK_INTERVAL_S = 1.0
 """Interval between heartbeat timeout checks (seconds)"""
 
 HEARTBEAT_TIMEOUT_S = 1.0
-"""Maximum time since last heartbeat before considering vehicle disconnected (seconds)"""
+"""Maximum time since last heartbeat
+before considering vehicle disconnected (seconds)"""
 
 
 # Safety Initialization Constants
 
 
 DEFAULT_WAIT_FOR_EXTERNAL_ARM = True
-"""Whether to wait for external arming by default (True = safe, False = SITL-friendly)"""
+"""Whether to wait for external arming by
+default (True = safe, False = SITL-friendly)"""
 
 WAITING_FOR_ARM_LOG_INTERVAL_S = 5.0
 """Log interval while waiting for arm (seconds)"""
@@ -197,13 +199,15 @@ ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
 """Message type for distributed field callback responses over ZMQ."""
 
 ZMQ_QUERY_FIELD_TIMEOUT_S = 30.0
-"""Timeout for ZMQ field query (seconds) - prevents indefinite block if peer never replies"""
+"""Timeout for ZMQ field query (seconds) -
+prevents indefinite block if peer never replies"""
 
 
 # Safety Checker Constants
 
 SAFETY_CHECKER_REQUEST_TIMEOUT_S = 10.0
-"""Timeout for safety checker client send/recv (seconds) - prevents indefinite block if server is down"""
+"""Timeout for safety checker client send/recv (seconds)
+- prevents indefinite block if server is down"""
 
 SERVER_STATUS_REQ = "server_status_req"
 """Safety Checker Request Types"""

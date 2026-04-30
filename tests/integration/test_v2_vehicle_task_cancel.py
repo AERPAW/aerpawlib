@@ -19,7 +19,7 @@ class TestVehicleTaskCancel:
         start = connected_drone_v2.position
         target = start + VectorNED(50, 0, 0)
         handle = await connected_drone_v2.goto_coordinates(
-            target, tolerance=3, blocking=False
+            target, tolerance=3, blocking=False,
         )
         assert handle is not None
         await asyncio.sleep(3)
