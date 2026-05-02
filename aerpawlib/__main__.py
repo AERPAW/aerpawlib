@@ -12,15 +12,16 @@ example:
     aerpawlib --script my_mission.py --conn udpin://127.0.0.1:14550 \
             --vehicle drone
 """
+
 from __future__ import annotations
 
 import importlib
 import importlib.util
-import os
+import logging
 import sys
 import time
 from argparse import ArgumentParser
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 from aerpawlib.cli.config_merge import (
     config_dict_to_cli_args,
@@ -46,11 +47,8 @@ from aerpawlib.cli.paths import (
     resolve_script_path,
 )
 
-if TYPE_CHECKING:
-    import logging
-
-logger: logging.Logger | None = None
-start_time: float | None = None
+logger: logging.Logger
+start_time: float
 
 
 def main() -> None:
@@ -59,16 +57,20 @@ def main() -> None:
 
     # Paths the user passes on the command line are relative to the shell's cwd
     # at invocation, not the project root we chdir to below.
-    invocation_cwd = os.path.abspath(os.getcwd())
+    invocation_cwd = Path.cwd().resolve()
 
-    current_file = os.path.abspath(__file__)
+    current_file = Path(__file__).resolve()
 
-    project_root = find_repo_root_containing_examples() or os.path.dirname(
-        os.path.dirname(current_file),
-    )
+    project_root_path = find_repo_root_containing_examples()
+    if project_root_path:
+        project_root = Path(project_root_path)
+    else:
+        project_root = current_file.parent.parent
 
-    os.chdir(project_root)
-    sys.path.insert(0, os.getcwd())
+    project_root_str = str(project_root)
+    import os
+    os.chdir(project_root_str)
+    sys.path.insert(0, project_root_str)
 
     conf_parser = ArgumentParser(add_help=False)
     conf_parser.add_argument(
@@ -85,14 +87,14 @@ def main() -> None:
 
     if config_paths:
         resolved_config_paths = [
-            resolve_cli_path(p, invocation_cwd) for p in config_paths
+            resolve_cli_path(p, str(invocation_cwd)) for p in config_paths
         ]
         for path in resolved_config_paths:
-            if not os.path.exists(path):
+            if not path.exists():
                 print(f"Config file not found: {path}")
                 sys.exit(1)
         try:
-            merged = merge_config_json_files(resolved_config_paths)
+            merged = merge_config_json_files([str(p) for p in resolved_config_paths])
             config_cli_args = config_dict_to_cli_args(merged)
             cli_args = config_cli_args + strip_config_argv(sys.argv[1:])
         except Exception as e:
@@ -121,7 +123,10 @@ def main() -> None:
         required=not proxy_mode,
     )
     core_grp.add_argument(
-        "--conn", "--connection", help="connection string", required=not proxy_mode,
+        "--conn",
+        "--connection",
+        help="connection string",
+        required=not proxy_mode,
     )
     core_grp.add_argument(
         "--vehicle",
@@ -177,7 +182,9 @@ def main() -> None:
         dest="run_zmq_proxy",
     )
     zmq_grp.add_argument(
-        "--zmq-identifier", help="zmq identifier", dest="zmq_identifier",
+        "--zmq-identifier",
+        help="zmq identifier",
+        dest="zmq_identifier",
     )
     zmq_grp.add_argument(
         "--zmq-proxy-server",
@@ -254,18 +261,25 @@ def main() -> None:
     unknown_args = [arg for arg in unknown_args if arg != ""]
 
     if args.log_file:
-        args.log_file = resolve_cli_path(args.log_file, invocation_cwd)
+        args.log_file = str(resolve_cli_path(args.log_file, str(invocation_cwd)))
     if args.structured_log:
-        args.structured_log = resolve_cli_path(args.structured_log, invocation_cwd)
+        args.structured_log = (
+            str(resolve_cli_path(args.structured_log, str(invocation_cwd))))
     if args.script:
         sa = args.script
         # Dotted module names (no path separators) are resolved by importlib as-is
-        if os.sep in sa or "/" in sa or sa.endswith(".py"):
-            args.script = resolve_script_path(sa, invocation_cwd)
+        if "/" in sa or sa.endswith(".py"):
+            args.script = resolve_script_path(sa, str(invocation_cwd))
+
+    if args.verbose:
+        level = logging.DEBUG
+    elif args.quiet and not args.verbose:
+        level = logging.WARNING
+    else:
+        level = logging.INFO
 
     logger = setup_logging(
-        verbose=args.verbose,
-        quiet=args.quiet,
+        level=level,
         log_file=args.log_file,
     )
 
@@ -274,7 +288,7 @@ def main() -> None:
     logger.info("aerpawlib - AERPAW Vehicle Control Library")
     logger.debug(f"Python version: {sys.version}")
     logger.debug(f"Invocation directory: {invocation_cwd}")
-    logger.debug(f"Working directory (project root): {os.getcwd()}")
+    logger.debug(f"Working directory (project root): {Path.cwd()}")
     logger.debug(f"API version: {args.api_version}")
     logger.debug(f"Script: {args.script}")
     logger.debug(f"Vehicle type: {args.vehicle}")
@@ -283,52 +297,35 @@ def main() -> None:
     logger.debug(f"No AERPAW environment: {args.no_aerpaw_environment}")
 
     api_version = args.api_version
-    logger.debug(f"Loading API version: {api_version}")
-    try:
-        api_module = importlib.import_module(f"aerpawlib.{api_version}")
-        logger.debug(f"Time to import API module: {time.time() - start_time:.2f}s")
-        if hasattr(api_module, "__all__"):
-            for name in api_module.__all__:
-                globals()[name] = getattr(api_module, name)
-        else:
-            for name in dir(api_module):
-                if not name.startswith("_"):
-                    excluded_names = [
-                        "logging",
-                        "os",
-                        "sys",
-                        "time",
-                        "asyncio",
-                        "json",
-                        "signal",
-                        "traceback",
-                    ]
-                    if name in excluded_names:
-                        continue
-                    globals()[name] = getattr(api_module, name)
-    except Exception as e:
-        logger.error(f"Failed to import aerpawlib {api_version}: {e}")
-        sys.exit(1)
 
     if args.run_zmq_proxy:
         logger.info("Starting ZMQ proxy mode")
-        if hasattr(api_module, "run_zmq_proxy"):
-            api_module.run_zmq_proxy()
-        else:
-            logger.error(f"API {api_version} does not support ZMQ proxy")
+        try:
+            api_module = importlib.import_module(f"aerpawlib.{api_version}")
+            if hasattr(api_module, "run_zmq_proxy"):
+                api_module.run_zmq_proxy()
+            else:
+                logger.error(f"API {api_version} does not support ZMQ proxy")
+        except Exception as e:
+            logger.error(f"Failed to import aerpawlib {api_version}: {e}")
+            sys.exit(1)
         sys.exit(0)
 
     logger.debug(f"Loading experimenter script: {args.script}")
     start_time = time.time()
     try:
         script_arg = args.script
-        if os.sep in script_arg or "/" in script_arg or script_arg.endswith(".py"):
+        if "/" in script_arg or script_arg.endswith(".py"):
             script_path = (
                 script_arg if script_arg.endswith(".py") else script_arg + ".py"
             )
             # Already absolute from resolve_cli_path on args.script
-            module_name = os.path.splitext(os.path.basename(script_path))[0]
-            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            script_p = Path(script_path)
+            module_name = script_p.stem
+            spec = importlib.util.spec_from_file_location(module_name, str(script_path))
+            if spec is None:
+                raise ImportError(f"Cannot load experimenter"
+                                  f" module from '{script_path}'")
             experimenter_script = importlib.util.module_from_spec(spec)
             if spec.loader is None:
                 raise ImportError(
@@ -344,18 +341,10 @@ def main() -> None:
         logger.error(f"Failed to import script '{args.script}': {e}")
         sys.exit(1)
 
-    if api_version == "v2":
-        run_v2_experiment(
-            args, unknown_args, api_module, experimenter_script, start_time,
-        )
-    elif api_version == "v1":
-        run_v1_experiment(
-            args,
-            unknown_args,
-            api_module,
-            experimenter_script,
-            version_name="v1",
-        )
+    if api_version == "v1":
+        run_v1_experiment(args, unknown_args, experimenter_script)
+    elif api_version == "v2":
+        run_v2_experiment(args, unknown_args, experimenter_script)
 
 
 if __name__ == "__main__":

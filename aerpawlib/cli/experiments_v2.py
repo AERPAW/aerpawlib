@@ -2,10 +2,12 @@
 
 import asyncio
 import contextlib
+import importlib
 import logging
 import os
 import signal
 import sys
+import time
 import traceback
 from typing import Any
 
@@ -34,11 +36,18 @@ logger = logging.getLogger("aerpawlib")
 def run_v2_experiment(
     args: Any,
     unknown_args: Any,
-    api_module: Any,
     experimenter_script: Any,
-    start_time: Any = None,
 ) -> None:
     """Run an experiment using the v2 API."""
+    logger.debug("Loading API version: v2")
+    start_time = time.time()
+    try:
+        api_module = importlib.import_module("aerpawlib.v2")
+        logger.debug(f"Time to import API module: {time.time() - start_time:.2f}s")
+    except Exception as e:
+        logger.error(f"Failed to import aerpawlib.v2: {e}")
+        sys.exit(1)
+
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
     runner_instance = runner
@@ -175,7 +184,8 @@ def run_v2_experiment(
             """Publish disconnect events to OEO and structured logs."""
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
-                    "[aerpawlib] Connection lost", severity="CRITICAL",
+                    "[aerpawlib] Connection lost",
+                    severity="CRITICAL",
                 )
             if event_log:
                 event_log.log_event("connection_lost")
@@ -253,7 +263,8 @@ def run_v2_experiment(
                         "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
                     )
                 runner_instance._initialize_zmq_bindings(
-                    args.zmq_identifier, args.zmq_server_addr,
+                    args.zmq_identifier,
+                    args.zmq_server_addr,
                 )
 
             run_task = asyncio.create_task(

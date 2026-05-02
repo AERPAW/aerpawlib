@@ -60,9 +60,10 @@ class _State:
         Returns:
             str: The name of the next state to transition to.
         """
-        if self._func._state_type == _StateType.STANDARD:
-            return await self._func.__func__(runner, vehicle)
-        if self._func._state_type == _StateType.TIMED:
+        if getattr(self._func, "_state_type", None) == _StateType.STANDARD:
+            # this is cursed
+            return await self._func.__func__(runner, vehicle)  # noqa
+        if getattr(self._func, "_state_type", None) == _StateType.TIMED:
             running = True
 
             async def _bg() -> str | None:
@@ -70,17 +71,17 @@ class _State:
                 nonlocal running
                 last_state: str | None = None
                 while running:
-                    last_state = await self._func.__func__(runner, vehicle)
+                    last_state = await self._func.__func__(runner, vehicle) # noqa
                     if not running:
                         break
-                    if not self._func._state_loop:
+                    if not self._func._state_loop: # noqa
                         running = False
                         break
                     await asyncio.sleep(STATE_MACHINE_DELAY_S)
                 return last_state
 
             r = asyncio.ensure_future(_bg())
-            await asyncio.sleep(self._func._state_duration)
+            await asyncio.sleep(self._func._state_duration) # noqa
             running = False
             return await r
         return None
@@ -95,7 +96,6 @@ def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     func._entrypoint = True
     return func
-
 
 def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """

@@ -2,11 +2,13 @@
 
 import asyncio
 import contextlib
+import importlib
 import logging
-import os
 import signal
 import sys
+import time
 import traceback
+from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
@@ -34,11 +36,18 @@ logger = logging.getLogger("aerpawlib")
 def run_v1_experiment(
     args: Any,
     unknown_args: Any,
-    api_module: Any,
     experimenter_script: Any,
-    version_name: str = "v1",
 ) -> None:
     """Run an experiment using the v1 API."""
+    logger.debug("Loading API version: v1")
+    start_time = time.time()
+    try:
+        api_module = importlib.import_module("aerpawlib.v1")
+        logger.debug(f"Time to import API module: {time.time() - start_time:.2f}s")
+    except Exception as e:
+        logger.error(f"Failed to import aerpawlib.v1: {e}")
+        sys.exit(1)
+
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
     runner_instance = runner
@@ -60,17 +69,17 @@ def run_v1_experiment(
         logger.error(f"Invalid vehicle type: {args.vehicle}")
         raise Exception("Please specify a valid vehicle type")
 
-    logger.info(f"Starting experiment execution ({version_name})")
+    logger.info("Starting experiment execution (v1)")
 
     async def run_experiment_async() -> bool:
         """Connect the vehicle, run the mission, and handle cleanup/RTL."""
         event_log = None
         logger.info("Connecting to vehicle...")
         try:
-            # v1 Vehicle.__init__ blocks until connected or raises; no async _connected
-            # poll.
+            # v1 Vehicle.__init__ blocks until connected or raises on failure
             vehicle = await asyncio.wait_for(
-                asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),
+                # linter has no idea what is going on here
+                asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),  # noqa
                 timeout=args.conn_timeout,
             )
         except Exception as e:
@@ -79,15 +88,16 @@ def run_v1_experiment(
         if getattr(args, "structured_log", None):
             from aerpawlib.structured_log import StructuredEventLogger
 
-            if os.path.exists(args.structured_log):
+            path = Path(args.structured_log)
+            if path.exists():
                 logger.warning(
                     "Structured log file %s already exists and will be overwritten",
-                    args.structured_log,
+                    str(path),
                 )
-            event_log = StructuredEventLogger(open(args.structured_log, "w"))
+            event_log = StructuredEventLogger(path.open("w"))
             vehicle.set_event_log(event_log)
             event_log.log_event("mission_start")
-            logger.info("Structured event logging -> %s", args.structured_log)
+            logger.info("Structured event logging -> %s", str(path))
 
         def handle_shutdown(signum: Any, frame: Any) -> None:
             """Handle SIGINT/SIGTERM by closing the vehicle then exiting."""
@@ -109,7 +119,7 @@ def run_v1_experiment(
                 AERPAW_Platform._no_stdout = args.no_stdout
         elif AERPAW_Platform:
             AERPAW_Platform._no_stdout = args.no_stdout
-            if not AERPAW_Platform._connected:
+            if not AERPAW_Platform._connected:  # noqa
                 logger.critical(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
@@ -120,7 +130,7 @@ def run_v1_experiment(
 
         runner_instance.initialize_args(unknown_args)
         if args.initialize and hasattr(vehicle, "_preflight_wait"):
-            vehicle._preflight_wait(args.initialize)
+            vehicle._preflight_wait(args.initialize)  # noqa
 
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:
@@ -131,14 +141,17 @@ def run_v1_experiment(
                 raise ValueError(
                     "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
                 )
-            runner_instance._initialize_zmq_bindings(
-                args.zmq_identifier, args.zmq_server_addr,
+            runner_instance._initialize_zmq_bindings(  # noqa
+                args.zmq_identifier,
+                args.zmq_server_addr,
             )
 
         success = False
         heartbeat_lost = False
         heartbeat_error_cls = getattr(
-            api_module, API_CLASS_HEARTBEAT_LOST_ERROR, Exception,
+            api_module,
+            API_CLASS_HEARTBEAT_LOST_ERROR,
+            Exception,
         )
         disconnect_task = None
         try:
@@ -155,9 +168,9 @@ def run_v1_experiment(
                 disconnect_future=disconnect_task,
             )
             success = True
-        except Exception as e:
-            heartbeat_lost = isinstance(e, heartbeat_error_cls)
-            logger.error(f"Experiment failed: {e}")
+        except Exception as exc:
+            heartbeat_lost = isinstance(exc, heartbeat_error_cls)
+            logger.error(f"Experiment failed: {exc}")
             traceback.print_exc()
         finally:
             if disconnect_task is not None and not disconnect_task.done():

@@ -1,6 +1,7 @@
 """Merge JSON config files into synthetic CLI argv."""
 
 import json
+from pathlib import Path
 from typing import Any
 
 
@@ -28,7 +29,7 @@ def merge_config_json_files(paths: list[str]) -> dict[str, Any]:
     """
     merged: dict[str, Any] = {}
     for path in paths:
-        with open(path) as f:
+        with Path(path).open() as f:
             data = json.load(f)
         if not isinstance(data, dict):
             raise ValueError(f"Config must be a JSON object: {path}")

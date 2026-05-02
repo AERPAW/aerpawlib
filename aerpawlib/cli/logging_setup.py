@@ -9,8 +9,7 @@ from aerpawlib.log import ColoredFormatter
 
 
 def setup_logging(
-    verbose: bool = False,
-    quiet: bool = False,
+    level: int = logging.INFO,
     log_file: str | None = None,
 ) -> logging.Logger:
     """
@@ -20,8 +19,7 @@ def setup_logging(
     user scripts, and libraries) are captured and formatted consistently.
 
     Args:
-        verbose: Enable debug (DEBUG level) logging
-        quiet: Suppress most output (WARNING level only)
+        level: the logging level
         log_file: Optional path to write logs to file
 
     Returns:
@@ -29,12 +27,6 @@ def setup_logging(
     """
     root_logger = logging.getLogger()
 
-    if verbose:
-        level = logging.DEBUG
-    elif quiet:
-        level = logging.WARNING
-    else:
-        level = logging.INFO
 
     root_logger.setLevel(level)
 
@@ -44,7 +36,8 @@ def setup_logging(
     console_handler.setLevel(level)
     console_handler.setFormatter(ColoredFormatter(use_colors=True))
     root_logger.addHandler(console_handler)
-
+    # Mute the gRPC logging. This is done because it is very spammy,
+    # especially on debug and on macOS.
     logging.getLogger("_cython.cygrpc").setLevel(logging.WARNING)
     logging.getLogger("grpc._cython.cygrpc").setLevel(logging.WARNING)
 
