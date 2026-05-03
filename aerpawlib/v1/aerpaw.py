@@ -80,7 +80,7 @@ class AERPAW:
         """
         try:
             requests.post(
-                f"http://{self._forw_addr}:{self._forw_port}/ping",
+                f"http://{self._forw_addr}:{self._forw_port}/ping", # noqa
                 timeout=AERPAW_PING_TIMEOUT_S,
             )
         except requests.exceptions.RequestException:
@@ -157,12 +157,14 @@ class AERPAW:
         try:
             if agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
+                    f"http://{self._forw_addr}:{self._forw_port}" # noqa
+                    f"/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}",
+                    f"http://{self._forw_addr}:{self._forw_port}" # noqa
+                    f"/oeo_msg/{severity}/{encoded.decode('utf-8')}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException:
@@ -180,7 +182,8 @@ class AERPAW:
         Returns:
             Full HTTP URL for the checkpoint request.
         """
-        return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{var_name}"
+        return (f"http://{self._forw_addr}:{self._forw_port}" # noqa
+                f"/checkpoint/{var_type}/{var_name}")
 
     def checkpoint_reset_server(self) -> None:
         """
@@ -199,7 +202,7 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
-            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",
+            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset", # noqa
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
@@ -417,12 +420,14 @@ class AERPAW:
         try:
             if not agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}",
+                    f"http://{self._forw_addr}:{self._forw_port}" # noqa
+                    f"/oeo_pub/{topic_b64}/{value_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
+                    f"http://{self._forw_addr}:{self._forw_port}" # noqa
+                    f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException as e:
@@ -466,7 +471,7 @@ class _AERPAWLazyProxy:
                 # Double-check after acquiring lock
                 if self._instance is None:
                     self.__dict__["_instance"] = AERPAW()
-        return self._instance
+        return self._instance # noqa: This is because of shenanigans in __init__
 
     def __getattr__(self, name: str) -> Any:
         """

@@ -63,7 +63,7 @@ class Circle(StateMachine):
         perp_vec = radius_vec.cross_product(VectorNED(0, 0, 1))
 
         # normalize and ignore the height
-        hypot = perp_vec.hypot(True)
+        hypot = perp_vec.magnitude()
         target_velocity = VectorNED(
             perp_vec.north / hypot * CIRCLE_VEL,
             perp_vec.east / hypot * CIRCLE_VEL,

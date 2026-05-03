@@ -6,7 +6,7 @@ Run with:
         --vehicle drone --conn udpin://127.0.0.1:14550
 """
 
-import os
+from pathlib import Path
 
 from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 from aerpawlib.v2.geofence import do_intersect, inside, polygon_edges, read_geofence
@@ -31,8 +31,7 @@ class GeofenceMission(BasicRunner):
 
     @entrypoint
     async def run(self, drone: Drone):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        geofence_path = os.path.join(script_dir, "geofence.kml")
+        geofence_path = str(Path(__file__).parent / "geofence.kml")
         geofence = read_geofence(geofence_path)
 
         pos = drone.position

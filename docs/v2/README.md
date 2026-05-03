@@ -276,13 +276,16 @@ class MyMission(BasicRunner):
 ## QGroundControl Plan Files
 
 ```python
+from pathlib import Path
 from aerpawlib.v2.plan import read_from_plan, get_location_from_waypoint
 
-waypoints = read_from_plan("mission.plan")
+waypoints = read_from_plan(Path("mission.plan"))
 for wp in waypoints:
     coord = get_location_from_waypoint(wp)
     await drone.goto_coordinates(coord)
 ```
+
+*Note*: v2 uses pathlib.Path instead of str as v1 does for plan files as it is more reliable and Pythonic.
 
 `read_from_plan_complete` returns all waypoints including takeoff and RTL items; `read_from_plan` returns only navigation waypoints.
 

@@ -1,15 +1,10 @@
-"""
-Plan v2 Example - Load waypoints from QGroundControl .plan file.
+"""Plan v2 Example - Load waypoints from QGroundControl .plan file.
 
-Requires a .plan file (e.g. from QGroundControl). Create mission.plan in the script directory
-or pass path via --file.
-
-Run with:
-    aerpawlib --api-version v2 --script examples/v2/plan_example.py \
-        --vehicle drone --conn udpin://127.0.0.1:14550
+Requires a .plan file (e.g., from QGroundControl). Create mission.plan
+in the script directory or pass path via --file.
 """
 
-import os
+from pathlib import Path
 
 from aerpawlib.v2 import BasicRunner, Drone, entrypoint
 from aerpawlib.v2.constants import PLAN_CMD_RTL, PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT
@@ -21,12 +16,13 @@ class PlanMission(BasicRunner):
 
     @entrypoint
     async def run(self, drone: Drone):
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        plan_path = os.path.join(script_dir, "mission.plan")
-        if not os.path.exists(plan_path):
+        script_dir = Path(__file__).parent
+        plan_path = script_dir / "mission.plan"
+        if not Path(plan_path).exists():
             print(f"[example] No mission.plan at {plan_path}")
             print(
-                "[example] Create a .plan file in QGroundControl and save as mission.plan",
+                "[example] Create a .plan file in QGroundControl"
+                "and save as mission.plan",
             )
             return
 
