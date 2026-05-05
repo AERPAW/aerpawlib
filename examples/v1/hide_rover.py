@@ -1,8 +1,12 @@
 """
-hide_rover will make the vehicle used (a rover) take in a .plan file and .kml file (geofence), parse them, and make the vehicle
-follow the path provided in the plan. After finishing the path, the rover will move to a random coordinate within the provided geofence and "hide".
-The .plan file should move the rover to a location from which it will be able to move to anywhere within the geofence safely.
-You can optionally provide a specific latitude & longitude to hide the rover at via arguments (see Usage).
+hide_rover will make the vehicle used (a rover)
+take in a .plan file and .kml file (geofence), parse them,
+and make the vehiclefollow the path provided in the plan.
+After finishing the path, the rover will move to a random coordinate
+within the provided geofence and "hide". The .plan file should move the rover
+ to a location it can move to anywhere inside the geofence safely.
+You can optionally provide a specific latitude & longitude to
+hide the rover at via arguments (see Usage).
 
 Usage:
     aerpawlib --conn ... --vehicle rover --script hide_rover \
@@ -72,7 +76,7 @@ class HideRover(StateMachine):
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
         default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"  # noqa
         )
 
         parser = ArgumentParser()
@@ -144,18 +148,19 @@ class HideRover(StateMachine):
             self._hide_longitude = args.longitude
 
         if self._sampling:
-            self._log_file = open(args.output, "w+")
+            self._log_file = open(args.output, "w+")  # noqa (bad practice but will not be changed)
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
     def _dump_to_csv(self, vehicle: Vehicle, line_num: int, writer):
         """
-        This function will continually log stats about the vehicle to a file specified by command line args
+        This function will continually log stats about the vehicle to a file specified
+        by command line args
         """
         pos = vehicle.position
         lat, lon, alt = pos.lat, pos.lon, pos.alt
         volt = vehicle.battery.voltage
-        timestamp = datetime.datetime.now()
+        timestamp = datetime.datetime.now()  # noqa
         gps = vehicle.gps
         fix, num_sat = gps.fix_type, gps.satellites_visible
         if fix < 2:
@@ -254,7 +259,8 @@ class HideRover(StateMachine):
         # the script will stop)
         if (self._hide_latitude is None) ^ (self._hide_longitude is None):
             print(
-                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script",
+                "Only one coordinate unit was specified (either latitude or longitude)."
+                " Please specify either both or neither.\nStopping script",
             )
             return None
 

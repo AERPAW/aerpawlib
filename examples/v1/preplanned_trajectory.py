@@ -1,3 +1,6 @@
+# ruff: noqa
+# TODO: Migrate to aerpawlib v1. Currently this code is not compatible
+#  with v1 due to its usage of dronekit internals
 """
 preplanned_trajectory will take in a .plan file, parse it, and make the vehicle
 used (must be a drone!) follow the path provided. This is a good example of how
@@ -311,9 +314,7 @@ class PreplannedTrajectory(StateMachine):
         in_background(
             vehicle.goto_coordinates(coords, target_heading=self._default_heading),
         )
-        await asyncio.sleep(
-            0.5,
-        )  # TODO to deal with MAV_CMD_DO_CHANGE_SPEED race condition -- needs field testing!
+        await asyncio.sleep(0.5)  # Deal with race condition
         await vehicle.set_groundspeed(target_speed)
         return "in_transit"
 

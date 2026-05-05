@@ -61,8 +61,8 @@ class OrbiterRunner(ZmqStateMachine):
         )  # points out to drone, use tangent to orbit
         perp_vec = radius_vec.cross_product(VectorNED(0, 0, 1))
 
-        leg_dist = radius_vec.hypot(True)
-        d = perp_vec.hypot(True)
+        leg_dist = radius_vec.hypot(ignore_down=True)
+        d = perp_vec.hypot(ignore_down=True)
         perp_normalized = VectorNED(
             perp_vec.north / d * leg_dist,
             perp_vec.east / d * leg_dist,

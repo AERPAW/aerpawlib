@@ -6,10 +6,12 @@ there are two drones and a ground station
 one drone, the tracer, follows a preplanned trajectory file
 the other drone, the orbiter, will orbit the tracer at each waypoint
 
-the ground coordinator will read from the file and issue controls to each drone (ex: go to this waypoint or orbit this waypoint)
+the ground coordinator will read from the file and issue controls to each drone
+(ex: go to this waypoint or orbit this waypoint)
 
-the pattern proposed in this script is to have each "command" be a state on individual drones
-thus, to make a drone do something, we transition their state from the central controller
+the pattern proposed in this script is to have each "command"
+be a state on individual drones. thus, to make a drone do something,
+we transition their state from the central controller.
 """
 
 import asyncio

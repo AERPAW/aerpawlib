@@ -38,7 +38,8 @@ class LeaderRunner(ZmqStateMachine):
                 break
         if not latencies:
             raise RuntimeError(
-                f"Ping to {address} produced no parseable output (process may have exited early)",
+                f"Ping to {address} produced no parseable output "
+                f"(process may have exited early)",
             )
         return sum(latencies) / len(latencies)
 
