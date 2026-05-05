@@ -1,8 +1,8 @@
 """Unit tests for aerpawlib v1 ExternalProcess."""
 
 import asyncio
-import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -133,7 +133,7 @@ class TestExternalProcess:
                 await ep.send_input("extra data\n")
         finally:
             await ep.aclose()
-            os.unlink(path)
+            Path(path).unlink()
 
     @pytest.mark.asyncio
     async def test_wait_until_output_multiple_matches(self):

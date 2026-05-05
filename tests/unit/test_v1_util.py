@@ -2,8 +2,8 @@
 
 import json
 import math
-import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -192,7 +192,7 @@ class TestCoordinate:
 
     def test_to_json(self):
         c = Coordinate(35.7274, -78.6960, 100)
-        j = json.loads(c.toJson())
+        j = json.loads(c.to_json())
         assert j["lat"] == 35.7274 and j["lon"] == -78.6960
 
     def test_to_json_legacy_style(self):
@@ -277,7 +277,7 @@ class TestCoordinate:
         with pytest.raises(TypeError):
             Coordinate(0, 0, 0) - 99
 
-    def test_to_json_and_toJson_equivalent(self):
+    def test_to_json_and_toJson_equivalent(self):  # noqa: N802
         c = Coordinate(35.7274, -78.6960, 100.0)
         j1 = json.loads(c.to_json())
         j2 = json.loads(c.toJson())
@@ -332,7 +332,7 @@ class TestPlanFile:
             json.dump(data, f)
             path = f.name
         yield path
-        os.unlink(path)
+        Path(path).unlink()
 
     def test_read_from_plan(self, sample_plan):
         wps = read_from_plan(sample_plan)
@@ -348,7 +348,7 @@ class TestPlanFile:
             with pytest.raises(Exception, match="Wrong file type"):
                 read_from_plan(path)
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
     def test_get_location_from_waypoint(self, sample_plan):
         wps = read_from_plan(sample_plan)
@@ -403,7 +403,7 @@ class TestPlanFile:
             assert wps[1][5] == 12.0
             assert wps[2][5] == 12.0
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
     def test_read_from_plan_complete_speed_change(self, sample_plan):
         data = {
@@ -437,7 +437,7 @@ class TestPlanFile:
             assert wps[0]["speed"] == DEFAULT_WAYPOINT_SPEED
             assert wps[1]["speed"] == 12.0
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
     def test_read_from_plan_empty_mission(self):
         data = {"fileType": "Plan", "mission": {"items": []}}
@@ -448,7 +448,7 @@ class TestPlanFile:
             wps = read_from_plan(path)
             assert wps == []
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
     def test_get_location_from_waypoint_rtl_zeros(self):
         """RTL waypoint has lat=0, lon=0, alt=0 by convention."""
@@ -472,7 +472,7 @@ class TestPlanFile:
             c = get_location_from_waypoint(wps[0])
             assert c.lat == 0 and c.lon == 0 and c.alt == 0
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
 
 class TestGeofence:
@@ -539,7 +539,7 @@ class TestGeofence:
         # Q lies beyond the segment
         assert lies_on_segment(0, 0, 15, 15, 10, 10) is False
 
-    def test_liesOnSegment_alias(self):
+    def test_liesOnSegment_alias(self):  # noqa: N802
         """liesOnSegment is an alias for lies_on_segment."""
         assert liesOnSegment(0, 0, 5, 5, 10, 10) == lies_on_segment(0, 0, 5, 5, 10, 10)
 
@@ -553,7 +553,7 @@ class TestGeofence:
         # Collinear but no overlap
         assert do_intersect(0, 0, 1, 0, 2, 0, 3, 0) is False
 
-    def test_doIntersect_alias(self):
+    def test_doIntersect_alias(self):  # noqa: N802
         """doIntersect is an alias for do_intersect."""
         assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) == do_intersect(
             0,
@@ -605,7 +605,9 @@ class TestReadGeofence:
 <Polygon>
 <outerBoundaryIs>
 <LinearRing>
-<coordinates>-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0</coordinates>
+<coordinates>
+-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0
+</coordinates>
 </LinearRing>
 </outerBoundaryIs>
 </Polygon>
@@ -616,7 +618,7 @@ class TestReadGeofence:
             f.write(kml.encode())
             path = f.name
         yield path
-        os.unlink(path)
+        Path(path).unlink()
 
     def test_read_geofence_returns_polygon(self, minimal_kml):
         poly = read_geofence(minimal_kml)

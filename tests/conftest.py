@@ -98,7 +98,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--sitl-port",
         action="store",
         default=str(DEFAULT_SITL_PORT),
-        help=f"UDP port for SITL (legacy, applies to drone; default: {DEFAULT_SITL_PORT})",
+        help=f"UDP port for SITL (legacy, applies to drone; default: {DEFAULT_SITL_PORT})",  # noqa: E501
     )
     parser.addoption(
         "--sitl-port-drone",
@@ -175,14 +175,15 @@ def zero_vector():
 class SITLManager:
     """
     Manages ArduPilot SITL process for integration tests.
-    Starts SITL with MAVProxy, provides connection string, performs full reset between tests.
+    Starts SITL with MAVProxy, provides connection string, performs full reset
+    between tests.
     """
 
     def __init__(
         self,
         port: int,
         vehicle_type: str = "ArduCopter",
-        manage: bool = True,
+        manage: bool = True,  # noqa: FBT001, FBT002
         instance_id: int = 0,
     ):
         self.port = port
@@ -200,7 +201,10 @@ class SITLManager:
 
         sim_vehicle = _find_sim_vehicle()
         if sim_vehicle is None:
-            msg = "sim_vehicle.py not found. Set ARDUPILOT_HOME or ensure ardupilot directory exists."
+            msg = (
+                "sim_vehicle.py not found. Set ARDUPILOT_HOME or ensure "
+                "ardupilot directory exists."
+            )
             logger.error(msg)
             pytest.skip(msg)
 
@@ -233,7 +237,7 @@ class SITLManager:
         log_suffix = "drone" if self.vehicle_type == "ArduCopter" else "rover"
         sitl_log_path = Path(f"logs/sitl_{log_suffix}_output.log")
         sitl_log_path.parent.mkdir(exist_ok=True)
-        self._sitl_log = open(sitl_log_path, "w")
+        self._sitl_log = sitl_log_path.open("w")
         logger.info(f"SITL output log: {sitl_log_path}")
 
         self._process = subprocess.Popen(
@@ -246,7 +250,8 @@ class SITLManager:
 
         logger.debug(f"SITL process PID: {self._process.pid}")
         logger.info(
-            f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
+            f"Waiting for MAVLink port {self.port} "
+            f"(timeout {SITL_STARTUP_TIMEOUT}s)...",
         )
 
         # Wait for MAVLink port
@@ -259,11 +264,12 @@ class SITLManager:
             # Check if process died
             if self._process.poll() is not None:
                 self._sitl_log.close()
-                with open(sitl_log_path) as f:
+                with sitl_log_path.open() as f:
                     output = f.read()
                 sitl_process_log = f"/tmp/{self.vehicle_type}.log"
                 msg = (
-                    f"SITL process exited prematurely with code {self._process.returncode}. "
+                    f"SITL process exited prematurely with code "
+                    f"{self._process.returncode}. "
                     f"sim_vehicle output:\n{output}\n"
                     f"Also check {sitl_process_log} for SITL binary output."
                 )
@@ -275,7 +281,8 @@ class SITLManager:
         self.stop()
         msg = (
             f"SITL failed to start within {SITL_STARTUP_TIMEOUT}s. "
-            f"Check {sitl_log_path} (sim_vehicle output) and {sitl_process_log} (SITL process)."
+            f"Check {sitl_log_path} (sim_vehicle output) and "
+            f"{sitl_process_log} (SITL process)."
         )
         logger.error(msg)
         pytest.fail(msg)

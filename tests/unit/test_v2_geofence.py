@@ -1,7 +1,7 @@
 """Unit tests for aerpawlib v2 geofence module."""
 
-import os
 import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -85,7 +85,9 @@ class TestReadGeofence:
 <Polygon>
 <outerBoundaryIs>
 <LinearRing>
-<coordinates>-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0</coordinates>
+<coordinates>
+-78.70,35.72,0 -78.70,35.74,0 -78.68,35.74,0 -78.68,35.72,0 -78.70,35.72,0
+</coordinates>
 </LinearRing>
 </outerBoundaryIs>
 </Polygon>
@@ -96,7 +98,7 @@ class TestReadGeofence:
             f.write(kml.encode())
             path = f.name
         yield path
-        os.unlink(path)
+        Path(path).unlink()
 
     def test_read_geofence_returns_polygon(self, minimal_kml):
         poly = read_geofence(minimal_kml)
