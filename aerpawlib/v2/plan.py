@@ -22,7 +22,8 @@ Waypoint = tuple[int, float, float, float, int, float]
 
 
 def read_from_plan(
-    path: Path, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+    path: Path,
+    default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[Waypoint]:
     """
     Parse a QGroundControl .plan file into a list of waypoints.
@@ -37,7 +38,7 @@ def read_from_plan(
     Raises:
         Exception: If the file is not a valid .plan file.
     """
-    waypoints: list[Waypoint] = [] # Use Path object directly
+    waypoints: list[Waypoint] = []  # Use Path object directly
     try:
         data = json.loads(Path(path).read_text())
     except FileNotFoundError as e:
@@ -46,7 +47,8 @@ def read_from_plan(
     except json.JSONDecodeError as e:
         # Use path object in the error message
         raise PlanError(
-            f"Plan file is not valid JSON: {path!r}", original_error=e,
+            f"Plan file is not valid JSON: {path!r}",
+            original_error=e,
         ) from e
     if data["fileType"] != "Plan":
         raise PlanError(
@@ -59,7 +61,8 @@ def read_from_plan(
             params = item["params"]
         except KeyError as e:
             raise PlanError(
-                f"Plan item missing required key {e}: {item!r}", original_error=e,
+                f"Plan item missing required key {e}: {item!r}",
+                original_error=e,
             ) from e
         if command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             if len(params) < 7:
@@ -89,7 +92,8 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
 
 
 def read_from_plan_complete(
-    path: Path, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+    path: Path,
+    default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[dict]:
     """
     Read a .plan file and return detailed waypoint dictionaries.
@@ -111,7 +115,8 @@ def read_from_plan_complete(
         raise PlanError(f"Plan file not found: {path!r}", original_error=e) from e
     except json.JSONDecodeError as e:
         raise PlanError(
-            f"Plan file is not valid JSON: {path!r}", original_error=e,
+            f"Plan file is not valid JSON: {path!r}",
+            original_error=e,
         ) from e
     if data["fileType"] != "Plan":
         raise PlanError(
@@ -124,7 +129,8 @@ def read_from_plan_complete(
             params = item["params"]
         except KeyError as e:
             raise PlanError(
-                f"Plan item missing required key {e}: {item!r}", original_error=e,
+                f"Plan item missing required key {e}: {item!r}",
+                original_error=e,
             ) from e
         if command in [PLAN_CMD_SPEED]:
             current_speed = params[1]

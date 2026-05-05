@@ -44,9 +44,11 @@ def discover_runner(api_module, experimenter_script):
 
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
-        if not is_direct_user_runner_class(val, framework_runner, framework_runner_classes):
+        if not is_direct_user_runner_class(
+            val, framework_runner, framework_runner_classes,
+        ):
             continue
-        if zmq_state_machine and issubclass(val, zmq_state_machine): # noqa
+        if zmq_state_machine and issubclass(val, zmq_state_machine):  # noqa
             flag_zmq_runner = True
             logger.debug(f"Found ZmqStateMachine: {name}")
         if found_runner:
@@ -56,7 +58,7 @@ def discover_runner(api_module, experimenter_script):
         # Create the runner class because it would appear we found a valid one.
         # We will check for multiple valid classes above,
         # so we know this is the only one.
-        found_runner = val() # noqa
+        found_runner = val()  # noqa
 
     if found_runner is None:
         logger.error("No Runner class found in script")

@@ -17,6 +17,7 @@ Notes:
 - Request payloads use the compressed JSON format defined in
   `aerpawlib.v1.safety.wire_format`.
 """
+
 from __future__ import annotations
 
 import json
@@ -211,7 +212,9 @@ class SafetyCheckerServer:
                     )
 
     def validate_waypoint_command(
-        self, current_location: Coordinate, next_location: Coordinate,
+        self,
+        current_location: Coordinate,
+        next_location: Coordinate,
     ) -> tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside
@@ -305,7 +308,9 @@ class SafetyCheckerServer:
         return True, ""
 
     def validateWaypointCommand(
-        self, curLoc: Coordinate, nextLoc: Coordinate,
+        self,
+        curLoc: Coordinate,
+        nextLoc: Coordinate,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
@@ -319,14 +324,12 @@ class SafetyCheckerServer:
         if new_speed > self.max_speed:
             return (
                 False,
-                f"Invalid speed ({new_speed}) greater than maximum "
-                f"({self.max_speed})",
+                f"Invalid speed ({new_speed}) greater than maximum ({self.max_speed})",
             )
         if new_speed < self.min_speed:
             return (
                 False,
-                f"Invalid speed ({new_speed}) less than minimum "
-                f"({self.min_speed})",
+                f"Invalid speed ({new_speed}) less than minimum ({self.min_speed})",
             )
         return True, ""
 
@@ -335,7 +338,10 @@ class SafetyCheckerServer:
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
-        self, takeoff_alt: float, current_lat: float, current_lon: float,
+        self,
+        takeoff_alt: float,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints.
@@ -352,13 +358,18 @@ class SafetyCheckerServer:
         return True, ""
 
     def validateTakeoffCommand(
-        self, takeoffAlt: float, currentLat: float, currentLon: float,
+        self,
+        takeoffAlt: float,
+        currentLat: float,
+        currentLon: float,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
-        self, current_lat: float, current_lon: float,
+        self,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff
@@ -384,7 +395,9 @@ class SafetyCheckerServer:
         return True, ""
 
     def validateLandingCommand(
-        self, currentLat: float, currentLon: float,
+        self,
+        currentLat: float,
+        currentLon: float,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)
@@ -403,7 +416,10 @@ class SafetyCheckerServer:
         return self.server_status_handler(*_params)
 
     def validate_waypoint_handler(
-        self, current_json_location: str, next_json_location: str, *_params: Any,
+        self,
+        current_json_location: str,
+        next_json_location: str,
+        *_params: Any,
     ) -> bytes:
         """
         Handler for waypoint validation requests.
@@ -429,7 +445,8 @@ class SafetyCheckerServer:
         )
 
         result, message = self.validate_waypoint_command(
-            current_location, next_location,
+            current_location,
+            next_location,
         )
         return serialize_response(
             request_function=VALIDATE_WAYPOINT_REQ,
@@ -438,7 +455,10 @@ class SafetyCheckerServer:
         )
 
     def validateWaypointHandler(
-        self, curLocJSON: str, nextLocJSON: str, *_params: Any,
+        self,
+        curLocJSON: str,
+        nextLocJSON: str,
+        *_params: Any,
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_waypoint_handler`."""
         return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
@@ -483,7 +503,9 @@ class SafetyCheckerServer:
             bytes: Serialized validation response.
         """
         result, message = self.validate_takeoff_command(
-            takeoff_alt, current_lat, current_lon,
+            takeoff_alt,
+            current_lat,
+            current_lon,
         )
         return serialize_response(
             request_function=VALIDATE_TAKEOFF_REQ,
@@ -500,11 +522,17 @@ class SafetyCheckerServer:
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_takeoff_handler`."""
         return self.validate_takeoff_handler(
-            takeoffAlt, currentLat, currentLon, *_params,
+            takeoffAlt,
+            currentLat,
+            currentLon,
+            *_params,
         )
 
     def validate_landing_handler(
-        self, current_lat: float, current_lon: float, *_params: Any,
+        self,
+        current_lat: float,
+        current_lon: float,
+        *_params: Any,
     ) -> bytes:
         """
         Handler for landing validation requests.
@@ -524,7 +552,10 @@ class SafetyCheckerServer:
         )
 
     def validateLandingHandler(
-        self, currentLat: float, currentLon: float, *_params: Any,
+        self,
+        currentLat: float,
+        currentLon: float,
+        *_params: Any,
     ) -> bytes:
         """Backward-compatible alias for :meth:`validate_landing_handler`."""
         return self.validate_landing_handler(currentLat, currentLon, *_params)

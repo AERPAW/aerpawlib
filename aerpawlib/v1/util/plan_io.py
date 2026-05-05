@@ -28,7 +28,8 @@ from .geometry import Coordinate, Waypoint
 
 
 def read_from_plan(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+    path: str,
+    default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[Waypoint]:
     """
     Parse a QGroundControl .plan file into a list of Waypoints.
@@ -77,7 +78,8 @@ def get_location_from_waypoint(waypoint: Waypoint) -> Coordinate:
 
 
 def read_from_plan_complete(
-    path: str, default_speed: float = DEFAULT_WAYPOINT_SPEED,
+    path: str,
+    default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[dict]:
     """
     Read a .plan file and return detailed waypoint dictionaries.

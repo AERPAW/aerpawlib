@@ -13,6 +13,7 @@ Notes:
 - Several compatibility aliases are preserved to ease migration from older
   DroneKit-style code.
 """
+
 from __future__ import annotations
 
 import json

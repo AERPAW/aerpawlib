@@ -1,4 +1,5 @@
 """CLI logging configuration for aerpawlib."""
+
 from __future__ import annotations
 
 import logging
@@ -26,7 +27,6 @@ def setup_logging(
         Configured logger instance
     """
     root_logger = logging.getLogger()
-
 
     root_logger.setLevel(level)
 

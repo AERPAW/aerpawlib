@@ -150,7 +150,9 @@ class NavigationError(CommandError):
 
     def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
-            f"Navigation failed: {reason}", code="NAVIGATION_ERROR", **kwargs,
+            f"Navigation failed: {reason}",
+            code="NAVIGATION_ERROR",
+            **kwargs,
         )
 
 
@@ -159,7 +161,9 @@ class VelocityError(CommandError):
 
     def __init__(self, reason: str = "Unknown", **kwargs: Any) -> None:
         super().__init__(
-            f"Set velocity failed: {reason}", code="VELOCITY_ERROR", **kwargs,
+            f"Set velocity failed: {reason}",
+            code="VELOCITY_ERROR",
+            **kwargs,
         )
 
 
@@ -216,7 +220,10 @@ class InvalidStateError(RunnerError):
     """Raised when a state machine transitions to an unknown state."""
 
     def __init__(
-        self, state_name: str, available_states: list[str], **kwargs: Any,
+        self,
+        state_name: str,
+        available_states: list[str],
+        **kwargs: Any,
     ) -> None:
         """Initialize with the invalid state name and the list of valid states.
 

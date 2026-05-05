@@ -490,7 +490,9 @@ async def _connect_and_wait_gps(
 
     try:
         vehicle = await asyncio.to_thread(
-            vehicle_class, connection_string, mavsdk_server_port=mavsdk_server_port,
+            vehicle_class,
+            connection_string,
+            mavsdk_server_port=mavsdk_server_port,
         )
     except ConnectionTimeoutError:
         pytest.fail(f"Connection timeout to {connection_string}")

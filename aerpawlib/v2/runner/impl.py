@@ -398,7 +398,9 @@ class ZmqStateMachine(StateMachine):
         self._next_state_overr: str = ""
 
     def _initialize_zmq_bindings(
-        self, vehicle_identifier: str, proxy_server_addr: str,
+        self,
+        vehicle_identifier: str,
+        proxy_server_addr: str,
     ) -> None:
         """Configure ZMQ connection. Call before run()."""
         if not check_zmq_proxy_reachable(proxy_server_addr):
@@ -575,7 +577,10 @@ class ZmqStateMachine(StateMachine):
         )
 
     async def query_field(
-        self, identifier: str, field: str, timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
+        self,
+        identifier: str,
+        field: str,
+        timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
     ) -> Any:
         """Query a field from another ZMQ runner and return the value.
 

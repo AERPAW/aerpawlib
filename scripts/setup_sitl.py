@@ -80,7 +80,8 @@ def setup_sitl(skip_compile: bool = False) -> bool:
 
         print("Initializing submodules...")
         if not _run(
-            ["git", "submodule", "update", "--recursive", "--init"], cwd=workarea,
+            ["git", "submodule", "update", "--recursive", "--init"],
+            cwd=workarea,
         ):
             return False
 

@@ -44,7 +44,9 @@ class TracerRunner(ZmqStateMachine):
     @state(name="rtl")
     async def state_rtl(self, drone: Drone):
         home_coords = Coordinate(
-            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt,
+            drone.home_coords.lat,
+            drone.home_coords.lon,
+            drone.position.alt,
         )
         await drone.goto_coordinates(home_coords)
         await self.transition_runner(ZMQ_GROUND, "callback_tracer_rtl_done")

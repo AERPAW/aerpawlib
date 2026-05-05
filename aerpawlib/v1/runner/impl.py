@@ -271,7 +271,8 @@ class ZmqStateMachine(StateMachine):
                         "@expose_zmq can only be used on @state/@timed_state methods",
                     )
                 self._exported_states[method._zmq_name] = _State(
-                    method, method._zmq_name,
+                    method,
+                    method._zmq_name,
                 )
             elif hasattr(method, "_is_exposed_field_zmq"):
                 self._exported_fields[method._zmq_name] = method
@@ -282,7 +283,9 @@ class ZmqStateMachine(StateMachine):
     _ZMQ_FIELD_PENDING = object()
 
     def _initialize_zmq_bindings(
-        self, vehicle_identifier: str, proxy_server_addr: str,
+        self,
+        vehicle_identifier: str,
+        proxy_server_addr: str,
     ) -> None:
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
@@ -317,7 +320,9 @@ class ZmqStateMachine(StateMachine):
             socket.close()
 
     async def _zmq_handle_request(
-        self, vehicle: Vehicle, message: dict[str, Any],
+        self,
+        vehicle: Vehicle,
+        message: dict[str, Any],
     ) -> None:
         msg_type = message.get("msg_type")
 
@@ -432,7 +437,10 @@ class ZmqStateMachine(StateMachine):
         return self._zmq_received_fields[identifier][field]
 
     async def _reply_queried_field(
-        self, identifier: str, field: str, value: Any,
+        self,
+        identifier: str,
+        field: str,
+        value: Any,
     ) -> None:
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,

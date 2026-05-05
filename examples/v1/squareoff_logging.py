@@ -210,7 +210,7 @@ class SquareOff(StateMachine):
             # rovers are done without anything special
             print("done!")
         return None
-            # remember that returning nothing == script over
+        # remember that returning nothing == script over
 
     @state(name="land")
     async def land(self, drone: Drone):

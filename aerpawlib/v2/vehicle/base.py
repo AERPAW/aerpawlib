@@ -210,7 +210,9 @@ class Vehicle:
         return self._state.ekf_ready
 
     async def can_takeoff(
-        self, altitude: float, min_battery_percent: float = 10.0,
+        self,
+        altitude: float,
+        min_battery_percent: float = 10.0,
     ) -> tuple[bool, str]:
         """
         Check if takeoff would succeed. Local checks plus optional SafetyCheckerClient.
@@ -238,7 +240,9 @@ class Vehicle:
             return False, f"Battery {self.battery.level}% below {min_battery_percent}%"
         if self.safety is not None:
             ok, msg = await self.safety.validate_takeoff(
-                altitude, self.position.lat, self.position.lon,
+                altitude,
+                self.position.lat,
+                self.position.lon,
             )
             logger.debug(f"can_takeoff: safety check ok={ok} msg={msg!r}")
             if not ok:
@@ -285,7 +289,8 @@ class Vehicle:
         )
         if self.safety is not None:
             ok, msg = await self.safety.validate_landing(
-                self.position.lat, self.position.lon,
+                self.position.lat,
+                self.position.lon,
             )
             logger.debug(f"can_land: safety check ok={ok} msg={msg!r}")
             if not ok:
@@ -363,7 +368,8 @@ class Vehicle:
         last_struct_telem = [0.0]
 
         def _telem_log_throttle(
-            last: list, interval: float = _telem_log_interval,
+            last: list,
+            interval: float = _telem_log_interval,
         ) -> bool:
             """Return True if we should log (throttled). Mutates last[0]."""
             now = time.monotonic()
@@ -470,7 +476,9 @@ class Vehicle:
                     return
                 current = getattr(bat, "current_battery_a", 0.0) or 0.0
                 self._state.update_battery(
-                    bat.voltage_v, current, int(bat.remaining_percent),
+                    bat.voltage_v,
+                    current,
+                    int(bat.remaining_percent),
                 )
                 if first[0]:
                     logger.info(
@@ -598,7 +606,8 @@ class Vehicle:
                         logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
             except Exception as e:
                 logger.debug(
-                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s", e,
+                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s",
+                    e,
                 )
 
         for coro in [

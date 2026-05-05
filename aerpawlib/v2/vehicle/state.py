@@ -113,7 +113,11 @@ class VehicleState:
         return self._last_arm_time
 
     def update_position(
-        self, lat: float, lon: float, rel_alt: float, abs_alt: float,
+        self,
+        lat: float,
+        lon: float,
+        rel_alt: float,
+        abs_alt: float,
     ) -> None:
         """Update position from a telemetry message.
 
@@ -226,7 +230,11 @@ class VehicleState:
         self._ekf_ready = (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS
 
     def update_home(
-        self, lat: float, lon: float, rel_alt: float, abs_alt: float,
+        self,
+        lat: float,
+        lon: float,
+        rel_alt: float,
+        abs_alt: float,
     ) -> None:
         """Update the home position.
 

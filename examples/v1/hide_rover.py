@@ -241,7 +241,9 @@ class HideRover(StateMachine):
             self._hide_latitude is not None
             and self._hide_longitude is not None
             and not inside(
-                self._hide_longitude, self._hide_latitude, self._hide_geofence,
+                self._hide_longitude,
+                self._hide_latitude,
+                self._hide_geofence,
             )
         ):
             print(
@@ -307,10 +309,13 @@ class HideRover(StateMachine):
         # head to hiding location and stop the script
         print("Hiding")
         hide_coords = Coordinate(
-            self._hide_latitude, self._hide_longitude, vehicle.position.alt,
+            self._hide_latitude,
+            self._hide_longitude,
+            vehicle.position.alt,
         )
         await vehicle.goto_coordinates(
-            hide_coords, target_heading=self._default_heading,
+            hide_coords,
+            target_heading=self._default_heading,
         )
         print("done!")
         return

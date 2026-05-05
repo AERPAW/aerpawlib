@@ -1,6 +1,7 @@
 """
 .. include:: ../../docs/v1/exceptions.md
 """
+
 from __future__ import annotations
 
 
@@ -17,7 +18,9 @@ class AerpawlibError(Exception):
     """
 
     def __init__(
-        self, message: str, original_error: Exception | None = None,
+        self,
+        message: str,
+        original_error: Exception | None = None,
     ) -> None:
         self.message = message
         self.original_error = original_error
@@ -53,7 +56,9 @@ class HeartbeatLostError(AerpawConnectionError):
     """Raised when the vehicle heartbeat is lost."""
 
     def __init__(
-        self, last_heartbeat_age: float = 0.0, message: str | None = None,
+        self,
+        last_heartbeat_age: float = 0.0,
+        message: str | None = None,
     ) -> None:
         self.last_heartbeat_age = last_heartbeat_age
         msg = (

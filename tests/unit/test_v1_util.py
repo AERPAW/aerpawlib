@@ -556,7 +556,14 @@ class TestGeofence:
     def test_doIntersect_alias(self):
         """doIntersect is an alias for do_intersect."""
         assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) == do_intersect(
-            0, 0, 10, 10, 0, 10, 10, 0,
+            0,
+            0,
+            10,
+            10,
+            0,
+            10,
+            10,
+            0,
         )
 
     def test_inside_on_boundary_behaviour(self):

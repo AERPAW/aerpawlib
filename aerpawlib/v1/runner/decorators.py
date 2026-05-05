@@ -71,17 +71,17 @@ class _State:
                 nonlocal running
                 last_state: str | None = None
                 while running:
-                    last_state = await self._func.__func__(runner, vehicle) # noqa
+                    last_state = await self._func.__func__(runner, vehicle)  # noqa
                     if not running:
                         break
-                    if not self._func._state_loop: # noqa
+                    if not self._func._state_loop:  # noqa
                         running = False
                         break
                     await asyncio.sleep(STATE_MACHINE_DELAY_S)
                 return last_state
 
             r = asyncio.ensure_future(_bg())
-            await asyncio.sleep(self._func._state_duration) # noqa
+            await asyncio.sleep(self._func._state_duration)  # noqa
             running = False
             return await r
         return None
@@ -96,6 +96,7 @@ def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
     """
     func._entrypoint = True
     return func
+
 
 def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
@@ -132,7 +133,10 @@ def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _Decorat
 
 
 def timed_state(
-    name: str, duration: float, loop: bool = False, first: bool = False,
+    name: str,
+    duration: float,
+    loop: bool = False,
+    first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator for a state that runs for a fixed duration.

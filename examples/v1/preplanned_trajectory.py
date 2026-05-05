@@ -110,8 +110,8 @@ class PreplannedTrajectory(StateMachine):
         parser.add_argument(
             "--look-at-heading",
             help=(
-            "heading to maintain while flying, if set. attitude is autopilot controlled if not set"
-        ),
+                "heading to maintain while flying, if set. attitude is autopilot controlled if not set"
+            ),
             required=False,
             default=None,
             action="store",
@@ -171,7 +171,8 @@ class PreplannedTrajectory(StateMachine):
         # do a few pings before waiting for the drone to arm
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5,
+                "127.0.0.1",
+                5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -323,7 +324,8 @@ class PreplannedTrajectory(StateMachine):
         # also as an example, measure ping latency while on the move
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5,
+                "127.0.0.1",
+                5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -344,7 +346,8 @@ class PreplannedTrajectory(StateMachine):
         # example: measure average ping latency
         if self._pinging:
             avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5,
+                "127.0.0.1",
+                5,
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
@@ -359,7 +362,8 @@ class PreplannedTrajectory(StateMachine):
             vehicle.position.alt,
         )
         await vehicle.goto_coordinates(
-            home_coords, target_heading=self._default_heading,
+            home_coords,
+            target_heading=self._default_heading,
         )
         if isinstance(vehicle, Drone):
             await vehicle.land()

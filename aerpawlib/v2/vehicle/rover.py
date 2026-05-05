@@ -483,7 +483,8 @@ class Rover(Vehicle):
                                 await self._system.offboard.stop()
                             except Exception as e:
                                 logger.debug(
-                                    "Rover velocity stop cleanup failed: %s", e,
+                                    "Rover velocity stop cleanup failed: %s",
+                                    e,
                                 )
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)

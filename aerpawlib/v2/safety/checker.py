@@ -98,7 +98,10 @@ class NoOpSafetyChecker:
         )
 
     async def validate_takeoff(
-        self, takeoff_alt: float, current_lat: float, current_lon: float,
+        self,
+        takeoff_alt: float,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """Passthrough takeoff validation — always returns True.
 
@@ -116,7 +119,9 @@ class NoOpSafetyChecker:
         return True, ""
 
     async def validate_waypoint(
-        self, current: Coordinate, next_loc: Coordinate,
+        self,
+        current: Coordinate,
+        next_loc: Coordinate,
     ) -> tuple[bool, str]:
         """Passthrough waypoint validation — always returns True.
 
@@ -147,7 +152,9 @@ class NoOpSafetyChecker:
         return True, ""
 
     async def validate_landing(
-        self, current_lat: float, current_lon: float,
+        self,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """Passthrough landing validation — always returns True.
 
@@ -263,7 +270,9 @@ class SafetyCheckerClient:
         return await self._send_request(msg)
 
     async def validate_waypoint(
-        self, current: Coordinate, next_loc: Coordinate,
+        self,
+        current: Coordinate,
+        next_loc: Coordinate,
     ) -> tuple[bool, str]:
         """Validate a waypoint navigation command with the server.
 
@@ -297,7 +306,10 @@ class SafetyCheckerClient:
         return await self._send_request(msg)
 
     async def validate_takeoff(
-        self, takeoff_alt: float, current_lat: float, current_lon: float,
+        self,
+        takeoff_alt: float,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """Validate a takeoff command with the server.
 
@@ -310,12 +322,15 @@ class SafetyCheckerClient:
             Tuple of (ok, message). ok is False if the server rejects the takeoff.
         """
         msg = _serialize_request(
-            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon],
+            VALIDATE_TAKEOFF_REQ,
+            [takeoff_alt, current_lat, current_lon],
         )
         return await self._send_request(msg)
 
     async def validate_landing(
-        self, current_lat: float, current_lon: float,
+        self,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """Validate a landing command with the server.
 

@@ -8,6 +8,7 @@ Capabilities:
 - Provide a minimal vehicle-like interface for non-flight code paths.
 - Allow runner and helper code to execute without hardware/SITL dependencies.
 """
+
 from __future__ import annotations
 
 from typing import Any

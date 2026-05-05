@@ -57,14 +57,16 @@ def _nearest_parent_state_machine_config(owner: type) -> StateMachineConfig | No
     """Return closest inherited StateMachineConfig, if any."""
     for base in owner.__mro__[1:]:
         if "config" in base.__dict__ and isinstance(
-            base.__dict__["config"], StateMachineConfig,
+            base.__dict__["config"],
+            StateMachineConfig,
         ):
             return base.__dict__["config"]
     return None
 
 
 def _ensure_state_machine_config(
-    owner: type, require_zmq: bool = False,
+    owner: type,
+    require_zmq: bool = False,
 ) -> StateMachineConfig:
     """Ensure owner has an isolated config copy; optionally upgrade to ZMQ config."""
     cfg = owner.__dict__.get("config")

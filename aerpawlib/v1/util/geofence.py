@@ -14,7 +14,6 @@ Notes:
   the snake_case function names.
 """
 
-
 from pykml import parser
 
 
@@ -83,7 +82,12 @@ def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
 
 
 def lies_on_segment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
 ) -> bool:
     """
     Check if point Q lies on line segment PR.
@@ -105,14 +109,24 @@ def lies_on_segment(
 
 
 def liesOnSegment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
 ) -> bool:
     """Backward-compatible alias for :func:`lies_on_segment`."""
     return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
 def orientation(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
 ) -> int:
     """
     Find the orientation of an ordered triplet (p, q, r).

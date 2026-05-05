@@ -12,6 +12,7 @@ Capabilities:
 Notes:
 - Rover navigation ignores vertical velocity components by design.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -212,8 +213,7 @@ class Rover(Vehicle):
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
                 timeout_message=(
-                    f"Rover failed to reach destination {coordinates} within "
-                    f"{timeout}s"
+                    f"Rover failed to reach destination {coordinates} within {timeout}s"
                 ),
             )
             logger.debug(
@@ -309,7 +309,8 @@ class Rover(Vehicle):
                                 self._offboard_active = False
                             except Exception as e:
                                 logger.debug(
-                                    "Rover velocity stop cleanup failed: %s", e,
+                                    "Rover velocity stop cleanup failed: %s",
+                                    e,
                                 )
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)

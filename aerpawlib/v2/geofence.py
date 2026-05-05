@@ -102,7 +102,12 @@ def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
 
 
 def _lies_on_segment(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
 ) -> bool:
     """Return True if point Q lies on segment PR.
 
@@ -123,7 +128,12 @@ def _lies_on_segment(
 
 
 def _orientation(
-    px: float, py: float, qx: float, qy: float, rx: float, ry: float,
+    px: float,
+    py: float,
+    qx: float,
+    qy: float,
+    rx: float,
+    ry: float,
 ) -> int:
     """Return the orientation of the ordered triple (P, Q, R).
 

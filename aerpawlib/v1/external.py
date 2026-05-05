@@ -1,6 +1,7 @@
 """
 .. include:: ../../docs/v1/external.md
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -71,8 +72,11 @@ class ExternalProcess:
             stream = getattr(proc, name, None)
             if stream is not None:
                 with contextlib.suppress(
-                BrokenPipeError, ConnectionResetError, ValueError, OSError,
-            ):
+                    BrokenPipeError,
+                    ConnectionResetError,
+                    ValueError,
+                    OSError,
+                ):
                     await stream.read()
         if proc.stdin is not None:
             try:
@@ -144,7 +148,8 @@ class ExternalProcess:
         await self.process.wait()
 
     async def wait_until_output(
-        self, output_regex: str | Pattern[str],
+        self,
+        output_regex: str | Pattern[str],
     ) -> list[str]:
         """
         Block and wait until a line matching the given regex is found in stdout.

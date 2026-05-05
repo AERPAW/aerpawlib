@@ -12,6 +12,7 @@ Notes:
 - Validation is intentionally early to avoid delayed failures during MAVSDK
   server initialization.
 """
+
 from __future__ import annotations
 
 import re

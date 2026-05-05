@@ -13,6 +13,7 @@ Notes:
 - Shared connection, telemetry, and lifecycle behavior comes from
   `aerpawlib.v1.vehicle.core_vehicle`.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -241,7 +242,8 @@ class Drone(Vehicle):
             await self._run_on_mavsdk_loop(coro)
             self._ready_to_move = lambda _: False
             await wait_for_condition(
-                lambda: not self.armed, poll_interval=POLLING_DELAY_S,
+                lambda: not self.armed,
+                poll_interval=POLLING_DELAY_S,
             )
             logger.debug(f"{name} complete")
         except ActionError as e:
@@ -255,7 +257,9 @@ class Drone(Vehicle):
     async def return_to_launch(self) -> None:
         """Command the drone to RTL and wait for it to land and disarm."""
         await self._action_wait_disarm(
-            self._system.action.return_to_launch(), "RTL", RTLError,
+            self._system.action.return_to_launch(),
+            "RTL",
+            RTLError,
         )
 
     async def goto_coordinates(
@@ -320,8 +324,7 @@ class Drone(Vehicle):
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
                 timeout_message=(
-                    f"Drone failed to reach destination {coordinates} within "
-                    f"{timeout}s"
+                    f"Drone failed to reach destination {coordinates} within {timeout}s"
                 ),
             )
             logger.debug("Arrived at destination")

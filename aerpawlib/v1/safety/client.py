@@ -14,7 +14,6 @@ Usage:
   validation helper methods before issuing movement commands.
 """
 
-
 import contextlib
 
 import zmq
@@ -154,7 +153,9 @@ class SafetyCheckerClient:
         return self.check_server_status()
 
     def validate_waypoint_command(
-        self, current_location: Coordinate, next_location: Coordinate,
+        self,
+        current_location: Coordinate,
+        next_location: Coordinate,
     ) -> tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside
@@ -170,7 +171,9 @@ class SafetyCheckerClient:
         return self.parse_response(resp)
 
     def validateWaypointCommand(
-        self, curLoc: Coordinate, nextLoc: Coordinate,
+        self,
+        curLoc: Coordinate,
+        nextLoc: Coordinate,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_waypoint_command`."""
         return self.validate_waypoint_command(curLoc, nextLoc)
@@ -190,7 +193,10 @@ class SafetyCheckerClient:
         return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
-        self, takeoff_alt: float, current_lat: float, current_lon: float,
+        self,
+        takeoff_alt: float,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """
         Makes sure the takeoff altitude lies within the vehicle constraints.
@@ -198,19 +204,25 @@ class SafetyCheckerClient:
         else (True, "").
         """
         msg = serialize_request(
-            VALIDATE_TAKEOFF_REQ, [takeoff_alt, current_lat, current_lon],
+            VALIDATE_TAKEOFF_REQ,
+            [takeoff_alt, current_lat, current_lon],
         )
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
     def validateTakeoffCommand(
-        self, takeoffAlt: float, currentLat: float, currentLon: float,
+        self,
+        takeoffAlt: float,
+        currentLat: float,
+        currentLon: float,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_takeoff_command`."""
         return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
-        self, current_lat: float, current_lon: float,
+        self,
+        current_lat: float,
+        current_lon: float,
     ) -> tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff
@@ -222,7 +234,9 @@ class SafetyCheckerClient:
         return self.parse_response(resp)
 
     def validateLandingCommand(
-        self, currentLat: float, currentLon: float,
+        self,
+        currentLat: float,
+        currentLon: float,
     ) -> tuple[bool, str]:
         """Backward-compatible alias for :meth:`validate_landing_command`."""
         return self.validate_landing_command(currentLat, currentLon)

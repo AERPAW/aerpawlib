@@ -194,7 +194,8 @@ class Drone(Vehicle):
                 _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             )
             await _wait_for_condition(
-                lambda: self.done_moving(), timeout=DEFAULT_GOTO_TIMEOUT_S,
+                lambda: self.done_moving(),
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
             )
         except (OffboardError, ActionError) as e:
             logger.warning(f"set_heading error: {e}")
@@ -220,7 +221,9 @@ class Drone(Vehicle):
         """
         if self._event_log:
             self._event_log.log_event(
-                "command", type="takeoff", arguments={"altitude": altitude},
+                "command",
+                type="takeoff",
+                arguments={"altitude": altitude},
             )
         await self.await_ready_to_move()
         time_since_arm = time.monotonic() - self._state.last_arm_time
@@ -384,7 +387,10 @@ class Drone(Vehicle):
             )
             self._ready_to_move = lambda _: False
             await self._system.action.goto_location(
-                coordinates.lat, coordinates.lon, target_alt, heading,
+                coordinates.lat,
+                coordinates.lon,
+                target_alt,
+                heading,
             )
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")

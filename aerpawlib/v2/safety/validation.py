@@ -44,7 +44,8 @@ class PreflightChecks:
 
     @staticmethod
     def check_battery(
-        vehicle: VehicleProtocol, min_percent: float = DEFAULT_MIN_BATTERY_PERCENT,
+        vehicle: VehicleProtocol,
+        min_percent: float = DEFAULT_MIN_BATTERY_PERCENT,
     ) -> bool:
         """Check that the vehicle battery is above the minimum threshold.
 

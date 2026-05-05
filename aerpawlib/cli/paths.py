@@ -1,5 +1,6 @@
 """Resolve CLI filesystem paths relative to the
 directory the user invoked the CLI from."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -21,8 +22,7 @@ def find_repo_root_containing_examples() -> str | None:
     return None
 
 
-def _resolve_cli_path_obj(
-    path: str | None, invocation_cwd: str) -> Path | None:
+def _resolve_cli_path_obj(path: str | None, invocation_cwd: str) -> Path | None:
     """Internal: resolve path, returning Path object."""
     if path is None:
         return None

@@ -14,6 +14,7 @@ Notes:
 - Concrete movement behavior is implemented by `Drone` and `Rover` modules on
   top of this shared base implementation.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -297,7 +298,8 @@ class Vehicle:
                 if isinstance(err, AerpawConnectionError):
                     raise err
                 raise AerpawConnectionError(
-                    f"Connection failed: {err}", original_error=err,
+                    f"Connection failed: {err}",
+                    original_error=err,
                 )
             if time.time() - start > CONNECTION_TIMEOUT_S:
                 raise ConnectionTimeoutError(CONNECTION_TIMEOUT_S)
@@ -339,7 +341,8 @@ class Vehicle:
             self._pending_mavsdk_futures.add(future)
         try:
             return await asyncio.wait_for(
-                asyncio.wrap_future(future), timeout=_MAVSDK_LOOP_TIMEOUT_S,
+                asyncio.wrap_future(future),
+                timeout=_MAVSDK_LOOP_TIMEOUT_S,
             )
         except asyncio.TimeoutError:
             future.cancel()
@@ -380,8 +383,7 @@ class Vehicle:
             raise ConnectionTimeoutError(
                 CONNECTION_TIMEOUT_S,
                 message=(
-                    "Connection established but no heartbeat received within "
-                    "timeout"
+                    "Connection established but no heartbeat received within timeout"
                 ),
             )
 
@@ -392,7 +394,9 @@ class Vehicle:
         await self._fetch_vehicle_info()
 
     async def _resilient_telemetry_task(
-        self, name: str, coro_factory: Callable[[], Any],
+        self,
+        name: str,
+        coro_factory: Callable[[], Any],
     ) -> None:
         """Wrap a telemetry subscription in retry logic."""
         retry_count = 0
@@ -854,8 +858,7 @@ class Vehicle:
             timeout=DEFAULT_GOTO_TIMEOUT_S,
             poll_interval=POLLING_DELAY_S,
             timeout_message=(
-                f"Vehicle did not report done_moving within "
-                f"{DEFAULT_GOTO_TIMEOUT_S}s"
+                f"Vehicle did not report done_moving within {DEFAULT_GOTO_TIMEOUT_S}s"
             ),
         )
 
@@ -1052,7 +1055,8 @@ class Vehicle:
                     poll_interval=POLLING_DELAY_S,
                 )
                 await wait_for_condition(
-                    lambda: self.armed, poll_interval=POLLING_DELAY_S,
+                    lambda: self.armed,
+                    poll_interval=POLLING_DELAY_S,
                 )
             else:
                 # In standalone/SITL, auto-arm the vehicle

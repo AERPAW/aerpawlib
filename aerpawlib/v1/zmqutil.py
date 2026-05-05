@@ -19,7 +19,8 @@ logger = get_logger(LogComponent.ZMQ)
 
 
 def check_zmq_proxy_reachable(
-    proxy_addr: str, timeout_s: float = ZMQ_PROXY_CHECK_TIMEOUT_S,
+    proxy_addr: str,
+    timeout_s: float = ZMQ_PROXY_CHECK_TIMEOUT_S,
 ) -> bool:
     """
     Check if the ZMQ proxy is reachable before starting a runner.
@@ -36,7 +37,8 @@ def check_zmq_proxy_reachable(
     """
     try:
         with socket.create_connection(
-            (proxy_addr, int(ZMQ_PROXY_OUT_PORT)), timeout=timeout_s,
+            (proxy_addr, int(ZMQ_PROXY_OUT_PORT)),
+            timeout=timeout_s,
         ) as _:
             return True
     except (OSError, ValueError):

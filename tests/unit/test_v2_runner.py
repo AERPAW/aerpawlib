@@ -406,7 +406,8 @@ class TestConnectionHandler:
         vehicle = MockVehicle()
         # TRANSITION without next_state
         await z._zmq_handle_message(
-            vehicle, {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"},
+            vehicle,
+            {"msg_type": ZMQ_TYPE_TRANSITION, "identifier": "me"},
         )
         # FIELD_REQUEST without field
         await z._zmq_handle_message(
@@ -420,7 +421,8 @@ class TestConnectionHandler:
         )
         # Unknown msg_type - silently ignored
         await z._zmq_handle_message(
-            vehicle, {"msg_type": "unknown", "identifier": "me"},
+            vehicle,
+            {"msg_type": "unknown", "identifier": "me"},
         )
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
@@ -479,7 +481,8 @@ class TestConnectionHandler:
 
         asyncio.create_task(_inject_reply())
         result = await asyncio.wait_for(
-            z.query_field("responder", "altitude", timeout=1.0), timeout=2.0,
+            z.query_field("responder", "altitude", timeout=1.0),
+            timeout=2.0,
         )
         assert result == 100.0
         assert "altitude" not in z._zmq_pending_fields["responder"]
@@ -544,7 +547,9 @@ class TestConnectionHandler:
         disconnect_future = handler.get_disconnect_future()
 
         done, _ = await asyncio.wait(
-            [disconnect_future], timeout=2.5, return_when=asyncio.FIRST_COMPLETED,
+            [disconnect_future],
+            timeout=2.5,
+            return_when=asyncio.FIRST_COMPLETED,
         )
         assert disconnect_future in done
         assert isinstance(disconnect_future.exception(), HeartbeatLostError)

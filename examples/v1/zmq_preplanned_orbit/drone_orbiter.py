@@ -64,7 +64,8 @@ class OrbiterRunner(ZmqStateMachine):
         leg_dist = radius_vec.hypot(True)
         d = perp_vec.hypot(True)
         perp_normalized = VectorNED(
-            perp_vec.north / d * leg_dist, perp_vec.east / d * leg_dist,
+            perp_vec.north / d * leg_dist,
+            perp_vec.east / d * leg_dist,
         )
 
         await drone.goto_coordinates(drone.position + perp_normalized)
@@ -84,7 +85,9 @@ class OrbiterRunner(ZmqStateMachine):
     @state(name="rtl")
     async def state_rtl(self, drone: Drone):
         home_coords = Coordinate(
-            drone.home_coords.lat, drone.home_coords.lon, drone.position.alt,
+            drone.home_coords.lat,
+            drone.home_coords.lon,
+            drone.position.alt,
         )
         await drone.goto_coordinates(home_coords)
         await self.transition_runner(ZMQ_GROUND, "callback_orbiter_rtl_done")

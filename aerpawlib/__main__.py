@@ -69,6 +69,7 @@ def main() -> None:
 
     project_root_str = str(project_root)
     import os
+
     os.chdir(project_root_str)
     sys.path.insert(0, project_root_str)
 
@@ -229,8 +230,7 @@ def main() -> None:
     conn_grp.add_argument(
         "--heartbeat-timeout",
         help=(
-            "max seconds without heartbeat before considered disconnected "
-            "(default: 5)"
+            "max seconds without heartbeat before considered disconnected (default: 5)"
         ),
         type=float,
         default=DEFAULT_HEARTBEAT_TIMEOUT_S,
@@ -263,8 +263,9 @@ def main() -> None:
     if args.log_file:
         args.log_file = str(resolve_cli_path(args.log_file, str(invocation_cwd)))
     if args.structured_log:
-        args.structured_log = (
-            str(resolve_cli_path(args.structured_log, str(invocation_cwd))))
+        args.structured_log = str(
+            resolve_cli_path(args.structured_log, str(invocation_cwd)),
+        )
     if args.script:
         sa = args.script
         # Dotted module names (no path separators) are resolved by importlib as-is
@@ -324,8 +325,9 @@ def main() -> None:
             module_name = script_p.stem
             spec = importlib.util.spec_from_file_location(module_name, str(script_path))
             if spec is None:
-                raise ImportError(f"Cannot load experimenter"
-                                  f" module from '{script_path}'")
+                raise ImportError(
+                    f"Cannot load experimenter module from '{script_path}'",
+                )
             experimenter_script = importlib.util.module_from_spec(spec)
             if spec.loader is None:
                 raise ImportError(
