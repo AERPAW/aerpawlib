@@ -187,7 +187,11 @@ class StateMachine(Runner):
             future = asyncio.ensure_future(_task_runner())
             self._background_task_futures.append(future)
 
-    async def run(self, vehicle: Vehicle, build_before_running: bool = True) -> None:
+    async def run(  # noqa: FBT001, FBT002
+        self,
+        vehicle: Vehicle,
+        build_before_running: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
         """
         Execute the state machine logic.
 
@@ -378,7 +382,11 @@ class ZmqStateMachine(StateMachine):
         finally:
             socket.close()
 
-    async def run(self, vehicle: Vehicle, zmq_proxy: bool = False) -> None:
+    async def run(  # noqa: FBT001, FBT002
+        self,
+        vehicle: Vehicle,
+        zmq_proxy: bool = False,  # noqa: FBT001, FBT002
+    ) -> None:
         self._build()
 
         if (

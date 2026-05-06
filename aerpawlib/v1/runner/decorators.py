@@ -98,7 +98,10 @@ def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
     return func
 
 
-def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
+def state(  # noqa: FBT001, FBT002
+    name: str,
+    first: bool = False,  # noqa: FBT001, FBT002
+) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator to specify a state in a StateMachine.
 
@@ -135,8 +138,8 @@ def state(name: str, first: bool = False) -> Callable[[_DecoratedFunc], _Decorat
 def timed_state(
     name: str,
     duration: float,
-    loop: bool = False,
-    first: bool = False,
+    loop: bool = False,  # noqa: FBT001, FBT002
+    first: bool = False,  # noqa: FBT001, FBT002
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator for a state that runs for a fixed duration.

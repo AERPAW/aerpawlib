@@ -14,20 +14,22 @@ Notes:
   the snake_case function names.
 """
 
+from pathlib import Path
+
 from pykml import parser
 
 
-def read_geofence(filePath: str) -> list[dict]:
+def read_geofence(file_path: str) -> list[dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
     Args:
-        filePath: Path to the KML file.
+        file_path: Path to the KML file.
 
     Returns:
         List[dict]: Points as [{'lat': ..., 'lon': ...}, ...].
     """
-    with open(filePath, "rb") as f:
+    with Path(file_path).open("rb") as f:
         root = parser.fromstring(f.read())
     coordinates_string = (
         root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
@@ -41,11 +43,6 @@ def read_geofence(filePath: str) -> list[dict]:
         }
         polygon.append(point)
     return polygon
-
-
-def readGeofence(filePath: str) -> list[dict]:
-    """Backward-compatible alias for :func:`read_geofence`."""
-    return read_geofence(filePath)
 
 
 def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
@@ -106,18 +103,6 @@ def lies_on_segment(
         and qy <= max(py, ry)
         and qy >= min(py, ry),
     )
-
-
-def liesOnSegment(
-    px: float,
-    py: float,
-    qx: float,
-    qy: float,
-    rx: float,
-    ry: float,
-) -> bool:
-    """Backward-compatible alias for :func:`lies_on_segment`."""
-    return lies_on_segment(px, py, qx, qy, rx, ry)
 
 
 def orientation(
@@ -182,15 +167,6 @@ def do_intersect(
     return bool(o4 == 0 and lies_on_segment(rx, ry, qx, qy, sx, sy))
 
 
-def doIntersect(
-    px: float,
-    py: float,
-    qx: float,
-    qy: float,
-    rx: float,
-    ry: float,
-    sx: float,
-    sy: float,
-) -> bool:
-    """Backward-compatible alias for :func:`do_intersect`."""
-    return do_intersect(px, py, qx, qy, rx, ry, sx, sy)
+globals()["readGeofence"] = read_geofence
+globals()["liesOnSegment"] = lies_on_segment
+globals()["doIntersect"] = do_intersect

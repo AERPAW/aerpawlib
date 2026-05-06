@@ -34,7 +34,7 @@ class DummyVehicle:
         """Mark the dummy vehicle as closed."""
         self._closed = True
 
-    def _preflight_wait(self, should_arm: bool) -> None:
+    def _preflight_wait(self, should_arm: bool) -> None:  # noqa: FBT001
         """No-op preflight hook for compatibility with Vehicle."""
         pass
 

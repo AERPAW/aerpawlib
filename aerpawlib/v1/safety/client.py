@@ -117,10 +117,6 @@ class SafetyCheckerClient:
         logger.debug(f"Received reply [{message}]")
         return message
 
-    def sendRequest(self, msg: bytes) -> dict:
-        """Backward-compatible alias for :meth:`send_request`."""
-        return self.send_request(msg)
-
     def parse_response(self, response: dict) -> tuple[bool, str]:
         """
         Parse a response dictionary from the safety checker server.
@@ -133,10 +129,6 @@ class SafetyCheckerClient:
         """
         return response["result"], response["message"]
 
-    def parseResponse(self, response: dict) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`parse_response`."""
-        return self.parse_response(response)
-
     def check_server_status(self) -> tuple[bool, str]:
         """
         Verify the safety checker server is reachable and active.
@@ -147,10 +139,6 @@ class SafetyCheckerClient:
         msg = serialize_request(SERVER_STATUS_REQ, [])
         resp = self.send_request(msg)
         return self.parse_response(resp)
-
-    def checkServerStatus(self) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`check_server_status`."""
-        return self.check_server_status()
 
     def validate_waypoint_command(
         self,
@@ -170,14 +158,6 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateWaypointCommand(
-        self,
-        curLoc: Coordinate,
-        nextLoc: Coordinate,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_waypoint_command`."""
-        return self.validate_waypoint_command(curLoc, nextLoc)
-
     def validate_change_speed_command(self, new_speed: float) -> tuple[bool, str]:
         """
         Makes sure the provided new_speed lies within the configured vehicle
@@ -187,10 +167,6 @@ class SafetyCheckerClient:
         msg = serialize_request(VALIDATE_CHANGE_SPEED_REQ, [new_speed])
         resp = self.send_request(msg)
         return self.parse_response(resp)
-
-    def validateChangeSpeedCommand(self, newSpeed: float) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_change_speed_command`."""
-        return self.validate_change_speed_command(newSpeed)
 
     def validate_takeoff_command(
         self,
@@ -210,15 +186,6 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateTakeoffCommand(
-        self,
-        takeoffAlt: float,
-        currentLat: float,
-        currentLon: float,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_takeoff_command`."""
-        return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
-
     def validate_landing_command(
         self,
         current_lat: float,
@@ -233,10 +200,32 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
-    def validateLandingCommand(
-        self,
-        currentLat: float,
-        currentLon: float,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_landing_command`."""
-        return self.validate_landing_command(currentLat, currentLon)
+
+# Backward-compatible camelCase aliases.
+setattr(SafetyCheckerClient, "sendRequest", SafetyCheckerClient.send_request)
+setattr(SafetyCheckerClient, "parseResponse", SafetyCheckerClient.parse_response)
+setattr(
+    SafetyCheckerClient,
+    "checkServerStatus",
+    SafetyCheckerClient.check_server_status,
+)
+setattr(
+    SafetyCheckerClient,
+    "validateWaypointCommand",
+    SafetyCheckerClient.validate_waypoint_command,
+)
+setattr(
+    SafetyCheckerClient,
+    "validateChangeSpeedCommand",
+    SafetyCheckerClient.validate_change_speed_command,
+)
+setattr(
+    SafetyCheckerClient,
+    "validateTakeoffCommand",
+    SafetyCheckerClient.validate_takeoff_command,
+)
+setattr(
+    SafetyCheckerClient,
+    "validateLandingCommand",
+    SafetyCheckerClient.validate_landing_command,
+)

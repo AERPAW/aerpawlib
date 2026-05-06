@@ -22,6 +22,7 @@ import contextlib
 import math
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 from grpc.aio import AioRpcError
@@ -126,7 +127,7 @@ class Vehicle:
     # Verbose logging configuration
     _verbose_logging: bool = False
     _verbose_logging_file_prefix: str = VERBOSE_LOG_FILE_PREFIX
-    _verbose_logging_file_writer = None
+    _verbose_logging_file_path: Path | None = None
     _verbose_logging_last_log_time: float = 0
     _verbose_logging_delay: float = VERBOSE_LOG_DELAY_S
     _verbose_log_lock: threading.Lock
@@ -177,8 +178,8 @@ class Vehicle:
         self._last_heartbeat_time = 0.0
 
         # Safety checker setup
-        self._armed_state = ThreadSafeValue(False)
-        self._is_armable_state = ThreadSafeValue(False)
+        self._armed_state = ThreadSafeValue(initial_value=False)
+        self._is_armable_state = ThreadSafeValue(initial_value=False)
         self._health_val = ThreadSafeValue(None)
         self._last_arm_time = ThreadSafeValue(0.0)
         self._position_lat = ThreadSafeValue(0.0)
@@ -189,8 +190,8 @@ class Vehicle:
         self._velocity_ned = ThreadSafeValue([0.0, 0.0, 0.0])
         self._home_position = ThreadSafeValue(None)
         self._home_abs_alt = ThreadSafeValue(0.0)
-        self._prearm_checks_ok = ThreadSafeValue(False)
-        self._ekf_ready = ThreadSafeValue(False)
+        self._prearm_checks_ok = ThreadSafeValue(initial_value=False)
+        self._ekf_ready = ThreadSafeValue(initial_value=False)
 
         # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
         self._battery_val = ThreadSafeValue(_BatteryCompat())
@@ -200,7 +201,7 @@ class Vehicle:
         self._mode = ThreadSafeValue("UNKNOWN")
 
         # Flag set once the first armed-state telemetry message arrives
-        self._armed_telemetry_received = ThreadSafeValue(False)
+        self._armed_telemetry_received = ThreadSafeValue(initial_value=False)
 
         # Track active futures for cancellation in close()
         self._pending_mavsdk_futures = set()
@@ -209,7 +210,7 @@ class Vehicle:
         # Telemetry and command tasks
         self._telemetry_tasks: list[asyncio.Task] = []
         self._command_tasks: list[asyncio.Task] = []
-        self._running = ThreadSafeValue(True)
+        self._running = ThreadSafeValue(initial_value=True)
 
         # Event loop for MAVSDK operations (runs in background thread)
         self._mavsdk_loop: asyncio.AbstractEventLoop | None = None
@@ -775,27 +776,22 @@ class Vehicle:
             < time.time()
         ):
             with self._verbose_log_lock:
-                try:
-                    if self._verbose_logging_file_writer is None:
-                        self._verbose_logging_file_writer = open(
-                            f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
-                            "w",
-                        )
+                if self._verbose_logging_file_path is None:
+                    self._verbose_logging_file_path = Path(
+                        f"{self._verbose_logging_file_prefix}_{time.time_ns()}.csv",
+                    )
+                write_header = not self._verbose_logging_file_path.exists()
+                with self._verbose_logging_file_path.open("a", encoding="utf-8") as f:
+                    if write_header:
                         # Write header row (F4)
-                        self._verbose_logging_file_writer.write(
+                        f.write(
                             "timestamp_ns,armed,attitude,autopilot_info,battery,gps,"
                             "heading,home_coords,position,velocity,mode,nav_output,"
                             "mission_item\n",
                         )
                     log_output = self.debug_dump()
-                    self._verbose_logging_file_writer.write(f"{log_output}\n")
-                    self._verbose_logging_file_writer.flush()
-                    self._verbose_logging_last_log_time = time.time()
-                except Exception:
-                    if self._verbose_logging_file_writer is not None:
-                        self._verbose_logging_file_writer.close()
-                        self._verbose_logging_file_writer = None
-                    raise
+                    f.write(f"{log_output}\n")
+                self._verbose_logging_last_log_time = time.time()
 
         if self._event_log is not None:
             now = time.time()
@@ -909,9 +905,7 @@ class Vehicle:
 
         # Close verbose log writer under the same lock the update loop uses
         with self._verbose_log_lock:
-            if self._verbose_logging_file_writer is not None:
-                self._verbose_logging_file_writer.close()
-                self._verbose_logging_file_writer = None
+            self._verbose_logging_file_path = None
 
         if hasattr(self, "_mavsdk_thread") and self._mavsdk_thread.is_alive():
             self._mavsdk_thread.join(timeout=MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S)
@@ -927,7 +921,7 @@ class Vehicle:
 
         logger.info("Vehicle connection closed")
 
-    async def set_armed(self, value: bool) -> None:
+    async def set_armed(self, value: bool) -> None:  # noqa: FBT001
         """
         Arm or disarm this vehicle, and wait for it to be armed (if possible).
 
@@ -971,7 +965,7 @@ class Vehicle:
                 raise ArmError(str(e), original_error=e)
             raise DisarmError(str(e), original_error=e)
 
-    def _preflight_wait(self, should_arm: bool) -> None:
+    def _preflight_wait(self, should_arm: bool) -> None:  # noqa: FBT001
         """
         Wait for pre-arm conditions (GPS fix, etc.) to be satisfied.
 
@@ -1153,7 +1147,7 @@ class Vehicle:
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,
+        global_relative: bool = True,  # noqa: FBT001, FBT002
         duration: float | None = None,
     ) -> None:
         """

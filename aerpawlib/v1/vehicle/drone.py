@@ -101,8 +101,8 @@ class Drone(Vehicle):
     async def set_heading(
         self,
         heading: float | None,
-        blocking: bool = True,
-        lock_in: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
+        lock_in: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
         """
         Command the drone to turn to a specific heading.
@@ -342,7 +342,7 @@ class Drone(Vehicle):
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,
+        global_relative: bool = True,  # noqa: FBT001, FBT002
         duration: float | None = None,
     ) -> None:
         """

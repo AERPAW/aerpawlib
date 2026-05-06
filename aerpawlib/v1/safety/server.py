@@ -21,8 +21,8 @@ Notes:
 from __future__ import annotations
 
 import json
-import os
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import Any, Callable
 
 import yaml
@@ -93,20 +93,21 @@ class SafetyCheckerServer:
             VALIDATE_LANDING_REQ: self.validate_landing_handler,
         }
 
-        with open(vehicle_config_filename) as vehicle_config_file:
+        config_path = Path(vehicle_config_filename)
+        with config_path.open(encoding="utf-8") as vehicle_config_file:
             config = yaml.safe_load(vehicle_config_file)
 
-        self.validate_config(config, vehicle_config_filename)
+        self.validate_config(config, str(config_path))
 
         self.vehicle_type = config["vehicle_type"]
 
-        vehicle_config_dir, _ = os.path.split(vehicle_config_filename)
+        vehicle_config_dir = config_path.parent
         self.include_geofences = [
-            read_geofence(os.path.join(vehicle_config_dir, geofence))
+            read_geofence(str(vehicle_config_dir / geofence))
             for geofence in config["include_geofences"]
         ]
         self.exclude_geofences = [
-            read_geofence(os.path.join(vehicle_config_dir, geofence))
+            read_geofence(str(vehicle_config_dir / geofence))
             for geofence in config["exclude_geofences"]
         ]
         self.max_speed = config["max_speed"]
@@ -224,15 +225,16 @@ class SafetyCheckerServer:
         """
         logger.debug(f"Validating {next_location}")
 
-        if self.vehicle_type == VEHICLE_TYPE_COPTER:
-            if next_location.alt < self.min_alt or next_location.alt > self.max_alt:
-                return (
-                    False,
-                    (
-                        f"Invalid waypoint. Altitude of {next_location.alt} m is "
-                        "not within restrictions! ABORTING!"
-                    ),
-                )
+        if self.vehicle_type == VEHICLE_TYPE_COPTER and (
+            next_location.alt < self.min_alt or next_location.alt > self.max_alt
+        ):
+            return (
+                False,
+                (
+                    f"Invalid waypoint. Altitude of {next_location.alt} m is "
+                    "not within restrictions! ABORTING!"
+                ),
+            )
 
         dest_geofence = None
         for gf in self.include_geofences:
@@ -307,14 +309,6 @@ class SafetyCheckerServer:
 
         return True, ""
 
-    def validateWaypointCommand(
-        self,
-        curLoc: Coordinate,
-        nextLoc: Coordinate,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_waypoint_command`."""
-        return self.validate_waypoint_command(curLoc, nextLoc)
-
     def validate_change_speed_command(self, new_speed: float) -> tuple[bool, str]:
         """
         Makes sure the provided newSpeed lies within the configured vehicle
@@ -333,10 +327,6 @@ class SafetyCheckerServer:
             )
         return True, ""
 
-    def validateChangeSpeedCommand(self, newSpeed: float) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_change_speed_command`."""
-        return self.validate_change_speed_command(newSpeed)
-
     def validate_takeoff_command(
         self,
         takeoff_alt: float,
@@ -348,23 +338,15 @@ class SafetyCheckerServer:
         Returns (False, <error message>) if the altitude violates constraints,
         else (True, "").
         """
-        if self.vehicle_type == VEHICLE_TYPE_COPTER:
-            if takeoff_alt < self.min_alt or takeoff_alt > self.max_alt:
-                return (
-                    False,
-                    f"Invalid takeoff altitude of {takeoff_alt} m.",
-                )
+        if self.vehicle_type == VEHICLE_TYPE_COPTER and (
+            takeoff_alt < self.min_alt or takeoff_alt > self.max_alt
+        ):
+            return (
+                False,
+                f"Invalid takeoff altitude of {takeoff_alt} m.",
+            )
         self.takeoff_location = Coordinate(current_lat, current_lon, alt=0)
         return True, ""
-
-    def validateTakeoffCommand(
-        self,
-        takeoffAlt: float,
-        currentLat: float,
-        currentLon: float,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_takeoff_command`."""
-        return self.validate_takeoff_command(takeoffAlt, currentLat, currentLon)
 
     def validate_landing_command(
         self,
@@ -394,14 +376,6 @@ class SafetyCheckerServer:
             )
         return True, ""
 
-    def validateLandingCommand(
-        self,
-        currentLat: float,
-        currentLon: float,
-    ) -> tuple[bool, str]:
-        """Backward-compatible alias for :meth:`validate_landing_command`."""
-        return self.validate_landing_command(currentLat, currentLon)
-
     def server_status_handler(self, *_params: Any) -> bytes:
         """
         Handler for server status requests.
@@ -410,10 +384,6 @@ class SafetyCheckerServer:
             bytes: Serialized successful response.
         """
         return serialize_response(request_function=SERVER_STATUS_REQ, result=True)
-
-    def serverStatusHandler(self, *_params: Any) -> bytes:
-        """Backward-compatible alias for :meth:`server_status_handler`."""
-        return self.server_status_handler(*_params)
 
     def validate_waypoint_handler(
         self,
@@ -454,15 +424,6 @@ class SafetyCheckerServer:
             message=message,
         )
 
-    def validateWaypointHandler(
-        self,
-        curLocJSON: str,
-        nextLocJSON: str,
-        *_params: Any,
-    ) -> bytes:
-        """Backward-compatible alias for :meth:`validate_waypoint_handler`."""
-        return self.validate_waypoint_handler(curLocJSON, nextLocJSON, *_params)
-
     def validate_change_speed_handler(self, new_speed: float, *_params: Any) -> bytes:
         """
         Handler for speed change validation requests.
@@ -479,10 +440,6 @@ class SafetyCheckerServer:
             result=result,
             message=message,
         )
-
-    def validateChangeSpeedHandler(self, newSpeed: float, *_params: Any) -> bytes:
-        """Backward-compatible alias for :meth:`validate_change_speed_handler`."""
-        return self.validate_change_speed_handler(newSpeed, *_params)
 
     def validate_takeoff_handler(
         self,
@@ -513,21 +470,6 @@ class SafetyCheckerServer:
             message=message,
         )
 
-    def validateTakeoffHandler(
-        self,
-        takeoffAlt: float,
-        currentLat: float,
-        currentLon: float,
-        *_params: Any,
-    ) -> bytes:
-        """Backward-compatible alias for :meth:`validate_takeoff_handler`."""
-        return self.validate_takeoff_handler(
-            takeoffAlt,
-            currentLat,
-            currentLon,
-            *_params,
-        )
-
     def validate_landing_handler(
         self,
         current_lat: float,
@@ -551,15 +493,6 @@ class SafetyCheckerServer:
             message=message,
         )
 
-    def validateLandingHandler(
-        self,
-        currentLat: float,
-        currentLon: float,
-        *_params: Any,
-    ) -> bytes:
-        """Backward-compatible alias for :meth:`validate_landing_handler`."""
-        return self.validate_landing_handler(currentLat, currentLon, *_params)
-
 
 def main_cli() -> None:
     """CLI entry for launching the safety checker server (legacy interface)."""
@@ -578,3 +511,51 @@ def main_cli() -> None:
     args, _ = parser.parse_known_args()
 
     SafetyCheckerServer(args.vehicle_config, server_port=args.port)
+
+
+# Backward-compatible camelCase aliases.
+setattr(
+    SafetyCheckerServer,
+    "validateWaypointCommand",
+    SafetyCheckerServer.validate_waypoint_command,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateChangeSpeedCommand",
+    SafetyCheckerServer.validate_change_speed_command,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateTakeoffCommand",
+    SafetyCheckerServer.validate_takeoff_command,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateLandingCommand",
+    SafetyCheckerServer.validate_landing_command,
+)
+setattr(
+    SafetyCheckerServer,
+    "serverStatusHandler",
+    SafetyCheckerServer.server_status_handler,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateWaypointHandler",
+    SafetyCheckerServer.validate_waypoint_handler,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateChangeSpeedHandler",
+    SafetyCheckerServer.validate_change_speed_handler,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateTakeoffHandler",
+    SafetyCheckerServer.validate_takeoff_handler,
+)
+setattr(
+    SafetyCheckerServer,
+    "validateLandingHandler",
+    SafetyCheckerServer.validate_landing_handler,
+)

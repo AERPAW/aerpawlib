@@ -153,7 +153,7 @@ class Rover(Vehicle):
             time.sleep(POLLING_DELAY_S)
         logger.info(f"Rover: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 
-    def _preflight_wait(self, should_arm: bool) -> None:
+    def _preflight_wait(self, should_arm: bool) -> None:  # noqa: FBT001
         """Wait for pre-arm conditions, setting GUIDED mode first."""
         self._set_guided_mode()
         super()._preflight_wait(should_arm)
@@ -230,7 +230,7 @@ class Rover(Vehicle):
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,
+        global_relative: bool = True,  # noqa: FBT001, FBT002
         duration: float | None = None,
     ) -> None:
         """Set rover velocity using MAVSDK offboard mode.

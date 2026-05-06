@@ -93,7 +93,7 @@ class VectorNED:
             self.north * o.east - self.east * o.north,
         )
 
-    def hypot(self, ignore_down: bool = False) -> float:
+    def hypot(self, ignore_down: bool = False) -> float:  # noqa: FBT001, FBT002
         """
         Calculate the magnitude (length) of the vector.
 
@@ -208,7 +208,11 @@ class Coordinate:
         d = EARTH_RADIUS_KM * c
         return math.hypot(d * 1000, other.alt - self.alt)
 
-    def bearing(self, other: Coordinate, wrap_360: bool = True) -> float:
+    def bearing(  # noqa: FBT001, FBT002
+        self,
+        other: Coordinate,
+        wrap_360: bool = True,  # noqa: FBT001, FBT002
+    ) -> float:
         """
         Calculate the bearing (compass angle) to another coordinate.
 
@@ -286,9 +290,8 @@ class Coordinate:
         """
         return json.dumps(self, default=lambda o: o.__dict__)
 
-    def toJson(self) -> str:
-        """Backward-compatible alias for :meth:`to_json`."""
-        return self.to_json()
-
 
 Waypoint = tuple[int, float, float, float, int, float]
+
+
+setattr(Coordinate, "toJson", Coordinate.to_json)

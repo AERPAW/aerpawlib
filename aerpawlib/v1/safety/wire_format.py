@@ -51,7 +51,12 @@ def serialize_request(request_function: str, params: list) -> bytes:
     return serialize_msg(raw_msg)
 
 
-def serialize_response(request_function: str, result: bool, message: str = "") -> bytes:
+def serialize_response(
+    request_function: str,
+    *,
+    result: bool,
+    message: str = "",
+) -> bytes:
     """
     Serialize a safety checker response into a compressed JSON format.
 

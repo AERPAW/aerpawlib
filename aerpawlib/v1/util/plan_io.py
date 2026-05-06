@@ -15,6 +15,7 @@ Usage:
 """
 
 import json
+from pathlib import Path
 
 from aerpawlib.v1.constants import (
     DEFAULT_WAYPOINT_SPEED,
@@ -46,7 +47,7 @@ def read_from_plan(
         Exception: If the file is not a valid .plan file.
     """
     waypoints = []
-    with open(path) as f:
+    with Path(path).open(encoding="utf-8") as f:
         data = json.load(f)
     if data["fileType"] != "Plan":
         raise Exception("Wrong file type -- use a .plan file.")
@@ -94,7 +95,7 @@ def read_from_plan_complete(
         List[dict]: List of waypoint data dictionaries.
     """
     waypoints = []
-    with open(path) as f:
+    with Path(path).open(encoding="utf-8") as f:
         data = json.load(f)
     if data["fileType"] != "Plan":
         raise Exception("Wrong file type -- use a .plan file.")

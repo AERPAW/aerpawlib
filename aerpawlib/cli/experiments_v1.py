@@ -95,6 +95,7 @@ def run_v1_experiment(
                 vehicle.close()
             sys.exit(0)
 
+        # Connect attempted exits to handle_shutdown
         signal.signal(signal.SIGINT, handle_shutdown)
         signal.signal(signal.SIGTERM, handle_shutdown)
 
