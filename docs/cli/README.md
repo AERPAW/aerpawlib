@@ -84,7 +84,7 @@ This flag is required unless `--run-proxy` is active. It specifies the vehicle t
 | `drone`   | `Drone`                                         |
 | `rover`   | `Rover`                                         |
 | `none`    | `DummyVehicle` (ideal for dry runs and testing) |
-| `generic` | Deprecated (automatically maps to `none`)       |
+| `generic` | `Vehicle` (deprecated, shouldn't use)           |
 
 ### `--api-version`
 Selects either the `aerpawlib.v1` or `aerpawlib.v2` package. It defaults to `v1`. Selecting a version incompatible with your script's imports will trigger discovery or runtime errors.

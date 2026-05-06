@@ -45,7 +45,9 @@ def discover_runner(api_module, experimenter_script):
     logger.debug("Searching for Runner class in script...")
     for name, val in inspect.getmembers(experimenter_script):
         if not is_direct_user_runner_class(
-            val, framework_runner, framework_runner_classes,
+            val,
+            framework_runner,
+            framework_runner_classes,
         ):
             continue
         if zmq_state_machine and issubclass(val, zmq_state_machine):  # noqa

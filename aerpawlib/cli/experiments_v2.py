@@ -4,19 +4,14 @@ import asyncio
 import contextlib
 import importlib
 import logging
-import os
 import signal
 import sys
 import time
 import traceback
+from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    API_CLASS_AERPAW_PLATFORM,
-    API_CLASS_DRONE,
-    API_CLASS_DUMMY_VEHICLE,
-    API_CLASS_ROVER,
-    API_CLASS_VEHICLE,
     DEFAULT_SAFETY_CHECKER_PORT,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
@@ -52,18 +47,13 @@ def run_v2_experiment(
     assert runner is not None
     runner_instance = runner
 
-    Vehicle = getattr(api_module, API_CLASS_VEHICLE)
-    Drone = getattr(api_module, API_CLASS_DRONE)
-    Rover = getattr(api_module, API_CLASS_ROVER)
-    DummyVehicle = getattr(api_module, API_CLASS_DUMMY_VEHICLE, None)
-    AERPAW_Platform = getattr(api_module, API_CLASS_AERPAW_PLATFORM, None)
-
     vehicle_type = {
-        VEHICLE_TYPE_GENERIC: Vehicle,
-        VEHICLE_TYPE_DRONE: Drone,
-        VEHICLE_TYPE_ROVER: Rover,
-        VEHICLE_TYPE_NONE: DummyVehicle,
+        VEHICLE_TYPE_GENERIC: api_module.Vehicle,
+        VEHICLE_TYPE_DRONE: api_module.Drone,
+        VEHICLE_TYPE_ROVER: api_module.Rover,
+        VEHICLE_TYPE_NONE: api_module.DummyVehicle,
     }.get(args.vehicle)
+    aerpaw_platform_cls = api_module.AERPAW_Platform
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
@@ -81,8 +71,8 @@ def run_v2_experiment(
                 "--no-aerpaw-environment set: skipping AERPAW platform connection, "
                 "running in standalone mode.",
             )
-        elif AERPAW_Platform:
-            aerpaw_platform = AERPAW_Platform()
+        elif aerpaw_platform_cls:
+            aerpaw_platform = aerpaw_platform_cls()
             aerpaw_platform.set_no_stdout(args.no_stdout)
             if not aerpaw_platform._connected:
                 logger.critical(
@@ -138,15 +128,17 @@ def run_v2_experiment(
                 )
 
         event_log = None
+        structured_log_path = None
         if getattr(args, "structured_log", None):
             from aerpawlib.structured_log import StructuredEventLogger
 
-            if os.path.exists(args.structured_log):
+            structured_log_path = Path(args.structured_log)
+            if structured_log_path.exists():
                 logger.warning(
                     "Structured log file %s already exists and will be overwritten",
-                    args.structured_log,
+                    str(structured_log_path),
                 )
-            event_log = StructuredEventLogger(open(args.structured_log, "w"))
+            event_log = StructuredEventLogger(structured_log_path.open("w"))
 
         logger.info("Connecting to vehicle...")
         try:
@@ -175,9 +167,13 @@ def run_v2_experiment(
                 vehicle.close()
 
         if event_log:
+            assert structured_log_path is not None
             vehicle.set_event_log(event_log)
             runner_instance.set_event_log(event_log)
-            logger.info("Structured event logging -> %s", args.structured_log)
+            logger.info(
+                "Structured event logging -> %s",
+                str(structured_log_path),
+            )
             event_log.log_event("mission_start")
 
         def _on_disconnect() -> None:

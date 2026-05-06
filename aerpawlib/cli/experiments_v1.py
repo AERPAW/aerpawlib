@@ -12,12 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    API_CLASS_AERPAW_PLATFORM,
-    API_CLASS_DRONE,
-    API_CLASS_DUMMY_VEHICLE,
-    API_CLASS_HEARTBEAT_LOST_ERROR,
-    API_CLASS_ROVER,
-    API_CLASS_VEHICLE,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
@@ -52,18 +46,13 @@ def run_v1_experiment(
     assert runner is not None
     runner_instance = runner
 
-    Vehicle = getattr(api_module, API_CLASS_VEHICLE)
-    Drone = getattr(api_module, API_CLASS_DRONE)
-    Rover = getattr(api_module, API_CLASS_ROVER)
-    DummyVehicle = getattr(api_module, API_CLASS_DUMMY_VEHICLE, None)
-    AERPAW_Platform = getattr(api_module, API_CLASS_AERPAW_PLATFORM, None)
-
     vehicle_type = {
-        VEHICLE_TYPE_GENERIC: Vehicle,
-        VEHICLE_TYPE_DRONE: Drone,
-        VEHICLE_TYPE_ROVER: Rover,
-        VEHICLE_TYPE_NONE: DummyVehicle,
+        VEHICLE_TYPE_GENERIC: api_module.Vehicle,
+        VEHICLE_TYPE_DRONE: api_module.Drone,
+        VEHICLE_TYPE_ROVER: api_module.Rover,
+        VEHICLE_TYPE_NONE: api_module.DummyVehicle,
     }.get(args.vehicle)
+    aerpaw_platform_cls = api_module.AERPAW_Platform
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
@@ -115,11 +104,11 @@ def run_v1_experiment(
                 "--no-aerpaw-environment set: skipping AERPAW platform connection, "
                 "running in standalone mode.",
             )
-            if AERPAW_Platform:
-                AERPAW_Platform._no_stdout = args.no_stdout
-        elif AERPAW_Platform:
-            AERPAW_Platform._no_stdout = args.no_stdout
-            if not AERPAW_Platform._connected:  # noqa
+            if aerpaw_platform_cls:
+                aerpaw_platform_cls._no_stdout = args.no_stdout
+        elif aerpaw_platform_cls:
+            aerpaw_platform_cls._no_stdout = args.no_stdout
+            if not aerpaw_platform_cls._connected:  # noqa
                 logger.critical(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
@@ -148,11 +137,7 @@ def run_v1_experiment(
 
         success = False
         heartbeat_lost = False
-        heartbeat_error_cls = getattr(
-            api_module,
-            API_CLASS_HEARTBEAT_LOST_ERROR,
-            Exception,
-        )
+        heartbeat_error_cls = api_module.HeartbeatLostError
         disconnect_task = None
         try:
             disconnect_task = asyncio.create_task(
