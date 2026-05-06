@@ -14,6 +14,10 @@ A Python library for controlling vehicles within the [AERPAW](https://aerpaw.org
 - Safety checker
 - AERPAW Platform integration
 
+# Docs
+
+See the Github Pages documentation [here](https://aerpaw.github.io/aerpawlib)
+
 ## Installation
 
 ```bash

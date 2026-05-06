@@ -108,9 +108,10 @@ extend-select = [
     "TC",       # Enforce importing certain types in a TYPE_CHECKING block
     "PTH",      # Use pathlib instead of os.path
     "TD",       # Be diligent with TODO comments
-    "NPY",      # Some numpy-specific things
     "COM", # enforce trailing comma rules
     "DTZ", # require strict timezone manipulation with datetime
     "FBT", # detect boolean traps
     "N",   # enforce naming conventions, e.g. ClassName vs function_name
 ]
+ignore = ["COM812"] # Ruff is complaining that this is causing conflicts,
+# so we disable it to be safe

@@ -1,36 +1,27 @@
-# aerpawlib CLI guide
+# aerpawlib CLI Guide
 
-This document describes the `aerpawlib` command-line interface: how to run mission scripts, how configuration is resolved, and what each flag does in practice.
+The `aerpawlib` CLI orchestrates MAVSDK vehicle connections, ZMQ proxy environments, and experiment runner scripts. This guide details how to invoke the CLI, configure executions, and utilize available flags.
 
-## How to invoke the CLI
+## Invocation
 
-After installing the package (for example with `pip install -e .`), the entry point is:
+After installing the package (for example, via `pip install -e .`), use the `aerpawlib` command as the primary entry point.
 
 ```bash
 aerpawlib --help
 ```
 
-You can also run the module directly, although there is no benefit to doing so:
+## Initialization and Execution Flow
 
-```bash
-python -m aerpawlib --help
-```
+When you launch the CLI, the system executes the following sequence.
 
-## What happens when you start the CLI
+1. The CLI resolves command-line paths (`--script`, `--config`, `--log-file`, `--structured-log`) relative to your current working directory, not the repository root.
+2. The process changes the working directory (`chdir`) to the repository root and prepends it to `sys.path` to guarantee consistent imports.
+3. The system loads and merges JSON configuration files before the main parser executes.
+4. The CLI imports the specified API module (`aerpawlib.v1` or `aerpawlib.v2`) and loads your target experimenter script.
+5. The CLI scans the script for exactly one class inheriting **directly** from `Runner`, `StateMachine`, `BasicRunner`, or `ZmqStateMachine`. Deep inheritance chains are not supported.
+6. Unrecognized arguments bypass the main parser and route directly to `runner.initialize_args(...)` for custom script-specific handling.
 
-1. File paths you pass on the command line (`--script`, `--config`, `--log-file`, `--structured-log`) are first resolved relative to the directory from which you launched the process (the shell’s current working directory at invocation time), not relative to the repository root.
-
-2. The CLI then `chdir`s to the repository root. The project root is prepended to `sys.path` so imports and examples behave consistently.
-
-3. If you passed `--config`, JSON files are merged into synthetic argv *before* the main parser runs; see [Configuration files](#configuration-files).
-
-4. The chosen API module (`aerpawlib.v1` or `aerpawlib.v2`) is imported, then your experimenter script is loaded.
-
-5. Exactly one user-defined runner class must be found in the script (subclass of the framework `Runner` / `StateMachine` / `BasicRunner` / `ZmqStateMachine`, with **direct** inheritance from one of those base classes; deeper inheritance chains are not supported). See `aerpawlib.cli.discovery` for rules.
-
-6. Any tokens the main parser does not recognize are kept as unknown arguments and passed to `runner.initialize_args(...)` so your runner can define its own options.
-
-## Minimal example
+## Minimal Example
 
 ```bash
 aerpawlib \
@@ -41,24 +32,24 @@ aerpawlib \
   --no-aerpaw-environment
 ```
 
-For real hardware, replace `--conn` with a serial device or other MAVSDK connection string your setup uses.
+For hardware deployments, replace the `--conn` argument with the appropriate serial device or MAVSDK connection string.
 
 ---
 
-## Configuration files (`--config`)
+## Configuration Files
 
-- You may pass `--config path1.json --config path2.json` multiple times.
-- Later files override keys from earlier files.
-- Each file must be a single JSON **object** whose keys correspond to CLI long options (with hyphens), e.g. `api-version`, `conn`, `vehicle`, `no-aerpaw-environment`.
-- A key mapped to JSON `null` removes that key from the merged result (so no flag is emitted for it).
-- Types:
-  - Boolean `true`: Emits the flag alone (for store-true style options).
-  - Boolean `false` or `null`: Omits the flag (for booleans, `false` does not emit `--flag`).
-  - Scalars: Emits `--key` and the stringified value as the next argv token.
-  - Arrays: Emits `--key` once per element, each followed by one value (for options that can be repeated).
-After merge, real command-line arguments still present in argv override the merged config, because merged flags are prepended before the remainder of argv.
+You can layer settings by passing the `--config` flag multiple times. Subsequent files override keys from earlier ones, while explicit command-line flags take the highest precedence and override all file-based settings.
 
-Example `sitl-drone.json`:
+Configuration files must be a single JSON object where the keys match CLI long options (using hyphens).
+
+| JSON Value                | CLI Behavior                                                      |
+|:--------------------------|:------------------------------------------------------------------|
+| `true`                    | Activates boolean flags (e.g., emits `--flag`).                   |
+| `false` or `null`         | Omits the flag completely.                                        |
+| Scalar (String or Number) | Emits `--key value` as the next argv token.                       |
+| Array                     | Generates repeated flags (e.g., emits `--key item1 --key item2`). |
+
+Example configuration file `sitl-drone.json`
 
 ```json
 {
@@ -69,148 +60,87 @@ Example `sitl-drone.json`:
 }
 ```
 
-
-Usage:
+To run the CLI with this configuration, use the following command.
 
 ```bash
-aerpawlib --config sitl-drone.json --script examples/v2/basic_example.py ...
+aerpawlib --config sitl-drone.json --script examples/v2/basic_example.py
 ```
 
 ---
 
-## Core arguments
+## Core Arguments
 
 ### `--script`
-
-*Note*: Required  unless `--run-proxy` is used.
-
-- If the value contains a path separator or ends with `.py`, it is treated as a file. Relative paths are resolved against the invocation directory, then (if still not found) against the repo root for convenience.
-- If there is no path separator and no `.py` suffix, the value is passed to `importlib.import_module` (dotted module name).
+This flag is required unless `--run-proxy` is active. The CLI treats values containing a path separator or a `.py` extension as files. These are resolved locally first, then against the repository root. Values without separators are treated and imported as dotted Python modules.
 
 ### `--conn` / `--connection`
-
-*Note*: Required unless `--run-proxy` is used.
-
-MAVSDK-style connection string (for example `udpin://127.0.0.1:14550`, `serial:///dev/ttyUSB0:57600`). The CLI passes this through to vehicle construction / `connect()`.
+This flag is required unless `--run-proxy` is active. It defines the MAVSDK connection string used for vehicle communication (e.g., `udpin://127.0.0.1:14550` or `serial:///dev/ttyUSB0:57600`).
 
 ### `--vehicle`
+This flag is required unless `--run-proxy` is active. It specifies the vehicle type for the experiment.
 
-*Note*: Required  unless `--run-proxy` is used.
-
-Allowed values:
-
-| Value     | Meaning                                                       |
-|-----------|---------------------------------------------------------------|
-| `generic` | Generic `Vehicle` class (Deprecated in favor of `none`)       |
-| `drone`   | `Drone`                                                       |
-| `rover`   | `Rover`                                                       |
-| `none`    | `DummyVehicle` (no real vehicle; useful for dry runs / tests) |
+| Value     | Target                                          |
+|:----------|:------------------------------------------------|
+| `drone`   | `Drone`                                         |
+| `rover`   | `Rover`                                         |
+| `none`    | `DummyVehicle` (ideal for dry runs and testing) |
+| `generic` | Deprecated (automatically maps to `none`)       |
 
 ### `--api-version`
-
-- Either `v1` or `v2`
-- Default: `v1`
-- Selects which top-level package is imported (`aerpawlib.v1` vs `aerpawlib.v2`) and therefore a different API.
-- See ``aerpawlib.v1`` and ``aerpawlib.v2`` documentation for more information.
-
-*Note*: In the future, the API version will be automatically detected based on the script’s imports, but for now you must specify it explicitly. If you choose the wrong version, the CLI may fail to find a runner or raise import errors.
+Selects either the `aerpawlib.v1` or `aerpawlib.v2` package. It defaults to `v1`. Selecting a version incompatible with your script's imports will trigger discovery or runtime errors.
 
 ---
 
-## Execution flags
+## Execution Control
 
 ### `--skip-init`
-
-- When **not** passed (default), if the vehicle implements `_preflight_wait`, the CLI calls it before the runner’s main work. That routine waits for armable / health conditions (with timeouts) and records whether the mission should proceed toward arming (`_will_arm` / related state).
-- When passed: Skips that `_preflight_wait` call entirely. This will likely prevent the vehicle from arming unless the vehicle is already in an armable state at connection time.
+The CLI normally calls `_preflight_wait` to ensure the vehicle is armable and healthy before the runner starts. This flag bypasses those checks. The vehicle may fail to arm if it is not ready at connection time.
 
 ### `--skip-rtl`
-
-By default, if the experiment ends with the vehicle still **armed** and the disconnect path was not a “heartbeat lost” style failure, the CLI attempts return-to-launch (`drone`) or navigate to stored home (`rover` with `home_coords`). With `--skip-rtl`, that automatic RTL / home navigation is disabled.
+The CLI automatically attempts a Return-To-Launch (drones) or Return-to-Home (rovers) if the script finishes while the vehicle is still armed. This flag disables that automatic navigation.
 
 ### `--no-aerpawlib-stdout`
-
-Passed into `AERPAW_Platform` to reduce platform-side printing to stdout where that flag is honored. Does not disable Python logging handlers configured by the CLI itself.
+Instructs the `AERPAW_Platform` to suppress standard output printing. Python logging handlers configured by the CLI remain active.
 
 ### `--no-aerpaw-environment`
-
-Skips mandatory platform connection. When not passed, failing to connect to the AERPAW environment will simply stop execution of the script.
+Bypasses the mandatory AERPAW platform connection. Without this flag, the script immediately terminates if it cannot establish a connection to the environment.
 
 ---
 
-## ZMQ proxy (`--run-proxy` and related)
+## ZMQ Orchestration
 
 ### `--run-proxy`
-
-- Starts the bundled ZMQ **XSUB/XPUB forwarder** for multi-process / multi-runner messaging (`run_zmq_proxy` in the active API package). This mode **does not** run a script; `--script`, `--conn`, and `--vehicle` are **not** required.
-- The proxy runs until interrupted; bind addresses use fixed ports **5570** (in) and **5571** (out) on all interfaces (`tcp://*:5570` / `tcp://*:5571`). If those ports are in use, startup fails.
-- API version is honored so v1 vs v2 logging/constants apply, but both versions use the same port numbers today.
+Launches the integrated ZMQ XSUB/XPUB message broker on fixed ports 5570 (inbound) and 5571 (outbound). In this mode, no script is executed, and the `--script`, `--conn`, and `--vehicle` flags are ignored.
 
 ### `--zmq-identifier`
-
-Used when your discovered runner is a **`ZmqStateMachine`** subclass. Must be provided together with `--zmq-proxy-server`; otherwise the CLI errors. The value identifies this runner instance to the proxy mesh (for example `leader` / `follower` patterns in examples).
+Identifies the specific runner instance (e.g., `leader`) to the proxy mesh. This is required for `ZmqStateMachine` runners and must be paired with `--zmq-proxy-server`.
 
 ### `--zmq-proxy-server`
-
-Hostname or IP of the machine running `aerpawlib --run-proxy` (often `127.0.0.1`). Used with `--zmq-identifier` to configure ZMQ bindings on the runner.
-
-An example of how these three flags would be used:
-
-```bash
-# Terminal A
-aerpawlib --run-proxy --api-version v2
-
-# Terminal B (example; your script and flags will differ)
-aerpawlib --script ... --conn ... --vehicle drone \
-  --zmq-identifier leader --zmq-proxy-server 127.0.0.1
-```
+Defines the hostname or IP address of the machine running the ZMQ proxy.
 
 ---
 
-## Logging
+## Logging and Diagnostics
 
-### `-v` / `--verbose`
-
-- Sets the root logger level to DEBUG on the console handler.
-- If both `-v` and `-q` are given, verbose wins.
-
-### `-q` / `--quiet`
-
-- Sets the console level to WARNING.
-- Loses to `-v`
-
-### `--log-file PATH`
-
-- Adds a file logging handler to the root logger
-- The file handler is fixed at DEBUG level so file logs are more detailed than the default console INFO level, even without `-v`.
-- `PATH` is resolved relative to the invocation directory (then absolute/normalized).
-
-### `--structured-log FILE`
-
-- When set, opens JSONL structured event logging (`StructuredEventLogger`) for mission lifecycle and related events (v1 and v2). If the file already exists, a warning is logged and the file is **overwritten**.
-- v1: Attached to the vehicle; logs `mission_start` / `mission_end` (and similar) around the run.
-- v2: Attached to both vehicle and runner; also logs connection-loss style events when applicable.
-
-Omit this flag entirely to disable structured logging.
+| Flag                    | Behavior                                                                                                                |
+|:------------------------|:------------------------------------------------------------------------------------------------------------------------|
+| `-v` / `--verbose`      | Sets the console root logger to the DEBUG level. Overrides quiet mode.                                                  |
+| `-q` / `--quiet`        | Restricts the console logger to the WARNING level.                                                                      |
+| `--log-file PATH`       | Redirects DEBUG-level logs to a specified file, resolved against the invocation directory.                              |
+| `--structured-log FILE` | Enables JSONL-formatted event logging for mission lifecycles and connections. Overwrites the file if it already exists. |
 
 ---
 
-## Connection tuning
+## Connection Tuning
 
 ### `--conn-timeout` / `--connection-timeout`
-
-Caps how long the CLI waits for the initial vehicle connection. Also influences internal “connected” polling where applicable.
+Sets the maximum duration the CLI will wait for the initial vehicle connection handshake.
 
 ### `--heartbeat-timeout`
-
-Maximum time the vehicle may appear disconnected (or without heartbeat progress, depending on API) before the disconnect watcher treats the situation as fatal and tears down the experiment.
+Defines the grace period for missing heartbeats before the disconnect watcher considers the connection lost and tears down the experiment.
 
 ### `--mavsdk-port`
-
-gRPC port for the embedded mavsdk_server process. Use a unique port per concurrent vehicle on one host to avoid conflicts.
+Specifies the gRPC port for the embedded `mavsdk_server` process. Assign a unique port per concurrent vehicle on a single host to prevent conflicts.
 
 ### `--safety-checker-port` (v2)
-
-- When running inside a connected AERPAW environment, if you omit the flag, the client defaults to port 14580 and must reach a real `SafetyCheckerServer`. Failure to connect ends the experiment.
-- When not in AERPAW (standalone), if you omit the flag, a no-op safety checker is used (all checks pass; message logged).
-- If you set an explicit port and connection fails in standalone, the library falls back to the no-op checker with an error log. In AERPAW mode, explicit or default port connection failure remains fatal.
+Controls the interface for the `SafetyCheckerServer`. In a connected AERPAW environment, it defaults to port 14580, and failure to connect ends the experiment. In standalone mode, it defaults to a no-op checker that automatically passes all checks.
