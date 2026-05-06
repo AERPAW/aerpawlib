@@ -7,9 +7,12 @@ detection, then launches aerpawlib with the correct connection string. Stops
 SITL when the script exits.
 
 Usage:
-    aerpawlib-run-example --script examples/v2/basic_example.py --vehicle drone
-    aerpawlib-run-example --script examples/v1/basic_example.py --vehicle drone --api-version v1
-    aerpawlib-run-example --script examples/v2/rover_example.py --vehicle rover
+    aerpawlib-run-example --script examples/v2/basic_example.py \\
+        --vehicle drone
+    aerpawlib-run-example --script examples/v1/basic_example.py \\
+        --vehicle drone --api-version v1
+    aerpawlib-run-example --script examples/v2/rover_example.py \\
+        --vehicle rover
 
 Any extra arguments are forwarded to aerpawlib unchanged.
 
@@ -120,7 +123,7 @@ def start_sitl(
     else:
         # Use a real file rather than DEVNULL: pexpect inside sim_vehicle.py
         # calls isatty() and misbehaves when stdout is /dev/null.
-        _log_file = open(log_path, "w")
+        _log_file = log_path.open("w")  # noqa: SIM115
         stdout_target = _log_file
         stderr_target = subprocess.STDOUT
         print(f"  SITL log: {log_path}  (set SITL_VERBOSE=1 to stream to terminal)")
@@ -135,7 +138,8 @@ def start_sitl(
     )
 
     print(
-        f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
+        f"  Waiting for MAVLink data on UDP port {port} "
+        f"(timeout {SITL_STARTUP_TIMEOUT}s)...",
     )
     deadline = time.monotonic() + SITL_STARTUP_TIMEOUT
     server_ready = False
@@ -181,12 +185,14 @@ def start_sitl(
         print(
             f"ERROR: SITL failed to transmit data within {SITL_STARTUP_TIMEOUT}s.\n"
             "Set SITL_VERBOSE=1 and retry to see SITL output. This can happen\n"
-            "if the SITL has not been built yet and it is attempting to build for the first time.",
+            "if the SITL has not been built yet and it is attempting to build "
+            "for the first time.",
             file=sys.stderr,
         )
         sys.exit(1)
 
     print("  SITL is available to connect to.")
+    return process
 
 
 def stop_sitl(process: subprocess.Popen | None) -> None:
@@ -221,10 +227,12 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
-            "  aerpawlib-run-example --script examples/v2/basic_example.py --vehicle drone\n"
+            "  aerpawlib-run-example --script examples/v2/basic_example.py "
+            "--vehicle drone\n"
             "  aerpawlib-run-example --script examples/v1/basic_example.py "
             "--vehicle drone --api-version v1\n"
-            "  aerpawlib-run-example --script examples/v2/rover_example.py --vehicle rover\n"
+            "  aerpawlib-run-example --script examples/v2/rover_example.py "
+            "--vehicle rover\n"
             "\n"
             "Environment variables:\n"
             "  ARDUPILOT_HOME   Override path to ArduPilot directory\n"

@@ -50,7 +50,7 @@ def _run(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> bo
         return False
 
 
-def setup_sitl(skip_compile: bool = False) -> bool:
+def setup_sitl(*, skip_compile: bool = False) -> bool:
     """
     Clone ArduPilot, init submodules, optionally compile SITL.
 
