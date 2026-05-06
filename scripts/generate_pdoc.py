@@ -38,7 +38,7 @@ def _load_config(config_path: Path) -> dict[str, Any]:
     return raw
 
 
-def _bool_flag(option_name: str, enabled: bool) -> str:
+def _bool_flag(option_name: str, *, enabled: bool) -> str:
     """Map a config boolean key to pdoc CLI flags."""
     cli_key = option_name.replace("_", "-")
     return f"--{cli_key}" if enabled else f"--no-{cli_key}"
@@ -79,7 +79,7 @@ def _build_pdoc_command(config: dict[str, Any], output_dir: Path) -> list[str]:
             value = config[option]
             if not isinstance(value, bool):
                 raise TypeError(f"'{option}' must be a boolean when provided")
-            cmd.append(_bool_flag(option, value))
+            cmd.append(_bool_flag(option, enabled=value))
 
     for option, cli_name in (
         ("footer_text", "--footer-text"),
