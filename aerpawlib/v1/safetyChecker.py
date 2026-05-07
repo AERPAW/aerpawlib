@@ -1,3 +1,4 @@
+# noqa: N999
 """
 Deprecated compatibility shim for the v1 safety package.
 
