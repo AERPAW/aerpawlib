@@ -33,7 +33,7 @@ Integration and logging
 - When available, commands log structured events to ``self._event_log``;
   consumers can attach a structured logger to record mission events/telemetry.
 - The :class:`Drone` implementation cooperates with the AERPAW platform
-  helper (``AERPAW_Platform``) to wait for a safety pilot when running in
+  helper (``AerpawPlatform``) to wait for a safety pilot when running in
   an AERPAW experiment. In standalone/SITL mode the class will auto-arm
   where appropriate.
 
@@ -56,7 +56,6 @@ import time
 from mavsdk.action import ActionError
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
-from aerpawlib.v2.aerpaw import AERPAW_Platform
 from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
@@ -127,9 +126,8 @@ class Drone(Vehicle):
             logger.debug("Drone: _arm_vehicle skipped (_will_arm=False)")
             return
 
-        platform = AERPAW_Platform()
-        if platform._is_aerpaw_environment():
-            await self._await_aerpaw_safety_pilot_arm(platform)
+        if self._aerpaw_platform and self._aerpaw_platform.is_connected:
+            await self._await_aerpaw_safety_pilot_arm()
         else:
             logger.info("Standalone mode: auto-arming vehicle...")
             await _wait_for_condition(

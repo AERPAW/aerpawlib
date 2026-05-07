@@ -14,7 +14,6 @@ from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, VelocityNedYaw
 from pymavlink import mavutil
 
-from aerpawlib.v2.aerpaw import AERPAW_Platform
 from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
@@ -150,9 +149,8 @@ class Rover(Vehicle):
             logger.debug("Rover: _arm_vehicle skipped (_will_arm=False)")
             return
 
-        platform = AERPAW_Platform()
-        if platform._is_aerpaw_environment():
-            await self._await_aerpaw_safety_pilot_arm(platform)
+        if self._aerpaw_platform and self._aerpaw_platform.is_connected:
+            await self._await_aerpaw_safety_pilot_arm()
         else:
             logger.info("Standalone mode: auto-arming rover...")
             await _wait_for_condition(

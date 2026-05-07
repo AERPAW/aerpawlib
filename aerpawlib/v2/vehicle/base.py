@@ -44,7 +44,6 @@ from .connection_helpers import (
 from .state import VehicleState
 
 if TYPE_CHECKING:
-    from aerpawlib.v2.aerpaw import AERPAW_Platform
     from aerpawlib.v2.types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
 
 logger = get_logger(LogComponent.VEHICLE)
@@ -62,6 +61,7 @@ class Vehicle:
         mavsdk_server_port: int = DEFAULT_MAVSDK_SERVER_PORT,
         *,
         safety: Any | None = None,
+        aerpaw_platform: Any | None = None,
     ) -> None:
         """
         Args:
@@ -70,6 +70,8 @@ class Vehicle:
             mavsdk_server_port: gRPC port for mavsdk_server.
             safety: SafetyCheckerClient or NoOpSafetyChecker for validation.
                     None disables safety checks in can_takeoff/can_goto/can_land.
+            aerpaw_platform: AerpawPlatform instance for AERPAW environment integration.
+                    None disables AERPAW platform notifications.
         """
         self._system = system
         self._connection_string = connection_string
@@ -87,6 +89,7 @@ class Vehicle:
         self._unexpected_disarm_event: asyncio.Event = asyncio.Event()
         self.safety: Any | None = safety
         self._event_log: Any | None = None
+        self._aerpaw_platform = aerpaw_platform
 
     def set_event_log(self, event_log: Any | None) -> None:
         """Set the structured event logger for mission events."""
@@ -306,6 +309,7 @@ class Vehicle:
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Any | None = None,
+        aerpaw_platform: Any | None = None,
     ) -> Vehicle:
         """Connect to vehicle and start telemetry.
 
@@ -315,6 +319,8 @@ class Vehicle:
             timeout: Connection timeout in seconds.
             safety: SafetyCheckerClient or NoOpSafetyChecker. None disables
                 safety checks in can_takeoff/can_goto/can_land.
+            aerpaw_platform: AerpawPlatform instance for AERPAW environment integration.
+                    None disables AERPAW platform notifications.
 
         Returns:
             Initialised and connected Vehicle instance with telemetry running.
@@ -352,7 +358,13 @@ class Vehicle:
             )
 
         # Create instance and start telemetry
-        self = cls(system, connection_string, mavsdk_server_port, safety=safety)
+        self = cls(
+            system,
+            connection_string,
+            mavsdk_server_port,
+            safety=safety,
+            aerpaw_platform=aerpaw_platform,
+        )
         await self._start_telemetry()
         logger.info("Vehicle connected and telemetry started")
         return self
@@ -631,10 +643,13 @@ class Vehicle:
         """Return True if the vehicle is ready to accept the next command."""
         return self._ready_to_move(self)
 
-    async def _await_aerpaw_safety_pilot_arm(self, platform: AERPAW_Platform) -> None:
+    async def _await_aerpaw_safety_pilot_arm(self) -> None:
         """AERPAW: OEO notice (async), then wait indefinitely for pilot to arm."""
+        if not self._aerpaw_platform:
+            logger.warning("AERPAW safety pilot arm called but no platform available")
+            return
         asyncio.create_task(
-            platform.log_to_oeo_async(
+            self._aerpaw_platform.log_to_oeo_async(
                 "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",
             ),
         )

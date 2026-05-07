@@ -162,6 +162,15 @@ AERPAW_PING_TIMEOUT_S = 1.0
 AERPAW_NOTIFY_TIMEOUT_S = 3.0
 """Timeout for AERPAW notification HTTP requests (seconds)"""
 
+AERPAW_OEO_MSG_TIMEOUT_S = 3.0
+"""Timeout for OEO message requests (seconds)"""
+
+AERPAW_CHECKPOINT_TIMEOUT_S = 5.0
+"""Timeout for checkpoint operations (seconds)"""
+
+DEFAULT_HUMAN_READABLE_AGENT_ID = os.getenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM")
+"""Default agent ID for AERPAW messages"""
+
 
 # ZMQ Additional Constants
 

@@ -53,7 +53,6 @@ def run_v2_experiment(
         VEHICLE_TYPE_ROVER: api_module.Rover,
         VEHICLE_TYPE_NONE: api_module.DummyVehicle,
     }.get(args.vehicle)
-    aerpaw_platform_cls = api_module.AERPAW_Platform
 
     if vehicle_type is None:
         logger.error(f"Invalid vehicle type: {args.vehicle}")
@@ -71,10 +70,9 @@ def run_v2_experiment(
                 "--no-aerpaw-environment set: skipping AERPAW platform connection, "
                 "running in standalone mode.",
             )
-        elif aerpaw_platform_cls:
-            aerpaw_platform = aerpaw_platform_cls()
-            aerpaw_platform.set_no_stdout(args.no_stdout)
-            if not aerpaw_platform._connected:
+        else:
+            aerpaw_platform = api_module.AerpawPlatform(suppress_stdout=args.no_stdout)
+            if not aerpaw_platform.is_connected:
                 logger.critical(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
@@ -82,12 +80,10 @@ def run_v2_experiment(
                     "environment.",
                 )
                 sys.exit(1)
-        else:
-            aerpaw_platform = None
 
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 
-        is_aerpaw = aerpaw_platform._connected if aerpaw_platform else False
+        is_aerpaw = aerpaw_platform.is_connected if aerpaw_platform else False
         effective_port = (
             args.safety_checker_port
             if args.safety_checker_port is not None
@@ -148,6 +144,7 @@ def run_v2_experiment(
                     args.mavsdk_port,
                     timeout=args.conn_timeout,
                     safety=safety_client,
+                    aerpaw_platform=aerpaw_platform,
                 ),
                 timeout=args.conn_timeout,
             )

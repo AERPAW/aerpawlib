@@ -443,7 +443,7 @@ AerpawlibError
 
 Short per-module pages (mirroring [v1 module docs](../v1/)):
 
-* [aerpaw](aerpaw.md) — AERPAW platform singleton, OEO forwarding
+* [aerpaw](aerpaw.md) — AERPAW platform helper, OEO forwarding
 * [constants](constants.md) — shared defaults and protocol values
 * [event_log](event_log.md) — structured JSONL logger re-export
 * [exceptions](exceptions.md) — `AerpawlibError` hierarchy
