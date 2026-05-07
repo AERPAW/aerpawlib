@@ -1,3 +1,4 @@
+# noqa: N999
 """
 Safety checker module for aerpawlib.
 

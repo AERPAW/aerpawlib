@@ -72,7 +72,7 @@ class ColoredFormatter(logging.Formatter):
         self,
         fmt: str | None = None,
         datefmt: str | None = None,
-        use_colors: bool = True,
+        use_colors: bool = True,  # noqa: FBT001, FBT002
     ):
         super().__init__(fmt, datefmt)
         self.use_colors = use_colors and sys.stdout.isatty()
@@ -93,9 +93,9 @@ class ColoredFormatter(logging.Formatter):
             parts = name.split(".")
             name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
-        timestamp = datetime.datetime.fromtimestamp(record.created).strftime(
-            "%H:%M:%S.%f",
-        )
+        timestamp = datetime.datetime.fromtimestamp(
+            record.created, tz=datetime.timezone.utc
+        ).strftime("%H:%M:%S.%f")
         level_letter = record.levelname[0]
 
         if record.levelno >= logging.WARNING:
@@ -117,7 +117,7 @@ _default_format = "[%(name)s] %(message)s"
 def configure_logging(
     level: LogLevel | str | int = LogLevel.INFO,
     format_str: str | None = None,
-    use_colors: bool = True,
+    use_colors: bool = True,  # noqa: FBT001, FBT002
     log_file: str | None = None,
     root_name: str = "aerpawlib",
 ) -> None:
