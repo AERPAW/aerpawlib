@@ -49,7 +49,10 @@ DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 class Rover(Vehicle):
     """Rover implementation for ground vehicles."""
 
-    async def _preflight_wait(self, should_arm: bool = True) -> None:
+    async def _preflight_wait(
+        self,
+        should_arm: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
         """Wait for pre-arm readiness before mission start.
 
         The rover is switched into GUIDED/OFFBOARD first, then this method
@@ -174,7 +177,7 @@ class Rover(Vehicle):
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Navigate to a target coordinate using ground-distance arrival.
 
@@ -228,7 +231,8 @@ class Rover(Vehicle):
                     if now - last_log >= GOTO_LOG_INTERVAL_S:
                         dist = coordinates.ground_distance(self.position)
                         logger.debug(
-                            "Rover: goto_coordinates progress ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                            "Rover: goto_coordinates progress "
+                            "ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
                             dist,
                             tolerance,
                             elapsed,
@@ -283,7 +287,8 @@ class Rover(Vehicle):
                 now = time.monotonic()
                 if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
-                        "Rover: goto_coordinates (non-blocking) ground_dist=%.1fm progress=%.0f%%",
+                        "Rover: goto_coordinates (non-blocking) "
+                        "ground_dist=%.1fm progress=%.0f%%",
                         d,
                         handle.progress * 100,
                     )
@@ -300,7 +305,7 @@ class Rover(Vehicle):
         meters: float,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` north from current position."""
         target = self.position + VectorNED(meters, 0, 0)
@@ -316,7 +321,7 @@ class Rover(Vehicle):
         meters: float,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` east from current position."""
         target = self.position + VectorNED(0, meters, 0)
@@ -332,7 +337,7 @@ class Rover(Vehicle):
         meters: float,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` south from current position."""
         target = self.position + VectorNED(-meters, 0, 0)
@@ -348,7 +353,7 @@ class Rover(Vehicle):
         meters: float,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` west from current position."""
         target = self.position + VectorNED(0, -meters, 0)
@@ -366,7 +371,7 @@ class Rover(Vehicle):
         down: float = 0,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go by NED offset from current position.
 
@@ -392,7 +397,7 @@ class Rover(Vehicle):
         distance_m: float,
         tolerance: float = DEFAULT_ROVER_POSITION_TOLERANCE_M,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Drive along ``bearing_deg`` for ``distance_m`` metres from current position.
 
@@ -412,7 +417,7 @@ class Rover(Vehicle):
     async def set_velocity(
         self,
         velocity_vector: VectorNED,
-        global_relative: bool = True,
+        global_relative: bool = True,  # noqa: FBT001, FBT002
         duration: float | None = None,
     ) -> None:
         """Set rover velocity using MAVSDK offboard mode.

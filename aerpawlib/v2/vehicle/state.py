@@ -10,7 +10,13 @@ import math
 import time
 
 from aerpawlib.v2.constants import EKF_READY_FLAGS
-from aerpawlib.v2.types import Attitude, Battery, Coordinate, GPSInfo, VectorNED
+from aerpawlib.v2.types import (
+    Attitude,
+    Battery,
+    Coordinate,
+    GPSInfo,
+    VectorNED,
+)
 
 
 class VehicleState:
@@ -180,7 +186,7 @@ class VehicleState:
         """
         self._mode = mode
 
-    def update_armed(self, armed: bool) -> None:
+    def update_armed(self, armed: bool) -> None:  # noqa: FBT001
         """Update the armed state and record arm timestamp on transition to armed.
 
         Args:
@@ -194,10 +200,10 @@ class VehicleState:
 
     def update_armable(
         self,
-        global_ok: bool,
-        local_ok: bool,
-        home_ok: bool,
-        armable: bool,
+        global_ok: bool,  # noqa: FBT001
+        local_ok: bool,  # noqa: FBT001
+        home_ok: bool,  # noqa: FBT001
+        armable: bool,  # noqa: FBT001
     ) -> None:
         """Update the armable flag from health telemetry.
 
@@ -213,7 +219,7 @@ class VehicleState:
         # (was ArduPilot-specific); EKF readiness is checked separately for takeoff.
         self._armable = global_ok and local_ok and home_ok and armable
 
-    def update_prearm_bits(self, ok: bool) -> None:
+    def update_prearm_bits(self, ok: bool) -> None:  # noqa: FBT001
         """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.
 
         Args:

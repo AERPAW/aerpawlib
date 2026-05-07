@@ -41,6 +41,7 @@ class AerpawPlatform:
         self,
         forward_ip: str = DEFAULT_FORWARD_SERVER_IP,
         forward_port: int = DEFAULT_FORWARD_SERVER_PORT,
+        *,
         suppress_stdout: bool = False,
     ) -> None:
         self.forward_ip = forward_ip
@@ -59,13 +60,13 @@ class AerpawPlatform:
             )
             logger.info(
                 f"AERPAW platform: connected to forward server "
-                f"{self.forward_ip}:{self.forward_port}"
+                f"{self.forward_ip}:{self.forward_port}",
             )
             return True
         except requests.exceptions.RequestException as e:
             logger.debug(
                 f"AERPAW platform: not in AERPAW environment "
-                f"({self.forward_ip}:{self.forward_port} unreachable: {e})"
+                f"({self.forward_ip}:{self.forward_port} unreachable: {e})",
             )
             return False
 
@@ -86,7 +87,10 @@ class AerpawPlatform:
         log_method(msg)
 
     def _build_oeo_url(
-        self, msg: str, severity: OeoSeverity, agent_id: str | None
+        self,
+        msg: str,
+        severity: OeoSeverity,
+        agent_id: str | None,
     ) -> str:
         """Build the HTTP URL for publishing messages to the OEO forward server."""
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
@@ -110,7 +114,7 @@ class AerpawPlatform:
         if not self.suppress_stdout:
             logger.info(
                 "the user script has attempted to use AERPAW platform functionality "
-                "without being in the AERPAW environment"
+                "without being in the AERPAW environment",
             )
 
     # OEO Logging Methods
@@ -154,9 +158,13 @@ class AerpawPlatform:
         timeout = aiohttp.ClientTimeout(total=AERPAW_OEO_MSG_TIMEOUT_S)
 
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url):
-                    pass
+            async with (
+                aiohttp.ClientSession(timeout=timeout) as session,
+                session.post(
+                    url,
+                ),
+            ):
+                pass
         except aiohttp.ClientError as e:
             if not self.suppress_stdout:
                 logger.error(f"Failed to send message to OEO: {e}")
@@ -177,7 +185,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
             f"http://{self.forward_ip}:{self.forward_port}/checkpoint/reset",
@@ -203,7 +211,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
             self._checkpoint_build_request("bool", checkpoint_name),
@@ -229,7 +237,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.get(
             self._checkpoint_build_request("bool", checkpoint_name),
@@ -243,7 +251,7 @@ class AerpawPlatform:
         if response_content == "False":
             return False
         raise Exception(
-            f"malformed content in response from server: {response_content}"
+            f"malformed content in response from server: {response_content}",
         )
 
     def checkpoint_increment_counter(self, counter_name: str) -> None:
@@ -264,7 +272,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
             self._checkpoint_build_request("int", counter_name),
@@ -290,7 +298,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.get(
             self._checkpoint_build_request("int", counter_name),
@@ -303,7 +311,7 @@ class AerpawPlatform:
             return int(response_content)
         except (TypeError, ValueError):
             raise Exception(
-                f"malformed content in response from server: {response_content}"
+                f"malformed content in response from server: {response_content}",
             )
 
     def checkpoint_set_string(self, string_name: str, value: str) -> None:
@@ -324,7 +332,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
             self._checkpoint_build_request("string", string_name),
@@ -350,7 +358,7 @@ class AerpawPlatform:
         if not self.is_connected:
             self._display_connection_warning()
             raise Exception(
-                "AERPAW checkpoint functionality only works in AERPAW environment"
+                "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.get(
             self._checkpoint_build_request("string", string_name),
@@ -400,7 +408,7 @@ class AerpawPlatform:
                 )
             else:
                 agent_b64 = base64.urlsafe_b64encode(
-                    str(agent_id).encode("utf-8")
+                    str(agent_id).encode("utf-8"),
                 ).decode("utf-8")
                 requests.post(
                     f"http://{self.forward_ip}:{self.forward_port}"
@@ -451,15 +459,19 @@ class AerpawPlatform:
                 )
             else:
                 agent_b64 = base64.urlsafe_b64encode(
-                    str(agent_id).encode("utf-8")
+                    str(agent_id).encode("utf-8"),
                 ).decode("utf-8")
                 url = (
                     f"http://{self.forward_ip}:{self.forward_port}"
                     f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}"
                 )
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url):
-                    pass
+            async with (
+                aiohttp.ClientSession(timeout=timeout) as session,
+                session.post(
+                    url,
+                ),
+            ):
+                pass
         except aiohttp.ClientError as e:
             logger.error(f"unable to publish value to OEO system. exception: {e}")
             return False

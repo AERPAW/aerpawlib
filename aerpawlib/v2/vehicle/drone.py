@@ -103,7 +103,10 @@ class Drone(Vehicle):
         self._velocity_loop_active = False
         self._offboard_in_use: bool = False
 
-    async def _preflight_wait(self, should_arm: bool = True) -> None:
+    async def _preflight_wait(
+        self,
+        should_arm: bool = True,  # noqa: FBT001, FBT002
+    ) -> None:
         """Wait for pre-arm conditions. Call before run."""
         self._will_arm = should_arm
         start = time.monotonic()
@@ -150,8 +153,8 @@ class Drone(Vehicle):
     async def set_heading(
         self,
         heading: float | None,
-        blocking: bool = True,
-        lock_in: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
+        lock_in: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
         """Command the drone to face a given heading.
 
@@ -233,7 +236,8 @@ class Drone(Vehicle):
             self._mission_start_time = time.time()
         try:
             logger.debug(
-                f"Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()",
+                "Drone: takeoff sending set_takeoff_altitude({altitude}m) and "
+                "takeoff()",
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
@@ -325,7 +329,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Fly to the given coordinates.
 
@@ -371,13 +375,15 @@ class Drone(Vehicle):
         target_alt = coordinates.alt + self.home_amsl
         if self.home_amsl == 0.0 and self._state.home_coords is None:
             logger.warning(
-                "Drone: home AMSL altitude is 0.0 and home position not yet received. "
-                "goto_coordinates altitude may be incorrect (treating coordinates.alt as AMSL). "
-                "Use --skip-init only when the vehicle is already armed and home is set.",
+                "Drone: home AMSL altitude is 0.0 and home position not yet "
+                "received. goto_coordinates altitude may be incorrect (treating "
+                "coordinates.alt as AMSL). Use --skip-init only when the vehicle "
+                "is already armed and home is set.",
             )
         try:
             logger.debug(
-                "Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
+                "Drone: goto_coordinates sending "
+                "goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
                 coordinates.lat,
                 coordinates.lon,
                 target_alt,
@@ -409,7 +415,8 @@ class Drone(Vehicle):
                 if now - last_log >= GOTO_LOG_INTERVAL_S:
                     dist = coordinates.distance(self.position)
                     logger.debug(
-                        "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                        "Drone: goto_coordinates progress "
+                        "dist=%.1fm tol=%.1fm elapsed=%.0fs",
                         dist,
                         tolerance,
                         elapsed,
@@ -474,7 +481,8 @@ class Drone(Vehicle):
                 now = time.monotonic()
                 if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
-                        "Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%",
+                        "Drone: goto_coordinates (non-blocking) "
+                        "dist=%.1fm progress=%.0f%%",
                         d,
                         handle.progress * 100,
                     )
@@ -492,7 +500,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` north from current position.
 
@@ -521,7 +529,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` east from current position."""
         target = self.position + VectorNED(0, meters, 0)
@@ -539,7 +547,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` south from current position."""
         target = self.position + VectorNED(-meters, 0, 0)
@@ -557,7 +565,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go ``meters`` west from current position."""
         target = self.position + VectorNED(0, -meters, 0)
@@ -577,7 +585,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Go by NED offset from current position.
 
@@ -609,7 +617,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
+        blocking: bool = True,  # noqa: FBT001, FBT002
     ) -> VehicleTask | None:
         """Fly along ``bearing_deg`` for ``distance_m`` metres from current position.
 
@@ -639,7 +647,7 @@ class Drone(Vehicle):
     async def set_velocity(
         self,
         velocity: VectorNED,
-        global_relative: bool = True,
+        global_relative: bool = True,  # noqa: FBT001, FBT002
         duration: float | None = None,
     ) -> None:
         """Set the drone's velocity in the NED frame.
@@ -697,7 +705,8 @@ class Drone(Vehicle):
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
                             logger.debug(
-                                "Drone: set_velocity duration reached, stopping offboard",
+                                "Drone: set_velocity duration reached, "
+                                "stopping offboard",
                             )
                             self._velocity_loop_active = False
                             await self._system.offboard.set_velocity_ned(

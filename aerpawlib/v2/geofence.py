@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from pykml import parser
@@ -29,7 +30,7 @@ def read_geofence(file_path: str) -> list[dict]:
     Raises:
         ValueError: If no Polygon with a LinearRing is found in the KML.
     """
-    with open(file_path, "rb") as f:
+    with Path(file_path).open("rb") as f:
         root = parser.fromstring(f.read())
 
     # Search the entire element tree for the first LinearRing coordinates

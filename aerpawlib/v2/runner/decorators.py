@@ -75,6 +75,7 @@ class _StateDescriptor:
     def __init__(
         self,
         name: str,
+        *,
         first: bool = False,
         state_type: _StateType = _StateType.STANDARD,
         duration: float = 0.0,
@@ -125,7 +126,7 @@ class _StateDescriptor:
         return types.MethodType(self.func, obj)
 
 
-def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescriptor]:
+def state(name: str, *, first: bool = False) -> Callable[[Callable], _StateDescriptor]:
     """Decorate a method as a named StateMachine state.
 
     Args:
@@ -152,6 +153,7 @@ def state(name: str, first: bool = False) -> Callable[[Callable], _StateDescript
 def timed_state(
     name: str,
     duration: float,
+    *,
     loop: bool = False,
     first: bool = False,
 ) -> Callable[[Callable], _StateDescriptor]:

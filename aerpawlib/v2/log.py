@@ -56,6 +56,7 @@ def get_logger(
 def configure_logging(
     level: LogLevel | str | int = LogLevel.INFO,
     format_str: str | None = None,
+    *,
     use_colors: bool = True,
     log_file: str | None = None,
     root_name: str = "aerpawlib.v2",

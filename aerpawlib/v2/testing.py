@@ -14,6 +14,7 @@ class MockVehicle:
         self,
         position: Coordinate | None = None,
         home: Coordinate | None = None,
+        *,
         armed: bool = False,
         connected: bool = True,
     ):

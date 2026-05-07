@@ -43,7 +43,10 @@ class VectorNED:
         north = self.east * math.sin(rads) + self.north * math.cos(rads)
         return VectorNED(north, east, self.down)
 
-    def hypot(self, ignore_down: bool = False) -> float:
+    def hypot(
+        self,
+        ignore_down: bool = False,  # noqa: FBT001, FBT002
+    ) -> float:
         """Return the magnitude of the vector in meters.
 
         Args:
@@ -156,7 +159,11 @@ class Coordinate:
         d_ground = EARTH_RADIUS_KM * c * 1000  # km to m
         return math.hypot(d_ground, other.alt - self.alt)
 
-    def bearing(self, other: Coordinate, wrap_360: bool = True) -> float:
+    def bearing(
+        self,
+        other: Coordinate,
+        wrap_360: bool = True,  # noqa: FBT001, FBT002
+    ) -> float:
         """Return the bearing from this coordinate to another in degrees.
 
         Args:

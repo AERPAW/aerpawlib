@@ -66,6 +66,7 @@ def _nearest_parent_state_machine_config(owner: type) -> StateMachineConfig | No
 
 def _ensure_state_machine_config(
     owner: type,
+    *,
     require_zmq: bool = False,
 ) -> StateMachineConfig:
     """Ensure owner has an isolated config copy; optionally upgrade to ZMQ config."""

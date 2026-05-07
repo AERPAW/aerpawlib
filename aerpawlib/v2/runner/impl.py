@@ -286,7 +286,7 @@ class StateMachine(Runner):
                 logger.info(
                     f"StateMachine: starting {len(backgrounds)} background task(s)",
                 )
-            MAX_BACKGROUND_RETRIES = 10
+            max_background_retries = 10
             for name in backgrounds:
                 method = getattr(self, name)
 
@@ -301,17 +301,17 @@ class StateMachine(Runner):
                             return
                         except Exception as e:
                             consecutive_failures += 1
-                            if consecutive_failures >= MAX_BACKGROUND_RETRIES:
+                            if consecutive_failures >= max_background_retries:
                                 logger.error(
                                     f"Background task '{_name}' exceeded max retries "
-                                    f"({MAX_BACKGROUND_RETRIES}), stopping.",
+                                    f"({max_background_retries}), stopping.",
                                     exc_info=True,
                                 )
                                 return
                             backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
                             logger.error(
                                 f"Background task '{_name}' failed (attempt "
-                                f"{consecutive_failures}/{MAX_BACKGROUND_RETRIES}), "
+                                f"{consecutive_failures}/{max_background_retries}), "
                                 f"retrying in {backoff:.1f}s: {e}",
                                 exc_info=True,
                             )
