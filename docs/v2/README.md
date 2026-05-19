@@ -67,7 +67,7 @@ await drone.takeoff(altitude=10)
 await drone.goto_coordinates(target, tolerance=2)
 await drone.set_heading(90)
 await drone.land()
-await drone.return_to_launch()
+await drone.return_to_launch()  # go to home coordinates and land
 await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
 await drone.stop_velocity()       # stop active velocity command
 await drone.set_groundspeed(8.0)  # max cruise speed in m/s
@@ -77,7 +77,7 @@ await drone.set_groundspeed(8.0)  # max cruise speed in m/s
 ```python
 handle = await drone.goto_coordinates(target, blocking=False)
 print(handle.progress)   # 0.0 to 1.0
-handle.cancel()          # triggers RTL on drone, hold on rover
+handle.cancel()          # returns home + lands on drone, hold on rover
 await handle.wait_done() # raises if error occurred
 ```
 

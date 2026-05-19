@@ -294,19 +294,20 @@ def run_v2_experiment(
                     and disconnect_future.exception() is not None
                 )
                 if (
-                    not vehicle.closed
+                    success
+                    and not vehicle.closed
                     and vehicle.armed
                     and args.rtl_at_end
                     and not heartbeat_lost
                 ):
-                    logger.warning("Vehicle still armed! RTLing...")
+                    logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:
                             await vehicle.return_to_launch()
                         elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
                             await vehicle.goto_coordinates(vehicle.home_coords)
                     except Exception as e:
-                        logger.error(f"RTL failed: {e}")
+                        logger.error(f"Return home failed: {e}")
                         traceback.print_exc()
                 vehicle.close()
             if safety_client is not None and hasattr(safety_client, "close"):

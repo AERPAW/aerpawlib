@@ -255,12 +255,17 @@ class Drone(Vehicle):
         await self._action_wait_disarm(self._system.action.land(), "land", LandingError)
 
     async def return_to_launch(self) -> None:
-        """Command the drone to RTL and wait for it to land and disarm."""
-        await self._action_wait_disarm(
-            self._system.action.return_to_launch(),
-            "RTL",
-            RTLError,
-        )
+        """Fly to home coordinates and land (RTL mode is not used)."""
+        home = self.home_coords
+        if home is None:
+            logger.error("Return-to-launch requested but home coordinates are unset")
+            raise RTLError("Home coordinates are not available for return-to-launch")
+        try:
+            await self.goto_coordinates(home)
+            await self.land()
+        except (NavigationError, LandingError) as e:
+            logger.error(f"Return-to-launch failed: {e}")
+            raise RTLError(str(e), original_error=e)
 
     async def goto_coordinates(
         self,

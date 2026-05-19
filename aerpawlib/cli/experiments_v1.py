@@ -165,19 +165,20 @@ def run_v1_experiment(
                     await disconnect_task
             if vehicle:
                 if (
-                    not getattr(vehicle, "_closed")
+                    success
+                    and not getattr(vehicle, "_closed")
                     and vehicle.armed
                     and args.rtl_at_end
                     and not heartbeat_lost
                 ):
-                    logger.warning("Vehicle still armed! RTLing...")
+                    logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:
                             await vehicle.return_to_launch()
                         elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
                             await vehicle.goto_coordinates(vehicle.home_coords)
                     except Exception as e:
-                        logger.error(f"RTL failed: {e}")
+                        logger.error(f"Return home failed: {e}")
                         traceback.print_exc()
                 vehicle.close()
             if event_log is not None:

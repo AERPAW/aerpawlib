@@ -299,29 +299,24 @@ class Drone(Vehicle):
             self._expecting_disarm = False
 
     async def return_to_launch(self) -> None:
-        """Command Return-to-Launch (RTL) and wait for disarm.
+        """Fly to home coordinates and land (RTL mode is not used).
 
         Raises:
-            RTLError: If the RTL command fails or times out.
+            RTLError: If returning home or landing fails.
         """
-        await self.await_ready_to_move()
+        home = self.home_coords
+        if home is None:
+            logger.error("Drone: return_to_launch requires home coordinates")
+            raise RTLError("Home coordinates are not available for return_to_launch")
         if self._event_log:
             self._event_log.log_event("command", type="return_to_launch")
         try:
-            logger.debug("Drone: return_to_launch sending RTL command")
-            await self._system.action.return_to_launch()
-            self._expecting_disarm = True
-            await _wait_for_condition(
-                lambda: not self.armed,
-                poll_interval=POLLING_DELAY_S,
-                timeout=DEFAULT_GOTO_TIMEOUT_S,
-                timeout_message="Drone: return_to_launch timed out waiting for disarm",
-            )
-        except (ActionError, TimeoutError) as e:
+            logger.debug("Drone: return_to_launch navigating home then landing")
+            await self.goto_coordinates(home)
+            await self.land()
+        except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
             raise RTLError(str(e), original_error=e)
-        finally:
-            self._expecting_disarm = False
 
     async def goto_coordinates(
         self,
