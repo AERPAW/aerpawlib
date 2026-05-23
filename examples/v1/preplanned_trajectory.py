@@ -256,9 +256,27 @@ class PreplannedTrajectory(StateMachine):
         current_commands._vehicle._wploader.clear()  # type: ignore[union-attr]
         current_commands.clear()
 
-        # Loop over waypoint list (ignore first 0,0,alt waypoint)
-        for waypoint in self._waypoints[1:]:
-            # AERPAW_Platform.log_to_oeo(str(waypoint["pos"]))
+        # Push a dummy Home Position first so ArduPilot doesn't swallow our first real waypoint
+        home_cmd = dk.Command(
+            0,
+            0,
+            0,
+            mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT,
+            mavutil.mavlink.MAV_CMD_NAV_WAYPOINT,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            vehicle.position.lat,
+            vehicle.position.lon,
+            0,
+        )
+        current_commands.add(home_cmd)
+
+        # Loop over ALL waypoints (no longer ignoring index 0)
+        for waypoint in self._waypoints:
             wp_coord = Coordinate(*waypoint["pos"])
 
             # Make a new waypoint command with the coordinates
@@ -295,16 +313,19 @@ class PreplannedTrajectory(StateMachine):
             takeoff_alt = self._waypoints[self._current_waypoint]["pos"][2]
             AERPAW_Platform.log_to_oeo(f"Taking off to {takeoff_alt}m")
             await vehicle.takeoff(takeoff_alt)
+            # The drone has consumed the takeoff waypoint, advance index for the next state
+            self._current_waypoint += 1
         return "next_waypoint"
 
     @state(name="next_waypoint")
     async def next_waypoint(self, vehicle: Vehicle):
-        # figure out the next waypoint to go to
-        self._current_waypoint += 1
+        # verify we haven't reached the end of the plan
         if self._current_waypoint >= len(self._waypoints):
             return "rtl"
+
         AERPAW_Platform.log_to_oeo(f"Waypoint {self._current_waypoint}")
         waypoint = self._waypoints[self._current_waypoint]
+
         if waypoint["command"] == 20:  # RTL encountered, finish routine
             return "rtl"
 
@@ -352,6 +373,8 @@ class PreplannedTrajectory(StateMachine):
             )  # ping 127.0.0.1 5 times
             AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
+        # We have finished executing this waypoint, advance the index for the next loop
+        self._current_waypoint += 1
         return "next_waypoint"
 
     @state(name="rtl")
