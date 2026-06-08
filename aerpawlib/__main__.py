@@ -34,6 +34,7 @@ from aerpawlib.cli.constants import (
     DEFAULT_CONNECTION_TIMEOUT_S,
     DEFAULT_HEARTBEAT_TIMEOUT_S,
     DEFAULT_MAVSDK_PORT,
+    DEFAULT_SAFETY_CHECKER_PORT,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
@@ -134,7 +135,7 @@ def run(
     safety_checker_port: int | None = typer.Option(
         None,
         "--safety-checker-port",
-        help="The gRPC port for the AERPAW SafetyCheckerServer (v2 only). Defaults to 50052 in AERPAW environments.",
+        help=f"The ZMQ port for the AERPAW SafetyCheckerServer (v2 only). Defaults to {DEFAULT_SAFETY_CHECKER_PORT} in AERPAW environments.",
         rich_help_panel="Connection & Safety Options",
     ),
     safety_checker_ip: str = typer.Option(

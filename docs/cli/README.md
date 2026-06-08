@@ -153,4 +153,7 @@ Defines the grace period for missing heartbeats before the disconnect watcher co
 Specifies the gRPC port for the embedded `mavsdk_server` process. Assign a unique port per concurrent vehicle on a single host to prevent conflicts.
 
 ### `--safety-checker-port` (v2)
-Controls the interface for the `SafetyCheckerServer`. In a connected AERPAW environment, it defaults to port 14580, and failure to connect ends the experiment. In standalone mode, it defaults to a no-op checker that automatically passes all checks.
+Controls the port interface for the `SafetyCheckerServer`. In a connected AERPAW environment, it defaults to port 14580, and failure to connect ends the experiment. In standalone mode, it defaults to a no-op checker that automatically passes all checks.
+
+### `--safety-checker-ip` (v2)
+Controls the IP/host address interface for the `SafetyCheckerServer`. Defaults to `127.0.0.1`.
