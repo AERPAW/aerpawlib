@@ -137,6 +137,12 @@ def run(
         help="The gRPC port for the AERPAW SafetyCheckerServer (v2 only). Defaults to 50052 in AERPAW environments.",
         rich_help_panel="Connection & Safety Options",
     ),
+    safety_checker_ip: str = typer.Option(
+        "127.0.0.1",
+        "--safety-checker-ip",
+        help="The IP/host address for the AERPAW SafetyCheckerServer (v2 only).",
+        rich_help_panel="Connection & Safety Options",
+    ),
     zmq_identifier: str | None = typer.Option(
         None,
         "--zmq-identifier",
@@ -222,6 +228,7 @@ def run(
         heartbeat_timeout=heartbeat_timeout,
         mavsdk_port=mavsdk_port,
         safety_checker_port=safety_checker_port,
+        safety_checker_ip=safety_checker_ip,
     )
 
     if args.log_file:

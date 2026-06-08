@@ -90,7 +90,7 @@ def run_v2_experiment(
                 "Not in AERPAW environment and --safety-checker-port not provided.",
             )
         else:
-            safety_addr = "127.0.0.1"
+            safety_addr = getattr(args, "safety_checker_ip", "127.0.0.1")
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = await client.check_server_status()
