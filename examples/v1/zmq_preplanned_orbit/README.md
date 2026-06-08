@@ -2,7 +2,7 @@
 
 Multi-drone example: two drones (tracer + orbiter) coordinated via ZMQ. The tracer follows waypoints from a `.plan` file; the orbiter orbits the tracer at each waypoint. A ground coordinator orchestrates the mission.
 
-> Start the ZMQ proxy first: `aerpawlib --run-proxy`
+> Start the ZMQ proxy first: `aerpawlib-run-proxy`
 
 ## Tracer
 

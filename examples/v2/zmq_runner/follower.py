@@ -5,7 +5,7 @@ This script demonstrates multi-vehicle coordination using ZMQ.
 The follower drone executes remote commands sent by the leader.
 
 Run with:
-    aerpawlib --run-proxy  # Run in separate terminal first
+    aerpawlib-run-proxy  # Run in separate terminal first
 
     aerpawlib --api-version v2 --script examples/v2/zmq_runner/follower.py \
         --conn udpin://127.0.0.1:14551 --vehicle drone \

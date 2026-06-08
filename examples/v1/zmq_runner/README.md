@@ -9,7 +9,7 @@ transitions.
 1. Start ZMQ Proxy
 
    ```bash
-   aerpawlib --run-proxy
+   aerpawlib-run-proxy
    ```
 
 2. Run the leader (waits 10s, then triggers follower takeoff):

@@ -233,7 +233,7 @@ class RemoteMission(ZmqStateMachine):
         return drone.position.alt
 ```
 
-Run with `--zmq-identifier` and `--zmq-proxy-server`. Start the ZMQ proxy first: `aerpawlib --run-proxy`.
+Run with `--zmq-identifier` and `--zmq-proxy-server`. Start the ZMQ proxy first: `aerpawlib-run-proxy`.
 
 #### `@expose_field_zmq(name)`
 

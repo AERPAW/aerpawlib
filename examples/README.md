@@ -105,7 +105,7 @@ aerpawlib --script examples/v1/external_runner.py \
 
 ### ZMQ Multi-Vehicle (v1)
 
-Requires `aerpawlib --run-proxy` in a separate terminal first.
+Requires `aerpawlib-run-proxy` in a separate terminal first.
 
 ```bash
 # Leader/follower
@@ -123,7 +123,7 @@ See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_or
 ### ZMQ Multi-Vehicle (v2)
 
 ```bash
-aerpawlib --run-proxy  # Terminal 1
+aerpawlib-run-proxy  # Terminal 1
 
 aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
     --vehicle drone --conn udpin://127.0.0.1:14550 \

@@ -17,7 +17,7 @@ This package re-exports `BasicRunner`, `StateMachine`, and `ZmqStateMachine` fro
 - Defining a custom `run(self, vehicle)` method in your scripts is fully supported. To prevent name collisions and shadowing of the base runner's internal orchestrator, `aerpawlib` employs `OrchestratedRunDescriptor` internally. This intercepts and resolves the custom method name so that both user logic and execution orchestration function correctly.
 
 ### ZMQ
-- Run the proxy first (`aerpawlib --run-proxy` or the helper in [zmqutil](zmqutil.md)), then launch runners with matching `--zmq-identifier` and `--zmq-proxy-server`.
+- Run the proxy first (`aerpawlib-run-proxy` or the helper in [zmqutil](zmqutil.md)), then launch runners with matching `--zmq-identifier` and `--zmq-proxy-server`.
 
 ### Error handling
 - Misconfigured runners raise the `RunnerError` family (`NoEntrypointError`, `NoInitialStateError`, `InvalidStateError`, and similar). See [exceptions](exceptions.md).

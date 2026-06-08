@@ -5,7 +5,7 @@ This script demonstrates multi-vehicle coordination using ZMQ.
 The leader drone measures ping latency and transitions the follower drone.
 
 Run with:
-    aerpawlib --run-proxy  # Run in separate terminal first
+    aerpawlib-run-proxy  # Run in separate terminal first
 
     aerpawlib --api-version v2 --script examples/v2/zmq_runner/leader.py \
         --conn udpin://127.0.0.1:14550 --vehicle drone \

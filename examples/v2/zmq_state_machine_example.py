@@ -3,7 +3,7 @@ ZmqStateMachine v2 Example - Remote state transitions via ZMQ.
 
 Run with:
     # Terminal 1: start ZMQ proxy
-    aerpawlib --run-proxy
+    aerpawlib-run-proxy
 
     # Terminal 2: run this script
     aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
