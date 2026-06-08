@@ -43,7 +43,7 @@ async def wait_for_blocking_goto(
             raise TimeoutError(f"{log_prefix}goto timed out within {timeout}s")
         now = time.monotonic()
         if now - last_log >= GOTO_LOG_INTERVAL_S:
-            dist = distance_fn(coordinates)
+            dist = distance_fn()
             logger.debug(
                 "%s: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
                 log_prefix,

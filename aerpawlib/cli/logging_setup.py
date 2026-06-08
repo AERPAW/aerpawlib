@@ -5,8 +5,18 @@ from __future__ import annotations
 import logging
 import sys
 
+from rich.logging import RichHandler
+from rich.text import Text
+
 from aerpawlib.cli.log import LogComponent
 from aerpawlib.log import ColoredFormatter
+
+
+class AnsiRichHandler(RichHandler):
+    """Subclass of RichHandler that renders ANSI escape sequences in log messages."""
+
+    def render_message(self, record: logging.LogRecord, message: str) -> Text:
+        return Text.from_ansi(message)
 
 
 def setup_logging(
@@ -32,7 +42,17 @@ def setup_logging(
 
     root_logger.handlers.clear()
 
-    console_handler = logging.StreamHandler(sys.stdout)
+    if sys.stdout.isatty():
+        from aerpawlib.cli.progress_bar import console
+        console_handler = AnsiRichHandler(
+            console=console,
+            show_time=False,
+            show_level=False,
+            show_path=False,
+        )
+    else:
+        console_handler = logging.StreamHandler(sys.stdout)
+
     console_handler.setLevel(level)
     console_handler.setFormatter(ColoredFormatter(use_colors=True))
     root_logger.addHandler(console_handler)

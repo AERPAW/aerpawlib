@@ -33,6 +33,8 @@ def run_v1_experiment(
     experimenter_script: Any,
 ) -> None:
     """Run an experiment using the v1 API."""
+    from aerpawlib.cli.progress_bar import update_progress
+    update_progress("Loading API version: v1", completed=10)
     logger.debug("Loading API version: v1")
     start_time = time.time()
     try:
@@ -62,7 +64,9 @@ def run_v1_experiment(
 
     async def run_experiment_async() -> bool:
         """Connect the vehicle, run the mission, and handle cleanup/RTL."""
+        from aerpawlib.cli.progress_bar import update_progress
         event_log = None
+        update_progress("Connecting to vehicle...", completed=20)
         logger.info("Connecting to vehicle...")
         try:
             # v1 Vehicle.__init__ blocks until connected or raises on failure
@@ -116,6 +120,7 @@ def run_v1_experiment(
 
         runner_instance.initialize_args(unknown_args)
         if args.initialize:
+            update_progress("Initializing vehicle...", completed=50)
             if hasattr(vehicle, "initialize"):
                 vehicle.initialize(args.initialize)
             elif hasattr(vehicle, "_preflight_wait"):
@@ -139,6 +144,7 @@ def run_v1_experiment(
         heartbeat_error_cls = api_module.HeartbeatLostError
         disconnect_task = None
         try:
+            update_progress("Running experiment...", completed=60)
             disconnect_task = asyncio.create_task(
                 wait_for_v1_connection_loss(
                     vehicle=vehicle,
@@ -163,6 +169,7 @@ def run_v1_experiment(
                     await disconnect_task
             if vehicle:
                 if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
+                    update_progress("Vehicle still armed! Returning home...", completed=90)
                     logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:
@@ -180,6 +187,7 @@ def run_v1_experiment(
                     event_log.close()
                 except Exception as e:
                     logger.debug(f"Failed to close structured event log: {e}")
+            update_progress("Experiment completed!", completed=100)
         return success
 
     experiment_success = False

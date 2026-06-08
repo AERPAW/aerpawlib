@@ -193,7 +193,7 @@ class Drone(Vehicle):
         await self.await_ready_to_move()
 
         # Enforce minimum delay between arming and takeoff
-        time_since_arm = time.time() - self._last_arm_time.get()
+        time_since_arm = time.time() - self._ts_state.last_arm_time.get()
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
             logger.debug(
@@ -219,7 +219,10 @@ class Drone(Vehicle):
             await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)
         except ActionError as e:
             logger.error(f"Takeoff failed: {e}")
-            raise TakeoffError(str(e), original_error=e) from e
+            err_msg = f"Takeoff failed: {e}"
+            if self.armed:
+                err_msg += " (drone is already armed)"
+            raise TakeoffError(err_msg, original_error=e) from e
 
     async def _action_wait_disarm(self, coro, name, exc_cls):
         """

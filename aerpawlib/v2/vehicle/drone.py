@@ -209,7 +209,10 @@ class Drone(Vehicle):
                 )
         except ActionError as e:
             logger.error(f"Drone: takeoff failed: {e}")
-            raise TakeoffError(str(e), original_error=e) from e
+            err_msg = f"Takeoff failed: {e}"
+            if self.armed:
+                err_msg += " (drone is already armed)"
+            raise TakeoffError(err_msg, original_error=e) from e
 
     async def land(self) -> None:
         """Command the drone to land and wait for disarm.

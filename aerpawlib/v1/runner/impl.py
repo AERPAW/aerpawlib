@@ -110,6 +110,8 @@ class BasicRunner(Runner):
         self._build()
         if self._entry is None:
             raise NoEntrypointError()
+        from aerpawlib.cli.progress_bar import update_progress
+        update_progress(f"Running entrypoint: {self._entry.__name__}", completed=70)
         try:
             await self._entry.__func__(self, vehicle)
         finally:
@@ -229,6 +231,9 @@ class StateMachine(Runner):
         while self._running:
             if self._current_state not in self._states:
                 raise InvalidStateError(self._current_state, list(self._states.keys()))
+
+            from aerpawlib.cli.progress_bar import update_progress
+            update_progress(f"Running state: {self._current_state}", completed=70)
 
             next_state = await self._states[self._current_state].run(self, vehicle)
             if self._override_next_state_transition:

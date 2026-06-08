@@ -34,6 +34,8 @@ def run_v2_experiment(
     experimenter_script: Any,
 ) -> None:
     """Run an experiment using the v2 API."""
+    from aerpawlib.cli.progress_bar import update_progress
+    update_progress("Loading API version: v2", completed=10)
     logger.debug("Loading API version: v2")
     start_time = time.time()
     try:
@@ -79,6 +81,7 @@ def run_v2_experiment(
 
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 
+        update_progress("Checking safety client...", completed=15)
         is_aerpaw = aerpaw_platform.is_connected if aerpaw_platform else False
         effective_port = args.safety_checker_port if args.safety_checker_port is not None else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
         if effective_port is None:
@@ -126,6 +129,7 @@ def run_v2_experiment(
                 )
             event_log = StructuredEventLogger(structured_log_path.open("w"))
 
+        update_progress("Connecting to vehicle...", completed=30)
         logger.info("Connecting to vehicle...")
         try:
             vehicle = await asyncio.wait_for(
@@ -195,6 +199,7 @@ def run_v2_experiment(
         success = False
         try:
             if args.initialize:
+                update_progress("Initializing vehicle...", completed=50)
                 preflight_coro = vehicle.initialize(args.initialize) if hasattr(vehicle, "initialize") else vehicle._preflight_wait(args.initialize)
                 preflight_task = asyncio.create_task(preflight_coro)
                 preflight_waits: list[asyncio.Task] = [
@@ -237,6 +242,7 @@ def run_v2_experiment(
                     args.zmq_server_addr,
                 )
 
+            update_progress("Running experiment...", completed=60)
             run_task = asyncio.create_task(
                 run_runner_with_disconnect_guard(
                     runner=runner_instance,
@@ -266,6 +272,7 @@ def run_v2_experiment(
             if vehicle:
                 heartbeat_lost = disconnect_future is not None and disconnect_future.done() and not disconnect_future.cancelled() and disconnect_future.exception() is not None
                 if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
+                    update_progress("Vehicle still armed! Returning home...", completed=90)
                     logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:
@@ -288,6 +295,7 @@ def run_v2_experiment(
                     event_log.close()
                 except Exception as e:
                     logger.debug(f"Failed to close structured event log: {e}")
+            update_progress("Experiment completed!", completed=100)
         return success
 
     experiment_success = False

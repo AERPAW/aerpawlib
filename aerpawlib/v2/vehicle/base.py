@@ -420,6 +420,8 @@ class Vehicle:
                     position.relative_altitude_m,
                     position.absolute_altitude_m,
                 )
+                from aerpawlib.cli.progress_bar import update_telemetry
+                update_telemetry(altitude=position.relative_altitude_m)
                 self._connection.record_telemetry()
                 if first[0]:
                     logger.info(
@@ -482,6 +484,8 @@ class Vehicle:
                     return
                 fix = gps.fix_type.value if hasattr(gps.fix_type, "value") else gps.fix_type
                 self._state.update_gps(fix, gps.num_satellites)
+                from aerpawlib.cli.progress_bar import update_telemetry
+                update_telemetry(sats=gps.num_satellites)
                 if first[0]:
                     logger.info(
                         f"Telemetry: gps stream active (fix_type={fix}, sats={gps.num_satellites})",
@@ -505,6 +509,8 @@ class Vehicle:
                     current,
                     int(bat.remaining_percent),
                 )
+                from aerpawlib.cli.progress_bar import update_telemetry
+                update_telemetry(battery=int(bat.remaining_percent))
                 if first[0]:
                     logger.info(
                         f"Telemetry: battery stream active ({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)",
@@ -524,6 +530,8 @@ class Vehicle:
                     return
                 mode_name = mode.name
                 self._state.update_mode(mode_name)
+                from aerpawlib.cli.progress_bar import update_telemetry
+                update_telemetry(mode=mode_name)
                 if first[0]:
                     logger.info(
                         f"Telemetry: flight_mode stream active (mode={mode_name})",
@@ -544,6 +552,8 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_armed(armed)
+                from aerpawlib.cli.progress_bar import update_telemetry
+                update_telemetry(armed=armed)
                 if first[0]:
                     logger.info(f"Telemetry: armed stream active (armed={armed})")
                     first[0] = False

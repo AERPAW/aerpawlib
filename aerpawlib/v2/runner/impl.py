@@ -136,6 +136,8 @@ class BasicRunner(Runner):
         if method is None:
             raise NoEntrypointError()
         logger.info(f"BasicRunner: starting entrypoint '{name}'")
+        from aerpawlib.cli.progress_bar import update_progress
+        update_progress(f"Running entrypoint: {name}", completed=70)
         try:
             await self._run_with_disarm_guard(vehicle, method(vehicle))
             logger.info(f"BasicRunner: entrypoint '{name}' completed")
@@ -326,6 +328,8 @@ class StateMachine(Runner):
                     )
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
+                from aerpawlib.cli.progress_bar import update_progress
+                update_progress(f"Running state: {current_state}", completed=70)
                 next_state = await self._run_state(spec, vehicle)
                 if self._override_next_state_transition:
                     self._override_next_state_transition = False
