@@ -94,7 +94,7 @@ Selects either the `aerpawlib.v1` or `aerpawlib.v2` package. It defaults to `v1`
 ## Execution Control
 
 ### `--skip-init`
-The CLI normally calls `_preflight_wait` to ensure the vehicle is armable and healthy before the runner starts. This flag bypasses those checks. The vehicle may fail to arm if it is not ready at connection time.
+The CLI normally calls `initialize` to ensure the vehicle is armable and healthy before the runner starts. This flag bypasses those checks. The vehicle may fail to arm if it is not ready at connection time.
 
 ### `--skip-rtl`
 The CLI automatically attempts a Return-To-Launch (drones) or Return-to-Home (rovers) if the script finishes while the vehicle is still armed. This flag disables that automatic navigation.

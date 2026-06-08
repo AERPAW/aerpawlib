@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from aerpawlib._internal.connection_string import (
     validate_connection_scheme,
+    parse_udp_connection_port as _parse_udp_connection_port,
 )
 from aerpawlib.v1.exceptions import AerpawConnectionError
 
