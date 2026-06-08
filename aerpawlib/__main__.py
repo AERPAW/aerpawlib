@@ -174,6 +174,12 @@ def run(
     invocation_cwd = Path.cwd().resolve()
     unknown_args = [arg for arg in ctx.args if arg != ""]
 
+    is_bare = all(ctx.get_parameter_source(name).name == "DEFAULT" for name in ctx.params) and not unknown_args
+
+    if is_bare:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
+
     if not run_proxy:
         missing = []
         if not script:
