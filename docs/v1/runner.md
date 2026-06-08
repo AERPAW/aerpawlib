@@ -26,6 +26,9 @@ Multi-vehicle control software is inherently difficult. `ZmqStateMachine` extend
 * **How it works:** It collects any methods you've annotated with `@expose_zmq` and `@expose_field_zmq` and serves them over ZMQ, allowing other vehicles or a ground station to trigger transitions or query data.
 * **Important Setup:** Before calling `run()` on a `ZmqStateMachine`, you must initialize the ZMQ bindings using `_initialize_zmq_bindings(vehicle_identifier, proxy_server_addr)`—this is typically wired up via CLI flags. If you forget this step, `run()` will immediately raise a `StateMachineError`.
 
+### Custom `run()` Methods
+*Defining a custom `run(self, vehicle)` method in your scripts is fully supported. To prevent name collisions and shadowing of the base runner's internal orchestrator, `aerpawlib` employs `OrchestratedRunDescriptor` internally. This intercepts and resolves the custom method name so that both user logic and execution orchestration function correctly.*
+
 ---
 
 ## Available Decorators
