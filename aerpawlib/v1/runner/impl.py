@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import traceback
+import types
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -49,6 +50,21 @@ _BackgroundTask = Callable[..., Any]
 _InitializationTask = Callable[..., Any]
 
 
+class OrchestratedRunDescriptor:
+    """Descriptor that intercepts attribute access on 'run' to return the base/parent class's
+    orchestrator 'run' method instead of the user's custom method, avoiding name collisions
+    while keeping the original function accessible to the orchestrator.
+    """
+    def __init__(self, user_run_func: Any, base_run_method: Any) -> None:
+        self.user_run_func = user_run_func
+        self.base_run_method = base_run_method
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        return types.MethodType(self.base_run_method, obj)
+
+
 class Runner:
     """
     Base execution framework for aerpawlib scripts.
@@ -57,7 +73,44 @@ class Runner:
     by the aerpawlib infrastructure.
     """
 
-    async def run(self, _: Vehicle) -> None:
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.__name__ in ("Runner", "BasicRunner", "StateMachine", "ZmqStateMachine"):
+            return
+        if "run" in cls.__dict__:
+            user_run_func = cls.__dict__["run"]
+            # If the user's run is a descriptor, retrieve the original function
+            if hasattr(user_run_func, "func"):
+                user_run_func = getattr(user_run_func, "func")
+            # Find the parent/base class's 'run' method
+            base_run_method = None
+            for base in cls.__mro__[1:]:
+                if "run" in base.__dict__:
+                    base_run_method = base.__dict__["run"]
+                    if isinstance(base_run_method, OrchestratedRunDescriptor):
+                        continue
+                    break
+            if base_run_method is not None:
+                cls.run = OrchestratedRunDescriptor(user_run_func, base_run_method)
+
+    def _get_decorated_methods(self) -> list[tuple[str, Any, Any]]:
+        """Returns a list of tuples (name, bound_method, raw_func) for all class methods,
+        resolving any OrchestratedRunDescriptor to inspect the original decorated function.
+        """
+        results = []
+        for name, attr in inspect.getmembers(self.__class__):
+            if isinstance(attr, OrchestratedRunDescriptor):
+                func = attr.user_run_func
+                method = types.MethodType(func, self)
+            else:
+                func = attr
+                method = getattr(self, name, None)
+                if not inspect.ismethod(method):
+                    continue
+            results.append((name, method, func))
+        return results
+
+    async def run(self, vehicle: Vehicle) -> None:
         """
         Core logic of the script.
 
@@ -65,7 +118,7 @@ class Runner:
         It should be overridden by subclasses to implement specific execution models.
 
         Args:
-            _: The vehicle object initialized for this script.
+            vehicle: The vehicle object initialized for this script.
         """
         pass
 
@@ -95,10 +148,8 @@ class BasicRunner(Runner):
     def _build(self) -> None:
         """Discover and validate the single ``@entrypoint`` method."""
         self._entry = None
-        for _, method in inspect.getmembers(self):
-            if not inspect.ismethod(method):
-                continue
-            if hasattr(method, "_entrypoint"):
+        for name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_entrypoint"):
                 if self._entry is not None:
                     raise StateMachineError(
                         "Multiple @entrypoint decorators found. BasicRunner supports exactly one entry point.",
@@ -151,19 +202,17 @@ class StateMachine(Runner):
         self._initialization_tasks = []
         self._background_task_futures = []
         _found_initial = False
-        for _, method in inspect.getmembers(self):
-            if not inspect.ismethod(method):
-                continue
-            if hasattr(method, "_is_state"):
-                self._states[method._state_name] = _State(method, method._state_name)
-                if method._state_first:
+        for name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_is_state"):
+                self._states[func._state_name] = _State(method, func._state_name)
+                if func._state_first:
                     if _found_initial:
                         raise MultipleInitialStatesError()
-                    self._entrypoint = method._state_name
+                    self._entrypoint = func._state_name
                     _found_initial = True
-            if hasattr(method, "_is_background"):
+            if hasattr(func, "_is_background"):
                 self._background_tasks.append(method)
-            if hasattr(method, "_run_at_init"):
+            if hasattr(func, "_run_at_init"):
                 self._initialization_tasks.append(method)
         if not _found_initial:
             raise NoInitialStateError()
@@ -233,7 +282,11 @@ class StateMachine(Runner):
                 raise InvalidStateError(self._current_state, list(self._states.keys()))
 
             from aerpawlib.cli.progress_bar import update_progress
-            update_progress(f"Running state: {self._current_state}", completed=70)
+            update_progress(
+                f"Running state: {self._current_state}",
+                completed=70,
+                state=self._current_state,
+            )
 
             next_state = await self._states[self._current_state].run(self, vehicle)
             if self._override_next_state_transition:
@@ -274,20 +327,18 @@ class ZmqStateMachine(StateMachine):
         super()._build()
         self._exported_states = {}
         self._exported_fields = {}
-        for _, method in inspect.getmembers(self):
-            if not inspect.ismethod(method):
-                continue
-            if hasattr(method, "_is_exposed_zmq"):
-                if not hasattr(method, "_is_state"):
+        for name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_is_exposed_zmq"):
+                if not hasattr(func, "_is_state"):
                     raise StateMachineError(
                         "@expose_zmq can only be used on @state/@timed_state methods",
                     )
-                self._exported_states[method._zmq_name] = _State(
+                self._exported_states[func._zmq_name] = _State(
                     method,
-                    method._zmq_name,
+                    func._zmq_name,
                 )
-            elif hasattr(method, "_is_exposed_field_zmq"):
-                self._exported_fields[method._zmq_name] = method
+            elif hasattr(func, "_is_exposed_field_zmq"):
+                self._exported_fields[func._zmq_name] = method
 
     _zmq_identifier: str
     _zmq_proxy_server: str

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import types
 from typing import Any, cast
 
 import zmq
@@ -39,8 +40,43 @@ from .config import (
 logger = get_logger(LogComponent.RUNNER)
 
 
+class OrchestratedRunDescriptor:
+    """Descriptor that intercepts attribute access on 'run' to return the base/parent class's
+    orchestrator 'run' method instead of the user's custom method, avoiding name collisions
+    while keeping the original function accessible to the orchestrator.
+    """
+    def __init__(self, user_run_func: Any, base_run_method: Any) -> None:
+        self.user_run_func = user_run_func
+        self.base_run_method = base_run_method
+
+    def __get__(self, obj: Any, objtype: type | None = None) -> Any:
+        if obj is None:
+            return self
+        return types.MethodType(self.base_run_method, obj)
+
+
 class Runner:
     """Base execution framework for aerpawlib v2 scripts."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.__name__ in ("Runner", "BasicRunner", "StateMachine", "ZmqStateMachine"):
+            return
+        if "run" in cls.__dict__:
+            user_run_func = cls.__dict__["run"]
+            # If the user's run is a descriptor, retrieve the original function
+            if hasattr(user_run_func, "func"):
+                user_run_func = getattr(user_run_func, "func")
+            # Find the parent/base class's 'run' method
+            base_run_method = None
+            for base in cls.__mro__[1:]:
+                if "run" in base.__dict__:
+                    base_run_method = base.__dict__["run"]
+                    if isinstance(base_run_method, OrchestratedRunDescriptor):
+                        continue
+                    break
+            if base_run_method is not None:
+                cls.run = OrchestratedRunDescriptor(user_run_func, base_run_method)
 
     def set_event_log(self, event_log: Any) -> None:
         """Set the structured event logger for mission events."""
@@ -53,6 +89,15 @@ class Runner:
             vehicle: The connected vehicle instance.
         """
         pass
+
+    def _get_runner_method(self, name: str, default: Any = None) -> Any:
+        """Retrieve a method from this runner instance, resolving any
+        OrchestratedRunDescriptor to avoid infinite recursion/overrides.
+        """
+        descriptor = getattr(self.__class__, name, None)
+        if isinstance(descriptor, OrchestratedRunDescriptor):
+            return types.MethodType(descriptor.user_run_func, self)
+        return getattr(self, name, default)
 
     def initialize_args(self, args: list[str]) -> None:
         """Parse additional CLI arguments.
@@ -132,7 +177,7 @@ class BasicRunner(Runner):
         if not isinstance(config, BasicRunnerConfig):
             raise NoEntrypointError()
         name = config.entrypoint
-        method = getattr(self, name, None)
+        method = self._get_runner_method(name, None)
         if method is None:
             raise NoEntrypointError()
         logger.info(f"BasicRunner: starting entrypoint '{name}'")
@@ -222,7 +267,7 @@ class StateMachine(Runner):
         Returns:
             Name of the next state, or an empty string / None to stop the machine.
         """
-        method = getattr(self, spec.method_name)
+        method = self._get_runner_method(spec.method_name)
         logger.debug(f"StateMachine: entering state '{spec.name}'")
         if spec.duration <= 0:
             return await method(vehicle)
@@ -280,7 +325,7 @@ class StateMachine(Runner):
                 )
             for name in at_init_list:
                 logger.debug(f"StateMachine: at_init '{name}'")
-                method = getattr(self, name)
+                method = self._get_runner_method(name)
                 await method(vehicle)
 
             backgrounds = self._get_backgrounds()
@@ -290,7 +335,7 @@ class StateMachine(Runner):
                 )
             max_background_retries = 10
             for name in backgrounds:
-                method = getattr(self, name)
+                method = self._get_runner_method(name)
 
                 async def _bg_task(task: Any, _name: str = name) -> None:
                     """Run a background task with bounded retry/backoff on errors."""
@@ -329,7 +374,11 @@ class StateMachine(Runner):
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
                 from aerpawlib.cli.progress_bar import update_progress
-                update_progress(f"Running state: {current_state}", completed=70)
+                update_progress(
+                    f"Running state: {current_state}",
+                    completed=70,
+                    state=current_state,
+                )
                 next_state = await self._run_state(spec, vehicle)
                 if self._override_next_state_transition:
                     self._override_next_state_transition = False
@@ -501,7 +550,7 @@ class ZmqStateMachine(StateMachine):
             return_val = None
             method_name = cfg.exposed_fields.get(field_name)
             if method_name is not None:
-                method = getattr(self, method_name)
+                method = self._get_runner_method(method_name)
                 return_val = await method(vehicle)
             await self._zmq_send_reply(sender_name, field_name, return_val)
 

@@ -29,6 +29,7 @@ def start_progress(enabled: bool = True) -> None:
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             TextColumn("[bold dim]│[/bold dim] [bold cyan]Phase: {task.fields[phase]}[/bold cyan]"),
+            TextColumn("{task.fields[state]}"),
             TextColumn("[bold dim]│[/bold dim] [bold green]Mode: {task.fields[mode]}[/bold green]"),
             TextColumn("[bold dim]│[/bold dim] {task.fields[armed]}"),
             TextColumn("[bold dim]│[/bold dim] {task.fields[battery]}"),
@@ -43,6 +44,7 @@ def start_progress(enabled: bool = True) -> None:
             "Preparing...",
             total=100,
             phase="Startup",
+            state="",
             mode="UNKNOWN",
             armed="[bold red]Disarmed[/bold red]",
             battery="[bold yellow]Power: --%[/bold yellow]",
@@ -56,6 +58,7 @@ def update_progress(
     advance: float = 0,
     completed: float | None = None,
     phase: str | None = None,
+    state: str | None = None,
 ) -> None:
     """Update description and completion status of the progress bar."""
     global _progress, _task_id, _enabled
@@ -79,6 +82,8 @@ def update_progress(
         kwargs["completed"] = completed
     if phase is not None:
         kwargs["phase"] = phase
+    if state is not None:
+        kwargs["state"] = f" [bold dim]│[/bold dim] [bold magenta]State: {state}[/bold magenta]"
 
     _progress.update(_task_id, **kwargs)
 

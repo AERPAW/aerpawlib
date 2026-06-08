@@ -1087,6 +1087,7 @@ class DummyVehicle(Vehicle):
         *,
         timeout: float = CONNECTION_TIMEOUT_S,
         safety: Any | None = None,
+        aerpaw_platform: Any | None = None,
     ) -> DummyVehicle:
         """Return a DummyVehicle without opening any real connection.
 
@@ -1095,6 +1096,7 @@ class DummyVehicle(Vehicle):
             mavsdk_server_port: Ignored.
             timeout: Ignored.
             safety: Passed to the DummyVehicle constructor.
+            aerpaw_platform: Ignored.
 
         Returns:
             A new DummyVehicle instance.

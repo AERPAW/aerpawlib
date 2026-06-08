@@ -72,7 +72,7 @@ def start_nonblocking_goto(
     logger.debug("%s: goto_coordinates returning non-blocking VehicleTask", log_prefix)
     handle.set_on_cancel(on_cancel)
 
-    initial_dist = distance_fn(coordinates)
+    initial_dist = distance_fn()
 
     async def _wait_arrival() -> None:
         try:
@@ -97,7 +97,7 @@ def start_nonblocking_goto(
         while not handle.is_done():
             if handle.is_cancelled():
                 return
-            d = distance_fn(coordinates)
+            d = distance_fn()
             if initial_dist > 0:
                 p = 1.0 - (d / initial_dist)
                 handle.set_progress(max(0.0, min(1.0, p)))
