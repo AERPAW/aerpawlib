@@ -45,6 +45,7 @@ class OrchestratedRunDescriptor:
     orchestrator 'run' method instead of the user's custom method, avoiding name collisions
     while keeping the original function accessible to the orchestrator.
     """
+
     def __init__(self, user_run_func: Any, base_run_method: Any) -> None:
         self.user_run_func = user_run_func
         self.base_run_method = base_run_method
@@ -66,7 +67,7 @@ class Runner:
             user_run_func = cls.__dict__["run"]
             # If the user's run is a descriptor, retrieve the original function
             if hasattr(user_run_func, "func"):
-                user_run_func = getattr(user_run_func, "func")
+                user_run_func = user_run_func.func
             # Find the parent/base class's 'run' method
             base_run_method = None
             for base in cls.__mro__[1:]:
@@ -182,6 +183,7 @@ class BasicRunner(Runner):
             raise NoEntrypointError()
         logger.info(f"BasicRunner: starting entrypoint '{name}'")
         from aerpawlib.cli.progress_bar import update_progress
+
         update_progress(f"Running entrypoint: {name}", completed=70)
         try:
             await self._run_with_disarm_guard(vehicle, method(vehicle))
@@ -374,6 +376,7 @@ class StateMachine(Runner):
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
                 from aerpawlib.cli.progress_bar import update_progress
+
                 update_progress(
                     f"Running state: {current_state}",
                     completed=70,

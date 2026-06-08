@@ -274,7 +274,7 @@ def run(
                     logger.error(f"API {api_version} does not support ZMQ proxy")
             except Exception as e:
                 logger.error(f"Failed to import aerpawlib {api_version}: {e}")
-                raise typer.Exit(code=1)
+                raise typer.Exit(code=1) from e
             raise typer.Exit(code=0)
 
         logger.debug(f"Loading experimenter script: {args.script}")
@@ -303,7 +303,7 @@ def run(
             )
         except Exception as e:
             logger.error(f"Failed to import script '{args.script}': {e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from e
 
         if api_version == "v1":
             run_v1_experiment(args, unknown_args, experimenter_script)

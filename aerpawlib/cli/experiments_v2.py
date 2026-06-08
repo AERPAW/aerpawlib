@@ -35,6 +35,7 @@ def run_v2_experiment(
 ) -> None:
     """Run an experiment using the v2 API."""
     from aerpawlib.cli.progress_bar import update_progress
+
     update_progress("Loading API version: v2", completed=10)
     logger.debug("Loading API version: v2")
     start_time = time.time()

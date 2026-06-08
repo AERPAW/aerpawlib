@@ -154,6 +154,8 @@ unfixable = []
 "**/test_*.py" = ["E402"]
 # Ignore unused imports (F401) in init files.
 "__init__.py" = ["F401"]
+# Ignore function call in argument default (B008) in CLI callback parameters
+"aerpawlib/__main__.py" = ["B008"]
 
 [tool.ruff.format]
 # Configure the formatter to match Black's settings, but with 120 line length.

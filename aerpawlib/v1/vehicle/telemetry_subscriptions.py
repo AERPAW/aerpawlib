@@ -73,6 +73,7 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             vehicle._ts_state.position_alt.set(position.relative_altitude_m)
             vehicle._ts_state.position_abs_alt.set(position.absolute_altitude_m)
             from aerpawlib.cli.progress_bar import update_telemetry
+
             update_telemetry(altitude=position.relative_altitude_m)
 
     async def _attitude_update() -> None:
@@ -97,6 +98,7 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             new_gps.fix_type = gps_info.fix_type.value
             vehicle._ts_state.gps_val.set(new_gps)
             from aerpawlib.cli.progress_bar import update_telemetry
+
             update_telemetry(sats=gps_info.num_satellites)
 
     async def _battery_update() -> None:
@@ -107,12 +109,14 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             new_bat.level = int(battery.remaining_percent)
             vehicle._ts_state.battery_val.set(new_bat)
             from aerpawlib.cli.progress_bar import update_telemetry
+
             update_telemetry(battery=int(battery.remaining_percent))
 
     async def _flight_mode_update() -> None:
         async for mode in vehicle._system.telemetry.flight_mode():
             vehicle._ts_state.mode.set(mode.name)
             from aerpawlib.cli.progress_bar import update_telemetry
+
             update_telemetry(mode=mode.name)
 
     async def _armed_update() -> None:
@@ -121,6 +125,7 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             vehicle._ts_state.armed_state.set(armed)
             vehicle._ts_state.armed_telemetry_received.set(True)
             from aerpawlib.cli.progress_bar import update_telemetry
+
             update_telemetry(armed=armed)
             if armed and not old_armed:
                 vehicle._ts_state.last_arm_time.set(time.time())

@@ -34,6 +34,7 @@ def run_v1_experiment(
 ) -> None:
     """Run an experiment using the v1 API."""
     from aerpawlib.cli.progress_bar import update_progress
+
     update_progress("Loading API version: v1", completed=10)
     logger.debug("Loading API version: v1")
     start_time = time.time()
@@ -65,6 +66,7 @@ def run_v1_experiment(
     async def run_experiment_async() -> bool:
         """Connect the vehicle, run the mission, and handle cleanup/RTL."""
         from aerpawlib.cli.progress_bar import update_progress
+
         event_log = None
         update_progress("Connecting to vehicle...", completed=20)
         logger.info("Connecting to vehicle...")

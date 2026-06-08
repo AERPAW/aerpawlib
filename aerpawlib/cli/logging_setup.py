@@ -44,6 +44,7 @@ def setup_logging(
 
     if sys.stdout.isatty():
         from aerpawlib.cli.progress_bar import console
+
         console_handler = AnsiRichHandler(
             console=console,
             show_time=False,

@@ -55,6 +55,7 @@ class OrchestratedRunDescriptor:
     orchestrator 'run' method instead of the user's custom method, avoiding name collisions
     while keeping the original function accessible to the orchestrator.
     """
+
     def __init__(self, user_run_func: Any, base_run_method: Any) -> None:
         self.user_run_func = user_run_func
         self.base_run_method = base_run_method
@@ -81,7 +82,7 @@ class Runner:
             user_run_func = cls.__dict__["run"]
             # If the user's run is a descriptor, retrieve the original function
             if hasattr(user_run_func, "func"):
-                user_run_func = getattr(user_run_func, "func")
+                user_run_func = user_run_func.func
             # Find the parent/base class's 'run' method
             base_run_method = None
             for base in cls.__mro__[1:]:
@@ -148,7 +149,7 @@ class BasicRunner(Runner):
     def _build(self) -> None:
         """Discover and validate the single ``@entrypoint`` method."""
         self._entry = None
-        for name, method, func in self._get_decorated_methods():
+        for _name, method, func in self._get_decorated_methods():
             if hasattr(func, "_entrypoint"):
                 if self._entry is not None:
                     raise StateMachineError(
@@ -162,6 +163,7 @@ class BasicRunner(Runner):
         if self._entry is None:
             raise NoEntrypointError()
         from aerpawlib.cli.progress_bar import update_progress
+
         update_progress(f"Running entrypoint: {self._entry.__name__}", completed=70)
         try:
             await self._entry.__func__(self, vehicle)
@@ -202,7 +204,7 @@ class StateMachine(Runner):
         self._initialization_tasks = []
         self._background_task_futures = []
         _found_initial = False
-        for name, method, func in self._get_decorated_methods():
+        for _name, method, func in self._get_decorated_methods():
             if hasattr(func, "_is_state"):
                 self._states[func._state_name] = _State(method, func._state_name)
                 if func._state_first:
@@ -282,6 +284,7 @@ class StateMachine(Runner):
                 raise InvalidStateError(self._current_state, list(self._states.keys()))
 
             from aerpawlib.cli.progress_bar import update_progress
+
             update_progress(
                 f"Running state: {self._current_state}",
                 completed=70,
@@ -327,7 +330,7 @@ class ZmqStateMachine(StateMachine):
         super()._build()
         self._exported_states = {}
         self._exported_fields = {}
-        for name, method, func in self._get_decorated_methods():
+        for _name, method, func in self._get_decorated_methods():
             if hasattr(func, "_is_exposed_zmq"):
                 if not hasattr(func, "_is_state"):
                     raise StateMachineError(
