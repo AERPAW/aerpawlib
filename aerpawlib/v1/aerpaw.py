@@ -465,7 +465,7 @@ class _AERPAWLazyProxy:
                 # Double-check after acquiring lock
                 if self._instance is None:
                     self.__dict__["_instance"] = AERPAW()
-        return self._instance  # noqa: This is because of shenanigans in __init__
+        return self._instance
 
     def __getattr__(self, name: str) -> Any:
         """
