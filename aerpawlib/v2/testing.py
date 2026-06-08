@@ -7,12 +7,12 @@ from __future__ import annotations
 import asyncio
 
 from aerpawlib.v2.types import Battery, Coordinate, GPSInfo, VectorNED
+from aerpawlib.v2.vehicle.base import DummyVehicle
 from aerpawlib.v2.vehicle.connection_state import ConnectionState
 from aerpawlib.v2.vehicle.mock_state import default_mock_state
-from aerpawlib.v2.vehicle.state import VehicleState
 
 
-class MockVehicle:
+class MockVehicle(DummyVehicle):
     """Minimal mock vehicle for unit tests implementing VehicleProtocol."""
 
     def __init__(
@@ -31,7 +31,8 @@ class MockVehicle:
             armed: Whether the vehicle starts armed.
             connected: Whether the vehicle starts in a connected state.
         """
-        self._state: VehicleState = default_mock_state()
+        super().__init__()
+        self._state = default_mock_state()
         if position is not None:
             self._state.update_position(position.lat, position.lon, position.alt, 0.0)
         if home is not None:

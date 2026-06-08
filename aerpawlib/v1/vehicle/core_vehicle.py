@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import math
 import threading
 import time
 from collections.abc import Callable
@@ -39,11 +38,9 @@ from aerpawlib.v1.constants import (
     CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
-    EKF_READY_FLAGS,
     GPS_3D_FIX_TYPE,
     INTERNAL_UPDATE_DELAY_S,
     MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
-    MAX_TELEMETRY_RETRIES,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
     STRUCTURED_TELEMETRY_INTERVAL_S,
@@ -60,13 +57,14 @@ from aerpawlib.v1.exceptions import (
     PortInUseError,
 )
 from aerpawlib.v1.helpers import (
-    ThreadSafeValue,
     wait_for_condition,
 )
 from aerpawlib.v1.log import LogComponent, get_logger
 from aerpawlib.v1.util import is_tcp_port_in_use, is_udp_port_in_use
 
+from . import telemetry_subscriptions
 from .connection import _parse_udp_connection_port, _validate_connection_string
+from .connection_lifecycle import ConnectionLifecycle
 from .state import InitPhase, ThreadSafeVehicleState
 from .telemetry_compat import (
     _AttitudeCompat,
@@ -92,13 +90,12 @@ class Vehicle:
     MAVSDK session while providing a DroneKit-compatible API.
 
     Internal state map:
-    - ``_has_heartbeat`` / ``_closed`` / ``_running``: connection lifecycle
+    - ``_lifecycle`` (ConnectionLifecycle): heartbeat, closed, running
     - ``_ts_state`` (ThreadSafeVehicleState): telemetry behind public properties
     - ``_init_phase``: arm/init sequence (InitPhase enum)
     """
 
     _system: System | None
-    _has_heartbeat: bool
     _ready_to_move: Callable[[Vehicle], bool]
     _abortable: bool
     _aborted: bool
@@ -132,9 +129,8 @@ class Vehicle:
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._system = None
-        self._has_heartbeat = False
+        self._lifecycle = ConnectionLifecycle()
         self._connection_error: BaseException | None = None
-        self._closed = False
         self._ready_to_move = lambda _: True
         self._abortable = False
         self._aborted = False
@@ -165,7 +161,6 @@ class Vehicle:
         # Telemetry and command tasks
         self._telemetry_tasks: list[asyncio.Task] = []
         self._command_tasks: list[asyncio.Task] = []
-        self._running = ThreadSafeValue(initial_value=True)
 
         # Event loop for MAVSDK operations (runs in background thread)
         self._mavsdk_loop: asyncio.AbstractEventLoop | None = None
@@ -243,7 +238,7 @@ class Vehicle:
 
         # Wait for connection with timeout
         start = time.time()
-        while not self._has_heartbeat:
+        while not self._lifecycle.has_heartbeat:
             if self._connection_error is not None:
                 err = self._connection_error
                 self._connection_error = None
@@ -325,7 +320,7 @@ class Vehicle:
             """Block until MAVSDK reports a connected vehicle state."""
             async for state in self._system.core.connection_state():
                 if state.is_connected:
-                    self._has_heartbeat = True
+                    self._lifecycle.has_heartbeat = True
                     return
 
         try:
@@ -336,223 +331,8 @@ class Vehicle:
                 message=("Connection established but no heartbeat received within timeout"),
             ) from e
 
-        # Start telemetry subscriptions
-        await self._start_telemetry()
-
-        # Fetch vehicle info
-        await self._fetch_vehicle_info()
-
-    async def _resilient_telemetry_task(
-        self,
-        name: str,
-        coro_factory: Callable[[], Any],
-    ) -> None:
-        """Wrap a telemetry subscription in retry logic."""
-        retry_count = 0
-        max_retries = MAX_TELEMETRY_RETRIES
-        while self._running.get() and retry_count < max_retries:
-            try:
-                await coro_factory()
-            except asyncio.CancelledError:
-                return
-            except Exception as e:
-                # Suppress warnings that occur during normal shutdown
-                if not self._running.get():
-                    return
-                retry_count += 1
-                logger.warning(
-                    f"Telemetry stream '{name}' failed (attempt {retry_count}): {e}",
-                )
-                if retry_count < max_retries:
-                    try:
-                        await asyncio.sleep(retry_count)  # Linear backoff: 1s, 2s
-                    except asyncio.CancelledError:
-                        return
-                else:
-                    logger.error(
-                        f"Telemetry stream '{name}' failed after {max_retries} retries",
-                    )
-                    # Critical streams failing permanently means we can no
-                    # longer trust vehicle state — mark as disconnected.
-                    _critical = ("position", "armed", "connection")
-                    if name in _critical and self._has_heartbeat:
-                        logger.warning(
-                            "Critical telemetry stream '%s' permanently failed; marking vehicle as disconnected",
-                            name,
-                        )
-                        self._has_heartbeat = False
-
-    async def _start_telemetry(self) -> None:
-        """
-        Spawn background tasks to subscribe to various telemetry streams.
-        """
-
-        async def _position_update() -> None:
-            """Track live global position telemetry."""
-            async for position in self._system.telemetry.position():
-                self._ts_state.position_lat.set(position.latitude_deg)
-                self._ts_state.position_lon.set(position.longitude_deg)
-                self._ts_state.position_alt.set(position.relative_altitude_m)
-                self._ts_state.position_abs_alt.set(position.absolute_altitude_m)
-
-        async def _attitude_update() -> None:
-            """Track roll/pitch/yaw and derive heading in degrees."""
-            async for attitude in self._system.telemetry.attitude_euler():
-                new_att = _AttitudeCompat()
-                new_att.roll = math.radians(attitude.roll_deg)
-                new_att.pitch = math.radians(attitude.pitch_deg)
-                new_att.yaw = math.radians(attitude.yaw_deg)
-                self._ts_state.attitude_val.set(new_att)
-                self._ts_state.heading_deg.set(attitude.yaw_deg % 360)
-
-        async def _velocity_update() -> None:
-            """Track NED velocity telemetry."""
-            async for velocity in self._system.telemetry.velocity_ned():
-                self._ts_state.velocity_ned.set(
-                    [velocity.north_m_s, velocity.east_m_s, velocity.down_m_s],
-                )
-
-        async def _gps_update() -> None:
-            """Track GPS fix type and visible satellites."""
-            async for gps_info in self._system.telemetry.gps_info():
-                new_gps = _GPSInfoCompat()
-                new_gps.satellites_visible = gps_info.num_satellites
-                new_gps.fix_type = gps_info.fix_type.value
-                self._ts_state.gps_val.set(new_gps)
-
-        async def _battery_update() -> None:
-            """Track battery voltage/current/remaining level."""
-            async for battery in self._system.telemetry.battery():
-                new_bat = _BatteryCompat()
-                new_bat.voltage = battery.voltage_v
-                new_bat.current = battery.current_battery_a
-                new_bat.level = int(battery.remaining_percent)
-                self._ts_state.battery_val.set(new_bat)
-
-        async def _flight_mode_update() -> None:
-            """Track current autopilot flight mode name."""
-            async for mode in self._system.telemetry.flight_mode():
-                self._ts_state.mode.set(mode.name)
-
-        async def _armed_update() -> None:
-            """Track armed transitions and reset init state on disarm."""
-            async for armed in self._system.telemetry.armed():
-                old_armed = self._ts_state.armed_state.get()
-                self._ts_state.armed_state.set(armed)
-                self._ts_state.armed_telemetry_received.set(True)
-                if armed and not old_armed:
-                    self._ts_state.last_arm_time.set(time.time())
-                elif old_armed and not armed:
-                    # Vehicle disarmed; allow re-initialization on next guided command
-                    self._init_phase = InitPhase.PENDING
-
-        async def _health_update() -> None:
-            """Track pre-arm health and aggregate armability flags."""
-            async for health in self._system.telemetry.health():
-                self._ts_state.health_val.set(
-                    health,
-                )  # Used to provide information when arming fails
-                self._ts_state.is_armable_state.set(
-                    health.is_global_position_ok and health.is_local_position_ok and health.is_home_position_ok and health.is_armable and self._ts_state.prearm_checks_ok.get(),
-                )
-
-        async def _mavlink_status_update() -> None:
-            """Read SYS_STATUS pre-arm bitmask via MAVLink direct stream."""
-            import json
-
-            from aerpawlib.v1.constants import MAV_SYS_STATUS_PREARM_CHECK
-
-            async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
-                try:
-                    fields = json.loads(msg.fields_json)
-                    health = fields.get("onboard_control_sensors_health", 0)
-                    self._ts_state.prearm_checks_ok.set(
-                        (health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK,
-                    )
-                except Exception as e:
-                    logger.debug(f"Error parsing SYS_STATUS: {e}")
-
-        async def _ekf_status_update() -> None:
-            """Subscribe to EKF_STATUS_REPORT (ArduPilot) for takeoff readiness."""
-            import json
-
-            try:
-                async for msg in self._system.mavlink_direct.message(
-                    "EKF_STATUS_REPORT",
-                ):
-                    try:
-                        fields = json.loads(msg.fields_json)
-                        flags = fields.get("flags", 0)
-                        self._ts_state.ekf_ready.set(
-                            (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS,
-                        )
-                    except Exception as e:
-                        logger.debug(f"Error parsing EKF_STATUS_REPORT: {e}")
-            except Exception as e:
-                logger.debug(
-                    "EKF_STATUS_REPORT subscription not available (e.g. PX4): %s",
-                    e,
-                )
-
-        async def _home_update() -> None:
-            """Track home position and absolute home altitude."""
-            async for home in self._system.telemetry.home():
-                self._ts_state.home_position.set(
-                    util.Coordinate(
-                        home.latitude_deg,
-                        home.longitude_deg,
-                        home.relative_altitude_m,
-                    ),
-                )
-                self._ts_state.home_abs_alt.set(home.absolute_altitude_m)
-
-        async def _connection_state_update() -> None:
-            """Track MAVSDK connection state to mirror heartbeat availability."""
-            async for state in self._system.core.connection_state():
-                if state.is_connected:
-                    if not self._has_heartbeat:
-                        logger.info("Vehicle connection restored")
-                        self._has_heartbeat = True
-                else:
-                    if self._has_heartbeat:
-                        logger.warning(
-                            "Vehicle heartbeat lost (MAVSDK reports disconnected)",
-                        )
-                        self._has_heartbeat = False
-
-        # Start all telemetry tasks
-        telemetry_defs = [
-            ("position", lambda: _position_update()),
-            ("attitude", lambda: _attitude_update()),
-            ("velocity", lambda: _velocity_update()),
-            ("gps", lambda: _gps_update()),
-            ("battery", lambda: _battery_update()),
-            ("flight_mode", lambda: _flight_mode_update()),
-            ("armed", lambda: _armed_update()),
-            ("health", lambda: _health_update()),
-            ("mavlink_status", lambda: _mavlink_status_update()),
-            ("ekf_status", lambda: _ekf_status_update()),
-            ("home", lambda: _home_update()),
-            ("connection", lambda: _connection_state_update()),
-        ]
-
-        for name, factory in telemetry_defs:
-            # Keep streams isolated: one failing telemetry subscription should not
-            # tear down the others; _resilient_telemetry_task handles retries.
-            task = asyncio.create_task(self._resilient_telemetry_task(name, factory))
-            self._telemetry_tasks.append(task)
-
-    async def _fetch_vehicle_info(self) -> None:
-        """
-        Fetch static vehicle information like firmware version once.
-        """
-        try:
-            version = await self._system.info.get_version()
-            self._autopilot_info.major = version.flight_sw_major
-            self._autopilot_info.minor = version.flight_sw_minor
-            self._autopilot_info.patch = version.flight_sw_patch
-        except Exception as e:
-            logger.debug("Could not fetch vehicle version info: %s", e)
+        await telemetry_subscriptions.start_telemetry(self)
+        await telemetry_subscriptions.fetch_vehicle_info(self)
 
     # Properties - maintaining original API
     @property
@@ -560,14 +340,14 @@ class Vehicle:
         """
         True if receiving heartbeats, False otherwise
         """
-        return self._has_heartbeat
+        return self._lifecycle.has_heartbeat
 
     @property
     def closed(self) -> bool:
         """
         True if the vehicle connection has been closed.
         """
-        return self._closed
+        return self._lifecycle.closed
 
     @property
     def armable(self) -> bool:
@@ -714,7 +494,7 @@ class Vehicle:
         """
         Background loop for periodic internal state maintenance and logging.
         """
-        while self._running.get():
+        while self._lifecycle.is_running():
             self._internal_update()
             time.sleep(INTERNAL_UPDATE_DELAY_S)
 
@@ -821,12 +601,10 @@ class Vehicle:
         """
         Clean up the `Vehicle` object/any state
         """
-        if self._closed:
+        if self._lifecycle.closed:
             return
-        self._closed = True
-        self._has_heartbeat = False
         logger.debug("Closing vehicle connection...")
-        self._running.set(False)
+        self._lifecycle.mark_closed()
 
         # Cancel pending MAVSDK operations
         with self._pending_mavsdk_lock:
@@ -940,6 +718,10 @@ class Vehicle:
             )
 
         self._will_arm = should_arm
+
+    def initialize(self, should_arm: bool = True) -> None:
+        """Wait for pre-arm conditions before mission start (public CLI entry point)."""
+        self._preflight_wait(should_arm)
 
     async def _arm_vehicle(self) -> None:
         """

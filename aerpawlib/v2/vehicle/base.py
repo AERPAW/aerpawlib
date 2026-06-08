@@ -17,14 +17,21 @@ from mavsdk import System
 from mavsdk.action import ActionError
 
 from aerpawlib.v2.constants import (
+    ARMABLE_STATUS_LOG_INTERVAL_S,
+    ARMABLE_TIMEOUT_S,
     ARMING_SEQUENCE_DELAY_S,
     CONNECTION_TIMEOUT_S,
+    DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_MAVSDK_SERVER_PORT,
+    DEFAULT_POSITION_TOLERANCE_M,
+    GPS_3D_FIX_TYPE,
     HOME_POSITION_TIMEOUT_S,
     MAV_SYS_STATUS_PREARM_CHECK,
     MAX_POSITION_TOLERANCE_M,
     MIN_POSITION_TOLERANCE_M,
     POLLING_DELAY_S,
+    POSITION_READY_TIMEOUT_S,
+    POST_ARM_STABILIZE_DELAY_S,
     READY_MOVE_LOG_INTERVAL_S,
 )
 from aerpawlib.v2.exceptions import (
@@ -42,7 +49,10 @@ from .connection_helpers import (
 )
 from .connection_state import ConnectionState
 from .mock_state import default_mock_state
+from .navigation import goto_bearing_distance, goto_cardinal, goto_offset
+from .offboard import OffboardSession
 from .state import VehicleState
+from .task import VehicleTask
 
 if TYPE_CHECKING:
     from aerpawlib.v2.types import (
@@ -100,6 +110,12 @@ class Vehicle:
         self.safety: Any | None = safety
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
+        self._offboard = OffboardSession()
+
+    @property
+    def link_alive(self) -> bool:
+        """Return True when MAVSDK reports an active MAVLink link."""
+        return self._connection.link_alive
 
     def set_event_log(self, event_log: Any | None) -> None:
         """Set the structured event logger for mission events."""
@@ -651,6 +667,68 @@ class Vehicle:
         """Return True if the vehicle is ready to accept the next command."""
         return self._ready_to_move(self)
 
+    @property
+    def _default_goto_tolerance(self) -> float:
+        """Default arrival tolerance in metres for cardinal goto helpers."""
+        return DEFAULT_POSITION_TOLERANCE_M
+
+    def _standalone_arm_wait_ekf(self) -> bool:
+        """Return True to wait for EKF readiness before standalone auto-arm."""
+        return False
+
+    def _vehicle_type_label(self) -> str:
+        """Short label for log messages (e.g. 'vehicle', 'rover')."""
+        return "vehicle"
+
+    async def _wait_for_armable(self, log_prefix: str = "") -> None:
+        """Poll until armable or timeout (used by preflight/initialize)."""
+        start = time.monotonic()
+        last_log = 0.0
+        while not self._state.armable:
+            if time.monotonic() - start > ARMABLE_TIMEOUT_S:
+                logger.warning(
+                    f"{log_prefix}Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
+                )
+                break
+            if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
+                logger.debug(
+                    f"{log_prefix}Waiting for armable... {self._get_health_summary()}",
+                )
+                last_log = time.monotonic()
+            await asyncio.sleep(POLLING_DELAY_S)
+
+    async def _preflight_wait(self, should_arm: bool = True) -> None:
+        """Wait for pre-arm conditions. Call before run."""
+        self._will_arm = should_arm
+        await self._wait_for_armable()
+
+    async def initialize(self, should_arm: bool = True) -> None:
+        """Wait for pre-arm conditions before mission start."""
+        await self._preflight_wait(should_arm)
+
+    async def _pre_auto_arm(self) -> None:
+        """Hook for subclass-specific setup before standalone auto-arm."""
+
+    async def _auto_arm_standalone(self) -> None:
+        """Arm in standalone/SITL mode after local preflight checks pass."""
+        label = self._vehicle_type_label()
+        logger.info(f"Standalone mode: auto-arming {label}...")
+        await _wait_for_condition(
+            lambda: self._state.armable,
+            timeout=CONNECTION_TIMEOUT_S,
+            timeout_message=f"{label.capitalize()} not armable: {self._get_health_summary()}",
+        )
+        await _wait_for_condition(
+            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+            timeout=POSITION_READY_TIMEOUT_S,
+            timeout_message=f"{label.capitalize()}: no GPS 3D fix",
+        )
+        if self._standalone_arm_wait_ekf():
+            while not self.ekf_ready:
+                await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
+        await self.set_armed(True)
+        logger.info(f"{label.capitalize()} armed successfully")
+
     async def _await_aerpaw_safety_pilot_arm(self) -> None:
         """AERPAW: OEO notice (async), then wait indefinitely for pilot to arm."""
         if not self._aerpaw_platform:
@@ -682,11 +760,16 @@ class Vehicle:
         )
 
     async def _arm_vehicle(self) -> None:
-        """Arm and prepare for mission. Implemented by Drone and Rover."""
+        """Arm and prepare for mission. Subclasses may override hooks only."""
         if not self._will_arm:
             logger.debug("Vehicle: _arm_vehicle skipped (_will_arm=False)")
             return
-        raise NotImplementedError("Subclass must implement _arm_vehicle")
+        await self._pre_auto_arm()
+        if self._aerpaw_platform and self._aerpaw_platform.is_connected:
+            await self._await_aerpaw_safety_pilot_arm()
+        else:
+            await self._auto_arm_standalone()
+        await self._arm_vehicle_post_arm_home_wait()
 
     async def await_ready_to_move(self) -> None:
         """Wait until vehicle is ready for next command."""
@@ -781,6 +864,23 @@ class Vehicle:
         except Exception as e:
             logger.warning("set_groundspeed failed: %s", e)
 
+    async def aclose(self) -> None:
+        """Async cleanup: cancel tasks, stop movement, release MAVSDK."""
+        if self._connection.closed:
+            return
+        logger.info("Closing vehicle connection (async)")
+        self._connection.mark_closed()
+        tasks = list(self._telemetry_tasks) + list(self._command_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        await self._stop()
+        self._telemetry_tasks.clear()
+        self._command_tasks.clear()
+        self._system = None
+        logger.info("Vehicle connection closed")
+
     def close(self) -> None:
         """Clean up. Cancels all telemetry and command tasks."""
         if self._connection.closed:
@@ -797,6 +897,130 @@ class Vehicle:
             self._command_tasks.clear()
         logger.info("Vehicle connection closed")
         self._system = None
+
+    async def goto_north(
+        self,
+        meters: float,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Go ``meters`` north from current position."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_cardinal(
+            self,
+            meters,
+            0,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_east(
+        self,
+        meters: float,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Go ``meters`` east from current position."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_cardinal(
+            self,
+            0,
+            meters,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_south(
+        self,
+        meters: float,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Go ``meters`` south from current position."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_cardinal(
+            self,
+            -meters,
+            0,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_west(
+        self,
+        meters: float,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Go ``meters`` west from current position."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_cardinal(
+            self,
+            0,
+            -meters,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_ned(
+        self,
+        north: float,
+        east: float,
+        down: float = 0,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Go by NED offset from current position."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_offset(
+            self,
+            north,
+            east,
+            down,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
+
+    async def goto_bearing(
+        self,
+        bearing_deg: float,
+        distance_m: float,
+        tolerance: float | None = None,
+        target_heading: float | None = None,
+        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
+        blocking: bool = True,
+    ) -> VehicleTask | None:
+        """Navigate along a bearing for a ground distance."""
+        tol = tolerance if tolerance is not None else self._default_goto_tolerance
+        return await goto_bearing_distance(
+            self,
+            bearing_deg,
+            distance_m,
+            tolerance=tol,
+            target_heading=target_heading,
+            timeout=timeout,
+            blocking=blocking,
+        )
 
     async def goto_coordinates(
         self,

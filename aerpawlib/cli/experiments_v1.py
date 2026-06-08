@@ -115,8 +115,11 @@ def run_v1_experiment(
                 sys.exit(1)
 
         runner_instance.initialize_args(unknown_args)
-        if args.initialize and hasattr(vehicle, "_preflight_wait"):
-            vehicle._preflight_wait(args.initialize)
+        if args.initialize:
+            if hasattr(vehicle, "initialize"):
+                vehicle.initialize(args.initialize)
+            elif hasattr(vehicle, "_preflight_wait"):
+                vehicle._preflight_wait(args.initialize)
 
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:

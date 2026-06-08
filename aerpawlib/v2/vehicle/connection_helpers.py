@@ -16,25 +16,16 @@ from aerpawlib.v2.log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.VEHICLE)
 
-_MAVSDK_VALID_SCHEMES = frozenset(("udpin", "tcpin", "serial", "tcp", "udp"))
+from aerpawlib._internal.connection_string import validate_connection_scheme  # noqa: E402
 
 
 def _validate_connection_string(conn_str: str) -> None:
-    """Raise AerpawConnectionError immediately if conn_str is malformed.
-
-    Prevents spawning mavsdk_server with an invalid URL, which would otherwise
-    cause a silent timeout hang instead of a fast, clear error.
-    """
-    s = conn_str.strip()
-    if "://" not in s:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: missing '://'. Expected format e.g. 'udpin://0.0.0.0:{DEFAULT_MAV_UDP_PORT}', 'udpout://host:port', 'tcpin://host:port', 'tcpout://host:port', or 'serial:///dev/path[:baud]'.",
-        )
-    scheme = s.split("://")[0].lower()
-    if scheme not in _MAVSDK_VALID_SCHEMES:
-        raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}.",
-        )
+    """Raise AerpawConnectionError immediately if conn_str is malformed."""
+    validate_connection_scheme(
+        conn_str,
+        raise_error=AerpawConnectionError,
+        example_port=DEFAULT_MAV_UDP_PORT,
+    )
 
 
 def _validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:

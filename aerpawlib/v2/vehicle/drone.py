@@ -57,20 +57,12 @@ from mavsdk.action import ActionError
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 
 from aerpawlib.v2.constants import (
-    ARMABLE_STATUS_LOG_INTERVAL_S,
-    ARMABLE_TIMEOUT_S,
-    CONNECTION_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
-    GOTO_LOG_INTERVAL_S,
-    GOTO_NB_LOG_INTERVAL_S,
-    GPS_3D_FIX_TYPE,
     HEADING_TOLERANCE_DEG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     POLLING_DELAY_S,
-    POSITION_READY_TIMEOUT_S,
-    POST_ARM_STABILIZE_DELAY_S,
     POST_TAKEOFF_STABILIZATION_S,
     TAKEOFF_LOG_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
@@ -88,6 +80,7 @@ from aerpawlib.v2.types import Coordinate, VectorNED
 from .base import Vehicle, _wait_for_condition
 from .connection_helpers import _validate_tolerance
 from .heading import _heading_diff, _normalize_heading
+from .navigation import start_nonblocking_goto, wait_for_blocking_goto
 from .task import VehicleTask
 
 logger = get_logger(LogComponent.DRONE)
@@ -100,54 +93,9 @@ class Drone(Vehicle):
         """Initialise the Drone, forwarding all arguments to Vehicle."""
         super().__init__(*args, **kwargs)
         self._current_heading: float | None = None
-        self._velocity_loop_active = False
-        self._offboard_active: bool = False
 
-    async def _preflight_wait(
-        self,
-        should_arm: bool = True,
-    ) -> None:
-        """Wait for pre-arm conditions. Call before run."""
-        self._will_arm = should_arm
-        start = time.monotonic()
-        last_log = 0.0
-        while not self._state.armable:
-            if time.monotonic() - start > ARMABLE_TIMEOUT_S:
-                logger.warning(
-                    f"Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
-                )
-                break
-            if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
-                logger.debug(f"Waiting for armable... {self._get_health_summary()}")
-                last_log = time.monotonic()
-            await asyncio.sleep(POLLING_DELAY_S)
-
-    async def _arm_vehicle(self) -> None:
-        """Arm and prepare for mission (AERPAW: wait for pilot; else auto-arm)."""
-        if not self._will_arm:
-            logger.debug("Drone: _arm_vehicle skipped (_will_arm=False)")
-            return
-
-        if self._aerpaw_platform and self._aerpaw_platform.is_connected:
-            await self._await_aerpaw_safety_pilot_arm()
-        else:
-            logger.info("Standalone mode: auto-arming vehicle...")
-            await _wait_for_condition(
-                lambda: self._state.armable,
-                timeout=CONNECTION_TIMEOUT_S,
-                timeout_message=f"Vehicle not armable: {self._get_health_summary()}",
-            )
-            await _wait_for_condition(
-                lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
-                timeout=POSITION_READY_TIMEOUT_S,
-                timeout_message="No GPS 3D fix",
-            )
-            while not self.ekf_ready:
-                await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
-            await self.set_armed(True)
-            logger.info("Vehicle armed successfully")
-
-        await self._arm_vehicle_post_arm_home_wait()
+    def _standalone_arm_wait_ekf(self) -> bool:
+        return True
 
     async def set_heading(
         self,
@@ -177,7 +125,7 @@ class Drone(Vehicle):
             self._current_heading = heading
         if not blocking:
             return
-        self._offboard_active = True
+        self._offboard.mark_active()
         home = self.home_coords
         if home:
             offset = self.position - home  # VectorNED
@@ -352,7 +300,7 @@ class Drone(Vehicle):
         if target_heading is not None:
             await self.set_heading(target_heading, blocking=False)
         await self.await_ready_to_move()
-        if self._offboard_active:
+        if self._offboard.active:
             await self._stop_offboard()
         heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
         if math.isnan(heading):
@@ -386,23 +334,14 @@ class Drone(Vehicle):
         self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
 
         if blocking:
-            start = time.monotonic()
-            last_log = 0.0
-            while not self.done_moving():
-                elapsed = time.monotonic() - start
-                if elapsed > timeout:
-                    raise TimeoutError(f"Goto timed out within {timeout}s")
-                now = time.monotonic()
-                if now - last_log >= GOTO_LOG_INTERVAL_S:
-                    dist = coordinates.distance(self.position)
-                    logger.debug(
-                        "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
-                        dist,
-                        tolerance,
-                        elapsed,
-                    )
-                    last_log = now
-                await asyncio.sleep(POLLING_DELAY_S)
+            await wait_for_blocking_goto(
+                self,
+                coordinates,
+                distance_fn=lambda: coordinates.distance(self.position),
+                tolerance=tolerance,
+                timeout=timeout,
+                log_prefix="Drone",
+            )
             logger.debug("Drone: goto_coordinates complete (blocking)")
             if self._event_log:
                 self._event_log.log_event(
@@ -413,8 +352,14 @@ class Drone(Vehicle):
                 )
             return None
 
-        handle = VehicleTask()
-        logger.debug("Drone: goto_coordinates returning non-blocking VehicleTask")
+        def _log_location() -> None:
+            if self._event_log:
+                self._event_log.log_event(
+                    "location",
+                    lat=self.position.lat,
+                    lon=self.position.lon,
+                    alt=self.position.alt,
+                )
 
         async def _on_cancel() -> None:
             if not self.closed and self._system is not None:
@@ -422,205 +367,15 @@ class Drone(Vehicle):
             else:
                 logger.warning("Drone: _on_cancel skipped (vehicle closed)")
 
-        handle.set_on_cancel(_on_cancel)
-
-        initial_dist = coordinates.distance(self.position)
-
-        async def _wait_arrival() -> None:
-            try:
-                await _wait_for_condition(
-                    lambda: self.done_moving() or handle.is_cancelled(),
-                    timeout=timeout,
-                )
-                if handle.is_cancelled():
-                    handle.set_complete()
-                    return
-                if self._event_log:
-                    self._event_log.log_event(
-                        "location",
-                        lat=self.position.lat,
-                        lon=self.position.lon,
-                        alt=self.position.alt,
-                    )
-                handle.set_progress(1.0)
-                handle.set_complete()
-            except TimeoutError as e:
-                handle.set_error(NavigationError(str(e), original_error=e))
-            except Exception as e:
-                handle.set_error(e)
-
-        async def _progress_updater() -> None:
-            last_log = 0.0
-            while not handle.is_done():
-                if handle.is_cancelled():
-                    return
-                d = coordinates.distance(self.position)
-                if initial_dist > 0:
-                    p = 1.0 - (d / initial_dist)
-                    handle.set_progress(max(0.0, min(1.0, p)))
-                now = time.monotonic()
-                if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
-                    logger.debug(
-                        "Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%",
-                        d,
-                        handle.progress * 100,
-                    )
-                    last_log = now
-                await asyncio.sleep(0.2)  # Justified: progress polling interval
-
-        t1 = asyncio.create_task(_wait_arrival())
-        t2 = asyncio.create_task(_progress_updater())
-        self._command_tasks.extend([t1, t2])
-        return handle
-
-    async def goto_north(
-        self,
-        meters: float,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Go ``meters`` north from current position.
-
-        Args:
-            meters: Distance to travel north in metres.
-            tolerance: Arrival radius in metres (default 2 m).
-            target_heading: Optional heading to face before navigating.
-            timeout: Maximum seconds to wait when blocking (default 300 s).
-            blocking: If True (default), await arrival before returning.
-
-        Returns:
-            None when blocking=True; a VehicleTask handle when blocking=False.
-        """
-        target = self.position + VectorNED(meters, 0, 0)
-        return await self.goto_coordinates(
-            target,
+        return start_nonblocking_goto(
+            self,
+            coordinates,
+            distance_fn=lambda: coordinates.distance(self.position),
             tolerance=tolerance,
-            target_heading=target_heading,
             timeout=timeout,
-            blocking=blocking,
-        )
-
-    async def goto_east(
-        self,
-        meters: float,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Go ``meters`` east from current position."""
-        target = self.position + VectorNED(0, meters, 0)
-        return await self.goto_coordinates(
-            target,
-            tolerance=tolerance,
-            target_heading=target_heading,
-            timeout=timeout,
-            blocking=blocking,
-        )
-
-    async def goto_south(
-        self,
-        meters: float,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Go ``meters`` south from current position."""
-        target = self.position + VectorNED(-meters, 0, 0)
-        return await self.goto_coordinates(
-            target,
-            tolerance=tolerance,
-            target_heading=target_heading,
-            timeout=timeout,
-            blocking=blocking,
-        )
-
-    async def goto_west(
-        self,
-        meters: float,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Go ``meters`` west from current position."""
-        target = self.position + VectorNED(0, -meters, 0)
-        return await self.goto_coordinates(
-            target,
-            tolerance=tolerance,
-            target_heading=target_heading,
-            timeout=timeout,
-            blocking=blocking,
-        )
-
-    async def goto_ned(
-        self,
-        north: float,
-        east: float,
-        down: float = 0,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Go by NED offset from current position.
-
-        Args:
-            north: North component in metres (positive = north).
-            east: East component in metres (positive = east).
-            down: Down component in metres (positive = down, optional).
-            tolerance: Arrival radius in metres.
-            target_heading: Optional heading to face before navigating.
-            timeout: Maximum seconds to wait when blocking.
-            blocking: If True (default), await arrival before returning.
-
-        Returns:
-            None when blocking=True; a VehicleTask handle when blocking=False.
-        """
-        target = self.position + VectorNED(north, east, down)
-        return await self.goto_coordinates(
-            target,
-            tolerance=tolerance,
-            target_heading=target_heading,
-            timeout=timeout,
-            blocking=blocking,
-        )
-
-    async def goto_bearing(
-        self,
-        bearing_deg: float,
-        distance_m: float,
-        tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
-        target_heading: float | None = None,
-        timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,
-    ) -> VehicleTask | None:
-        """Fly along ``bearing_deg`` for ``distance_m`` metres from current position.
-
-        Bearing: 0=north, 90=east, 180=south, 270=west.
-
-        Args:
-            bearing_deg: Bearing in degrees (0-360).
-            distance_m: Distance to travel in metres.
-            tolerance: Arrival radius in metres.
-            target_heading: Optional heading to face before navigating.
-            timeout: Maximum seconds to wait when blocking.
-            blocking: If True (default), await arrival before returning.
-
-        Returns:
-            None when blocking=True; a VehicleTask handle when blocking=False.
-        """
-        v = VectorNED(distance_m, 0, 0).rotate_by_angle(-bearing_deg)
-        target = self.position + v
-        return await self.goto_coordinates(
-            target,
-            tolerance=tolerance,
-            target_heading=target_heading,
-            timeout=timeout,
-            blocking=blocking,
+            on_cancel=_on_cancel,
+            log_prefix="Drone",
+            on_complete=_log_location,
         )
 
     async def set_velocity(
@@ -649,7 +404,7 @@ class Drone(Vehicle):
             f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
         )
         await self.await_ready_to_move()
-        self._velocity_loop_active = False
+        self._offboard.stop_velocity_loop()
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)  # Let previous loop exit
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
@@ -671,19 +426,19 @@ class Drone(Vehicle):
             )
             with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            self._offboard_active = True
+            self._offboard.mark_active()
             self._ready_to_move = lambda _: True
             target_end = time.monotonic() + duration if duration else None
 
             async def _velocity_loop() -> None:
                 """Maintain velocity command until duration or cancellation."""
                 try:
-                    while self._velocity_loop_active:
+                    while self._offboard.velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
                             logger.debug(
                                 "Drone: set_velocity duration reached, stopping offboard",
                             )
-                            self._velocity_loop_active = False
+                            self._offboard.stop_velocity_loop()
                             await self._system.offboard.set_velocity_ned(
                                 VelocityNedYaw(0, 0, 0, yaw),
                             )
@@ -696,7 +451,7 @@ class Drone(Vehicle):
                     raise
                 except Exception as e:
                     logger.error(f"Velocity loop error: {e}")
-                    self._velocity_loop_active = False
+                    self._offboard.stop_velocity_loop()
                     try:
                         await self._system.offboard.set_velocity_ned(
                             VelocityNedYaw(0, 0, 0, 0),
@@ -705,7 +460,7 @@ class Drone(Vehicle):
                     except Exception:
                         pass
 
-            self._velocity_loop_active = True
+            self._offboard.velocity_loop_active = True
             vel_task = asyncio.create_task(_velocity_loop())
             self._command_tasks.append(vel_task)
             logger.debug("Drone: set_velocity offboard started, velocity loop active")
@@ -725,18 +480,11 @@ class Drone(Vehicle):
 
     async def _stop_offboard(self) -> None:
         """Stop offboard mode and zero velocity setpoint."""
-        self._velocity_loop_active = False
-        self._offboard_active = False
-        if self.closed or self._system is None:
-            logger.debug("_stop_offboard: skipped (vehicle closed)")
-            return
-        try:
-            await self._system.offboard.set_velocity_ned(
-                VelocityNedYaw(0, 0, 0, self.heading),
-            )
-            await self._system.offboard.stop()
-        except Exception:
-            logger.debug("Stop offboard (may not be in offboard)")
+        await self._offboard.stop(
+            self._system,
+            self.heading,
+            closed=self.closed,
+        )
 
     async def _stop(self) -> None:
         """Stop drone-specific background control before final shutdown."""

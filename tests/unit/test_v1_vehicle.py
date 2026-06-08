@@ -29,9 +29,9 @@ class TestDummyVehicleUnit:
 
     def test_close_sets_closed_flag(self):
         v = DummyVehicle()
-        assert not v._closed
+        assert not v.closed
         v.close()
-        assert v._closed
+        assert v.closed
 
     def test_preflight_wait_noop(self):
         v = DummyVehicle()
@@ -132,11 +132,12 @@ class TestHeartbeatMonitoring:
 
     def _make_vehicle(self):
         """Return a bare Vehicle instance (no __init__ / MAVSDK)."""
+        from aerpawlib.v1.vehicle.connection_lifecycle import ConnectionLifecycle
         from aerpawlib.v1.vehicle.core_vehicle import Vehicle
 
         v = Vehicle.__new__(Vehicle)
-        v._has_heartbeat = True
-        v._closed = False
+        v._lifecycle = ConnectionLifecycle()
+        v._lifecycle.has_heartbeat = True
         v._verbose_logging = False
         v._verbose_log_lock = threading.Lock()
         v._verbose_logging_file_writer = None
@@ -146,30 +147,26 @@ class TestHeartbeatMonitoring:
 
     def test_connected_true_when_heartbeat_set(self):
         v = self._make_vehicle()
-        v._has_heartbeat = True
+        v._lifecycle.has_heartbeat = True
         assert v.connected is True
 
     def test_connected_false_when_heartbeat_cleared(self):
         v = self._make_vehicle()
-        v._has_heartbeat = False
+        v._lifecycle.has_heartbeat = False
         assert v.connected is False
 
     def test_connected_ignores_closed_flag(self):
         """v1 public API: connected reflects heartbeat only, not lifecycle."""
         v = self._make_vehicle()
-        v._has_heartbeat = True
-        v._closed = True
+        v._lifecycle.has_heartbeat = True
+        v._lifecycle.closed = True
         assert v.connected is True
         assert v.closed is True
 
     def test_closed_idempotent_after_close(self):
         v = self._make_vehicle()
-        v._closed = False
-        v._has_heartbeat = True
-        v._running = __import__(
-            "aerpawlib.v1.helpers",
-            fromlist=["ThreadSafeValue"],
-        ).ThreadSafeValue(initial_value=True)
+        v._lifecycle.closed = False
+        v._lifecycle.has_heartbeat = True
         v._telemetry_tasks = []
         v._command_tasks = []
         v._pending_mavsdk_futures = set()

@@ -194,10 +194,9 @@ def run_v2_experiment(
 
         success = False
         try:
-            if args.initialize and hasattr(vehicle, "_preflight_wait"):
-                preflight_task = asyncio.create_task(
-                    vehicle._preflight_wait(args.initialize),
-                )
+            if args.initialize:
+                preflight_coro = vehicle.initialize(args.initialize) if hasattr(vehicle, "initialize") else vehicle._preflight_wait(args.initialize)
+                preflight_task = asyncio.create_task(preflight_coro)
                 preflight_waits: list[asyncio.Task] = [
                     preflight_task,
                     shutdown_task,

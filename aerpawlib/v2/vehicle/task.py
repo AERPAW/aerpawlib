@@ -68,8 +68,10 @@ class VehicleTask:
                 loop = asyncio.get_running_loop()
                 result = self._on_cancel()
                 if asyncio.iscoroutine(result):
-                    t = loop.create_task(result)
+                    t = loop.create_task(self._run_cancel_callback(result))
                     self._cancel_tasks.append(t)
+                else:
+                    self._signal_cancelled()
             except RuntimeError:
                 logger.warning(
                     "VehicleTask.cancel() called outside an async context; on_cancel callback will not run. The vehicle may continue its current task.",
@@ -78,12 +80,34 @@ class VehicleTask:
         else:
             self._signal_cancelled()
 
+    async def cancel_async(self) -> None:
+        """Request cancellation and await the on_cancel callback."""
+        self._cancelled = True
+        if self._on_cancel:
+            result = self._on_cancel()
+            if asyncio.iscoroutine(result):
+                await self._run_cancel_callback(result)
+            self._signal_cancelled()
+        else:
+            self._signal_cancelled()
+
+    async def _run_cancel_callback(self, coro: object) -> None:
+        try:
+            await coro  # type: ignore[misc]
+        except Exception as e:
+            logger.warning(f"VehicleTask on_cancel callback failed: {e}")
+        finally:
+            self._signal_cancelled()
+
     def is_cancelled(self) -> bool:
         """Return True if cancel() has been called."""
         return self._cancelled
 
     async def wait_done(self) -> None:
         """Wait until command completes or is cancelled."""
+        if self._cancel_tasks:
+            await asyncio.gather(*self._cancel_tasks, return_exceptions=True)
+            self._cancel_tasks.clear()
         await self._done.wait()
         if self._cancelled and self._error is None:
             raise TaskCancelledError()

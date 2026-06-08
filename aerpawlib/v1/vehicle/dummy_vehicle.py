@@ -39,9 +39,13 @@ class DummyVehicle:
         """Mark the dummy vehicle as closed."""
         self._closed = True
 
-    def _preflight_wait(self, should_arm: bool) -> None:
+    def initialize(self, should_arm: bool = True) -> None:
         """No-op preflight hook for compatibility with Vehicle."""
         pass
+
+    def _preflight_wait(self, should_arm: bool) -> None:
+        """No-op preflight hook for compatibility with Vehicle."""
+        self.initialize(should_arm)
 
     async def _arm_vehicle(self) -> None:
         """No-op arming hook for compatibility with Vehicle."""
