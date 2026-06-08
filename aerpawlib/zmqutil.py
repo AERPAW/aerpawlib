@@ -13,9 +13,7 @@ import warnings
 
 # Issue a deprecation warning for direct imports
 warnings.warn(
-    "Importing from aerpawlib.zmqutil is deprecated. "
-    "Use 'from aerpawlib.v1.zmqutil import ...' or "
-    "'from aerpawlib.v2.zmqutil import ...' instead.",
+    "Importing from aerpawlib.zmqutil is deprecated. Use 'from aerpawlib.v1.zmqutil import ...' or 'from aerpawlib.v2.zmqutil import ...' instead.",
     DeprecationWarning,
     stacklevel=2,
 )

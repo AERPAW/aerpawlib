@@ -67,28 +67,20 @@ def run_v2_experiment(
         if no_aerpaw_env:
             aerpaw_platform = None
             logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
-                "running in standalone mode.",
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode.",
             )
         else:
             aerpaw_platform = api_module.AerpawPlatform(suppress_stdout=args.no_stdout)
             if not aerpaw_platform.is_connected:
                 logger.critical(
-                    "It seems like we're in standalone mode but "
-                    "--no-aerpaw-environment was not passed. "
-                    "Pass --no-aerpaw-environment to run outside the AERPAW "
-                    "environment.",
+                    "It seems like we're in standalone mode but --no-aerpaw-environment was not passed. Pass --no-aerpaw-environment to run outside the AERPAW environment.",
                 )
                 sys.exit(1)
 
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 
         is_aerpaw = aerpaw_platform.is_connected if aerpaw_platform else False
-        effective_port = (
-            args.safety_checker_port
-            if args.safety_checker_port is not None
-            else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
-        )
+        effective_port = args.safety_checker_port if args.safety_checker_port is not None else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
         if effective_port is None:
             safety_client = NoOpSafetyChecker(
                 "Not in AERPAW environment and --safety-checker-port not provided.",
@@ -105,16 +97,14 @@ def run_v2_experiment(
             except Exception as e:
                 if is_aerpaw:
                     logger.critical(
-                        "AERPAW environment requires SafetyCheckerServer. "
-                        "Connection to %s:%d failed: %s",
+                        "AERPAW environment requires SafetyCheckerServer. Connection to %s:%d failed: %s",
                         safety_addr,
                         effective_port,
                         e,
                     )
                     sys.exit(1)
                 logger.error(
-                    "SafetyCheckerServer connection failed (%s:%d): %s. Using "
-                    "passthrough (all validations pass).",
+                    "SafetyCheckerServer connection failed (%s:%d): %s. Using passthrough (all validations pass).",
                     safety_addr,
                     effective_port,
                     e,
@@ -249,8 +239,7 @@ def run_v2_experiment(
             if flag_zmq_runner:
                 if not args.zmq_identifier or not args.zmq_server_addr:
                     logger.error(
-                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                        "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
+                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
                     )
                     raise ValueError(
                         "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
@@ -287,19 +276,8 @@ def run_v2_experiment(
             traceback.print_exc()
         finally:
             if vehicle:
-                heartbeat_lost = (
-                    disconnect_future is not None
-                    and disconnect_future.done()
-                    and not disconnect_future.cancelled()
-                    and disconnect_future.exception() is not None
-                )
-                if (
-                    success
-                    and not vehicle.closed
-                    and vehicle.armed
-                    and args.rtl_at_end
-                    and not heartbeat_lost
-                ):
+                heartbeat_lost = disconnect_future is not None and disconnect_future.done() and not disconnect_future.cancelled() and disconnect_future.exception() is not None
+                if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
                     logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:

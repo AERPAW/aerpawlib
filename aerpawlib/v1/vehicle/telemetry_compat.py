@@ -33,15 +33,10 @@ class _BatteryCompat:
         self.level: int = 0
 
     def __str__(self) -> str:
-        return (
-            f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
-        )
+        return f"Battery:voltage={self.voltage},current={self.current},level={self.level}"
 
     def __repr__(self) -> str:
-        return (
-            f"_BatteryCompat(voltage={self.voltage}, current={self.current}, "
-            f"level={self.level})"
-        )
+        return f"_BatteryCompat(voltage={self.voltage}, current={self.current}, level={self.level})"
 
 
 class _GPSInfoCompat:
@@ -63,10 +58,7 @@ class _GPSInfoCompat:
         return f"GPSInfo:fix={self.fix_type},num_sat={self.satellites_visible}"
 
     def __repr__(self) -> str:
-        return (
-            f"_GPSInfoCompat(fix_type={self.fix_type}, "
-            f"satellites_visible={self.satellites_visible})"
-        )
+        return f"_GPSInfoCompat(fix_type={self.fix_type}, satellites_visible={self.satellites_visible})"
 
 
 class _AttitudeCompat:
@@ -118,7 +110,4 @@ class _VersionCompat:
         return f"{self.major}.{self.minor}.{self.patch}"
 
     def __repr__(self) -> str:
-        return (
-            f"_VersionCompat(major={self.major}, minor={self.minor}, "
-            f"patch={self.patch})"
-        )
+        return f"_VersionCompat(major={self.major}, minor={self.minor}, patch={self.patch})"

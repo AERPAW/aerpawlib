@@ -75,9 +75,7 @@ class HideRover(StateMachine):
 
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
-        )
+        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
 
         parser = ArgumentParser()
         parser.add_argument("--file", help="Mission plan file path.", required=True)
@@ -167,11 +165,7 @@ class HideRover(StateMachine):
             lat, lon, alt = -999, -999, -999
         vel = vehicle.velocity
         attitude = vehicle.attitude
-        attitude_str = (
-            "("
-            + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll]))
-            + ")"
-        )
+        attitude_str = "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
         writer.writerow(
             [
                 line_num,
@@ -259,8 +253,7 @@ class HideRover(StateMachine):
         # the script will stop)
         if (self._hide_latitude is None) ^ (self._hide_longitude is None):
             print(
-                "Only one coordinate unit was specified (either latitude or longitude)."
-                " Please specify either both or neither.\nStopping script",
+                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script",
             )
             return None
 

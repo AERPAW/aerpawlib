@@ -281,9 +281,7 @@ class TestZmqStateMachine:
 
         cfg = Z.config
         assert cfg.initial_state == "internal"
-        assert any(
-            spec.name == "internal" and spec.method_name == "s" for spec in cfg.states
-        )
+        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
         assert cfg.exposed_states["remote"] == "internal"
 
     def test_state_then_expose_zmq_registers_exposed_state(self):
@@ -295,9 +293,7 @@ class TestZmqStateMachine:
 
         cfg = Z.config
         assert cfg.initial_state == "internal"
-        assert any(
-            spec.name == "internal" and spec.method_name == "s" for spec in cfg.states
-        )
+        assert any(spec.name == "internal" and spec.method_name == "s" for spec in cfg.states)
         assert cfg.exposed_states["remote"] == "internal"
 
     def test_expose_zmq_without_state_raises(self):
@@ -465,10 +461,7 @@ class TestConnectionHandler:
 
         async def _inject_reply():
             # Wait until query_field has registered its Event
-            while (
-                "responder" not in z._zmq_pending_fields
-                or "altitude" not in z._zmq_pending_fields.get("responder", {})
-            ):
+            while "responder" not in z._zmq_pending_fields or "altitude" not in z._zmq_pending_fields.get("responder", {}):
                 await asyncio.sleep(0.005)
             reply = {
                 "msg_type": ZMQ_TYPE_FIELD_CALLBACK,

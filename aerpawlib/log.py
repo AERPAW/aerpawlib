@@ -50,8 +50,7 @@ def _component_name(component: object) -> str:
     if isinstance(value, str):
         return value
     raise TypeError(
-        "component must be a logger name string, an enum member, or an object "
-        "with a string 'value'",
+        "component must be a logger name string, an enum member, or an object with a string 'value'",
     )
 
 
@@ -93,9 +92,7 @@ class ColoredFormatter(logging.Formatter):
             parts = name.split(".")
             name = ".".join(parts[-2:]) if len(parts) >= 2 else parts[-1]
 
-        timestamp = datetime.datetime.fromtimestamp(
-            record.created, tz=datetime.timezone.utc
-        ).strftime("%H:%M:%S.%f")
+        timestamp = datetime.datetime.fromtimestamp(record.created, tz=datetime.timezone.utc).strftime("%H:%M:%S.%f")
         level_letter = record.levelname[0]
 
         if record.levelno >= logging.WARNING:
@@ -103,9 +100,7 @@ class ColoredFormatter(logging.Formatter):
         else:
             prefix = f"{color}[{name}]{reset}"
 
-        timestamp_display = (
-            f"{color}{timestamp}{reset}" if self.use_colors else timestamp
-        )
+        timestamp_display = f"{color}{timestamp}{reset}" if self.use_colors else timestamp
         return f"{prefix} {timestamp_display} {record.getMessage()}"
 
 

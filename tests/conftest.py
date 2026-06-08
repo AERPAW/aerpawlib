@@ -201,10 +201,7 @@ class SITLManager:
 
         sim_vehicle = _find_sim_vehicle()
         if sim_vehicle is None:
-            msg = (
-                "sim_vehicle.py not found. Set ARDUPILOT_HOME or ensure "
-                "ardupilot directory exists."
-            )
+            msg = "sim_vehicle.py not found. Set ARDUPILOT_HOME or ensure ardupilot directory exists."
             logger.error(msg)
             pytest.skip(msg)
 
@@ -250,8 +247,7 @@ class SITLManager:
 
         logger.debug(f"SITL process PID: {self._process.pid}")
         logger.info(
-            f"Waiting for MAVLink port {self.port} "
-            f"(timeout {SITL_STARTUP_TIMEOUT}s)...",
+            f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
         )
 
         # Wait for MAVLink port
@@ -267,23 +263,14 @@ class SITLManager:
                 with sitl_log_path.open() as f:
                     output = f.read()
                 sitl_process_log = f"/tmp/{self.vehicle_type}.log"
-                msg = (
-                    f"SITL process exited prematurely with code "
-                    f"{self._process.returncode}. "
-                    f"sim_vehicle output:\n{output}\n"
-                    f"Also check {sitl_process_log} for SITL binary output."
-                )
+                msg = f"SITL process exited prematurely with code {self._process.returncode}. sim_vehicle output:\n{output}\nAlso check {sitl_process_log} for SITL binary output."
                 logger.error(msg)
                 pytest.fail(msg)
 
             time.sleep(1)
 
         self.stop()
-        msg = (
-            f"SITL failed to start within {SITL_STARTUP_TIMEOUT}s. "
-            f"Check {sitl_log_path} (sim_vehicle output) and "
-            f"{sitl_process_log} (SITL process)."
-        )
+        msg = f"SITL failed to start within {SITL_STARTUP_TIMEOUT}s. Check {sitl_log_path} (sim_vehicle output) and {sitl_process_log} (SITL process)."
         logger.error(msg)
         pytest.fail(msg)
 

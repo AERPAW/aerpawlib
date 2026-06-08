@@ -63,9 +63,7 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
         lat, lon, alt = -999, -999, -999
     vel = vehicle.velocity
     attitude = vehicle.attitude
-    attitude_str = (
-        "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
-    )
+    attitude_str = "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
     writer.writerow(
         [
             line_num,
@@ -92,9 +90,7 @@ class SquareOff(StateMachine):
     def initialize_args(self, extra_args: list[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
-        default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
-        )
+        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
 
         parser = ArgumentParser()
         parser.add_argument(

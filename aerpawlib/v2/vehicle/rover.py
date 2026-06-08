@@ -70,8 +70,7 @@ class Rover(Vehicle):
         while not self._state.armable:
             if time.monotonic() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
-                    f"Rover: timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). "
-                    f"Status: {self._get_health_summary()}",
+                    f"Rover: timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
                 )
                 break
             if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
@@ -134,16 +133,12 @@ class Rover(Vehicle):
             await _wait_for_condition(
                 lambda: self.mode == "OFFBOARD",
                 timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
-                timeout_message=(
-                    f"Rover did not enter GUIDED (OFFBOARD) mode within "
-                    f"{ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"
-                ),
+                timeout_message=(f"Rover did not enter GUIDED (OFFBOARD) mode within {ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"),
             )
             logger.info("Rover: GUIDED (OFFBOARD) mode confirmed")
         except TimeoutError:
             logger.warning(
-                f"Rover: mode switch timeout (current mode={self.mode!r}); "
-                "arming may fail if vehicle is not in GUIDED (OFFBOARD) mode",
+                f"Rover: mode switch timeout (current mode={self.mode!r}); arming may fail if vehicle is not in GUIDED (OFFBOARD) mode",
             )
 
     async def _arm_vehicle(self) -> None:
@@ -213,9 +208,7 @@ class Rover(Vehicle):
             logger.error(f"Rover: goto_coordinates failed (ActionError): {e}")
             raise NavigationError(str(e), original_error=e) from e
 
-        self._ready_to_move = lambda s: (
-            coordinates.ground_distance(s.position) <= tolerance
-        )
+        self._ready_to_move = lambda s: coordinates.ground_distance(s.position) <= tolerance
 
         if blocking:
             try:
@@ -231,8 +224,7 @@ class Rover(Vehicle):
                     if now - last_log >= GOTO_LOG_INTERVAL_S:
                         dist = coordinates.ground_distance(self.position)
                         logger.debug(
-                            "Rover: goto_coordinates progress "
-                            "ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                            "Rover: goto_coordinates progress ground_dist=%.1fm tol=%.1fm elapsed=%.0fs",
                             dist,
                             tolerance,
                             elapsed,
@@ -287,8 +279,7 @@ class Rover(Vehicle):
                 now = time.monotonic()
                 if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
-                        "Rover: goto_coordinates (non-blocking) "
-                        "ground_dist=%.1fm progress=%.0f%%",
+                        "Rover: goto_coordinates (non-blocking) ground_dist=%.1fm progress=%.0f%%",
                         d,
                         handle.progress * 100,
                     )

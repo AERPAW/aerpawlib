@@ -9,9 +9,7 @@ CONNECTION_TIMEOUT_S = 30.0
 """Max seconds to wait for initial vehicle connection establishment."""
 HEARTBEAT_TIMEOUT_S = 5.0
 """Maximum heartbeat gap before vehicle is considered disconnected."""
-HEARTBEAT_START_DELAY_S = (
-    1.0  # Delay before starting heartbeat monitor after first telemetry
-)
+HEARTBEAT_START_DELAY_S = 1.0  # Delay before starting heartbeat monitor after first telemetry
 """Delay before heartbeat monitoring begins after first telemetry is received."""
 HEARTBEAT_CHECK_INTERVAL_S = 1.0
 """Interval between heartbeat timeout checks in ConnectionHandler."""

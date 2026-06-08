@@ -13,9 +13,7 @@ import warnings
 
 # Issue a deprecation warning for direct imports
 warnings.warn(
-    "Importing from aerpawlib.runner is deprecated. "
-    "Use 'from aerpawlib.v1.runner import ...' or "
-    "'from aerpawlib.v2.runner import ...' instead.",
+    "Importing from aerpawlib.runner is deprecated. Use 'from aerpawlib.v1.runner import ...' or 'from aerpawlib.v2.runner import ...' instead.",
     DeprecationWarning,
     stacklevel=2,
 )

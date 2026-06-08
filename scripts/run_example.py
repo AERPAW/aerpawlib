@@ -45,9 +45,7 @@ def _find_sim_vehicle() -> Path | None:
     project_root = Path(__file__).resolve().parent.parent
     ardupilot_dirs = list(project_root.glob("ardupilot*"))
 
-    candidates = [os.environ.get("ARDUPILOT_HOME")] + [
-        str(d) for d in ardupilot_dirs if d.is_dir()
-    ]
+    candidates = [os.environ.get("ARDUPILOT_HOME")] + [str(d) for d in ardupilot_dirs if d.is_dir()]
 
     for base in candidates:
         if base is None:
@@ -83,9 +81,7 @@ def start_sitl(
     sim_vehicle = _find_sim_vehicle()
     if sim_vehicle is None:
         print(
-            "ERROR: sim_vehicle.py not found.\n"
-            "Run `aerpawlib-setup-sitl` to install SITL, "
-            "or set the ARDUPILOT_HOME environment variable.",
+            "ERROR: sim_vehicle.py not found.\nRun `aerpawlib-setup-sitl` to install SITL, or set the ARDUPILOT_HOME environment variable.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -138,8 +134,7 @@ def start_sitl(
     )
 
     print(
-        f"  Waiting for MAVLink data on UDP port {port} "
-        f"(timeout {SITL_STARTUP_TIMEOUT}s)...",
+        f"  Waiting for MAVLink data on UDP port {port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
     )
     deadline = time.monotonic() + SITL_STARTUP_TIMEOUT
     server_ready = False
@@ -148,8 +143,7 @@ def start_sitl(
         # Check if the SITL process died
         if process.poll() is not None:
             print(
-                f"ERROR: SITL process exited prematurely (code {process.returncode}).\n"
-                "Set SITL_VERBOSE=1 and retry to see SITL output.",
+                f"ERROR: SITL process exited prematurely (code {process.returncode}).\nSet SITL_VERBOSE=1 and retry to see SITL output.",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -183,10 +177,7 @@ def start_sitl(
     if not server_ready:
         process.terminate()
         print(
-            f"ERROR: SITL failed to transmit data within {SITL_STARTUP_TIMEOUT}s.\n"
-            "Set SITL_VERBOSE=1 and retry to see SITL output. This can happen\n"
-            "if the SITL has not been built yet and it is attempting to build "
-            "for the first time.",
+            f"ERROR: SITL failed to transmit data within {SITL_STARTUP_TIMEOUT}s.\nSet SITL_VERBOSE=1 and retry to see SITL output. This can happen\nif the SITL has not been built yet and it is attempting to build for the first time.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -220,10 +211,7 @@ def stop_sitl(process: subprocess.Popen | None) -> None:
 def main() -> None:
     """Parse CLI args, launch SITL, then run aerpawlib against that instance."""
     parser = argparse.ArgumentParser(
-        description=(
-            "Run an aerpawlib example script with a bundled SITL. "
-            "Extra arguments are forwarded to aerpawlib."
-        ),
+        description=("Run an aerpawlib example script with a bundled SITL. Extra arguments are forwarded to aerpawlib."),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
@@ -263,10 +251,7 @@ def main() -> None:
         type=int,
         default=None,
         metavar="PORT",
-        help=(
-            "Override SITL UDP port "
-            f"(default: {DEFAULT_PORT_DRONE} for drone, {DEFAULT_PORT_ROVER} for rover)"
-        ),
+        help=(f"Override SITL UDP port (default: {DEFAULT_PORT_DRONE} for drone, {DEFAULT_PORT_ROVER} for rover)"),
     )
     parser.add_argument(
         "--speedup",

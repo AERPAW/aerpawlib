@@ -149,12 +149,7 @@ class Coordinate:
         d2r = math.pi / 180
         dlon = (other.lon - self.lon) * d2r
         dlat = (other.lat - self.lat) * d2r
-        a = (
-            math.sin(dlat / 2) ** 2
-            + math.cos(self.lat * d2r)
-            * math.cos(other.lat * d2r)
-            * math.sin(dlon / 2) ** 2
-        )
+        a = math.sin(dlat / 2) ** 2 + math.cos(self.lat * d2r) * math.cos(other.lat * d2r) * math.sin(dlon / 2) ** 2
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
         d_ground = EARTH_RADIUS_KM * c * 1000  # km to m
         return math.hypot(d_ground, other.alt - self.alt)
@@ -207,12 +202,7 @@ class Coordinate:
             d_lat = self.lat - o.lat
             d_lon = self.lon - o.lon
             return VectorNED(
-                d_lat
-                * (
-                    LAT_M_PER_DEG
-                    - LAT_COEFF_2 * math.cos(2 * lat_mid)
-                    + LAT_COEFF_4 * math.cos(4 * lat_mid)
-                ),
+                d_lat * (LAT_M_PER_DEG - LAT_COEFF_2 * math.cos(2 * lat_mid) + LAT_COEFF_4 * math.cos(4 * lat_mid)),
                 d_lon * (LAT_M_PER_DEG * math.cos(lat_mid)),
                 o.alt - self.alt,
             )

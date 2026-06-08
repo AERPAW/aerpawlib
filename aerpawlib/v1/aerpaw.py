@@ -108,8 +108,7 @@ class AERPAW:
             return
         if not self._no_stdout:
             logger.info(
-                "the user script has attempted to use AERPAW platform functionality "
-                "without being in the AERPAW environment",
+                "the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment",
             )
         self._connection_warning_displayed = True
 
@@ -157,14 +156,12 @@ class AERPAW:
         try:
             if agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"
-                    f"/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"
-                    f"/oeo_msg/{severity}/{encoded.decode('utf-8')}",
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_msg/{severity}/{encoded.decode('utf-8')}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException:
@@ -182,10 +179,7 @@ class AERPAW:
         Returns:
             Full HTTP URL for the checkpoint request.
         """
-        return (
-            f"http://{self._forw_addr}:{self._forw_port}"
-            f"/checkpoint/{var_type}/{var_name}"
-        )
+        return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{var_name}"
 
     def checkpoint_reset_server(self) -> None:
         """
@@ -422,14 +416,12 @@ class AERPAW:
         try:
             if not agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}",
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
+                    f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException as e:

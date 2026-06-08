@@ -19,6 +19,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install aerpawlib
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[all]"
       - name: Unit tests
         run: pytest tests/unit/ -v

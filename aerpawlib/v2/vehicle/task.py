@@ -66,9 +66,7 @@ class VehicleTask:
                     self._cancel_tasks.append(t)
             except RuntimeError:
                 logger.warning(
-                    "VehicleTask.cancel() called outside an async context; "
-                    "on_cancel callback will not run. The vehicle may "
-                    "continue its current task.",
+                    "VehicleTask.cancel() called outside an async context; on_cancel callback will not run. The vehicle may continue its current task.",
                 )
 
     def is_cancelled(self) -> bool:

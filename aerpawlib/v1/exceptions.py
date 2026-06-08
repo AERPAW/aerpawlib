@@ -61,10 +61,7 @@ class HeartbeatLostError(AerpawConnectionError):
         message: str | None = None,
     ) -> None:
         self.last_heartbeat_age = last_heartbeat_age
-        msg = (
-            message
-            or f"Vehicle heartbeat lost (last heartbeat {last_heartbeat_age:.1f}s ago)"
-        )
+        msg = message or f"Vehicle heartbeat lost (last heartbeat {last_heartbeat_age:.1f}s ago)"
         super().__init__(msg)
 
 
@@ -100,8 +97,7 @@ class NotInAERPAWEnvironmentError(AERPAWPlatformError):
 
     def __init__(self, feature: str) -> None:
         super().__init__(
-            f"'{feature}' requires AERPAW platform environment. "
-            "This feature is not available in standalone/SITL mode.",
+            f"'{feature}' requires AERPAW platform environment. This feature is not available in standalone/SITL mode.",
         )
         self.feature = feature
 

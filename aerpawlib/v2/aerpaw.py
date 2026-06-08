@@ -59,14 +59,12 @@ class AerpawPlatform:
                 timeout=AERPAW_PING_TIMEOUT_S,
             )
             logger.info(
-                f"AERPAW platform: connected to forward server "
-                f"{self.forward_ip}:{self.forward_port}",
+                f"AERPAW platform: connected to forward server {self.forward_ip}:{self.forward_port}",
             )
             return True
         except requests.exceptions.RequestException as e:
             logger.debug(
-                f"AERPAW platform: not in AERPAW environment "
-                f"({self.forward_ip}:{self.forward_port} unreachable: {e})",
+                f"AERPAW platform: not in AERPAW environment ({self.forward_ip}:{self.forward_port} unreachable: {e})",
             )
             return False
 
@@ -94,27 +92,20 @@ class AerpawPlatform:
     ) -> str:
         """Build the HTTP URL for publishing messages to the OEO forward server."""
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
-        url = (
-            f"http://{self.forward_ip}:{self.forward_port}"
-            f"/oeo_msg/{severity.value}/{encoded}"
-        )
+        url = f"http://{self.forward_ip}:{self.forward_port}/oeo_msg/{severity.value}/{encoded}"
         if agent_id:
             url += f"/{agent_id}"
         return url
 
     def _checkpoint_build_request(self, var_type: str, var_name: str) -> str:
         """Build a checkpoint endpoint URL."""
-        return (
-            f"http://{self.forward_ip}:{self.forward_port}"
-            f"/checkpoint/{var_type}/{var_name}"
-        )
+        return f"http://{self.forward_ip}:{self.forward_port}/checkpoint/{var_type}/{var_name}"
 
     def _display_connection_warning(self) -> None:
         """Log a one-time warning when platform-only features are used offline."""
         if not self.suppress_stdout:
             logger.info(
-                "the user script has attempted to use AERPAW platform functionality "
-                "without being in the AERPAW environment",
+                "the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment",
             )
 
     # OEO Logging Methods
@@ -402,8 +393,7 @@ class AerpawPlatform:
         try:
             if not agent_id:
                 requests.post(
-                    f"http://{self.forward_ip}:{self.forward_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}",
+                    f"http://{self.forward_ip}:{self.forward_port}/oeo_pub/{topic_b64}/{value_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
@@ -411,8 +401,7 @@ class AerpawPlatform:
                     str(agent_id).encode("utf-8"),
                 ).decode("utf-8")
                 requests.post(
-                    f"http://{self.forward_ip}:{self.forward_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
+                    f"http://{self.forward_ip}:{self.forward_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException as e:
@@ -453,18 +442,12 @@ class AerpawPlatform:
 
         try:
             if not agent_id:
-                url = (
-                    f"http://{self.forward_ip}:{self.forward_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}"
-                )
+                url = f"http://{self.forward_ip}:{self.forward_port}/oeo_pub/{topic_b64}/{value_b64}"
             else:
                 agent_b64 = base64.urlsafe_b64encode(
                     str(agent_id).encode("utf-8"),
                 ).decode("utf-8")
-                url = (
-                    f"http://{self.forward_ip}:{self.forward_port}"
-                    f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}"
-                )
+                url = f"http://{self.forward_ip}:{self.forward_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}"
             async with (
                 aiohttp.ClientSession(timeout=timeout) as session,
                 session.post(

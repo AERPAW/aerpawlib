@@ -231,8 +231,7 @@ class Vehicle:
             (ok, message) - ok is True if command would succeed.
         """
         logger.debug(
-            f"can_takeoff: checking altitude={altitude}m "
-            f"battery>={min_battery_percent}%",
+            f"can_takeoff: checking altitude={altitude}m battery>={min_battery_percent}%",
         )
         if not self._state.armable:
             logger.debug(
@@ -246,8 +245,7 @@ class Vehicle:
             return False, f"No 3D GPS fix (fix_type={self.gps.fix_type})"
         if self.battery.level < min_battery_percent:
             logger.debug(
-                f"can_takeoff: rejected (battery {self.battery.level}% < "
-                f"{min_battery_percent}%)",
+                f"can_takeoff: rejected (battery {self.battery.level}% < {min_battery_percent}%)",
             )
             return (
                 False,
@@ -277,14 +275,10 @@ class Vehicle:
             (ok, message) - ok is True if command would succeed.
         """
         logger.debug(
-            f"can_goto: checking target=({target.lat:.6f},"
-            f"{target.lon:.6f}) tol={tolerance}m",
+            f"can_goto: checking target=({target.lat:.6f},{target.lon:.6f}) tol={tolerance}m",
         )
         if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
-            return False, (
-                f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and "
-                f"{MAX_POSITION_TOLERANCE_M}m"
-            )
+            return False, (f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and {MAX_POSITION_TOLERANCE_M}m")
         if self.safety is not None:
             ok, msg = await self.safety.validate_waypoint(self.position, target)
             logger.debug(f"can_goto: safety check ok={ok} msg={msg!r}")
@@ -342,8 +336,7 @@ class Vehicle:
             ConnectionTimeoutError: If no heartbeat is received within timeout.
         """
         logger.info(
-            f"Connecting to vehicle at {connection_string} "
-            f"(port={mavsdk_server_port}, timeout={timeout}s)",
+            f"Connecting to vehicle at {connection_string} (port={mavsdk_server_port}, timeout={timeout}s)",
         )
         _validate_connection_string(connection_string)
         system = System(port=mavsdk_server_port)
@@ -385,8 +378,7 @@ class Vehicle:
     async def _start_telemetry(self) -> None:
         """Start telemetry subscriptions on same loop."""
         logger.debug(
-            "Starting telemetry subscriptions (position, attitude, velocity, "
-            "gps, battery, mode, armed, health, home)",
+            "Starting telemetry subscriptions (position, attitude, velocity, gps, battery, mode, armed, health, home)",
         )
 
         # Throttle interval for periodic telemetry debug logs (seconds)
@@ -420,18 +412,12 @@ class Vehicle:
                 self._heartbeat_tick()
                 if first[0]:
                     logger.info(
-                        "Telemetry: position stream active "
-                        f"(lat={position.latitude_deg:.6f}, "
-                        f"lon={position.longitude_deg:.6f}, "
-                        f"alt={position.relative_altitude_m:.1f}m)",
+                        f"Telemetry: position stream active (lat={position.latitude_deg:.6f}, lon={position.longitude_deg:.6f}, alt={position.relative_altitude_m:.1f}m)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        "Telemetry: position "
-                        f"lat={position.latitude_deg:.6f} "
-                        f"lon={position.longitude_deg:.6f} "
-                        f"alt={position.relative_altitude_m:.1f}m",
+                        f"Telemetry: position lat={position.latitude_deg:.6f} lon={position.longitude_deg:.6f} alt={position.relative_altitude_m:.1f}m",
                     )
                 if self._event_log and _telem_log_throttle(last_struct_telem):
                     self._log_structured_telemetry_snapshot()
@@ -450,15 +436,12 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        "Telemetry: attitude stream active "
-                        f"(roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} "
-                        f"yaw={att.yaw_deg:.1f} deg)",
+                        f"Telemetry: attitude stream active (roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: attitude roll={att.roll_deg:.1f} "
-                        f"pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg",
+                        f"Telemetry: attitude roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg",
                     )
 
         async def _velocity_update() -> None:
@@ -471,15 +454,12 @@ class Vehicle:
                 self._state.update_velocity(vel.north_m_s, vel.east_m_s, vel.down_m_s)
                 if first[0]:
                     logger.info(
-                        "Telemetry: velocity stream active "
-                        f"(N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} "
-                        f"D={vel.down_m_s:.2f} m/s)",
+                        f"Telemetry: velocity stream active (N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: velocity N={vel.north_m_s:.2f} "
-                        f"E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s",
+                        f"Telemetry: velocity N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s",
                     )
 
         async def _gps_update() -> None:
@@ -489,16 +469,11 @@ class Vehicle:
             async for gps in self._system.telemetry.gps_info():
                 if not self._running:
                     return
-                fix = (
-                    gps.fix_type.value
-                    if hasattr(gps.fix_type, "value")
-                    else gps.fix_type
-                )
+                fix = gps.fix_type.value if hasattr(gps.fix_type, "value") else gps.fix_type
                 self._state.update_gps(fix, gps.num_satellites)
                 if first[0]:
                     logger.info(
-                        f"Telemetry: gps stream active (fix_type={fix}, "
-                        f"sats={gps.num_satellites})",
+                        f"Telemetry: gps stream active (fix_type={fix}, sats={gps.num_satellites})",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
@@ -521,14 +496,12 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: battery stream active "
-                        f"({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)",
+                        f"Telemetry: battery stream active ({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)",
                     )
                     first[0] = False
                 elif _telem_log_throttle(last_log):
                     logger.debug(
-                        f"Telemetry: battery {bat.voltage_v:.1f}V {current:.1f}A "
-                        f"{int(bat.remaining_percent)}%",
+                        f"Telemetry: battery {bat.voltage_v:.1f}V {current:.1f}A {int(bat.remaining_percent)}%",
                     )
 
         async def _flight_mode_update() -> None:
@@ -568,14 +541,9 @@ class Vehicle:
                     logger.info(f"Telemetry: armed changed {prev_armed[0]} -> {armed}")
                     if self._event_log:
                         self._event_log.log_event("arm" if armed else "disarm")
-                    if (
-                        prev_armed[0] is True
-                        and not armed
-                        and not self._expecting_disarm
-                    ):
+                    if prev_armed[0] is True and not armed and not self._expecting_disarm:
                         logger.warning(
-                            "Vehicle disarmed unexpectedly! "
-                            "Signalling experiment termination.",
+                            "Vehicle disarmed unexpectedly! Signalling experiment termination.",
                         )
                         self._unexpected_disarm_event.set()
                     prev_armed[0] = armed
@@ -594,8 +562,7 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        "Telemetry: health stream active "
-                        f"(armable={health.is_armable})",
+                        f"Telemetry: health stream active (armable={health.is_armable})",
                     )
                     first[0] = False
 
@@ -613,9 +580,7 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: home stream active "
-                        f"(lat={home.latitude_deg:.6f} lon={home.longitude_deg:.6f} "
-                        f"alt={home.relative_altitude_m:.1f}m)",
+                        f"Telemetry: home stream active (lat={home.latitude_deg:.6f} lon={home.longitude_deg:.6f} alt={home.relative_altitude_m:.1f}m)",
                     )
                     first[0] = False
 
@@ -628,8 +593,7 @@ class Vehicle:
                     fields = json.loads(msg.fields_json)
                     health = fields.get("onboard_control_sensors_health", 0)
                     self._state.update_prearm_bits(
-                        (health & MAV_SYS_STATUS_PREARM_CHECK)
-                        == MAV_SYS_STATUS_PREARM_CHECK,
+                        (health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK,
                     )
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
@@ -731,8 +695,7 @@ class Vehicle:
             now = time.monotonic()
             if now - last_log >= READY_MOVE_LOG_INTERVAL_S:
                 logger.debug(
-                    "await_ready_to_move: still waiting "
-                    "(elapsed=%.0fs mode=%s armed=%s)",
+                    "await_ready_to_move: still waiting (elapsed=%.0fs mode=%s armed=%s)",
                     elapsed,
                     self.mode,
                     self.armed,
@@ -787,11 +750,7 @@ class Vehicle:
             Short string describing GPS fix type, satellites visible, and
             armable flag.
         """
-        return (
-            f"GPS fix: {self._state.gps.fix_type}, "
-            f"sats: {self._state.gps.satellites_visible}, "
-            f"armable: {self._state.armable}"
-        )
+        return f"GPS fix: {self._state.gps.fix_type}, sats: {self._state.gps.satellites_visible}, armable: {self._state.armable}"
 
     async def _stop(self) -> None:
         """Stop background movement."""

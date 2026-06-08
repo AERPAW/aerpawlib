@@ -267,12 +267,7 @@ class Coordinate:
             d_lon = self.lon - o.lon
 
             return VectorNED(
-                d_lat
-                * (
-                    LAT_M_PER_DEG
-                    - LAT_COEFF_2 * math.cos(2 * lat_mid)
-                    + LAT_COEFF_4 * math.cos(4 * lat_mid)
-                ),
+                d_lat * (LAT_M_PER_DEG - LAT_COEFF_2 * math.cos(2 * lat_mid) + LAT_COEFF_4 * math.cos(4 * lat_mid)),
                 d_lon * (LAT_M_PER_DEG * math.cos(lat_mid)),
                 o.alt - self.alt,
             )

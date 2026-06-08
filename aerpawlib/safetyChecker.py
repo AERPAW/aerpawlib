@@ -12,8 +12,7 @@ import warnings
 
 # Issue a deprecation warning for direct imports
 warnings.warn(
-    "Importing from aerpawlib.v1.safetyChecker is deprecated. "
-    "Use 'from aerpawlib.v1.safety import ...' instead.",
+    "Importing from aerpawlib.v1.safetyChecker is deprecated. Use 'from aerpawlib.v1.safety import ...' instead.",
     DeprecationWarning,
     stacklevel=2,
 )

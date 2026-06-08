@@ -47,11 +47,7 @@ def _bool_flag(option_name: str, *, enabled: bool) -> str:
 def _build_pdoc_command(config: dict[str, Any], output_dir: Path) -> list[str]:
     """Build the pdoc CLI command from config."""
     modules = config.get("modules")
-    if (
-        not isinstance(modules, list)
-        or not modules
-        or not all(isinstance(module, str) and module for module in modules)
-    ):
+    if not isinstance(modules, list) or not modules or not all(isinstance(module, str) and module for module in modules):
         raise ValueError("'modules' must be a non-empty list of module strings")
 
     cmd = [

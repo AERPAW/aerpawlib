@@ -59,8 +59,7 @@ class ExternalProcess:
         """
         if self.process is None or self.process.stdin is None:
             raise RuntimeError(
-                "Cannot send input: stdin is not available "
-                "(was it redirected to a file?)",
+                "Cannot send input: stdin is not available (was it redirected to a file?)",
             )
         self.process.stdin.write(data.encode())
         await self.process.stdin.drain()

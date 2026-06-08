@@ -241,8 +241,7 @@ class Vehicle:
             if is_udp_port_in_use(host, port):
                 raise PortInUseError(
                     port,
-                    f"UDP port {port} is already in use. "
-                    "Stop the other process or use a different connection string.",
+                    f"UDP port {port} is already in use. Stop the other process or use a different connection string.",
                 )
 
         # Warn if mavsdk gRPC port is already in use (avoids confusing
@@ -257,10 +256,7 @@ class Vehicle:
             # This behavior is because the test suite will trigger this failure case
             # and we still want to be able to run tests :P
             logger.warning(
-                "MAVSDK gRPC port %d appears to be in use. Proceeding anyway. "
-                "If running multiple vehicles, consider using --mavsdk-port with "
-                "a unique port per process (e.g. --mavsdk-port 50051 for the "
-                "first, --mavsdk-port 50052 for the second).",
+                "MAVSDK gRPC port %d appears to be in use. Proceeding anyway. If running multiple vehicles, consider using --mavsdk-port with a unique port per process (e.g. --mavsdk-port 50051 for the first, --mavsdk-port 50052 for the second).",
                 self._mavsdk_server_port,
             )
 
@@ -349,8 +345,7 @@ class Vehicle:
         except asyncio.TimeoutError as e:
             future.cancel()
             raise RuntimeError(
-                f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s — "
-                "the MAVSDK event loop may have crashed",
+                f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s — the MAVSDK event loop may have crashed",
             ) from e
         except (AioRpcError, Exception) as e:
             if isinstance(e, AioRpcError):
@@ -384,9 +379,7 @@ class Vehicle:
         except asyncio.TimeoutError as e:
             raise ConnectionTimeoutError(
                 CONNECTION_TIMEOUT_S,
-                message=(
-                    "Connection established but no heartbeat received within timeout"
-                ),
+                message=("Connection established but no heartbeat received within timeout"),
             ) from e
 
         # Start telemetry subscriptions
@@ -430,8 +423,7 @@ class Vehicle:
                     _critical = ("position", "armed", "connection")
                     if name in _critical and self._has_heartbeat:
                         logger.warning(
-                            "Critical telemetry stream '%s' permanently failed; "
-                            "marking vehicle as disconnected",
+                            "Critical telemetry stream '%s' permanently failed; marking vehicle as disconnected",
                             name,
                         )
                         self._has_heartbeat = False
@@ -507,11 +499,7 @@ class Vehicle:
                     health,
                 )  # Used to provide information when arming fails
                 self._is_armable_state.set(
-                    health.is_global_position_ok
-                    and health.is_local_position_ok
-                    and health.is_home_position_ok
-                    and health.is_armable
-                    and self._prearm_checks_ok.get(),
+                    health.is_global_position_ok and health.is_local_position_ok and health.is_home_position_ok and health.is_armable and self._prearm_checks_ok.get(),
                 )
 
         async def _mavlink_status_update() -> None:
@@ -525,8 +513,7 @@ class Vehicle:
                     fields = json.loads(msg.fields_json)
                     health = fields.get("onboard_control_sensors_health", 0)
                     self._prearm_checks_ok.set(
-                        (health & MAV_SYS_STATUS_PREARM_CHECK)
-                        == MAV_SYS_STATUS_PREARM_CHECK,
+                        (health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK,
                     )
                 except Exception as e:
                     logger.debug(f"Error parsing SYS_STATUS: {e}")
@@ -772,10 +759,7 @@ class Vehicle:
         the MAVSDK connection_state() subscription in _connection_state_update,
         which fires reliably when the heartbeat is actually lost.
         """
-        if self._verbose_logging and (
-            self._verbose_logging_last_log_time + self._verbose_logging_delay
-            < time.time()
-        ):
+        if self._verbose_logging and (self._verbose_logging_last_log_time + self._verbose_logging_delay < time.time()):
             with self._verbose_log_lock:
                 if self._verbose_logging_file_path is None:
                     self._verbose_logging_file_path = Path(
@@ -786,9 +770,7 @@ class Vehicle:
                     if write_header:
                         # Write header row (F4)
                         f.write(
-                            "timestamp_ns,armed,attitude,autopilot_info,battery,gps,"
-                            "heading,home_coords,position,velocity,mode,nav_output,"
-                            "mission_item\n",
+                            "timestamp_ns,armed,attitude,autopilot_info,battery,gps,heading,home_coords,position,velocity,mode,nav_output,mission_item\n",
                         )
                     log_output = self.debug_dump()
                     f.write(f"{log_output}\n")
@@ -796,11 +778,7 @@ class Vehicle:
 
         if self._event_log is not None:
             now = time.time()
-            if self._structured_telemetry_last_log_time == 0.0 or (
-                self._structured_telemetry_last_log_time
-                + STRUCTURED_TELEMETRY_INTERVAL_S
-                <= now
-            ):
+            if self._structured_telemetry_last_log_time == 0.0 or (self._structured_telemetry_last_log_time + STRUCTURED_TELEMETRY_INTERVAL_S <= now):
                 self._structured_telemetry_last_log_time = now
                 att = self.attitude
                 pos = self.position
@@ -854,9 +832,7 @@ class Vehicle:
             self.done_moving,
             timeout=DEFAULT_GOTO_TIMEOUT_S,
             poll_interval=POLLING_DELAY_S,
-            timeout_message=(
-                f"Vehicle did not report done_moving within {DEFAULT_GOTO_TIMEOUT_S}s"
-            ),
+            timeout_message=(f"Vehicle did not report done_moving within {DEFAULT_GOTO_TIMEOUT_S}s"),
         )
 
     def _abort(self) -> None:
@@ -955,9 +931,7 @@ class Vehicle:
                 lambda: self._armed_state.get() == value,
                 timeout=ARMABLE_TIMEOUT_S,
                 poll_interval=POLLING_DELAY_S,
-                timeout_message=(
-                    f"Arm/disarm did not complete within {ARMABLE_TIMEOUT_S}s"
-                ),
+                timeout_message=(f"Arm/disarm did not complete within {ARMABLE_TIMEOUT_S}s"),
             )
             logger.debug(f"Vehicle {'armed' if value else 'disarmed'} successfully")
         except ActionError as e:
@@ -979,15 +953,13 @@ class Vehicle:
         while not self._is_armable_state.get():
             if time.time() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
-                    f"Timeout waiting for armable state ({ARMABLE_TIMEOUT_S}s). "
-                    f"Final status: {self._get_health_status_summary()}",
+                    f"Timeout waiting for armable state ({ARMABLE_TIMEOUT_S}s). Final status: {self._get_health_status_summary()}",
                 )
                 break
             # Log status at configured interval
             if time.time() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
                 logger.debug(
-                    f"Waiting for armable state... Status: "
-                    f"{self._get_health_status_summary()}",
+                    f"Waiting for armable state... Status: {self._get_health_status_summary()}",
                 )
                 last_log = time.time()
             time.sleep(POLLING_DELAY_S)
@@ -996,8 +968,7 @@ class Vehicle:
             logger.debug("Vehicle is armable")
         else:
             logger.warning(
-                f"Vehicle may not be fully ready to arm. Status: "
-                f"{self._get_health_status_summary()}",
+                f"Vehicle may not be fully ready to arm. Status: {self._get_health_status_summary()}",
             )
 
         self._will_arm = should_arm
@@ -1019,9 +990,7 @@ class Vehicle:
         if self._postarm_init_in_progress:
             logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: (
-                    self._initialization_complete or not self._postarm_init_in_progress
-                ),
+                lambda: self._initialization_complete or not self._postarm_init_in_progress,
                 poll_interval=POLLING_DELAY_S,
             )
             return
@@ -1037,10 +1006,7 @@ class Vehicle:
                 # log_to_oeo is blocking, run in thread (E6)
                 threading.Thread(
                     target=AERPAW_Platform.log_to_oeo,
-                    args=(
-                        "[aerpawlib] Guided command attempted. Waiting for safety "
-                        "pilot to arm",
-                    ),
+                    args=("[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",),
                     daemon=True,
                 ).start()
                 logger.info("Waiting for safety pilot to arm vehicle...")
@@ -1063,10 +1029,7 @@ class Vehicle:
                         lambda: self._is_armable_state.get(),
                         timeout=CONNECTION_TIMEOUT_S,
                         poll_interval=POLLING_DELAY_S,
-                        timeout_message=(
-                            f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - "
-                            "check GPS and pre-flight conditions"
-                        ),
+                        timeout_message=(f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions"),
                     )
                 except TimeoutError as e:
                     health_summary = self._get_health_status_summary()
@@ -1086,10 +1049,7 @@ class Vehicle:
                         lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
                         timeout=POSITION_READY_TIMEOUT_S,
                         poll_interval=POLLING_DELAY_S,
-                        timeout_message=(
-                            f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - "
-                            "ensure SITL/hardware is fully started"
-                        ),
+                        timeout_message=(f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started"),
                     )
                 except TimeoutError as e:
                     health_summary = self._get_health_status_summary()
@@ -1115,9 +1075,7 @@ class Vehicle:
                 lambda: self._home_position.get() is not None,
                 timeout=_HOME_WAIT_TIMEOUT_S,
                 poll_interval=POLLING_DELAY_S,
-                timeout_message=(
-                    f"Home position not available within {_HOME_WAIT_TIMEOUT_S}s"
-                ),
+                timeout_message=(f"Home position not available within {_HOME_WAIT_TIMEOUT_S}s"),
             )
 
             self._home_location = self.home_coords

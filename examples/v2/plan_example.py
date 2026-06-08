@@ -21,8 +21,7 @@ class PlanMission(BasicRunner):
         if not Path(plan_path).exists():
             print(f"[example] No mission.plan at {plan_path}")
             print(
-                "[example] Create a .plan file in QGroundControl"
-                "and save as mission.plan",
+                "[example] Create a .plan file in QGroundControland save as mission.plan",
             )
             return
 

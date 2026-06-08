@@ -240,8 +240,7 @@ class StateMachine(Runner):
 
         task = asyncio.create_task(_bg())
         logger.debug(
-            f"StateMachine: timed_state '{spec.name}' "
-            f"(duration={spec.duration}s, loop={spec.loop})",
+            f"StateMachine: timed_state '{spec.name}' (duration={spec.duration}s, loop={spec.loop})",
         )
         await asyncio.sleep(spec.duration)
         stop_event.set()
@@ -265,8 +264,7 @@ class StateMachine(Runner):
         self._current_state = self._get_initial_state()
         self._running = True
         logger.info(
-            f"StateMachine: starting with initial state '{self._current_state}' "
-            f"(states: {list(states.keys())})",
+            f"StateMachine: starting with initial state '{self._current_state}' (states: {list(states.keys())})",
         )
 
         async def _main_loop() -> None:
@@ -303,16 +301,13 @@ class StateMachine(Runner):
                             consecutive_failures += 1
                             if consecutive_failures >= max_background_retries:
                                 logger.error(
-                                    f"Background task '{_name}' exceeded max retries "
-                                    f"({max_background_retries}), stopping.",
+                                    f"Background task '{_name}' exceeded max retries ({max_background_retries}), stopping.",
                                     exc_info=True,
                                 )
                                 return
                             backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
                             logger.error(
-                                f"Background task '{_name}' failed (attempt "
-                                f"{consecutive_failures}/{max_background_retries}), "
-                                f"retrying in {backoff:.1f}s: {e}",
+                                f"Background task '{_name}' failed (attempt {consecutive_failures}/{max_background_retries}), retrying in {backoff:.1f}s: {e}",
                                 exc_info=True,
                             )
                             await asyncio.sleep(backoff)
@@ -325,8 +320,7 @@ class StateMachine(Runner):
                 assert current_state is not None
                 if current_state not in states:
                     logger.error(
-                        f"StateMachine: invalid state '{current_state}' "
-                        f"(valid: {list(states.keys())})",
+                        f"StateMachine: invalid state '{current_state}' (valid: {list(states.keys())})",
                     )
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
@@ -335,14 +329,12 @@ class StateMachine(Runner):
                     self._override_next_state_transition = False
                     self._current_state = getattr(self, "_next_state_overr", next_state)
                     logger.info(
-                        f"StateMachine: state transition (override) -> "
-                        f"'{self._current_state}'",
+                        f"StateMachine: state transition (override) -> '{self._current_state}'",
                     )
                 else:
                     self._current_state = next_state
                     logger.info(
-                        f"StateMachine: state transition '{spec.name}' -> "
-                        f"'{next_state}'",
+                        f"StateMachine: state transition '{spec.name}' -> '{next_state}'",
                     )
                 if self._current_state is None:
                     logger.info("StateMachine: completed (final state returned None)")
@@ -405,8 +397,7 @@ class ZmqStateMachine(StateMachine):
         """Configure ZMQ connection. Call before run()."""
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
-                "ZMQ proxy at %s is not reachable. Ensure the proxy is started "
-                "before this runner (run_zmq_proxy in a separate process).",
+                "ZMQ proxy at %s is not reachable. Ensure the proxy is started before this runner (run_zmq_proxy in a separate process).",
                 proxy_server_addr,
             )
         self._zmq_identifier = vehicle_identifier
@@ -497,8 +488,7 @@ class ZmqStateMachine(StateMachine):
             sender = message.get("from")
             if not field or not sender:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_REQUEST "
-                    "(missing 'field' or 'from')",
+                    "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
                 return
             field_name = cast("str", field)
@@ -516,8 +506,7 @@ class ZmqStateMachine(StateMachine):
             sender = message.get("from")
             if not field or sender is None:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_CALLBACK "
-                    "(missing 'field' or 'from')",
+                    "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
                 return
             field_name = cast("str", field)
@@ -546,8 +535,7 @@ class ZmqStateMachine(StateMachine):
         """Run with ZMQ. Requires _initialize_zmq_bindings first."""
         if self._zmq_identifier is None or self._zmq_proxy_server is None:
             raise RunnerError(
-                "ZmqStateMachine requires _initialize_zmq_bindings before run. "
-                "Pass --zmq-identifier and --zmq-proxy-server.",
+                "ZmqStateMachine requires _initialize_zmq_bindings before run. Pass --zmq-identifier and --zmq-proxy-server.",
             )
         if self._zmq_send_queue is None:
             self._zmq_send_queue = asyncio.Queue()

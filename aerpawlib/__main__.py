@@ -87,9 +87,7 @@ def main() -> None:
     cli_args = sys.argv[1:]
 
     if config_paths:
-        resolved_config_paths = [
-            resolve_cli_path(p, str(invocation_cwd)) for p in config_paths
-        ]
+        resolved_config_paths = [resolve_cli_path(p, str(invocation_cwd)) for p in config_paths]
         for path in resolved_config_paths:
             if not path.exists():
                 print(f"Config file not found: {path}")
@@ -111,10 +109,7 @@ def main() -> None:
         "--config",
         action="append",
         metavar="PATH",
-        help="JSON file(s) of CLI defaults (repeatable). Merged in order; later "
-        "files override earlier. Keys match long option names (e.g. api-version, "
-        "conn). JSON null removes a key from the merge. Command-line arguments "
-        "override the merged config.",
+        help="JSON file(s) of CLI defaults (repeatable). Merged in order; later files override earlier. Keys match long option names (e.g. api-version, conn). JSON null removes a key from the merge. Command-line arguments override the merged config.",
     )
 
     core_grp = parser.add_argument_group("Core Arguments")
@@ -168,9 +163,7 @@ def main() -> None:
     )
     exec_grp.add_argument(
         "--no-aerpaw-environment",
-        help="run in standalone/SITL mode: skip AERPAW platform connection and "
-        "allow the vehicle to arm itself. Without this flag, a failed AERPAW "
-        "connection is treated as a fatal error.",
+        help="run in standalone/SITL mode: skip AERPAW platform connection and allow the vehicle to arm itself. Without this flag, a failed AERPAW connection is treated as a fatal error.",
         action="store_true",
         dest="no_aerpaw_environment",
     )
@@ -229,29 +222,21 @@ def main() -> None:
     )
     conn_grp.add_argument(
         "--heartbeat-timeout",
-        help=(
-            "max seconds without heartbeat before considered disconnected (default: 5)"
-        ),
+        help=("max seconds without heartbeat before considered disconnected (default: 5)"),
         type=float,
         default=DEFAULT_HEARTBEAT_TIMEOUT_S,
         dest="heartbeat_timeout",
     )
     conn_grp.add_argument(
         "--mavsdk-port",
-        help="gRPC port for the embedded mavsdk_server (default: 50051). "
-        "Use a unique port per vehicle process to avoid conflicts when running "
-        "multiple vehicles on the same host.",
+        help="gRPC port for the embedded mavsdk_server (default: 50051). Use a unique port per vehicle process to avoid conflicts when running multiple vehicles on the same host.",
         type=int,
         default=DEFAULT_MAVSDK_PORT,
         dest="mavsdk_port",
     )
     conn_grp.add_argument(
         "--safety-checker-port",
-        help=(
-            f"Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to "
-            f"{DEFAULT_SAFETY_CHECKER_PORT}; outside AERPAW, optional. If "
-            "connection fails: AERPAW=crash, non-AERPAW=passthrough."
-        ),
+        help=(f"Port for SafetyCheckerServer (v2 only). In AERPAW env defaults to {DEFAULT_SAFETY_CHECKER_PORT}; outside AERPAW, optional. If connection fails: AERPAW=crash, non-AERPAW=passthrough."),
         type=int,
         default=None,
         dest="safety_checker_port",
@@ -317,9 +302,7 @@ def main() -> None:
     try:
         script_arg = args.script
         if "/" in script_arg or script_arg.endswith(".py"):
-            script_path = (
-                script_arg if script_arg.endswith(".py") else script_arg + ".py"
-            )
+            script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
             # Already absolute from resolve_cli_path on args.script
             script_p = Path(script_path)
             module_name = script_p.stem

@@ -246,11 +246,7 @@ class TestStateMachineExceptions:
 
     def test_multiple_initial_states_error(self):
         e = MultipleInitialStatesError()
-        assert (
-            "one" in str(e).lower()
-            or "multiple" in str(e).lower()
-            or "initial" in str(e).lower()
-        )
+        assert "one" in str(e).lower() or "multiple" in str(e).lower() or "initial" in str(e).lower()
         assert issubclass(MultipleInitialStatesError, StateMachineError)
 
     def test_invalid_state_name_error(self):

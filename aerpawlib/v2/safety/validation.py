@@ -32,13 +32,11 @@ class PreflightChecks:
         """
         if vehicle.gps.fix_type >= GPS_3D_FIX_TYPE:
             logger.debug(
-                f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, "
-                f"sats={vehicle.gps.satellites_visible})",
+                f"Preflight: GPS OK (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})",
             )
             return True
         logger.warning(
-            f"Preflight: No 3D GPS fix (fix_type={vehicle.gps.fix_type}, "
-            f"sats={vehicle.gps.satellites_visible})",
+            f"Preflight: No 3D GPS fix (fix_type={vehicle.gps.fix_type}, sats={vehicle.gps.satellites_visible})",
         )
         return False
 

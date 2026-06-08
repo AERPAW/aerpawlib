@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install docs dependencies
-        run: pip install -e ".[docs]"
+        run: pip install -e ".[all]"
       - name: Generate pdoc output
         run: python -m scripts.generate_pdoc --clean
       - name: Upload Pages artifact

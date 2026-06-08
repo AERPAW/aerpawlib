@@ -158,9 +158,7 @@ class Drone(Vehicle):
             except OffboardError as e:
                 logger.warning("Failed to start offboard mode: %s", e)
 
-            self._ready_to_move = lambda s: (
-                heading_difference(heading, s.heading) <= HEADING_TOLERANCE_DEG
-            )
+            self._ready_to_move = lambda s: heading_difference(heading, s.heading) <= HEADING_TOLERANCE_DEG
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
@@ -199,8 +197,7 @@ class Drone(Vehicle):
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
             logger.debug(
-                f"Delaying takeoff by {delay:.2f}s to satisfy minimum "
-                "arm-to-takeoff time",
+                f"Delaying takeoff by {delay:.2f}s to satisfy minimum arm-to-takeoff time",
             )
             await asyncio.sleep(delay)
 
@@ -214,9 +211,7 @@ class Drone(Vehicle):
             )
             await self._run_on_mavsdk_loop(self._system.action.takeoff())
 
-            self._ready_to_move = lambda s: (
-                s.position.alt >= target_alt * min_alt_tolerance
-            )
+            self._ready_to_move = lambda s: s.position.alt >= target_alt * min_alt_tolerance
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
@@ -295,22 +290,16 @@ class Drone(Vehicle):
         await self._stop()
 
         self._ready_to_move = lambda _: False
-        heading = (
-            self._current_heading
-            if self._current_heading is not None
-            else self.position.bearing(coordinates)
-        )
+        heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
 
         try:
             target_alt = coordinates.alt + self.home_amsl
             if self.home_amsl == 0.0 and self.home_coords is None:
                 logger.warning(
-                    "home_amsl is 0.0 and home position is not set; altitude may be "
-                    "incorrect. Use --skip-init only after home position is confirmed.",
+                    "home_amsl is 0.0 and home position is not set; altitude may be incorrect. Use --skip-init only after home position is confirmed.",
                 )
             logger.debug(
-                f"Goto: {coordinates.lat}, {coordinates.lon}, alt={target_alt}, "
-                f"heading={heading}",
+                f"Goto: {coordinates.lat}, {coordinates.lon}, alt={target_alt}, heading={heading}",
             )
             await self._run_on_mavsdk_loop(
                 self._system.action.goto_location(
@@ -321,16 +310,12 @@ class Drone(Vehicle):
                 ),
             )
 
-            self._ready_to_move = lambda s: (
-                coordinates.distance(s.position) <= tolerance
-            )
+            self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
-                timeout_message=(
-                    f"Drone failed to reach destination {coordinates} within {timeout}s"
-                ),
+                timeout_message=(f"Drone failed to reach destination {coordinates} within {timeout}s"),
             )
             logger.debug("Arrived at destination")
         except ActionError as e:
@@ -371,9 +356,7 @@ class Drone(Vehicle):
         if not global_relative:
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
 
-        yaw = (
-            self._current_heading if self._current_heading is not None else self.heading
-        )
+        yaw = self._current_heading if self._current_heading is not None else self.heading
         logger.debug(f"Set velocity: {velocity_vector}, yaw={yaw}")
         if self._event_log:
             self._event_log.log_event(

@@ -13,9 +13,7 @@ import warnings
 
 # Issue a deprecation warning for direct imports
 warnings.warn(
-    "Importing from aerpawlib.vehicle is deprecated. "
-    "Use 'from aerpawlib.v1.vehicle import ...' or "
-    "'from aerpawlib.v2.vehicle import ...' instead.",
+    "Importing from aerpawlib.vehicle is deprecated. Use 'from aerpawlib.v1.vehicle import ...' or 'from aerpawlib.v2.vehicle import ...' instead.",
     DeprecationWarning,
     stacklevel=2,
 )

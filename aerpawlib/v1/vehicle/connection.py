@@ -82,14 +82,10 @@ def _validate_connection_string(conn_str: str) -> None:
     s = conn_str.strip()
     if "://" not in s:
         raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: missing '://'. "
-            "Expected format e.g. 'udpin://0.0.0.0:14550', "
-            "'udpout://host:port', 'tcpin://host:port', "
-            "'tcpout://host:port', or 'serial:///dev/path[:baud]'.",
+            f"Invalid connection string {conn_str!r}: missing '://'. Expected format e.g. 'udpin://0.0.0.0:14550', 'udpout://host:port', 'tcpin://host:port', 'tcpout://host:port', or 'serial:///dev/path[:baud]'.",
         )
     scheme = s.split("://")[0].lower()
     if scheme not in _MAVSDK_VALID_SCHEMES:
         raise AerpawConnectionError(
-            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. "
-            f"Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}.",
+            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. Supported schemes: {', '.join(sorted(_MAVSDK_VALID_SCHEMES))}.",
         )

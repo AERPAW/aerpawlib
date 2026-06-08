@@ -13,9 +13,7 @@ import warnings
 
 # Issue a deprecation warning for direct imports
 warnings.warn(
-    "Importing from aerpawlib.util is deprecated. "
-    "Use 'from aerpawlib.v1.util import ...' or "
-    "'from aerpawlib.v2.types import ...' instead.",
+    "Importing from aerpawlib.util is deprecated. Use 'from aerpawlib.v1.util import ...' or 'from aerpawlib.v2.types import ...' instead.",
     DeprecationWarning,
     stacklevel=2,
 )

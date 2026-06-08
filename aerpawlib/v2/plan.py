@@ -67,8 +67,7 @@ def read_from_plan(
         if command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             if len(params) < 7:
                 raise PlanError(
-                    f"Plan item 'params' too short (need at least 7, got "
-                    f"{len(params)}): {item!r}",
+                    f"Plan item 'params' too short (need at least 7, got {len(params)}): {item!r}",
                 )
             x, y, z = params[4:7]
             waypoint_id = item["doJumpId"]
@@ -137,8 +136,7 @@ def read_from_plan_complete(
         elif command in [PLAN_CMD_TAKEOFF, PLAN_CMD_WAYPOINT, PLAN_CMD_RTL]:
             if len(params) < 7:
                 raise PlanError(
-                    f"Plan item 'params' too short (need at least 7, got "
-                    f"{len(params)}): {item!r}",
+                    f"Plan item 'params' too short (need at least 7, got {len(params)}): {item!r}",
                 )
             x, y, z = params[4:7]
             waypoint_id = item["doJumpId"]

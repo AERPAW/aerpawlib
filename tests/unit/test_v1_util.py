@@ -234,10 +234,7 @@ class TestCoordinate:
         # wrap_360=True result is in [0, 360)
         assert 0 <= b_wrapped < 360
         # Both should represent the same compass direction (mod 360)
-        assert (
-            abs((b_wrapped - b_unwrapped) % 360) < 1e-6
-            or abs(b_unwrapped - b_wrapped) < 1e-6
-        )
+        assert abs((b_wrapped - b_unwrapped) % 360) < 1e-6 or abs(b_unwrapped - b_wrapped) < 1e-6
 
     def test_bearing_coincident_points_returns_zero(self):
         c = Coordinate(35.7274, -78.6960, 0)

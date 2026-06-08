@@ -114,8 +114,7 @@ class Drone(Vehicle):
         while not self._state.armable:
             if time.monotonic() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
-                    f"Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). "
-                    f"Status: {self._get_health_summary()}",
+                    f"Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
                 )
                 break
             if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
@@ -191,9 +190,7 @@ class Drone(Vehicle):
             )
             with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            self._ready_to_move = lambda s: (
-                _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
-            )
+            self._ready_to_move = lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             await _wait_for_condition(
                 lambda: self.done_moving(),
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
@@ -236,14 +233,11 @@ class Drone(Vehicle):
             self._mission_start_time = time.time()
         try:
             logger.debug(
-                "Drone: takeoff sending set_takeoff_altitude({altitude}m) and "
-                "takeoff()",
+                "Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()",
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
-            self._ready_to_move = lambda s: (
-                s.position.alt >= altitude * min_alt_tolerance
-            )
+            self._ready_to_move = lambda s: s.position.alt >= altitude * min_alt_tolerance
             last_log = 0.0
             while not self.done_moving():
                 now = time.monotonic()
@@ -360,25 +354,17 @@ class Drone(Vehicle):
         await self.await_ready_to_move()
         if self._offboard_in_use:
             await self._stop_offboard()
-        heading = (
-            self._current_heading
-            if self._current_heading is not None
-            else self.position.bearing(coordinates)
-        )
+        heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
         if math.isnan(heading):
             heading = 0.0
         target_alt = coordinates.alt + self.home_amsl
         if self.home_amsl == 0.0 and self._state.home_coords is None:
             logger.warning(
-                "Drone: home AMSL altitude is 0.0 and home position not yet "
-                "received. goto_coordinates altitude may be incorrect (treating "
-                "coordinates.alt as AMSL). Use --skip-init only when the vehicle "
-                "is already armed and home is set.",
+                "Drone: home AMSL altitude is 0.0 and home position not yet received. goto_coordinates altitude may be incorrect (treating coordinates.alt as AMSL). Use --skip-init only when the vehicle is already armed and home is set.",
             )
         try:
             logger.debug(
-                "Drone: goto_coordinates sending "
-                "goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
+                "Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
                 coordinates.lat,
                 coordinates.lon,
                 target_alt,
@@ -410,8 +396,7 @@ class Drone(Vehicle):
                 if now - last_log >= GOTO_LOG_INTERVAL_S:
                     dist = coordinates.distance(self.position)
                     logger.debug(
-                        "Drone: goto_coordinates progress "
-                        "dist=%.1fm tol=%.1fm elapsed=%.0fs",
+                        "Drone: goto_coordinates progress dist=%.1fm tol=%.1fm elapsed=%.0fs",
                         dist,
                         tolerance,
                         elapsed,
@@ -476,8 +461,7 @@ class Drone(Vehicle):
                 now = time.monotonic()
                 if now - last_log >= GOTO_NB_LOG_INTERVAL_S:
                     logger.debug(
-                        "Drone: goto_coordinates (non-blocking) "
-                        "dist=%.1fm progress=%.0f%%",
+                        "Drone: goto_coordinates (non-blocking) dist=%.1fm progress=%.0f%%",
                         d,
                         handle.progress * 100,
                     )
@@ -662,17 +646,14 @@ class Drone(Vehicle):
             VelocityError: If offboard mode cannot be started.
         """
         logger.info(
-            f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, "
-            f"{velocity.down:.2f}) m/s, duration={duration}s",
+            f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
         )
         await self.await_ready_to_move()
         self._velocity_loop_active = False
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)  # Let previous loop exit
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
-        yaw = (
-            self._current_heading if self._current_heading is not None else self.heading
-        )
+        yaw = self._current_heading if self._current_heading is not None else self.heading
         if self._event_log:
             self._event_log.log_event(
                 "command",
@@ -700,8 +681,7 @@ class Drone(Vehicle):
                     while self._velocity_loop_active:
                         if target_end and time.monotonic() > target_end:
                             logger.debug(
-                                "Drone: set_velocity duration reached, "
-                                "stopping offboard",
+                                "Drone: set_velocity duration reached, stopping offboard",
                             )
                             self._velocity_loop_active = False
                             await self._system.offboard.set_velocity_ned(

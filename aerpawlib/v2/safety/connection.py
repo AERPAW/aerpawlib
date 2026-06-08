@@ -74,8 +74,7 @@ class ConnectionHandler:
             disconnect or call stop() to cancel it cleanly.
         """
         logger.info(
-            f"ConnectionHandler: starting heartbeat monitor "
-            f"(timeout={self._heartbeat_timeout}s, start_delay={self._start_delay}s)",
+            f"ConnectionHandler: starting heartbeat monitor (timeout={self._heartbeat_timeout}s, start_delay={self._start_delay}s)",
         )
         self._disconnected = False
         self._last_tick = time.monotonic()
@@ -100,8 +99,7 @@ class ConnectionHandler:
     async def _monitor_loop(self) -> None:
         """Monitor heartbeat and surface disconnect through the future."""
         logger.debug(
-            f"ConnectionHandler: monitor sleeping {self._start_delay}s before "
-            "first check",
+            f"ConnectionHandler: monitor sleeping {self._start_delay}s before first check",
         )
         await asyncio.sleep(
             self._start_delay,

@@ -33,9 +33,7 @@ class _EntrypointDescriptor:
         if "config" in owner.__dict__ and isinstance(owner.config, BasicRunnerConfig):
             if owner.config.entrypoint != name:
                 raise RunnerError(
-                    f"Only one @entrypoint is allowed per runner class. "
-                    f"Already registered '{owner.config.entrypoint}', "
-                    f"cannot also register '{name}'.",
+                    f"Only one @entrypoint is allowed per runner class. Already registered '{owner.config.entrypoint}', cannot also register '{name}'.",
                 )
             return
         owner.config = BasicRunnerConfig(entrypoint=name)
@@ -141,8 +139,7 @@ def state(name: str, *, first: bool = False) -> Callable[[Callable], _StateDescr
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state",
+                "A method cannot be decorated with more than one of @state/@timed_state",
             )
         desc = _StateDescriptor(name, first=first, state_type=_StateType.STANDARD)
         desc.func = func
@@ -178,8 +175,7 @@ def timed_state(
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
             raise RunnerError(
-                "A method cannot be decorated with more than one of "
-                "@state/@timed_state",
+                "A method cannot be decorated with more than one of @state/@timed_state",
             )
         desc = _StateDescriptor(
             name,

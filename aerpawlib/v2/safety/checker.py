@@ -94,8 +94,7 @@ class NoOpSafetyChecker:
         """
         self._reason = reason
         logger.warning(
-            "SafetyCheckerServer not available. All safety validations "
-            "through SafetyCheckerClient will pass. %s",
+            "SafetyCheckerServer not available. All safety validations through SafetyCheckerClient will pass. %s",
             reason,
         )
 
@@ -116,8 +115,7 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_takeoff called but no safety "
-            "checker server available. Returning true.",
+            "NoOpSafetyChecker: validate_takeoff called but no safety checker server available. Returning true.",
         )
         return True, ""
 
@@ -136,8 +134,7 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_waypoint called but no safety "
-            "checker server available. Returning true.",
+            "NoOpSafetyChecker: validate_waypoint called but no safety checker server available. Returning true.",
         )
         return True, ""
 
@@ -151,8 +148,7 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_change_speed called but no safety "
-            "checker server available. Returning true.",
+            "NoOpSafetyChecker: validate_change_speed called but no safety checker server available. Returning true.",
         )
         return True, ""
 
@@ -171,8 +167,7 @@ class NoOpSafetyChecker:
             Tuple of (True, "").
         """
         logger.warning(
-            "NoOpSafetyChecker: validate_landing called but no safety "
-            "checker server available. Returning true.",
+            "NoOpSafetyChecker: validate_landing called but no safety checker server available. Returning true.",
         )
         return True, ""
 
@@ -290,9 +285,7 @@ class SafetyCheckerClient:
             Tuple of (ok, message). ok is False if the server rejects the waypoint.
         """
         logger.debug(
-            "SafetyCheckerClient: validate_waypoint "
-            f"current=({current.lat:.6f},{current.lon:.6f}) "
-            f"next=({next_loc.lat:.6f},{next_loc.lon:.6f})",
+            f"SafetyCheckerClient: validate_waypoint current=({current.lat:.6f},{current.lon:.6f}) next=({next_loc.lat:.6f},{next_loc.lon:.6f})",
         )
         msg = _serialize_request(
             VALIDATE_WAYPOINT_REQ,

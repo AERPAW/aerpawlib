@@ -102,8 +102,7 @@ def run_v1_experiment(
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
         if no_aerpaw_env:
             logger.info(
-                "--no-aerpaw-environment set: skipping AERPAW platform connection, "
-                "running in standalone mode.",
+                "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode.",
             )
             if aerpaw_platform_cls:
                 aerpaw_platform_cls._no_stdout = args.no_stdout
@@ -111,10 +110,7 @@ def run_v1_experiment(
             aerpaw_platform_cls._no_stdout = args.no_stdout
             if not aerpaw_platform_cls._connected:
                 logger.critical(
-                    "It seems like we're in standalone mode but "
-                    "--no-aerpaw-environment was not passed. "
-                    "Pass --no-aerpaw-environment to run outside the AERPAW "
-                    "environment.",
+                    "It seems like we're in standalone mode but --no-aerpaw-environment was not passed. Pass --no-aerpaw-environment to run outside the AERPAW environment.",
                 )
                 sys.exit(1)
 
@@ -125,8 +121,7 @@ def run_v1_experiment(
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:
                 logger.error(
-                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. "
-                    "Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
+                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
                 )
                 raise ValueError(
                     "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
@@ -164,13 +159,7 @@ def run_v1_experiment(
                 with contextlib.suppress(asyncio.CancelledError):
                     await disconnect_task
             if vehicle:
-                if (
-                    success
-                    and not vehicle._closed
-                    and vehicle.armed
-                    and args.rtl_at_end
-                    and not heartbeat_lost
-                ):
+                if success and not vehicle._closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
                     logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:

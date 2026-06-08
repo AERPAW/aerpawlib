@@ -38,9 +38,7 @@ def read_geofence(file_path: str) -> list[dict]:
 
     # Try with the standard KML namespace first
     for xpath in [
-        ".//{http://www.opengis.net/kml/2.2}outerBoundaryIs/"
-        "{http://www.opengis.net/kml/2.2}LinearRing/"
-        "{http://www.opengis.net/kml/2.2}coordinates",
+        ".//{http://www.opengis.net/kml/2.2}outerBoundaryIs/{http://www.opengis.net/kml/2.2}LinearRing/{http://www.opengis.net/kml/2.2}coordinates",
         ".//outerBoundaryIs/LinearRing/coordinates",
     ]:
         results = root.findall(xpath)
@@ -50,8 +48,7 @@ def read_geofence(file_path: str) -> list[dict]:
 
     if coords_el is None or not coords_el.text:
         raise ValueError(
-            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: "
-            f"{file_path}",
+            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: {file_path}",
         )
 
     coords_str = coords_el.text.strip()
@@ -120,12 +117,7 @@ def _lies_on_segment(
         rx: X coordinate of point R.
         ry: Y coordinate of point R.
     """
-    return (
-        (qx <= max(px, rx))
-        and (qx >= min(px, rx))
-        and (qy <= max(py, ry))
-        and (qy >= min(py, ry))
-    )
+    return (qx <= max(px, rx)) and (qx >= min(px, rx)) and (qy <= max(py, ry)) and (qy >= min(py, ry))
 
 
 def _orientation(

@@ -31,9 +31,7 @@ def read_geofence(file_path: str) -> list[dict]:
     """
     with Path(file_path).open("rb") as f:
         root = parser.fromstring(f.read())
-    coordinates_string = (
-        root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
-    )
+    coordinates_string = root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
     coordinates_list = coordinates_string.split()
     polygon = []
     for str_val in coordinates_list:
@@ -67,9 +65,7 @@ def inside(lon: float, lat: float, geofence: list[dict]) -> bool:
         lonj = geofence[j]["lon"]
         latj = geofence[j]["lat"]
 
-        intersect = ((lati > lat) != (latj > lat)) and (
-            lon < (lonj - loni) * (lat - lati) / (latj - lati) + loni
-        )
+        intersect = ((lati > lat) != (latj > lat)) and (lon < (lonj - loni) * (lat - lati) / (latj - lati) + loni)
         if intersect:
             inside = not inside
         j = i
@@ -98,10 +94,7 @@ def lies_on_segment(
         bool: True if Q is on PR.
     """
     return bool(
-        qx <= max(px, rx)
-        and qx >= min(px, rx)
-        and qy <= max(py, ry)
-        and qy >= min(py, ry),
+        qx <= max(px, rx) and qx >= min(px, rx) and qy <= max(py, ry) and qy >= min(py, ry),
     )
 
 

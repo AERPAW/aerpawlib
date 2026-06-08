@@ -101,8 +101,7 @@ class BasicRunner(Runner):
             if hasattr(method, "_entrypoint"):
                 if self._entry is not None:
                     raise StateMachineError(
-                        "Multiple @entrypoint decorators found. "
-                        "BasicRunner supports exactly one entry point.",
+                        "Multiple @entrypoint decorators found. BasicRunner supports exactly one entry point.",
                     )
                 self._entry = method
 
@@ -294,8 +293,7 @@ class ZmqStateMachine(StateMachine):
     ) -> None:
         if not check_zmq_proxy_reachable(proxy_server_addr):
             logger.warning(
-                "ZMQ proxy at %s is not reachable. Ensure the proxy is started "
-                "before this runner (run_zmq_proxy in a separate process).",
+                "ZMQ proxy at %s is not reachable. Ensure the proxy is started before this runner (run_zmq_proxy in a separate process).",
                 proxy_server_addr,
             )
         self._zmq_identifier = vehicle_identifier
@@ -346,8 +344,7 @@ class ZmqStateMachine(StateMachine):
             sender = message.get("from")
             if not field or not sender:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_REQUEST "
-                    "(missing 'field' or 'from')",
+                    "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
                 return
             return_val = None
@@ -359,8 +356,7 @@ class ZmqStateMachine(StateMachine):
             msg_from = message.get("from")
             if not field or msg_from is None:
                 logger.warning(
-                    "ZmqStateMachine: malformed FIELD_CALLBACK "
-                    "(missing 'field' or 'from')",
+                    "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
                 return
             value = message.get("value")
@@ -390,14 +386,9 @@ class ZmqStateMachine(StateMachine):
     ) -> None:
         self._build()
 
-        if (
-            getattr(self, "_zmq_identifier", None) is None
-            or getattr(self, "_zmq_proxy_server", None) is None
-        ):
+        if getattr(self, "_zmq_identifier", None) is None or getattr(self, "_zmq_proxy_server", None) is None:
             raise StateMachineError(
-                "ZMQ bindings not initialized. Pass --zmq-identifier and "
-                "--zmq-proxy-server when running (e.g. --zmq-identifier leader "
-                "--zmq-proxy-server 127.0.0.1)",
+                "ZMQ bindings not initialized. Pass --zmq-identifier and --zmq-proxy-server when running (e.g. --zmq-identifier leader --zmq-proxy-server 127.0.0.1)",
             )
 
         await super().run(vehicle, build_before_running=False)
@@ -430,9 +421,7 @@ class ZmqStateMachine(StateMachine):
 
         async def _wait_for_reply() -> None:
             """Wait until the requested field value is received."""
-            while (
-                self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING
-            ):
+            while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
                 await asyncio.sleep(0.01)
 
         try:

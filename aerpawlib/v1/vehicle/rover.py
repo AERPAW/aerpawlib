@@ -99,13 +99,11 @@ class Rover(Vehicle):
         """
         if self._mode.get() == GUIDED_MODE_NAME:
             logger.debug(
-                f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, "
-                "skipping mode switch",
+                f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch",
             )
             return
         logger.info(
-            f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode "
-            f"(current mode={self._mode.get()!r})",
+            f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._mode.get()!r})",
         )
         fields = {
             "target_system": 1,
@@ -144,10 +142,7 @@ class Rover(Vehicle):
         while self._mode.get() != GUIDED_MODE_NAME:
             if time.time() - start > ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S:
                 logger.warning(
-                    f"Rover: mode switch timeout "
-                    f"(current mode={self._mode.get()!r}); "
-                    f"arming may fail if vehicle is not in GUIDED "
-                    f"({GUIDED_MODE_NAME}) mode",
+                    f"Rover: mode switch timeout (current mode={self._mode.get()!r}); arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
             time.sleep(POLLING_DELAY_S)
@@ -182,8 +177,7 @@ class Rover(Vehicle):
         validate_tolerance(tolerance, "tolerance")
 
         logger.debug(
-            f"goto_coordinates(lat={coordinates.lat}, lon={coordinates.lon}, "
-            f"tolerance={tolerance}, target_heading={target_heading}) called",
+            f"goto_coordinates(lat={coordinates.lat}, lon={coordinates.lon}, tolerance={tolerance}, target_heading={target_heading}) called",
         )
         await self.await_ready_to_move()
 
@@ -203,22 +197,17 @@ class Rover(Vehicle):
                 ),
             )
 
-            self._ready_to_move = lambda s: (
-                coordinates.ground_distance(s.position) <= tolerance
-            )
+            self._ready_to_move = lambda s: coordinates.ground_distance(s.position) <= tolerance
 
             logger.debug(f"Waiting to reach destination (tolerance={tolerance}m)...")
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=timeout,
-                timeout_message=(
-                    f"Rover failed to reach destination {coordinates} within {timeout}s"
-                ),
+                timeout_message=(f"Rover failed to reach destination {coordinates} within {timeout}s"),
             )
             logger.debug(
-                f"Arrived at destination, distance: "
-                f"{coordinates.ground_distance(self.position)}m",
+                f"Arrived at destination, distance: {coordinates.ground_distance(self.position)}m",
             )
         except ActionError as e:
             logger.error(f"Goto failed: {e}")

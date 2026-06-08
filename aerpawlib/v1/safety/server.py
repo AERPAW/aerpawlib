@@ -103,14 +103,8 @@ class SafetyCheckerServer:
         self.vehicle_type = config["vehicle_type"]
 
         vehicle_config_dir = config_path.parent
-        self.include_geofences = [
-            read_geofence(str(vehicle_config_dir / geofence))
-            for geofence in config["include_geofences"]
-        ]
-        self.exclude_geofences = [
-            read_geofence(str(vehicle_config_dir / geofence))
-            for geofence in config["exclude_geofences"]
-        ]
+        self.include_geofences = [read_geofence(str(vehicle_config_dir / geofence)) for geofence in config["include_geofences"]]
+        self.exclude_geofences = [read_geofence(str(vehicle_config_dir / geofence)) for geofence in config["exclude_geofences"]]
         self.max_speed = config["max_speed"]
         self.min_speed = config["min_speed"]
 
@@ -163,10 +157,7 @@ class SafetyCheckerServer:
                     error_resp = serialize_response(
                         request_function=function_name,
                         result=False,
-                        message=(
-                            "Unimplemented or missing function request "
-                            f"<{function_name}>"
-                        ),
+                        message=(f"Unimplemented or missing function request <{function_name}>"),
                     )
                     socket.send(error_resp)
                 except Exception as e:
@@ -195,22 +186,19 @@ class SafetyCheckerServer:
         for param in self.REQUIRED_PARAMS:
             if param not in config:
                 raise Exception(
-                    f"Required parameter {param} not found in "
-                    f"{vehicle_config_filename}!",
+                    f"Required parameter {param} not found in {vehicle_config_filename}!",
                 )
 
         if config["vehicle_type"] not in self.VEHICLE_TYPES:
             raise Exception(
-                f"Vehicle type in {vehicle_config_filename} is invalid! Must be "
-                f"one of {self.VEHICLE_TYPES}",
+                f"Vehicle type in {vehicle_config_filename} is invalid! Must be one of {self.VEHICLE_TYPES}",
             )
 
         if config["vehicle_type"] == VEHICLE_TYPE_COPTER:
             for param in self.REQUIRED_COPTER_PARAMS:
                 if param not in config:
                     raise Exception(
-                        f"Required copter parameter {param} not found in "
-                        f"{vehicle_config_filename}!",
+                        f"Required copter parameter {param} not found in {vehicle_config_filename}!",
                     )
 
     def validate_waypoint_command(
@@ -226,15 +214,10 @@ class SafetyCheckerServer:
         """
         logger.debug(f"Validating {next_location}")
 
-        if self.vehicle_type == VEHICLE_TYPE_COPTER and (
-            next_location.alt < self.min_alt or next_location.alt > self.max_alt
-        ):
+        if self.vehicle_type == VEHICLE_TYPE_COPTER and (next_location.alt < self.min_alt or next_location.alt > self.max_alt):
             return (
                 False,
-                (
-                    f"Invalid waypoint. Altitude of {next_location.alt} m is "
-                    "not within restrictions! ABORTING!"
-                ),
+                (f"Invalid waypoint. Altitude of {next_location.alt} m is not within restrictions! ABORTING!"),
             )
 
         dest_geofence = None
@@ -245,19 +228,13 @@ class SafetyCheckerServer:
         if dest_geofence is None:
             return (
                 False,
-                (
-                    f"Invalid waypoint. Waypoint ({next_location.lat},"
-                    f"{next_location.lon}) is outside of the geofence. ABORTING!"
-                ),
+                (f"Invalid waypoint. Waypoint ({next_location.lat},{next_location.lon}) is outside of the geofence. ABORTING!"),
             )
         for zone in self.exclude_geofences:
             if inside(next_location.lon, next_location.lat, zone):
                 return (
                     False,
-                    (
-                        f"Invalid waypoint. Waypoint ({next_location.lat},"
-                        f"{next_location.lon}) is inside a no-go zone. ABORTING!"
-                    ),
+                    (f"Invalid waypoint. Waypoint ({next_location.lat},{next_location.lon}) is inside a no-go zone. ABORTING!"),
                 )
         n = len(dest_geofence)
         for i in range(n):
@@ -275,12 +252,7 @@ class SafetyCheckerServer:
             ):
                 return (
                     False,
-                    (
-                        f"Invalid waypoint. Path from "
-                        f"({current_location.lat},{current_location.lon}) to "
-                        f"waypoint ({next_location.lat},{next_location.lon}) "
-                        "leaves geofence. ABORTING!"
-                    ),
+                    (f"Invalid waypoint. Path from ({current_location.lat},{current_location.lon}) to waypoint ({next_location.lat},{next_location.lon}) leaves geofence. ABORTING!"),
                 )
 
         for zone in self.exclude_geofences:
@@ -300,12 +272,7 @@ class SafetyCheckerServer:
                 ):
                     return (
                         False,
-                        (
-                            f"Invalid waypoint. Path from "
-                            f"({current_location.lat},{current_location.lon}) to "
-                            f"waypoint ({next_location.lat},{next_location.lon}) "
-                            "enters no-go zone. ABORTING!"
-                        ),
+                        (f"Invalid waypoint. Path from ({current_location.lat},{current_location.lon}) to waypoint ({next_location.lat},{next_location.lon}) enters no-go zone. ABORTING!"),
                     )
 
         return True, ""
@@ -339,9 +306,7 @@ class SafetyCheckerServer:
         Returns (False, <error message>) if the altitude violates constraints,
         else (True, "").
         """
-        if self.vehicle_type == VEHICLE_TYPE_COPTER and (
-            takeoff_alt < self.min_alt or takeoff_alt > self.max_alt
-        ):
+        if self.vehicle_type == VEHICLE_TYPE_COPTER and (takeoff_alt < self.min_alt or takeoff_alt > self.max_alt):
             return (
                 False,
                 f"Invalid takeoff altitude of {takeoff_alt} m.",
@@ -362,8 +327,7 @@ class SafetyCheckerServer:
         if not hasattr(self, "takeoff_location") or self.takeoff_location is None:
             return (
                 False,
-                "Cannot validate landing: no takeoff location recorded. "
-                "Was validate_takeoff_command called first?",
+                "Cannot validate landing: no takeoff location recorded. Was validate_takeoff_command called first?",
             )
         current_location = Coordinate(current_lat, current_lon, alt=0)
         distance = self.takeoff_location.ground_distance(current_location)
@@ -371,9 +335,7 @@ class SafetyCheckerServer:
         if distance > 5:
             return (
                 False,
-                f"Invalid landing location. Must be within 5 meters of takeoff "
-                f"location. Attempted landing location ({current_lat},"
-                f"{current_lon}) is {distance:f} meters from takeoff location.",
+                f"Invalid landing location. Must be within 5 meters of takeoff location. Attempted landing location ({current_lat},{current_lon}) is {distance:f} meters from takeoff location.",
             )
         return True, ""
 
