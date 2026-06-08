@@ -68,19 +68,19 @@ def run(
         "--config",
         help="JSON configuration file(s) of CLI option defaults. Can be specified multiple times; later files override earlier ones.",
     ),
-    script: str | None = typer.Option(
-        None,
+    script: str = typer.Option(
+        ...,
         "--script",
         help="The path to the experimenter mission script to run (e.g. 'my_mission.py' or 'examples/v1/basic_runner.py').",
     ),
-    conn: str | None = typer.Option(
-        None,
+    conn: str = typer.Option(
+        ...,
         "--conn",
         "--connection",
         help="The vehicle MAVLink connection string (e.g., 'udpin://127.0.0.1:14550' or '/dev/ttyACM0').",
     ),
-    vehicle: str | None = typer.Option(
-        None,
+    vehicle: str = typer.Option(
+        ...,
         "--vehicle",
         help=f"The type of vehicle being controlled ('{VEHICLE_TYPE_GENERIC}', '{VEHICLE_TYPE_DRONE}', '{VEHICLE_TYPE_ROVER}', or '{VEHICLE_TYPE_NONE}').",
     ),
@@ -108,11 +108,6 @@ def run(
         False,
         "--no-aerpaw-environment",
         help="Run in standalone/SITL simulation mode. Disables AERPAW platform connection requirements and permits automatic self-arming.",
-    ),
-    run_proxy: bool = typer.Option(
-        False,
-        "--run-proxy",
-        help="Run the coordinate/state proxy server using ZeroMQ (ZMQ).",
     ),
     zmq_identifier: str | None = typer.Option(
         None,
@@ -174,24 +169,6 @@ def run(
     invocation_cwd = Path.cwd().resolve()
     unknown_args = [arg for arg in ctx.args if arg != ""]
 
-    is_bare = all(ctx.get_parameter_source(name).name == "DEFAULT" for name in ctx.params) and not unknown_args
-
-    if is_bare:
-        typer.echo(ctx.get_help())
-        raise typer.Exit(code=0)
-
-    if not run_proxy:
-        missing = []
-        if not script:
-            missing.append("--script")
-        if not conn:
-            missing.append("--conn")
-        if not vehicle:
-            missing.append("--vehicle")
-        if missing:
-            typer.echo(f"Error: Missing options: {', '.join(missing)}")
-            raise typer.Exit(code=1)
-
     if vehicle and vehicle not in [
         VEHICLE_TYPE_GENERIC,
         VEHICLE_TYPE_DRONE,
@@ -215,7 +192,7 @@ def run(
         rtl_at_end=not skip_rtl,
         no_stdout=no_stdout,
         no_aerpaw_environment=no_aerpaw_environment,
-        run_zmq_proxy=run_proxy,
+        run_zmq_proxy=False,
         zmq_identifier=zmq_identifier,
         zmq_proxy_server=zmq_proxy_server,
         verbose=verbose,
@@ -269,19 +246,6 @@ def run(
         logger.debug(f"Connection string: {args.conn}")
         logger.debug(f"Additional arguments: {unknown_args}")
         logger.debug(f"No AERPAW environment: {args.no_aerpaw_environment}")
-
-        if args.run_zmq_proxy:
-            logger.info("Starting ZMQ proxy mode")
-            try:
-                api_module = importlib.import_module(f"aerpawlib.{api_version}")
-                if hasattr(api_module, "run_zmq_proxy"):
-                    api_module.run_zmq_proxy()
-                else:
-                    logger.error(f"API {api_version} does not support ZMQ proxy")
-            except Exception as e:
-                logger.error(f"Failed to import aerpawlib {api_version}: {e}")
-                raise typer.Exit(code=1) from e
-            raise typer.Exit(code=0)
 
         logger.debug(f"Loading experimenter script: {args.script}")
         start_time = time.time()
@@ -349,6 +313,9 @@ def main() -> None:
     config_paths = conf_args.config_files or []
 
     cli_args = sys.argv[1:]
+
+    if not cli_args:
+        cli_args = ["--help"]
 
     if config_paths:
         resolved_config_paths = [resolve_cli_path(p, str(invocation_cwd)) for p in config_paths]

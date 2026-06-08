@@ -1,13 +1,17 @@
 # aerpawlib CLI Guide
 
-The `aerpawlib` CLI orchestrates MAVSDK vehicle connections, ZMQ proxy environments, and experiment runner scripts. This guide details how to invoke the CLI, configure executions, and utilize available flags.
+The `aerpawlib` CLI orchestrates MAVSDK vehicle connections and experiment runner scripts. Additionally, the ZMQ proxy server can be run via a dedicated utility command. This guide details how to invoke these CLI commands, configure executions, and utilize available flags.
 
 ## Invocation
 
-After installing the package (for example, via `pip install -e .`), use the `aerpawlib` command as the primary entry point.
+After installing the package (for example, via `pip install -e .`), use the `aerpawlib` command as the primary entry point to run scripts, or `aerpawlib-run-proxy` to start the ZMQ broker.
 
 ```bash
+# View help for the script runner
 aerpawlib --help
+
+# View help for the ZMQ proxy server
+aerpawlib-run-proxy --help
 ```
 
 ## Initialization and Execution Flow
@@ -71,13 +75,13 @@ aerpawlib --config sitl-drone.json --script examples/v2/basic_example.py
 ## Core Arguments
 
 ### `--script`
-This flag is required unless `--run-proxy` is active. The CLI treats values containing a path separator or a `.py` extension as files. These are resolved locally first, then against the repository root. Values without separators are treated and imported as dotted Python modules.
+This flag is required. The CLI treats values containing a path separator or a `.py` extension as files. These are resolved locally first, then against the repository root. Values without separators are treated and imported as dotted Python modules.
 
 ### `--conn` / `--connection`
-This flag is required unless `--run-proxy` is active. It defines the MAVSDK connection string used for vehicle communication (e.g., `udpin://127.0.0.1:14550` or `serial:///dev/ttyUSB0:57600`).
+This flag is required. It defines the MAVSDK connection string used for vehicle communication (e.g., `udpin://127.0.0.1:14550` or `serial:///dev/ttyUSB0:57600`).
 
 ### `--vehicle`
-This flag is required unless `--run-proxy` is active. It specifies the vehicle type for the experiment.
+This flag is required. It specifies the vehicle type for the experiment.
 
 | Value     | Target                                          |
 |:----------|:------------------------------------------------|
@@ -109,8 +113,14 @@ Bypasses the mandatory AERPAW platform connection. Without this flag, the script
 
 ## ZMQ Orchestration
 
-### `--run-proxy`
-Launches the integrated ZMQ XSUB/XPUB message broker on fixed ports 5570 (inbound) and 5571 (outbound). In this mode, no script is executed, and the `--script`, `--conn`, and `--vehicle` flags are ignored.
+To support multi-vehicle state machine execution, you can run a central ZMQ proxy/broker.
+
+### `aerpawlib-run-proxy`
+This standalone command launches the ZMQ XSUB/XPUB message broker on fixed ports 5570 (inbound) and 5571 (outbound). Start this proxy in a separate terminal process before running any coordinate-sharing scripts.
+
+```bash
+aerpawlib-run-proxy [--api-version v1|v2]
+```
 
 ### `--zmq-identifier`
 Identifies the specific runner instance (e.g., `leader`) to the proxy mesh. This is required for `ZmqStateMachine` runners and must be paired with `--zmq-proxy-server`.
