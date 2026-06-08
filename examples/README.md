@@ -24,7 +24,18 @@ examples/
 │       ├── orbit.plan
 │       └── README.md
 └── v2/                          # v2 API (modern, async-first)
-    ├── basic_example.py
+    ├── basic_example.py         # Square flight pattern
+    ├── basic_runner.py          # Minimal BasicRunner
+    ├── circle.py                # Circular flight using velocity control
+    ├── figure_eight.py          # Figure-8 waypoint pattern
+    ├── squareoff_logging.py     # StateMachine + background logging
+    ├── preplanned_trajectory.py # Load QGroundControl .plan file
+    ├── hide_rover.py            # Rover plan + geofence hide
+    ├── external_runner.py       # ExternalProcess usage
+    ├── zmq_runner/              # Leader/follower ZMQ coordination
+    │   ├── leader.py
+    │   ├── follower.py
+    │   └── README.md
     ├── enhanced_example.py
     ├── rover_example.py
     ├── velocity_example.py
@@ -37,23 +48,23 @@ examples/
     ├── at_init_example.py
     ├── plan_example.py
     ├── state_machine_example.py
-    ├── zmq_state_machine_example.py
+    └── zmq_state_machine_example.py
 ```
 
 ## Quick Reference
 
 | Example | Description |
 |---------|-------------|
-| `basic_example` | Square flight pattern (10m × 10m) |
-| `basic_runner` | Minimal BasicRunner – takeoff, fly north, land |
-| `figure_eight` | Figure-8 waypoint pattern |
-| `circle` | Circular flight using velocity control |
-| `squareoff_logging` | Square flight with background position logging |
-| `preplanned_trajectory` | Waypoints from QGroundControl `.plan` file |
-| `hide_rover` | Rover follows plan, then hides in geofence |
-| `external_runner` | Spawn and interact with external processes |
-| `zmq_runner` | Leader/follower multi-vehicle coordination |
-| `zmq_preplanned_orbit` | Two drones: tracer + orbiter |
+| `basic_example` (v1/v2) | Square flight pattern (10m × 10m) |
+| `basic_runner` (v1/v2) | Minimal BasicRunner – takeoff, fly north, land |
+| `figure_eight` (v1/v2) | Figure-8 waypoint pattern |
+| `circle` (v1/v2) | Circular flight using velocity control |
+| `squareoff_logging` (v1/v2) | Square flight with background position logging |
+| `preplanned_trajectory` (v1/v2) | Waypoints from QGroundControl `.plan` file |
+| `hide_rover` (v1/v2) | Rover follows plan, then hides in geofence |
+| `external_runner` (v1/v2) | Spawn and interact with external processes |
+| `zmq_runner` (v1/v2) | Leader/follower multi-vehicle coordination |
+| `zmq_preplanned_orbit` (v1) | Two drones: tracer + orbiter |
 | `plan_example` (v2) | Load waypoints from QGroundControl .plan file |
 | `rover_example` (v2) | Rover mission basics for ground vehicles |
 | `velocity_example` (v2) | Velocity control patterns for v2 vehicles |
