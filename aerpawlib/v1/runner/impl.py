@@ -124,14 +124,17 @@ class StateMachine(Runner):
     Supports background tasks and initialization tasks.
     """
 
-    _states: dict[str, _State]
-    _background_tasks: list[_BackgroundTask]
-    _initialization_tasks: list[_InitializationTask]
-    _entrypoint: str
-    _current_state: str
-    _override_next_state_transition: bool
-    _running: bool
-    _background_task_futures: list[asyncio.Future]
+    def __init__(self) -> None:
+        """Initialise per-run state machine fields."""
+        self._states: dict[str, _State] = {}
+        self._background_tasks: list[_BackgroundTask] = []
+        self._initialization_tasks: list[_InitializationTask] = []
+        self._background_task_futures: list[asyncio.Future] = []
+        self._entrypoint = ""
+        self._current_state = ""
+        self._override_next_state_transition = False
+        self._next_state_overr = ""
+        self._running = False
 
     def _build(self) -> None:
         """

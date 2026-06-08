@@ -136,7 +136,7 @@ class TestHeartbeatMonitoring:
 
         v = Vehicle.__new__(Vehicle)
         v._has_heartbeat = True
-        v._last_heartbeat_time = 0.0
+        v._closed = False
         v._verbose_logging = False
         v._verbose_log_lock = threading.Lock()
         v._verbose_logging_file_writer = None
@@ -153,3 +153,38 @@ class TestHeartbeatMonitoring:
         v = self._make_vehicle()
         v._has_heartbeat = False
         assert v.connected is False
+
+    def test_connected_ignores_closed_flag(self):
+        """v1 public API: connected reflects heartbeat only, not lifecycle."""
+        v = self._make_vehicle()
+        v._has_heartbeat = True
+        v._closed = True
+        assert v.connected is True
+        assert v.closed is True
+
+    def test_closed_idempotent_after_close(self):
+        v = self._make_vehicle()
+        v._closed = False
+        v._has_heartbeat = True
+        v._running = __import__(
+            "aerpawlib.v1.helpers",
+            fromlist=["ThreadSafeValue"],
+        ).ThreadSafeValue(initial_value=True)
+        v._telemetry_tasks = []
+        v._command_tasks = []
+        v._pending_mavsdk_futures = set()
+        v._pending_mavsdk_lock = __import__("threading").Lock()
+        v._mavsdk_loop = None
+        v.close()
+        assert v.closed is True
+        v.close()
+        assert v.closed is True
+
+    def test_armable_reflects_is_armable_state(self):
+        from aerpawlib.v1.vehicle.state import ThreadSafeVehicleState
+
+        v = self._make_vehicle()
+        v._ts_state = ThreadSafeVehicleState()
+        assert v.armable is False
+        v._ts_state.is_armable_state.set(True)
+        assert v.armable is True

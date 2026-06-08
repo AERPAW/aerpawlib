@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
+from aerpawlib.v2.exceptions import TaskCancelledError
 from aerpawlib.v2.log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.VEHICLE)
@@ -52,6 +53,11 @@ class VehicleTask:
         """Set async callback to run when cancel() is called (e.g. RTL to stop goto)."""
         self._on_cancel = callback
 
+    def _signal_cancelled(self) -> None:
+        if not self._done.is_set():
+            self._error = TaskCancelledError()
+            self._done.set()
+
     def cancel(self) -> None:
         """Request cancellation. Invokes on_cancel callback
         if set to stop the vehicle."""
@@ -68,6 +74,9 @@ class VehicleTask:
                 logger.warning(
                     "VehicleTask.cancel() called outside an async context; on_cancel callback will not run. The vehicle may continue its current task.",
                 )
+                self._signal_cancelled()
+        else:
+            self._signal_cancelled()
 
     def is_cancelled(self) -> bool:
         """Return True if cancel() has been called."""
@@ -76,5 +85,7 @@ class VehicleTask:
     async def wait_done(self) -> None:
         """Wait until command completes or is cancelled."""
         await self._done.wait()
+        if self._cancelled and self._error is None:
+            raise TaskCancelledError()
         if self._error is not None:
             raise self._error

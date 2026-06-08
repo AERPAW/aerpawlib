@@ -85,10 +85,6 @@ ok = await PreflightChecks.run_all(vehicle)
 # Checks: GPS 3D fix, minimum battery
 ```
 
-## ConnectionHandler
+## Connection monitoring
 
-Single authority for connection state and heartbeat.
-
-- Starts monitoring after first telemetry or short delay.
-- On disconnect: notify OEO, trigger callbacks, exit.
-- Uses `loop.add_signal_handler()` for async-safe SIGINT/SIGTERM where available.
+Disconnect detection lives on the vehicle via `watch_disconnect(timeout)`. The CLI races that future against the runner and calls `setup_signal_handlers()` from `aerpawlib.v2.safety` for async-safe SIGINT/SIGTERM handling.

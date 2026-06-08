@@ -88,7 +88,7 @@ class Drone(Vehicle):
         self._offboard_active: bool = False
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
-        while not self._armed_telemetry_received.get():
+        while not self._ts_state.armed_telemetry_received.get():
             if time.time() - start > TELEMETRY_SUBSCRIPTION_TIMEOUT_S:
                 logger.warning(
                     "Timeout waiting for armed-state telemetry; proceeding anyway",

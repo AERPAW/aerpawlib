@@ -101,7 +101,7 @@ class Drone(Vehicle):
         super().__init__(*args, **kwargs)
         self._current_heading: float | None = None
         self._velocity_loop_active = False
-        self._offboard_in_use: bool = False
+        self._offboard_active: bool = False
 
     async def _preflight_wait(
         self,
@@ -177,7 +177,7 @@ class Drone(Vehicle):
             self._current_heading = heading
         if not blocking:
             return
-        self._offboard_in_use = True
+        self._offboard_active = True
         home = self.home_coords
         if home:
             offset = self.position - home  # VectorNED
@@ -352,7 +352,7 @@ class Drone(Vehicle):
         if target_heading is not None:
             await self.set_heading(target_heading, blocking=False)
         await self.await_ready_to_move()
-        if self._offboard_in_use:
+        if self._offboard_active:
             await self._stop_offboard()
         heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
         if math.isnan(heading):
@@ -417,7 +417,7 @@ class Drone(Vehicle):
         logger.debug("Drone: goto_coordinates returning non-blocking VehicleTask")
 
         async def _on_cancel() -> None:
-            if not self._closed and self._system is not None:
+            if not self.closed and self._system is not None:
                 await self.return_to_launch()
             else:
                 logger.warning("Drone: _on_cancel skipped (vehicle closed)")
@@ -671,7 +671,7 @@ class Drone(Vehicle):
             )
             with contextlib.suppress(OffboardError):
                 await self._system.offboard.start()
-            self._offboard_in_use = True
+            self._offboard_active = True
             self._ready_to_move = lambda _: True
             target_end = time.monotonic() + duration if duration else None
 
@@ -726,8 +726,8 @@ class Drone(Vehicle):
     async def _stop_offboard(self) -> None:
         """Stop offboard mode and zero velocity setpoint."""
         self._velocity_loop_active = False
-        self._offboard_in_use = False
-        if self._closed or self._system is None:
+        self._offboard_active = False
+        if self.closed or self._system is None:
             logger.debug("_stop_offboard: skipped (vehicle closed)")
             return
         try:

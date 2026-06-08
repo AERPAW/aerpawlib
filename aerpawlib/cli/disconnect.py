@@ -58,7 +58,7 @@ async def wait_for_v1_connection_loss(
     """
     disconnected_since = None
     timeout_s = max(heartbeat_timeout, 0.0)
-    while not getattr(vehicle, "_closed", False):
+    while not getattr(vehicle, "closed", getattr(vehicle, "_closed", False)):
         connection_error = getattr(vehicle, "_connection_error", None)
         if connection_error is not None:
             raise build_connection_loss_error(

@@ -159,7 +159,7 @@ def run_v1_experiment(
                 with contextlib.suppress(asyncio.CancelledError):
                     await disconnect_task
             if vehicle:
-                if success and not vehicle._closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
+                if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
                     logger.warning("Vehicle still armed! Returning home...")
                     try:
                         if args.vehicle == VEHICLE_TYPE_DRONE:

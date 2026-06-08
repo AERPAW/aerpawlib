@@ -48,6 +48,7 @@ class AerpawPlatform:
         self.forward_port = forward_port
         self.suppress_stdout = suppress_stdout
 
+        self._warning_shown = False
         # Determine connection status upon initialization
         self.is_connected = self._check_connection()
 
@@ -103,6 +104,9 @@ class AerpawPlatform:
 
     def _display_connection_warning(self) -> None:
         """Log a one-time warning when platform-only features are used offline."""
+        if self._warning_shown:
+            return
+        self._warning_shown = True
         if not self.suppress_stdout:
             logger.info(
                 "the user script has attempted to use AERPAW platform functionality without being in the AERPAW environment",

@@ -154,6 +154,8 @@ class StateMachine(Runner):
         self._current_state: str | None = None
         self._running = False
         self._background_futures: list[asyncio.Future] = []
+        self._override_next_state_transition = False
+        self._next_state_overr = ""
 
     def _get_config(self) -> StateMachineConfig:
         """Return the StateMachineConfig for this class.
@@ -325,9 +327,9 @@ class StateMachine(Runner):
                     raise InvalidStateError(current_state, list(states.keys()))
                 spec = states[current_state]
                 next_state = await self._run_state(spec, vehicle)
-                if getattr(self, "_override_next_state_transition", False):
+                if self._override_next_state_transition:
                     self._override_next_state_transition = False
-                    self._current_state = getattr(self, "_next_state_overr", next_state)
+                    self._current_state = self._next_state_overr
                     logger.info(
                         f"StateMachine: state transition (override) -> '{self._current_state}'",
                     )
@@ -385,9 +387,7 @@ class ZmqStateMachine(StateMachine):
         self._zmq_proxy_server: str | None = None
         self._zmq_context: zmq.asyncio.Context | None = None
         self._zmq_send_queue: asyncio.Queue | None = None
-        self._zmq_pending_fields: dict[str, dict[str, Any]] = {}
-        self._override_next_state_transition: bool = False
-        self._next_state_overr: str = ""
+        self._zmq_received_fields: dict[str, dict[str, Any]] = {}
 
     def _initialize_zmq_bindings(
         self,
@@ -404,7 +404,7 @@ class ZmqStateMachine(StateMachine):
         self._zmq_proxy_server = proxy_server_addr
         self._zmq_context = zmq.asyncio.Context()
         self._zmq_send_queue = None
-        self._zmq_pending_fields = {}
+        self._zmq_received_fields = {}
         self._override_next_state_transition = False
         self._next_state_overr = ""
 
@@ -512,15 +512,15 @@ class ZmqStateMachine(StateMachine):
             field_name = cast("str", field)
             sender_name = cast("str", sender)
             value = message.get("value")
-            pending = self._zmq_pending_fields.get(sender_name, {})
+            pending = self._zmq_received_fields.get(sender_name, {})
             waiting = pending.get(field_name)
             if isinstance(waiting, asyncio.Event):
                 pending[field_name] = value
                 waiting.set()
             else:
-                if sender_name not in self._zmq_pending_fields:
-                    self._zmq_pending_fields[sender_name] = {}
-                self._zmq_pending_fields[sender_name][field_name] = value
+                if sender_name not in self._zmq_received_fields:
+                    self._zmq_received_fields[sender_name] = {}
+                self._zmq_received_fields[sender_name][field_name] = value
 
     def _get_backgrounds(self) -> list[str]:
         """Return base backgrounds plus mandatory ZMQ send/receive loops."""
@@ -591,10 +591,10 @@ class ZmqStateMachine(StateMachine):
             raise RuntimeError(
                 "ZMQ not initialized; call _initialize_zmq_bindings first",
             )
-        if identifier not in self._zmq_pending_fields:
-            self._zmq_pending_fields[identifier] = {}
+        if identifier not in self._zmq_received_fields:
+            self._zmq_received_fields[identifier] = {}
         event = asyncio.Event()
-        self._zmq_pending_fields[identifier][field] = event
+        self._zmq_received_fields[identifier][field] = event
         await self._zmq_send_queue.put(
             {
                 "msg_type": ZMQ_TYPE_FIELD_REQUEST,
@@ -606,9 +606,9 @@ class ZmqStateMachine(StateMachine):
         try:
             await asyncio.wait_for(event.wait(), timeout=timeout)
         except asyncio.TimeoutError:
-            self._zmq_pending_fields.get(identifier, {}).pop(field, None)
+            self._zmq_received_fields.get(identifier, {}).pop(field, None)
             raise
-        return self._zmq_pending_fields[identifier].pop(field)
+        return self._zmq_received_fields[identifier].pop(field)
 
     async def _zmq_send_reply(self, identifier: str, field: str, value: Any) -> None:
         """Send a field-query reply to the requesting runner.

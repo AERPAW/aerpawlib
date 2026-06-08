@@ -5,7 +5,7 @@ This module contains the constants for the v2 API.
 The CLI, vehicles, runner, ZMQ multi-vehicle stack, and safety client all read from this module so the magic numbers are at least somewhat consistent.
 
 ### Groups
-- Connection: `CONNECTION_TIMEOUT_S`, `HEARTBEAT_TIMEOUT_S`, `HEARTBEAT_CHECK_INTERVAL_S`, and related timing for `ConnectionHandler` and vehicle setup.
+- Connection: `CONNECTION_TIMEOUT_S`, `HEARTBEAT_TIMEOUT_S`, `HEARTBEAT_CHECK_INTERVAL_S`, and related timing for `watch_disconnect()` and vehicle setup.
 - Movement: default goto tolerance and timeout, heading tolerance, arming and takeoff delays, offboard/velocity loop delays, position readiness waits.
 - Validation: min/max position tolerance for `can_goto` and similar checks.
 - State machine: `STATE_MACHINE_DELAY_S` between state loop iterations.

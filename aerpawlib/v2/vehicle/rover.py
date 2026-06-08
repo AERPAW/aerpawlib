@@ -49,6 +49,11 @@ DEFAULT_ROVER_POSITION_TOLERANCE_M = 2.1
 class Rover(Vehicle):
     """Rover implementation for ground vehicles."""
 
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialise rover movement state."""
+        super().__init__(*args, **kwargs)
+        self._velocity_loop_active = False
+
     async def _preflight_wait(
         self,
         should_arm: bool = True,
@@ -242,7 +247,7 @@ class Rover(Vehicle):
 
         async def _on_cancel() -> None:
             try:
-                if not self._closed and self._system is not None:
+                if not self.closed and self._system is not None:
                     await self._system.action.hold()
             except Exception as exc:
                 logger.warning(f"Rover: _on_cancel hold failed: {exc}")
@@ -402,8 +407,6 @@ class Rover(Vehicle):
             timeout=timeout,
             blocking=blocking,
         )
-
-    _velocity_loop_active: bool = False
 
     async def set_velocity(
         self,

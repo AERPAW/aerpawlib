@@ -67,6 +67,7 @@ from aerpawlib.v1.log import LogComponent, get_logger
 from aerpawlib.v1.util import is_tcp_port_in_use, is_udp_port_in_use
 
 from .connection import _parse_udp_connection_port, _validate_connection_string
+from .state import InitPhase, ThreadSafeVehicleState
 from .telemetry_compat import (
     _AttitudeCompat,
     _BatteryCompat,
@@ -90,60 +91,30 @@ class Vehicle:
     excluding specific movement commands. This class maintains an internal
     MAVSDK session while providing a DroneKit-compatible API.
 
-    Safety tenets:
-    - Never auto-arms by default; waits for external actor (safety pilot/GCS).
-    - Detects armed state and transitions to GUIDED mode.
-    - Captures home location upon entering GUIDED mode.
-    - Tracks connection via heartbeat monitoring.
-    - Supports configurable auto-RTL or landing upon script termination.
-
-    Attributes:
-        _system: The MAVSDK system instance.
-        _has_heartbeat: Whether a heartbeat has been received.
-        _home_location: The captured home position.
-        _armed_state: Current arm status.
-        _mode: Current flight mode name.
+    Internal state map:
+    - ``_has_heartbeat`` / ``_closed`` / ``_running``: connection lifecycle
+    - ``_ts_state`` (ThreadSafeVehicleState): telemetry behind public properties
+    - ``_init_phase``: arm/init sequence (InitPhase enum)
     """
 
     _system: System | None
     _has_heartbeat: bool
-
-    # function used by "verb" functions to check and see if the vehicle can be
-    # commanded to move. should be set to a new closure by verb functions to
-    # redefine functionality
-    _ready_to_move: Callable[[Vehicle], bool] = lambda _: True
-
-    # Controls whether the vehicle can be aborted during movement
-    _abortable: bool = False
-    _aborted: bool = False
-
-    _home_location: util.Coordinate | None = None
-
-    # _current_heading is used to blend heading and velocity control commands
-    _current_heading: float | None = None
-
-    _last_nav_controller_output = None
-    _last_mission_item_int = None
-
-    # Verbose logging configuration
-    _verbose_logging: bool = False
-    _verbose_logging_file_prefix: str = VERBOSE_LOG_FILE_PREFIX
-    _verbose_logging_file_path: Path | None = None
-    _verbose_logging_last_log_time: float = 0
-    _verbose_logging_delay: float = VERBOSE_LOG_DELAY_S
+    _ready_to_move: Callable[[Vehicle], bool]
+    _abortable: bool
+    _aborted: bool
+    _current_heading: float | None
+    _last_nav_controller_output: Any | None
+    _last_mission_item_int: Any | None
+    _verbose_logging: bool
+    _verbose_logging_file_prefix: str
+    _verbose_logging_file_path: Path | None
+    _verbose_logging_last_log_time: float
+    _verbose_logging_delay: float
     _verbose_log_lock: threading.Lock
-
-    _event_log: Any | None = None
-    _structured_telemetry_last_log_time: float = 0.0
-
-    # Safety initialization state
-    _initialization_complete: bool = False
-    _postarm_init_in_progress: bool = False
-    _skip_init: bool = False  # Set via CLI --skip-init flag
-    _skip_rtl: bool = False  # Set via CLI --skip-rtl flag
-
-    # Connection/heartbeat tracking
-    _last_heartbeat_time: float = 0.0
+    _event_log: Any | None
+    _structured_telemetry_last_log_time: float
+    _skip_init: bool
+    _skip_rtl: bool
 
     def __init__(self, connection_string: str, mavsdk_server_port: int = 50051) -> None:
         """
@@ -164,45 +135,28 @@ class Vehicle:
         self._has_heartbeat = False
         self._connection_error: BaseException | None = None
         self._closed = False
+        self._ready_to_move = lambda _: True
+        self._abortable = False
+        self._aborted = False
+        self._current_heading = None
+        self._last_nav_controller_output = None
+        self._last_mission_item_int = None
+        self._verbose_logging = False
+        self._verbose_logging_file_prefix = VERBOSE_LOG_FILE_PREFIX
+        self._verbose_logging_file_path = None
+        self._verbose_logging_last_log_time = 0.0
+        self._verbose_logging_delay = VERBOSE_LOG_DELAY_S
         self._verbose_log_lock = threading.Lock()
         self._event_log = None
         self._structured_telemetry_last_log_time = 0.0
         self._will_arm = True
         self._mission_start_time: float | None = None
 
-        # Safety initialization state
-        self._initialization_complete = False
-        self._postarm_init_in_progress = False
         self._skip_init = False
         self._skip_rtl = False
-        self._was_already_armed_on_connect = False
-        self._last_heartbeat_time = 0.0
-
-        # Safety checker setup
-        self._armed_state = ThreadSafeValue(initial_value=False)
-        self._is_armable_state = ThreadSafeValue(initial_value=False)
-        self._health_val = ThreadSafeValue(None)
-        self._last_arm_time = ThreadSafeValue(0.0)
-        self._position_lat = ThreadSafeValue(0.0)
-        self._position_lon = ThreadSafeValue(0.0)
-        self._position_alt = ThreadSafeValue(0.0)
-        self._position_abs_alt = ThreadSafeValue(0.0)
-        self._heading_deg = ThreadSafeValue(0.0)
-        self._velocity_ned = ThreadSafeValue([0.0, 0.0, 0.0])
-        self._home_position = ThreadSafeValue(None)
-        self._home_abs_alt = ThreadSafeValue(0.0)
-        self._prearm_checks_ok = ThreadSafeValue(initial_value=False)
-        self._ekf_ready = ThreadSafeValue(initial_value=False)
-
-        # Compatibility objects (ThreadSafeValue for atomic swap from telemetry thread)
-        self._battery_val = ThreadSafeValue(_BatteryCompat())
-        self._gps_val = ThreadSafeValue(_GPSInfoCompat())
-        self._attitude_val = ThreadSafeValue(_AttitudeCompat())
+        self._init_phase = InitPhase.PENDING
+        self._ts_state = ThreadSafeVehicleState()
         self._autopilot_info = _VersionCompat()
-        self._mode = ThreadSafeValue("UNKNOWN")
-
-        # Flag set once the first armed-state telemetry message arrives
-        self._armed_telemetry_received = ThreadSafeValue(initial_value=False)
 
         # Track active futures for cancellation in close()
         self._pending_mavsdk_futures = set()
@@ -436,10 +390,10 @@ class Vehicle:
         async def _position_update() -> None:
             """Track live global position telemetry."""
             async for position in self._system.telemetry.position():
-                self._position_lat.set(position.latitude_deg)
-                self._position_lon.set(position.longitude_deg)
-                self._position_alt.set(position.relative_altitude_m)
-                self._position_abs_alt.set(position.absolute_altitude_m)
+                self._ts_state.position_lat.set(position.latitude_deg)
+                self._ts_state.position_lon.set(position.longitude_deg)
+                self._ts_state.position_alt.set(position.relative_altitude_m)
+                self._ts_state.position_abs_alt.set(position.absolute_altitude_m)
 
         async def _attitude_update() -> None:
             """Track roll/pitch/yaw and derive heading in degrees."""
@@ -448,13 +402,13 @@ class Vehicle:
                 new_att.roll = math.radians(attitude.roll_deg)
                 new_att.pitch = math.radians(attitude.pitch_deg)
                 new_att.yaw = math.radians(attitude.yaw_deg)
-                self._attitude_val.set(new_att)
-                self._heading_deg.set(attitude.yaw_deg % 360)
+                self._ts_state.attitude_val.set(new_att)
+                self._ts_state.heading_deg.set(attitude.yaw_deg % 360)
 
         async def _velocity_update() -> None:
             """Track NED velocity telemetry."""
             async for velocity in self._system.telemetry.velocity_ned():
-                self._velocity_ned.set(
+                self._ts_state.velocity_ned.set(
                     [velocity.north_m_s, velocity.east_m_s, velocity.down_m_s],
                 )
 
@@ -464,7 +418,7 @@ class Vehicle:
                 new_gps = _GPSInfoCompat()
                 new_gps.satellites_visible = gps_info.num_satellites
                 new_gps.fix_type = gps_info.fix_type.value
-                self._gps_val.set(new_gps)
+                self._ts_state.gps_val.set(new_gps)
 
         async def _battery_update() -> None:
             """Track battery voltage/current/remaining level."""
@@ -473,33 +427,33 @@ class Vehicle:
                 new_bat.voltage = battery.voltage_v
                 new_bat.current = battery.current_battery_a
                 new_bat.level = int(battery.remaining_percent)
-                self._battery_val.set(new_bat)
+                self._ts_state.battery_val.set(new_bat)
 
         async def _flight_mode_update() -> None:
             """Track current autopilot flight mode name."""
             async for mode in self._system.telemetry.flight_mode():
-                self._mode.set(mode.name)
+                self._ts_state.mode.set(mode.name)
 
         async def _armed_update() -> None:
             """Track armed transitions and reset init state on disarm."""
             async for armed in self._system.telemetry.armed():
-                old_armed = self._armed_state.get()
-                self._armed_state.set(armed)
-                self._armed_telemetry_received.set(True)
+                old_armed = self._ts_state.armed_state.get()
+                self._ts_state.armed_state.set(armed)
+                self._ts_state.armed_telemetry_received.set(True)
                 if armed and not old_armed:
-                    self._last_arm_time.set(time.time())
+                    self._ts_state.last_arm_time.set(time.time())
                 elif old_armed and not armed:
                     # Vehicle disarmed; allow re-initialization on next guided command
-                    self._initialization_complete = False
+                    self._init_phase = InitPhase.PENDING
 
         async def _health_update() -> None:
             """Track pre-arm health and aggregate armability flags."""
             async for health in self._system.telemetry.health():
-                self._health_val.set(
+                self._ts_state.health_val.set(
                     health,
                 )  # Used to provide information when arming fails
-                self._is_armable_state.set(
-                    health.is_global_position_ok and health.is_local_position_ok and health.is_home_position_ok and health.is_armable and self._prearm_checks_ok.get(),
+                self._ts_state.is_armable_state.set(
+                    health.is_global_position_ok and health.is_local_position_ok and health.is_home_position_ok and health.is_armable and self._ts_state.prearm_checks_ok.get(),
                 )
 
         async def _mavlink_status_update() -> None:
@@ -512,7 +466,7 @@ class Vehicle:
                 try:
                     fields = json.loads(msg.fields_json)
                     health = fields.get("onboard_control_sensors_health", 0)
-                    self._prearm_checks_ok.set(
+                    self._ts_state.prearm_checks_ok.set(
                         (health & MAV_SYS_STATUS_PREARM_CHECK) == MAV_SYS_STATUS_PREARM_CHECK,
                     )
                 except Exception as e:
@@ -529,7 +483,7 @@ class Vehicle:
                     try:
                         fields = json.loads(msg.fields_json)
                         flags = fields.get("flags", 0)
-                        self._ekf_ready.set(
+                        self._ts_state.ekf_ready.set(
                             (flags & EKF_READY_FLAGS) == EKF_READY_FLAGS,
                         )
                     except Exception as e:
@@ -543,20 +497,19 @@ class Vehicle:
         async def _home_update() -> None:
             """Track home position and absolute home altitude."""
             async for home in self._system.telemetry.home():
-                self._home_position.set(
+                self._ts_state.home_position.set(
                     util.Coordinate(
                         home.latitude_deg,
                         home.longitude_deg,
                         home.relative_altitude_m,
                     ),
                 )
-                self._home_abs_alt.set(home.absolute_altitude_m)
+                self._ts_state.home_abs_alt.set(home.absolute_altitude_m)
 
         async def _connection_state_update() -> None:
             """Track MAVSDK connection state to mirror heartbeat availability."""
             async for state in self._system.core.connection_state():
                 if state.is_connected:
-                    self._last_heartbeat_time = time.time()
                     if not self._has_heartbeat:
                         logger.info("Vehicle connection restored")
                         self._has_heartbeat = True
@@ -610,14 +563,28 @@ class Vehicle:
         return self._has_heartbeat
 
     @property
+    def closed(self) -> bool:
+        """
+        True if the vehicle connection has been closed.
+        """
+        return self._closed
+
+    @property
+    def armable(self) -> bool:
+        """
+        True if the vehicle preflight checks pass and is ready to arm.
+        """
+        return self._ts_state.is_armable_state.get()
+
+    @property
     def position(self) -> util.Coordinate:
         """
         Get the current position of the Vehicle as a `util.Coordinate`
         """
         return util.Coordinate(
-            self._position_lat.get(),
-            self._position_lon.get(),
-            self._position_alt.get(),
+            self._ts_state.position_lat.get(),
+            self._ts_state.position_lon.get(),
+            self._ts_state.position_alt.get(),
         )
 
     @property
@@ -628,7 +595,7 @@ class Vehicle:
         Returns:
             float: Altitude Above Mean Sea Level.
         """
-        return self._home_abs_alt.get()
+        return self._ts_state.home_abs_alt.get()
 
     @property
     def battery(self) -> _BatteryCompat:
@@ -636,7 +603,7 @@ class Vehicle:
         Get the status of the battery. Returns object with `voltage`, `current`,
         and `level`.
         """
-        return self._battery_val.get()
+        return self._ts_state.battery_val.get()
 
     @property
     def gps(self) -> _GPSInfoCompat:
@@ -645,19 +612,19 @@ class Vehicle:
         Exposes the `fix_type` (0-1: no fix, 2: 2d fix, 3: 3d fix),
         and number of `satellites_visible`.
         """
-        return self._gps_val.get()
+        return self._ts_state.gps_val.get()
 
     @property
     def armed(self) -> bool:
         """
         True if the vehicle is currently armed.
         """
-        return self._armed_state.get()
+        return self._ts_state.armed_state.get()
 
     @property
     def ekf_ready(self) -> bool:
         """True if EKF reports ready for takeoff (ArduPilot)."""
-        return self._ekf_ready.get()
+        return self._ts_state.ekf_ready.get()
 
     @property
     def home_coords(self) -> util.Coordinate | None:
@@ -666,25 +633,25 @@ class Vehicle:
         Returns the autopilot's home position, or falls back to _home_location if
         not available.
         """
-        home = self._home_position.get()
+        home = self._ts_state.home_position.get()
         if home is not None:
             return home
-        return self._home_location
+        return self._ts_state.captured_home.get()
 
     @property
     def heading(self) -> float:
         """Heading in degrees from telemetry."""
-        return self._heading_deg.get()
+        return self._ts_state.heading_deg.get()
 
     @property
     def mode(self) -> str:
         """Get the current flight mode name (e.g. 'GUIDED', 'HOLD', 'AUTO')."""
-        return self._mode.get()
+        return self._ts_state.mode.get()
 
     @property
     def velocity(self) -> util.VectorNED:
         """Velocity vector in NED coordinates (m/s)."""
-        return util.VectorNED(*self._velocity_ned.get())
+        return util.VectorNED(*self._ts_state.velocity_ned.get())
 
     @property
     def autopilot_info(self) -> _VersionCompat:
@@ -698,7 +665,7 @@ class Vehicle:
         - pitch/roll are horizon-relative
         - yaw is world relative (north=0)
         """
-        return self._attitude_val.get()
+        return self._ts_state.attitude_val.get()
 
     def debug_dump(self) -> str:
         """
@@ -735,7 +702,7 @@ class Vehicle:
             self.home_coords,
             self.position,
             self.velocity,
-            self._mode.get(),
+            self._ts_state.mode.get(),
             nav_controller_output,
             mission_item_output,
         ]
@@ -857,6 +824,7 @@ class Vehicle:
         if self._closed:
             return
         self._closed = True
+        self._has_heartbeat = False
         logger.debug("Closing vehicle connection...")
         self._running.set(False)
 
@@ -911,7 +879,7 @@ class Vehicle:
             DisarmError: If disarming fails
         """
         logger.debug(f"set_armed({value}) called")
-        if not self._is_armable_state.get() and value:
+        if not self._ts_state.is_armable_state.get() and value:
             health_summary = self._get_health_status_summary()
             logger.error(
                 f"Cannot arm: vehicle not in armable state. Status: {health_summary}",
@@ -928,7 +896,7 @@ class Vehicle:
 
             # Wait for arm state to match
             await wait_for_condition(
-                lambda: self._armed_state.get() == value,
+                lambda: self._ts_state.armed_state.get() == value,
                 timeout=ARMABLE_TIMEOUT_S,
                 poll_interval=POLLING_DELAY_S,
                 timeout_message=(f"Arm/disarm did not complete within {ARMABLE_TIMEOUT_S}s"),
@@ -950,7 +918,7 @@ class Vehicle:
         logger.debug(f"_preflight_wait(should_arm={should_arm}) called")
         start = time.time()
         last_log = 0.0
-        while not self._is_armable_state.get():
+        while not self._ts_state.is_armable_state.get():
             if time.time() - start > ARMABLE_TIMEOUT_S:
                 logger.warning(
                     f"Timeout waiting for armable state ({ARMABLE_TIMEOUT_S}s). Final status: {self._get_health_status_summary()}",
@@ -964,7 +932,7 @@ class Vehicle:
                 last_log = time.time()
             time.sleep(POLLING_DELAY_S)
 
-        if self._is_armable_state.get():
+        if self._ts_state.is_armable_state.get():
             logger.debug("Vehicle is armable")
         else:
             logger.warning(
@@ -983,24 +951,24 @@ class Vehicle:
         """
         if not self._will_arm:
             logger.debug("Skipping postarm init (disabled)")
-            self._initialization_complete = True
+            self._init_phase = InitPhase.COMPLETE
             return
 
         # Re-entrance guard: if another coroutine is already initializing, wait
-        if self._postarm_init_in_progress:
+        if self._init_phase == InitPhase.IN_PROGRESS:
             logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: self._initialization_complete or not self._postarm_init_in_progress,
+                lambda: self._init_phase == InitPhase.COMPLETE,
                 poll_interval=POLLING_DELAY_S,
             )
             return
 
-        self._postarm_init_in_progress = True
+        self._init_phase = InitPhase.IN_PROGRESS
         try:
             logger.debug("_arm_vehicle() called")
 
             # Check if we're in AERPAW environment
-            is_aerpaw = AERPAW_Platform._is_aerpaw_environment()
+            is_aerpaw = AERPAW_Platform._connected
 
             if is_aerpaw:
                 # log_to_oeo is blocking, run in thread (E6)
@@ -1012,7 +980,7 @@ class Vehicle:
                 logger.info("Waiting for safety pilot to arm vehicle...")
 
                 await wait_for_condition(
-                    lambda: self._is_armable_state.get(),
+                    lambda: self._ts_state.is_armable_state.get(),
                     poll_interval=POLLING_DELAY_S,
                 )
                 await wait_for_condition(
@@ -1026,7 +994,7 @@ class Vehicle:
                 # Wait for armable state with timeout
                 try:
                     await wait_for_condition(
-                        lambda: self._is_armable_state.get(),
+                        lambda: self._ts_state.is_armable_state.get(),
                         timeout=CONNECTION_TIMEOUT_S,
                         poll_interval=POLLING_DELAY_S,
                         timeout_message=(f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions"),
@@ -1057,7 +1025,7 @@ class Vehicle:
                     logger.error(msg)
                     raise NotArmableError(msg) from e
                 logger.debug("Waiting for EKF ready...")
-                while not self._ekf_ready.get():
+                while not self._ts_state.ekf_ready.get():
                     await asyncio.sleep(0.1)
                 logger.debug("Vehicle is armable, sending arm command...")
 
@@ -1072,17 +1040,18 @@ class Vehicle:
             # Wait for home position to be populated from telemetry (up to 5s)
             logger.debug("Waiting for auto-set home position...")
             await wait_for_condition(
-                lambda: self._home_position.get() is not None,
+                lambda: self._ts_state.home_position.get() is not None,
                 timeout=_HOME_WAIT_TIMEOUT_S,
                 poll_interval=POLLING_DELAY_S,
                 timeout_message=(f"Home position not available within {_HOME_WAIT_TIMEOUT_S}s"),
             )
 
-            self._home_location = self.home_coords
-            logger.debug(f"Home location set to: {self._home_location}")
-            self._initialization_complete = True
+            self._ts_state.captured_home.set(self.home_coords)
+            logger.debug(f"Home location set to: {self.home_coords}")
+            self._init_phase = InitPhase.COMPLETE
         finally:
-            self._postarm_init_in_progress = False
+            if self._init_phase == InitPhase.IN_PROGRESS:
+                self._init_phase = InitPhase.PENDING
 
     async def goto_coordinates(
         self,
@@ -1155,7 +1124,7 @@ class Vehicle:
         """
         Get a human-readable summary of the current vehicle health status.
         """
-        health = self._health_val.get()
+        health = self._ts_state.health_val.get()
         if health is None:
             return "UNKNOWN (no telemetry)"
 
@@ -1163,8 +1132,8 @@ class Vehicle:
             f"Global: {'OK' if health.is_global_position_ok else 'FAIL'}, "
             f"Home: {'OK' if health.is_home_position_ok else 'FAIL'}, "
             f"Local: {'OK' if health.is_local_position_ok else 'FAIL'}, "
-            f"Pre-arm: {'OK' if self._prearm_checks_ok.get() else 'FAIL'}, "
-            f"EKF: {'OK' if self._ekf_ready.get() else 'FAIL'}, "
+            f"Pre-arm: {'OK' if self._ts_state.prearm_checks_ok.get() else 'FAIL'}, "
+            f"EKF: {'OK' if self._ts_state.ekf_ready.get() else 'FAIL'}, "
             f"Armable: {'OK' if health.is_armable else 'FAIL'}, "
             f"Gyro: {'OK' if health.is_gyrometer_calibration_ok else 'FAIL'}, "
             f"Accel: {'OK' if health.is_accelerometer_calibration_ok else 'FAIL'}, "

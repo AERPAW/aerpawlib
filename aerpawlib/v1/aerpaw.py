@@ -48,8 +48,6 @@ class AERPAW:
     _forw_port: int
     _connected: bool
 
-    _connection_warning_displayed = False
-
     def __init__(
         self,
         forw_addr: str = DEFAULT_FORWARD_SERVER_IP,
@@ -66,6 +64,7 @@ class AERPAW:
         self._forw_port = forw_port
         self._connected = self.attach_to_aerpaw_platform()
         self._no_stdout = False
+        self._connection_warning_displayed = False
 
     def attach_to_aerpaw_platform(self) -> bool:
         """
@@ -86,15 +85,6 @@ class AERPAW:
         except requests.exceptions.RequestException:
             return False
         return True
-
-    def _is_aerpaw_environment(self) -> bool:
-        """
-        Report whether platform connectivity has been established.
-
-        Returns:
-            `True` when connected to AERPAW services, otherwise `False`.
-        """
-        return self._connected
 
     def _display_connection_warning(self) -> None:
         """
@@ -478,6 +468,17 @@ class _AERPAWLazyProxy:
             Attribute value resolved from the underlying singleton instance.
         """
         return getattr(self._get_instance(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Forward attribute writes to the underlying singleton when it exists."""
+        if name in ("_instance", "_lock"):
+            self.__dict__[name] = value
+            return
+        instance = self.__dict__.get("_instance")
+        if instance is not None:
+            setattr(instance, name, value)
+        else:
+            self.__dict__[name] = value
 
 
 AERPAW_Platform = _AERPAWLazyProxy()

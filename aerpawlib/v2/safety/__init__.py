@@ -3,12 +3,12 @@
 """
 
 from .checker import NoOpSafetyChecker, SafetyCheckerClient
-from .connection import ConnectionHandler
+from .connection import setup_signal_handlers
 from .validation import PreflightChecks
 
 __all__ = [
-    "ConnectionHandler",
     "NoOpSafetyChecker",
     "PreflightChecks",
     "SafetyCheckerClient",
+    "setup_signal_handlers",
 ]

@@ -8,7 +8,8 @@ The vehicle layer is how your mission code talks to hardware. v2 is built around
 - Connect `await Drone.connect("udpin://...")` or `Rover.connect(...)` with optional `safety=`, `timeout=`, and structured log hooks from the runtime.
 - Commands `takeoff`, `land`, `goto_coordinates`, `set_velocity`, `set_groundspeed`, `return_to_launch` (copter), `set_heading` (copter), etc. All are async; blocking is the default for goto unless you pass `blocking=False`.
 - Tasks `VehicleTask` exposes `progress`, `cancel()`, `wait_done()`, and `is_done()` for long moves you want to run concurrently with other coroutines, data collection, or anything else.
-- State `position`, `home_coords`, `battery`, `gps`, `armed`, `heading`, `velocity`, `attitude`, `mode`, and connection flags. Read them like normal Python fields; the implementation keeps them fresh from MAVSDK.
+- State `position`, `home_coords`, `battery`, `gps`, `armed`, `heading`, `velocity`, `attitude`, `mode`, and connection flags (`connected`, `closed`). Read them like normal Python fields; the implementation keeps them fresh from MAVSDK.
+- Connection monitoring `watch_disconnect(timeout)` returns an `asyncio.Future` that completes with `HeartbeatLostError` when telemetry goes stale. The CLI races this future against your runner; you do not need a separate connection handler.
 - Safety `can_takeoff`, `can_goto`, and `can_land` delegate to local checks and, when configured, the safety client.
 
 ### Behavior notes

@@ -12,7 +12,7 @@ HEARTBEAT_TIMEOUT_S = 5.0
 HEARTBEAT_START_DELAY_S = 1.0  # Delay before starting heartbeat monitor after first telemetry
 """Delay before heartbeat monitoring begins after first telemetry is received."""
 HEARTBEAT_CHECK_INTERVAL_S = 1.0
-"""Interval between heartbeat timeout checks in ConnectionHandler."""
+"""Interval between heartbeat timeout checks in ConnectionState.watch_disconnect."""
 
 # Movement
 DEFAULT_POSITION_TOLERANCE_M = 2.0

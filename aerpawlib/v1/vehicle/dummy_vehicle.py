@@ -26,6 +26,11 @@ class DummyVehicle:
     def __init__(self) -> None:
         self._closed = False
 
+    @property
+    def closed(self) -> bool:
+        """True if the dummy vehicle has been closed."""
+        return self._closed
+
     def set_event_log(self, event_log: Any | None) -> None:
         """No-op: DummyVehicle ignores structured logging."""
         pass

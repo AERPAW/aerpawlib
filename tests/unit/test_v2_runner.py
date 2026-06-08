@@ -28,7 +28,6 @@ from aerpawlib.v2.runner import (
     state,
     timed_state,
 )
-from aerpawlib.v2.safety.connection import ConnectionHandler
 from aerpawlib.v2.testing import MockVehicle
 
 
@@ -267,7 +266,7 @@ class TestZmqStateMachine:
         assert z._zmq_proxy_server == "127.0.0.1"
         # Send queue is created in run() when an event loop is running.
         assert z._zmq_send_queue is None
-        assert z._zmq_pending_fields == {}
+        assert z._zmq_received_fields == {}
         # Clean up context so it doesn't leak
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
@@ -310,7 +309,7 @@ class TestZmqStateMachine:
         assert "only be used on @state/@timed_state" in str(inner)
 
 
-class TestConnectionHandler:
+class TestDisconnectWatch:
     @pytest.mark.asyncio
     async def test_handle_transition_message(self):
         """TRANSITION message sets the state override attributes."""
@@ -347,7 +346,7 @@ class TestConnectionHandler:
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
         event = asyncio.Event()
-        z._zmq_pending_fields["sender"] = {"myfield": event}
+        z._zmq_received_fields["sender"] = {"myfield": event}
 
         msg = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -357,7 +356,7 @@ class TestConnectionHandler:
             "value": 42,
         }
         await z._zmq_handle_message(MockVehicle(), msg)
-        assert z._zmq_pending_fields["sender"]["myfield"] == 42
+        assert z._zmq_received_fields["sender"]["myfield"] == 42
         assert event.is_set()
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
@@ -374,7 +373,7 @@ class TestConnectionHandler:
 
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
-        # No entry in _zmq_pending_fields for "stranger"
+        # No entry in _zmq_received_fields for "stranger"
 
         msg = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -384,7 +383,7 @@ class TestConnectionHandler:
             "value": "hello",
         }
         await z._zmq_handle_message(MockVehicle(), msg)
-        assert z._zmq_pending_fields["stranger"]["data"] == "hello"
+        assert z._zmq_received_fields["stranger"]["data"] == "hello"
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 
@@ -461,7 +460,7 @@ class TestConnectionHandler:
 
         async def _inject_reply():
             # Wait until query_field has registered its Event
-            while "responder" not in z._zmq_pending_fields or "altitude" not in z._zmq_pending_fields.get("responder", {}):
+            while "responder" not in z._zmq_received_fields or "altitude" not in z._zmq_received_fields.get("responder", {}):
                 await asyncio.sleep(0.005)
             reply = {
                 "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -478,7 +477,7 @@ class TestConnectionHandler:
             timeout=2.0,
         )
         assert result == 100.0
-        assert "altitude" not in z._zmq_pending_fields["responder"]
+        assert "altitude" not in z._zmq_received_fields["responder"]
         await task
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
@@ -532,13 +531,8 @@ class TestConnectionHandler:
 
     @pytest.mark.asyncio
     async def test_times_out_without_telemetry_ticks(self):
-        handler = ConnectionHandler(
-            MockVehicle(),
-            heartbeat_timeout=0.1,
-            start_delay=0.0,
-        )
-        monitor = handler.start()
-        disconnect_future = handler.get_disconnect_future()
+        vehicle = MockVehicle()
+        disconnect_future = vehicle.watch_disconnect(0.1)
 
         done, _ = await asyncio.wait(
             [disconnect_future],
@@ -547,11 +541,3 @@ class TestConnectionHandler:
         )
         assert disconnect_future in done
         assert isinstance(disconnect_future.exception(), HeartbeatLostError)
-
-        handler.stop()
-        if not monitor.done():
-            monitor.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await monitor
-        else:
-            await monitor

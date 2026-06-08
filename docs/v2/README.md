@@ -451,7 +451,7 @@ Short per-module pages (mirroring [v1 module docs](../v1/)):
 * [geofence](geofence.md) — KML polygons, point-in-polygon, segment intersection
 * [log](log.md) — v2 `LogComponent` and logging helpers
 * [plan](plan.md) — QGroundControl `.plan` parsing
-* [protocols](protocols.md) — `Protocol` types for tests and `ConnectionHandler`
+* [protocols](protocols.md) — `Protocol` types for tests and disconnect monitoring
 * [runner](runner.md) — `BasicRunner`, `StateMachine`, `ZmqStateMachine`, decorators, config
 * [safety](safety.md) — validation, `SafetyCheckerClient`, CLI wiring
 * [testing](testing.md) — `MockVehicle` and test helpers

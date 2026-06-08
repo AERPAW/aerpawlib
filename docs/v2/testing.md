@@ -1,6 +1,6 @@
 ## Overview
 
-Small test helpers for v2. Primarily exposes `MockVehicle`, a minimal vehicle stand-in with configurable position, home, armed, and connected flags, plus static `Battery` and `GPSInfo` for unit tests of runner logic that does not need a real vehicle.
+Small test helpers for v2. Primarily exposes `MockVehicle`, a `VehicleProtocol`-complete stand-in backed by `VehicleState` and `ConnectionState`, with configurable position, home, armed, and connected flags for unit tests of runner logic that does not need a real vehicle.
 
 ### Behavior notes
 - The mock is intentionally incomplete compared to a real `Vehicle`; do not use it to validate MAVLink behavior, only to exercise control flow in your own classes.

@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
@@ -27,11 +28,20 @@ class GPSProtocol(Protocol):
 
 @runtime_checkable
 class VehicleProtocol(Protocol):
-    """Protocol for vehicle-like objects (ConnectionHandler dependency)."""
+    """Protocol for vehicle-like objects (connection monitor and safety checks)."""
 
     @property
     def connected(self) -> bool:
         """Return whether the vehicle connection is active."""
+        ...
+
+    @property
+    def closed(self) -> bool:
+        """Return whether the vehicle session has been closed."""
+        ...
+
+    def watch_disconnect(self, timeout: float) -> asyncio.Future:
+        """Return a Future completed when the connection is lost."""
         ...
 
     @property

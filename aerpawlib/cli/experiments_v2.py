@@ -142,14 +142,11 @@ def run_v2_experiment(
             raise ConnectionError(f"Could not connect: {e}") from e
 
         shutdown_event = asyncio.Event()
-        _conn_handler_ref: list = [None]
 
         def handle_shutdown() -> None:
             """Initiate graceful shutdown from signal handlers or disconnects."""
             logger.warning("Initiating graceful shutdown...")
             shutdown_event.set()
-            if _conn_handler_ref[0] is not None:
-                _conn_handler_ref[0].stop()
             if vehicle:
                 vehicle.close()
 
@@ -174,21 +171,13 @@ def run_v2_experiment(
                 event_log.log_event("connection_lost")
 
         try:
-            from aerpawlib.v2.safety.connection import (
-                ConnectionHandler,
-                setup_signal_handlers,
-            )
+            from aerpawlib.v2.safety.connection import setup_signal_handlers
 
             loop = asyncio.get_running_loop()
-            conn_handler = ConnectionHandler(
-                vehicle,
-                heartbeat_timeout=args.heartbeat_timeout,
+            disconnect_future = vehicle.watch_disconnect(
+                args.heartbeat_timeout,
                 on_disconnect=_on_disconnect,
             )
-            _conn_handler_ref[0] = conn_handler
-            vehicle.set_heartbeat_tick_callback(conn_handler.heartbeat_tick)
-            conn_handler.start()
-            disconnect_future = conn_handler.get_disconnect_future()
             setup_signal_handlers(
                 loop,
                 on_sigint=handle_shutdown,

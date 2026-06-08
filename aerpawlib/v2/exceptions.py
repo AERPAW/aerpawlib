@@ -145,6 +145,10 @@ class LandingError(CommandError):
         super().__init__(f"Landing failed: {reason}", code="LANDING_ERROR", **kwargs)
 
 
+class TaskCancelledError(CommandError):
+    """Raised when a non-blocking VehicleTask is cancelled."""
+
+
 class NavigationError(CommandError):
     """Raised when navigation to a target cannot be completed."""
 
