@@ -119,7 +119,7 @@ To support multi-vehicle state machine execution, you can run a central ZMQ prox
 This standalone command launches the ZMQ XSUB/XPUB message broker on fixed ports 5570 (inbound) and 5571 (outbound). Start this proxy in a separate terminal process before running any coordinate-sharing scripts.
 
 ```bash
-aerpawlib-run-proxy [--api-version v1|v2]
+aerpawlib-run-proxy
 ```
 
 ### `--zmq-identifier`
