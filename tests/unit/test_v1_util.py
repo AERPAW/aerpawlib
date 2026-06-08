@@ -277,7 +277,7 @@ class TestCoordinate:
         with pytest.raises(TypeError):
             Coordinate(0, 0, 0) - 99
 
-    def test_to_json_and_toJson_equivalent(self):  # noqa: N802
+    def test_to_json_and_toJson_equivalent(self):
         c = Coordinate(35.7274, -78.6960, 100.0)
         j1 = json.loads(c.to_json())
         j2 = json.loads(c.toJson())
@@ -539,7 +539,7 @@ class TestGeofence:
         # Q lies beyond the segment
         assert lies_on_segment(0, 0, 15, 15, 10, 10) is False
 
-    def test_liesOnSegment_alias(self):  # noqa: N802
+    def test_liesOnSegment_alias(self):
         """liesOnSegment is an alias for lies_on_segment."""
         assert liesOnSegment(0, 0, 5, 5, 10, 10) == lies_on_segment(0, 0, 5, 5, 10, 10)
 
@@ -553,7 +553,7 @@ class TestGeofence:
         # Collinear but no overlap
         assert do_intersect(0, 0, 1, 0, 2, 0, 3, 0) is False
 
-    def test_doIntersect_alias(self):  # noqa: N802
+    def test_doIntersect_alias(self):
         """doIntersect is an alias for do_intersect."""
         assert doIntersect(0, 0, 10, 10, 0, 10, 10, 0) == do_intersect(
             0,
@@ -567,7 +567,7 @@ class TestGeofence:
         )
 
     def test_inside_on_boundary_behaviour(self):
-        """Point on the boundary – result can be True or False, just must not crash."""
+        """Point on the boundary - result can be True or False, just must not crash."""
         fence = [
             {"lon": 0, "lat": 0},
             {"lon": 0, "lat": 10},

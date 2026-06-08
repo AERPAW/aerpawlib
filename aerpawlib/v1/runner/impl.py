@@ -13,7 +13,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import traceback
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import zmq
 import zmq.asyncio
@@ -187,10 +188,10 @@ class StateMachine(Runner):
             future = asyncio.ensure_future(_task_runner())
             self._background_task_futures.append(future)
 
-    async def run(  # noqa: FBT001, FBT002
+    async def run(
         self,
         vehicle: Vehicle,
-        build_before_running: bool = True,  # noqa: FBT001, FBT002
+        build_before_running: bool = True,
     ) -> None:
         """
         Execute the state machine logic.
@@ -382,10 +383,10 @@ class ZmqStateMachine(StateMachine):
         finally:
             socket.close()
 
-    async def run(  # noqa: FBT001, FBT002
+    async def run(
         self,
         vehicle: Vehicle,
-        zmq_proxy: bool = False,  # noqa: FBT001, FBT002
+        zmq_proxy: bool = False,
     ) -> None:
         self._build()
 

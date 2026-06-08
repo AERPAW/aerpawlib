@@ -7,4 +7,4 @@ from .drone import Drone
 from .dummy_vehicle import DummyVehicle
 from .rover import Rover
 
-__all__ = ["Vehicle", "DummyVehicle", "Drone", "Rover"]
+__all__ = ["Drone", "DummyVehicle", "Rover", "Vehicle"]

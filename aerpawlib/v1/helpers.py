@@ -8,7 +8,8 @@ import asyncio
 import math
 import threading
 import time
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from .constants import (
     MAX_POSITION_TOLERANCE_M,

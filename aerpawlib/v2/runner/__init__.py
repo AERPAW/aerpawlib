@@ -27,9 +27,13 @@ from .impl import (
 )
 
 __all__ = [
+    "BasicRunner",
     "BasicRunnerConfig",
+    "Runner",
+    "StateMachine",
     "StateMachineConfig",
     "StateSpec",
+    "ZmqStateMachine",
     "ZmqStateMachineConfig",
     "at_init",
     "background",
@@ -38,8 +42,4 @@ __all__ = [
     "expose_zmq",
     "state",
     "timed_state",
-    "BasicRunner",
-    "Runner",
-    "StateMachine",
-    "ZmqStateMachine",
 ]

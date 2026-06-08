@@ -11,7 +11,8 @@ import asyncio
 import contextlib
 import signal
 import time
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from aerpawlib.v2.constants import (
     HEARTBEAT_CHECK_INTERVAL_S,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from aerpawlib.v2.constants import (
     DEFAULT_MAV_UDP_PORT,

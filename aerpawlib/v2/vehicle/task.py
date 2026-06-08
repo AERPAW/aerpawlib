@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable
+from collections.abc import Callable
 
 from aerpawlib.v2.log import LogComponent, get_logger
 

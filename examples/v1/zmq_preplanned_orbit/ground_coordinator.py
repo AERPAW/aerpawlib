@@ -16,6 +16,7 @@ we transition their state from the central controller.
 
 import asyncio
 from argparse import ArgumentParser
+from typing import ClassVar
 
 from consts import ZMQ_ORBITER, ZMQ_TRACER
 
@@ -28,7 +29,7 @@ from aerpawlib.v1.util import Coordinate, read_from_plan_complete
 
 
 class GroundCoordinatorRunner(ZmqStateMachine):
-    _waypoints = []
+    _waypoints: ClassVar[list] = []
     _current_waypoint: int = 0
 
     def initialize_args(self, extra_args: list[str]):

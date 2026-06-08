@@ -8,7 +8,7 @@ import datetime
 import logging
 import sys
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 
 class LogLevel(Enum):
@@ -58,7 +58,7 @@ def _component_name(component: object) -> str:
 class ColoredFormatter(logging.Formatter):
     """Colored console formatter matching aerpawlib's standard format."""
 
-    COLORS = {
+    COLORS: ClassVar[dict[int, str]] = {
         logging.DEBUG: "\033[36m",  # Cyan
         logging.INFO: "\033[32m",  # Green
         logging.WARNING: "\033[33m",  # Yellow
@@ -72,7 +72,7 @@ class ColoredFormatter(logging.Formatter):
         self,
         fmt: str | None = None,
         datefmt: str | None = None,
-        use_colors: bool = True,  # noqa: FBT001, FBT002
+        use_colors: bool = True,
     ):
         super().__init__(fmt, datefmt)
         self.use_colors = use_colors and sys.stdout.isatty()
@@ -117,7 +117,7 @@ _default_format = "[%(name)s] %(message)s"
 def configure_logging(
     level: LogLevel | str | int = LogLevel.INFO,
     format_str: str | None = None,
-    use_colors: bool = True,  # noqa: FBT001, FBT002
+    use_colors: bool = True,
     log_file: str | None = None,
     root_name: str = "aerpawlib",
 ) -> None:
@@ -194,9 +194,9 @@ def set_level(
 
 
 __all__ = [
-    "LogLevel",
-    "LogComponent",
     "ColoredFormatter",
+    "LogComponent",
+    "LogLevel",
     "configure_logging",
     "get_logger",
     "set_level",

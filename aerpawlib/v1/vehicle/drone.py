@@ -101,8 +101,8 @@ class Drone(Vehicle):
     async def set_heading(
         self,
         heading: float | None,
-        blocking: bool = True,  # noqa: FBT001, FBT002
-        lock_in: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
+        lock_in: bool = True,
     ) -> None:
         """
         Command the drone to turn to a specific heading.
@@ -224,7 +224,7 @@ class Drone(Vehicle):
             await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)
         except ActionError as e:
             logger.error(f"Takeoff failed: {e}")
-            raise TakeoffError(str(e), original_error=e)
+            raise TakeoffError(str(e), original_error=e) from e
 
     async def _action_wait_disarm(self, coro, name, exc_cls):
         """
@@ -248,7 +248,7 @@ class Drone(Vehicle):
             logger.debug(f"{name} complete")
         except ActionError as e:
             logger.error(f"{name} failed: {e}")
-            raise exc_cls(str(e), original_error=e)
+            raise exc_cls(str(e), original_error=e) from e
 
     async def land(self) -> None:
         """Land the drone and wait for it to be disarmed."""
@@ -265,7 +265,7 @@ class Drone(Vehicle):
             await self.land()
         except (NavigationError, LandingError) as e:
             logger.error(f"Return-to-launch failed: {e}")
-            raise RTLError(str(e), original_error=e)
+            raise RTLError(str(e), original_error=e) from e
 
     async def goto_coordinates(
         self,
@@ -336,10 +336,10 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
             self._ready_to_move = lambda _: True
-            raise NavigationError(str(e), original_error=e)
+            raise NavigationError(str(e), original_error=e) from e
         except TimeoutError as e:
             logger.error(f"Goto timed out: {e}")
-            raise NavigationError(str(e), original_error=e)
+            raise NavigationError(str(e), original_error=e) from e
         finally:
             # Clear locked heading so it does not contaminate subsequent commands
             self._current_heading = None
@@ -347,7 +347,7 @@ class Drone(Vehicle):
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,  # noqa: FBT001, FBT002
+        global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
         """
@@ -450,7 +450,7 @@ class Drone(Vehicle):
             task = asyncio.create_task(_velocity_helper())
             self._command_tasks.append(task)
         except (OffboardError, ActionError) as e:
-            raise VelocityError(str(e), original_error=e)
+            raise VelocityError(str(e), original_error=e) from e
 
     async def _stop(self) -> None:
         """Stop drone-specific offboard control during shutdown."""

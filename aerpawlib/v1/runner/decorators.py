@@ -10,8 +10,9 @@ runner construction logic inspects (for example, ``StateMachine._build()``).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from aerpawlib.v1.constants import STATE_MACHINE_DELAY_S
 from aerpawlib.v1.exceptions import (
@@ -62,7 +63,7 @@ class _State:
         """
         if getattr(self._func, "_state_type", None) == _StateType.STANDARD:
             # this is cursed
-            return await self._func.__func__(runner, vehicle)  # noqa
+            return await self._func.__func__(runner, vehicle)
         if getattr(self._func, "_state_type", None) == _StateType.TIMED:
             running = True
 
@@ -71,17 +72,17 @@ class _State:
                 nonlocal running
                 last_state: str | None = None
                 while running:
-                    last_state = await self._func.__func__(runner, vehicle)  # noqa
+                    last_state = await self._func.__func__(runner, vehicle)
                     if not running:
                         break
-                    if not self._func._state_loop:  # noqa
+                    if not self._func._state_loop:
                         running = False
                         break
                     await asyncio.sleep(STATE_MACHINE_DELAY_S)
                 return last_state
 
             r = asyncio.ensure_future(_bg())
-            await asyncio.sleep(self._func._state_duration)  # noqa
+            await asyncio.sleep(self._func._state_duration)
             running = False
             return await r
         return None
@@ -98,9 +99,9 @@ def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
     return func
 
 
-def state(  # noqa: FBT001, FBT002
+def state(
     name: str,
-    first: bool = False,  # noqa: FBT001, FBT002
+    first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator to specify a state in a StateMachine.
@@ -138,8 +139,8 @@ def state(  # noqa: FBT001, FBT002
 def timed_state(
     name: str,
     duration: float,
-    loop: bool = False,  # noqa: FBT001, FBT002
-    first: bool = False,  # noqa: FBT001, FBT002
+    loop: bool = False,
+    first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
     """
     Decorator for a state that runs for a fixed duration.

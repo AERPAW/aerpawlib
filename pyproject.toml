@@ -12,7 +12,7 @@ authors = [
     {name = "John Kesler", email = "jckesle2@ncsu.edu"},
     {name = "Julian Reder", email = "jjreder@ncsu.edu"},
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -20,7 +20,6 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -36,12 +35,6 @@ dependencies = [
     "pyzmq>=25.0.0",
     "pykml>=0.2.0",
     "shapely>=2.0.0",
-    # V2 dependencies (MAVSDK-based, default)
-    "mavsdk>=2.0.0",
-    "aiohttp>=3.12.14",
-    "dronekit>=2.9.2",
-    "pymavlink>=2.4.0",
-    "pyserial>=3.5",
     "requests>=2.32.4",
     "pyyaml>=6.0",
 ]
@@ -52,7 +45,6 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "psutil>=5.9.0",
     "pdoc>=15.0.0",
-    "aerpawlib[sitl]",
 ]
 docs = [
     "pdoc>=15.0.0",
@@ -65,8 +57,31 @@ sitl = [
     "dronecan>=1.0.0",
     "future>=1.0.0",
 ]
+v1 = [
+    "dronekit>=2.9.2",
+    "pymavlink>=2.4.0",
+    "pyserial>=3.5",
+]
+v2 = [
+    "mavsdk>=2.0.0",
+    "aiohttp>=3.12.14",
+]
 all = [
-    "aerpawlib[dev]",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "psutil>=5.9.0",
+    "pdoc>=15.0.0",
+    "msgspec>=0.18.0",
+    "empy<4.0.0",
+    "pexpect>=4.8.0",
+    "MAVProxy>=1.8.0",
+    "dronecan>=1.0.0",
+    "future>=1.0.0",
+    "dronekit>=2.9.2",
+    "pymavlink>=2.4.0",
+    "pyserial>=3.5",
+    "mavsdk>=2.0.0",
+    "aiohttp>=3.12.14",
 ]
 
 [project.urls]
@@ -81,6 +96,9 @@ aerpawlib-setup-sitl = "scripts.setup_sitl:main"
 aerpawlib-run-example = "scripts.run_example:main"
 aerpawlib-generate-pdoc = "scripts.generate_pdoc:main"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 include = ["aerpawlib*", "scripts*"]
 
@@ -91,27 +109,66 @@ aerpawlib = ["*.yaml", "*.kml", "*.plan"]
 source = ["aerpawlib"]
 omit = ["*/test/*", "*/__pycache__/*"]
 
-[tool.ruff.lint]
-extend-select = [
-    "F",        # Pyflakes rules
-    "W",        # PyCodeStyle warnings
-    "E",        # PyCodeStyle errors
-    "I",        # Sort imports properly
-    "UP",       # Warn if certain things can changed due to newer Python versions
-    "C4",       # Catch incorrect use of comprehensions, dict, list, etc
-    "FA",       # Enforce from __future__ import annotations
-    "ISC",      # Good use of string concatenation
-    "ICN",      # Use common import conventions
-    "RET",      # Good return practices
-    "SIM",      # Common simplification rules
-    "TID",      # Some good import practices
-    "TC",       # Enforce importing certain types in a TYPE_CHECKING block
-    "PTH",      # Use pathlib instead of os.path
-    "TD",       # Be diligent with TODO comments
-    "COM", # enforce trailing comma rules
-    "DTZ", # require strict timezone manipulation with datetime
-    "FBT", # detect boolean traps
-    "N",   # enforce naming conventions, e.g. ClassName vs function_name
+[tool.ruff]
+# Exclude a variety of common directories.
+exclude = [
+    ".git",
+    ".git-rewrite",
+    ".mypy_cache",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
 ]
-ignore = ["COM812"] # Ruff is complaining that this is causing conflicts,
-# so we disable it to be safe
+
+# Set a very large line length to prevent line-wrapping by the formatter.
+line-length = 320
+
+# Python 3.10
+target-version = "py310"
+
+[tool.ruff.lint]
+# Select rules to enforce.
+# We include standard rules (E, F, W) as well as isort (I) and bugbear (B)
+# which are standard, high-signal linters for modern Python code.
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (syntax, undefined names, etc.)
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear (common bugs and design issues)
+    "UP",  # pyupgrade (modern Python syntax upgrades)
+    "RUF", # Ruff-specific rules
+]
+
+# List of rules to ignore globally.
+ignore = [
+    "E501", # Line too long (no line length limit)
+    "W191", # Indentation contains tabs
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+# Ignore module-level import not at top of file (E402) in test files.
+"**/test_*.py" = ["E402"]
+# Ignore unused imports (F401) in init files.
+"__init__.py" = ["F401"]
+
+[tool.ruff.format]
+# Configure the formatter to match Black's settings, but with 120 line length.
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

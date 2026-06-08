@@ -53,7 +53,7 @@ class TestWaitForCondition:
             await asyncio.sleep(0.05)
             state["val"] = 42
 
-        asyncio.create_task(setter())
+        task = asyncio.create_task(setter())
         result = await wait_for_value_change(
             lambda: state["val"],
             42,
@@ -61,6 +61,7 @@ class TestWaitForCondition:
             poll_interval=0.01,
         )
         assert result == 42
+        await task
 
     @pytest.mark.asyncio
     async def test_no_timeout_condition_met_quickly(self):
@@ -115,7 +116,7 @@ class TestWaitForCondition:
             await asyncio.sleep(0.02)
             val[0] = 7
 
-        asyncio.create_task(setter())
+        task = asyncio.create_task(setter())
         result = await wait_for_value_change(
             lambda: val[0],
             7,
@@ -123,6 +124,7 @@ class TestWaitForCondition:
             poll_interval=0.005,
         )
         assert result == 7
+        await task
 
     @pytest.mark.asyncio
     async def test_works_with_none_target(self):
@@ -132,7 +134,7 @@ class TestWaitForCondition:
             await asyncio.sleep(0.02)
             val[0] = None
 
-        asyncio.create_task(setter())
+        task = asyncio.create_task(setter())
         result = await wait_for_value_change(
             lambda: val[0],
             None,
@@ -140,6 +142,7 @@ class TestWaitForCondition:
             poll_interval=0.005,
         )
         assert result is None
+        await task
 
 
 class TestValidateTolerance:

@@ -10,7 +10,8 @@ import asyncio
 import json
 import math
 import time
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from mavsdk import System
 from mavsdk.action import ActionError
@@ -362,12 +363,12 @@ class Vehicle:
 
         try:
             await asyncio.wait_for(_wait_for_heartbeat(), timeout=timeout)
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
             logger.error(f"Connection timeout: no heartbeat within {timeout}s")
             raise ConnectionTimeoutError(
                 timeout,
                 "Connection established but no heartbeat within timeout",
-            )
+            ) from e
 
         # Create instance and start telemetry
         self = cls(
@@ -679,11 +680,12 @@ class Vehicle:
         if not self._aerpaw_platform:
             logger.warning("AERPAW safety pilot arm called but no platform available")
             return
-        asyncio.create_task(
+        task = asyncio.create_task(
             self._aerpaw_platform.log_to_oeo_async(
                 "[aerpawlib] Guided command attempted. Waiting for safety pilot to arm",
             ),
         )
+        self._command_tasks.append(task)
         logger.info("Waiting for safety pilot to arm vehicle...")
         await _wait_for_condition(
             lambda: self._state.armable,
@@ -739,7 +741,7 @@ class Vehicle:
             await asyncio.sleep(POLLING_DELAY_S)
         logger.debug("await_ready_to_move: vehicle ready")
 
-    async def set_armed(self, value: bool) -> None:  # noqa: FBT001
+    async def set_armed(self, value: bool) -> None:
         """
         Arm or disarm the vehicle.
 
@@ -772,8 +774,8 @@ class Vehicle:
             )
         except ActionError as e:
             if value:
-                raise ArmError(str(e), original_error=e)
-            raise DisarmError(str(e), original_error=e)
+                raise ArmError(str(e), original_error=e) from e
+            raise DisarmError(str(e), original_error=e) from e
         finally:
             if not value:
                 self._expecting_disarm = False

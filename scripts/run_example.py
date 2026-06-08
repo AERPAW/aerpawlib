@@ -123,7 +123,7 @@ def start_sitl(
     else:
         # Use a real file rather than DEVNULL: pexpect inside sim_vehicle.py
         # calls isatty() and misbehaves when stdout is /dev/null.
-        _log_file = log_path.open("w")  # noqa: SIM115
+        _log_file = log_path.open("w")
         stdout_target = _log_file
         stderr_target = subprocess.STDOUT
         print(f"  SITL log: {log_path}  (set SITL_VERBOSE=1 to stream to terminal)")
@@ -163,13 +163,13 @@ def start_sitl(
 
                 # Attempt to read data. If SITL is running, it will be sending
                 # heartbeats.
-                data, addr = s.recvfrom(1024)
+                _data, _addr = s.recvfrom(1024)
 
                 # If we get past recvfrom without a timeout, data has arrived!
                 server_ready = True
                 break
 
-            except socket.timeout:
+            except TimeoutError:
                 # No data received within 1 second. Loop will repeat.
                 pass
             except OSError:
@@ -294,19 +294,7 @@ def main() -> None:
     try:
         sitl_proc = start_sitl(sitl_vehicle, port, instance, args.speedup)
 
-        aerpawlib_cmd = [
-            sys.executable,
-            "-m",
-            "aerpawlib",
-            "--script",
-            args.script,
-            "--vehicle",
-            args.vehicle,
-            "--conn",
-            conn_str,
-            "--api-version",
-            args.api_version,
-        ] + extra_args
+        aerpawlib_cmd = [sys.executable, "-m", "aerpawlib", "--script", args.script, "--vehicle", args.vehicle, "--conn", conn_str, "--api-version", args.api_version, *extra_args]
 
         print("Running aerpawlib script...")
         print(f"  Running aerpawlib with command: {' '.join(aerpawlib_cmd)}\n")

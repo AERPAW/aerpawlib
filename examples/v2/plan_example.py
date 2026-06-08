@@ -29,9 +29,9 @@ class PlanMission(BasicRunner):
         waypoints = read_from_plan(plan_path)
         print(f"[example] Loaded {len(waypoints)} waypoints")
 
-        for i, wp in enumerate(waypoints):
+        for _i, wp in enumerate(waypoints):
             coord = get_location_from_waypoint(wp)
-            command, x, y, z, wp_id, speed = wp
+            command, _x, _y, z, _wp_id, _speed = wp
             if command == PLAN_CMD_TAKEOFF:
                 await drone.takeoff(altitude=z)
             elif command == PLAN_CMD_WAYPOINT:

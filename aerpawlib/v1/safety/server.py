@@ -22,8 +22,9 @@ from __future__ import annotations
 
 import json
 from argparse import ArgumentParser
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, ClassVar
 
 import yaml
 import zmq
@@ -62,15 +63,15 @@ class SafetyCheckerServer:
         takeoff_location: The location where takeoff was performed.
     """
 
-    VEHICLE_TYPES = ["rover", "copter"]
-    REQUIRED_PARAMS = [
+    VEHICLE_TYPES: ClassVar[list[str]] = ["rover", "copter"]
+    REQUIRED_PARAMS: ClassVar[list[str]] = [
         "vehicle_type",
         "max_speed",
         "min_speed",
         "include_geofences",
         "exclude_geofences",
     ]
-    REQUIRED_COPTER_PARAMS = ["max_alt", "min_alt"]
+    REQUIRED_COPTER_PARAMS: ClassVar[list[str]] = ["max_alt", "min_alt"]
 
     def __init__(
         self,
@@ -514,48 +515,12 @@ def main_cli() -> None:
 
 
 # Backward-compatible camelCase aliases.
-setattr(
-    SafetyCheckerServer,
-    "validateWaypointCommand",
-    SafetyCheckerServer.validate_waypoint_command,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateChangeSpeedCommand",
-    SafetyCheckerServer.validate_change_speed_command,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateTakeoffCommand",
-    SafetyCheckerServer.validate_takeoff_command,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateLandingCommand",
-    SafetyCheckerServer.validate_landing_command,
-)
-setattr(
-    SafetyCheckerServer,
-    "serverStatusHandler",
-    SafetyCheckerServer.server_status_handler,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateWaypointHandler",
-    SafetyCheckerServer.validate_waypoint_handler,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateChangeSpeedHandler",
-    SafetyCheckerServer.validate_change_speed_handler,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateTakeoffHandler",
-    SafetyCheckerServer.validate_takeoff_handler,
-)
-setattr(
-    SafetyCheckerServer,
-    "validateLandingHandler",
-    SafetyCheckerServer.validate_landing_handler,
-)
+SafetyCheckerServer.validateWaypointCommand = SafetyCheckerServer.validate_waypoint_command
+SafetyCheckerServer.validateChangeSpeedCommand = SafetyCheckerServer.validate_change_speed_command
+SafetyCheckerServer.validateTakeoffCommand = SafetyCheckerServer.validate_takeoff_command
+SafetyCheckerServer.validateLandingCommand = SafetyCheckerServer.validate_landing_command
+SafetyCheckerServer.serverStatusHandler = SafetyCheckerServer.server_status_handler
+SafetyCheckerServer.validateWaypointHandler = SafetyCheckerServer.validate_waypoint_handler
+SafetyCheckerServer.validateChangeSpeedHandler = SafetyCheckerServer.validate_change_speed_handler
+SafetyCheckerServer.validateTakeoffHandler = SafetyCheckerServer.validate_takeoff_handler
+SafetyCheckerServer.validateLandingHandler = SafetyCheckerServer.validate_landing_handler

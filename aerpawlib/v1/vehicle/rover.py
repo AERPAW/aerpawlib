@@ -153,7 +153,7 @@ class Rover(Vehicle):
             time.sleep(POLLING_DELAY_S)
         logger.info(f"Rover: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 
-    def _preflight_wait(self, should_arm: bool) -> None:  # noqa: FBT001
+    def _preflight_wait(self, should_arm: bool) -> None:
         """Wait for pre-arm conditions, setting GUIDED mode first."""
         self._set_guided_mode()
         super()._preflight_wait(should_arm)
@@ -222,15 +222,15 @@ class Rover(Vehicle):
             )
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
-            raise NavigationError(str(e), original_error=e)
+            raise NavigationError(str(e), original_error=e) from e
         except TimeoutError as e:
             logger.error(f"Goto timed out: {e}")
-            raise NavigationError(str(e), original_error=e)
+            raise NavigationError(str(e), original_error=e) from e
 
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,  # noqa: FBT001, FBT002
+        global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
         """Set rover velocity using MAVSDK offboard mode.
@@ -326,4 +326,4 @@ class Rover(Vehicle):
             self._command_tasks.append(task)
 
         except (OffboardError, ActionError) as e:
-            raise VelocityError(str(e), original_error=e)
+            raise VelocityError(str(e), original_error=e) from e

@@ -1,6 +1,6 @@
 # aerpawlib
 
-![Python Version](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Unit Tests](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml/badge.svg)](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml)
 

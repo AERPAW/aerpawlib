@@ -7,8 +7,8 @@ from .connection import ConnectionHandler
 from .validation import PreflightChecks
 
 __all__ = [
-    "NoOpSafetyChecker",
-    "SafetyCheckerClient",
     "ConnectionHandler",
+    "NoOpSafetyChecker",
     "PreflightChecks",
+    "SafetyCheckerClient",
 ]

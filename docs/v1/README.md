@@ -27,7 +27,7 @@ This guide will take you through all the steps needed to get a basic aerpawlib d
 
 Before installing aerpawlib, there are a few dependencies that you need to grab:
 
-* `python` -- versions between 3.9 and 3.14 are supported
+* `python` -- versions between 3.10 and 3.14 are supported
 * `pip` -- should be bundled with python in most distributions
 
 To install aerpawlib:

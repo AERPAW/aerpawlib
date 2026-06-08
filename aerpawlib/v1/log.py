@@ -87,9 +87,9 @@ def set_level(
 
 
 __all__ = [
+    "ColoredFormatter",
     "LogComponent",
     "LogLevel",
-    "ColoredFormatter",
     "configure_logging",
     "get_logger",
     "set_level",

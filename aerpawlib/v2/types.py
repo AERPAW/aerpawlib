@@ -45,7 +45,7 @@ class VectorNED:
 
     def hypot(
         self,
-        ignore_down: bool = False,  # noqa: FBT001, FBT002
+        ignore_down: bool = False,
     ) -> float:
         """Return the magnitude of the vector in meters.
 
@@ -71,7 +71,7 @@ class VectorNED:
         return VectorNED(self.north / h, self.east / h, self.down / h)
 
     def cross_product(self, other: VectorNED) -> VectorNED:
-        """Return the cross product of self and other (self × other).
+        """Return the cross product of self and other (self x other).
 
         Args:
             other: The right-hand operand.
@@ -162,7 +162,7 @@ class Coordinate:
     def bearing(
         self,
         other: Coordinate,
-        wrap_360: bool = True,  # noqa: FBT001, FBT002
+        wrap_360: bool = True,
     ) -> float:
         """Return the bearing from this coordinate to another in degrees.
 

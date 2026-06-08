@@ -25,7 +25,7 @@ class _BatteryCompat:
         level: Battery level as percentage (0-100)
     """
 
-    __slots__ = ("voltage", "current", "level")
+    __slots__ = ("current", "level", "voltage")
 
     def __init__(self):
         self.voltage: float = 0.0

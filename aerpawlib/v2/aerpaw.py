@@ -309,10 +309,10 @@ class AerpawPlatform:
         response_content = response.content.decode()
         try:
             return int(response_content)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
             raise Exception(
                 f"malformed content in response from server: {response_content}",
-            )
+            ) from e
 
     def checkpoint_set_string(self, string_name: str, value: str) -> None:
         """

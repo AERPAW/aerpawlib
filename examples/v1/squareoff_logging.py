@@ -39,7 +39,7 @@ import datetime
 import os
 import time
 from argparse import ArgumentParser
-from typing import TextIO
+from typing import ClassVar, TextIO
 
 from aerpawlib.v1.runner import StateMachine, background, state, timed_state
 from aerpawlib.v1.util import VectorNED
@@ -56,7 +56,7 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
     pos = vehicle.position
     lat, lon, alt = pos.lat, pos.lon, pos.alt
     volt = vehicle.battery.voltage
-    timestamp = datetime.datetime.now()  # noqa
+    timestamp = datetime.datetime.now()
     gps = vehicle.gps
     fix, num_sat = gps.fix_type, gps.satellites_visible
     if fix < 2:
@@ -93,7 +93,7 @@ class SquareOff(StateMachine):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
         default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"  # noqa
+            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
         )
 
         parser = ArgumentParser()
@@ -113,7 +113,7 @@ class SquareOff(StateMachine):
         args = parser.parse_args(args=extra_args)
 
         self._sampling_delay = 1 / args.samplerate
-        self._log_file = open(args.output, "a+")  # noqa
+        self._log_file = open(args.output, "a+")
         self._log_file.seek(0)
         self._cur_line = sum(1 for _ in self._log_file) + 1
         self._log_file.seek(0, 2)  # Seek back to end for appending
@@ -124,7 +124,7 @@ class SquareOff(StateMachine):
         # background task that (using a timer) periodically dumps vehicle status
         # into a provided file
         self._next_sample = time.time() + self._sampling_delay
-        _dump_to_csv(vehicle, self._cur_line, self._csv_writer)  # noqa
+        _dump_to_csv(vehicle, self._cur_line, self._csv_writer)
         self._log_file.flush()
         os.fsync(self._log_file.fileno())
         self._cur_line += 1
@@ -135,7 +135,7 @@ class SquareOff(StateMachine):
         # file objects/related
         self._log_file.close()
 
-    _legs = ["leg_north", "leg_west", "leg_south", "leg_east"]
+    _legs: ClassVar[list[str]] = ["leg_north", "leg_west", "leg_south", "leg_east"]
     _current_leg = 0
 
     @state(name="start", first=True)
@@ -168,7 +168,7 @@ class SquareOff(StateMachine):
         # if there are no more legs, complete the script
         return "finish"
 
-    async def command_leg(self, vehicle: Vehicle, dNorth: float, dEast: float):  # noqa
+    async def command_leg(self, vehicle: Vehicle, dNorth: float, dEast: float):
         # helper function to send a drone or rover to a specific position
         await vehicle.goto_coordinates(
             vehicle.position + VectorNED(dNorth, dEast),

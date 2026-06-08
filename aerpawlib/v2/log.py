@@ -85,8 +85,8 @@ def set_level(
 
 __all__ = [
     "LogComponent",
-    "get_logger",
-    "configure_logging",
-    "set_level",
     "LogLevel",
+    "configure_logging",
+    "get_logger",
+    "set_level",
 ]

@@ -108,11 +108,11 @@ class SafetyCheckerClient:
         try:
             self.socket.send(msg)
             raw_msg = self.socket.recv()
-        except zmq.Again:
+        except zmq.Again as e:
             self._reconnect()
             raise TimeoutError(
                 f"Safety checker server did not respond within {self._timeout_s}s",
-            )
+            ) from e
         message = deserialize_msg(raw_msg)
         logger.debug(f"Received reply [{message}]")
         return message
@@ -202,30 +202,10 @@ class SafetyCheckerClient:
 
 
 # Backward-compatible camelCase aliases.
-setattr(SafetyCheckerClient, "sendRequest", SafetyCheckerClient.send_request)
-setattr(SafetyCheckerClient, "parseResponse", SafetyCheckerClient.parse_response)
-setattr(
-    SafetyCheckerClient,
-    "checkServerStatus",
-    SafetyCheckerClient.check_server_status,
-)
-setattr(
-    SafetyCheckerClient,
-    "validateWaypointCommand",
-    SafetyCheckerClient.validate_waypoint_command,
-)
-setattr(
-    SafetyCheckerClient,
-    "validateChangeSpeedCommand",
-    SafetyCheckerClient.validate_change_speed_command,
-)
-setattr(
-    SafetyCheckerClient,
-    "validateTakeoffCommand",
-    SafetyCheckerClient.validate_takeoff_command,
-)
-setattr(
-    SafetyCheckerClient,
-    "validateLandingCommand",
-    SafetyCheckerClient.validate_landing_command,
-)
+SafetyCheckerClient.sendRequest = SafetyCheckerClient.send_request
+SafetyCheckerClient.parseResponse = SafetyCheckerClient.parse_response
+SafetyCheckerClient.checkServerStatus = SafetyCheckerClient.check_server_status
+SafetyCheckerClient.validateWaypointCommand = SafetyCheckerClient.validate_waypoint_command
+SafetyCheckerClient.validateChangeSpeedCommand = SafetyCheckerClient.validate_change_speed_command
+SafetyCheckerClient.validateTakeoffCommand = SafetyCheckerClient.validate_takeoff_command
+SafetyCheckerClient.validateLandingCommand = SafetyCheckerClient.validate_landing_command

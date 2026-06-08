@@ -163,7 +163,7 @@ class VehicleState:
         """Update GPS status.
 
         Args:
-            fix_type: MAVSDK GPS fix type integer (0–3+).
+            fix_type: MAVSDK GPS fix type integer (0-3+).
             satellites: Number of satellites visible.
         """
         self._gps = GPSInfo(fix_type, satellites)
@@ -174,7 +174,7 @@ class VehicleState:
         Args:
             voltage: Battery voltage in volts.
             current: Battery current draw in amperes.
-            level: Remaining charge as an integer percentage (0–100).
+            level: Remaining charge as an integer percentage (0-100).
         """
         self._battery = Battery(voltage, current, level)
 
@@ -186,7 +186,7 @@ class VehicleState:
         """
         self._mode = mode
 
-    def update_armed(self, armed: bool) -> None:  # noqa: FBT001
+    def update_armed(self, armed: bool) -> None:
         """Update the armed state and record arm timestamp on transition to armed.
 
         Args:
@@ -200,10 +200,10 @@ class VehicleState:
 
     def update_armable(
         self,
-        global_ok: bool,  # noqa: FBT001
-        local_ok: bool,  # noqa: FBT001
-        home_ok: bool,  # noqa: FBT001
-        armable: bool,  # noqa: FBT001
+        global_ok: bool,
+        local_ok: bool,
+        home_ok: bool,
+        armable: bool,
     ) -> None:
         """Update the armable flag from health telemetry.
 
@@ -219,7 +219,7 @@ class VehicleState:
         # (was ArduPilot-specific); EKF readiness is checked separately for takeoff.
         self._armable = global_ok and local_ok and home_ok and armable
 
-    def update_prearm_bits(self, ok: bool) -> None:  # noqa: FBT001
+    def update_prearm_bits(self, ok: bool) -> None:
         """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.
 
         Args:

@@ -265,7 +265,7 @@ class TestZmqStateMachine:
         z._initialize_zmq_bindings("myid", "127.0.0.1")
         assert z._zmq_identifier == "myid"
         assert z._zmq_proxy_server == "127.0.0.1"
-        # Send queue is created in run() when an event loop is running (Py3.9 compat).
+        # Send queue is created in run() when an event loop is running.
         assert z._zmq_send_queue is None
         assert z._zmq_pending_fields == {}
         # Clean up context so it doesn't leak
@@ -479,13 +479,14 @@ class TestConnectionHandler:
             }
             await z._zmq_handle_message(vehicle, reply)
 
-        asyncio.create_task(_inject_reply())
+        task = asyncio.create_task(_inject_reply())
         result = await asyncio.wait_for(
             z.query_field("responder", "altitude", timeout=1.0),
             timeout=2.0,
         )
         assert result == 100.0
         assert "altitude" not in z._zmq_pending_fields["responder"]
+        await task
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 

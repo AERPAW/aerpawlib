@@ -10,6 +10,7 @@ Usage:
 import argparse
 import asyncio
 import math
+from typing import ClassVar
 
 from aerpawlib.v1.runner import StateMachine, state
 from aerpawlib.v1.util import Coordinate, VectorNED
@@ -51,7 +52,7 @@ class Circle(StateMachine):
         return "circularize"
 
     _lap = 0
-    _previous_thetas = []
+    _previous_thetas: ClassVar[list] = []
     _prev_avg_theta = None
 
     @state(name="circularize")

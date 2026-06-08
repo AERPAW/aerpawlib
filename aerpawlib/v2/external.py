@@ -30,7 +30,7 @@ class ExternalProcess:
 
     async def start(self) -> None:
         """Start the process."""
-        cmd = [self._executable] + self._params
+        cmd = [self._executable, *self._params]
         stdin = asyncio.subprocess.PIPE if self._stdin is None else None
         stdout = asyncio.subprocess.PIPE if self._stdout is None else None
         self.process = await asyncio.create_subprocess_exec(

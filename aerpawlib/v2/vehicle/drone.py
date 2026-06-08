@@ -105,7 +105,7 @@ class Drone(Vehicle):
 
     async def _preflight_wait(
         self,
-        should_arm: bool = True,  # noqa: FBT001, FBT002
+        should_arm: bool = True,
     ) -> None:
         """Wait for pre-arm conditions. Call before run."""
         self._will_arm = should_arm
@@ -153,13 +153,13 @@ class Drone(Vehicle):
     async def set_heading(
         self,
         heading: float | None,
-        blocking: bool = True,  # noqa: FBT001, FBT002
-        lock_in: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
+        lock_in: bool = True,
     ) -> None:
         """Command the drone to face a given heading.
 
         Args:
-            heading: Target heading in degrees (0–360). Pass None to clear
+            heading: Target heading in degrees (0-360). Pass None to clear
                 the currently locked heading.
             blocking: If True (default), wait until the heading is reached
                 before returning.
@@ -267,7 +267,7 @@ class Drone(Vehicle):
                 )
         except ActionError as e:
             logger.error(f"Drone: takeoff failed: {e}")
-            raise TakeoffError(str(e), original_error=e)
+            raise TakeoffError(str(e), original_error=e) from e
 
     async def land(self) -> None:
         """Command the drone to land and wait for disarm.
@@ -294,7 +294,7 @@ class Drone(Vehicle):
                 self._event_log.log_event("land_complete")
         except (ActionError, TimeoutError) as e:
             logger.error(f"Drone: land failed: {e}")
-            raise LandingError(str(e), original_error=e)
+            raise LandingError(str(e), original_error=e) from e
         finally:
             self._expecting_disarm = False
 
@@ -316,7 +316,7 @@ class Drone(Vehicle):
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
-            raise RTLError(str(e), original_error=e)
+            raise RTLError(str(e), original_error=e) from e
 
     async def goto_coordinates(
         self,
@@ -324,7 +324,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Fly to the given coordinates.
 
@@ -394,7 +394,7 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")
             self._ready_to_move = lambda _: True  # reset so next command isn't blocked
-            raise NavigationError(str(e), original_error=e)
+            raise NavigationError(str(e), original_error=e) from e
         finally:
             self._current_heading = None
         self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
@@ -495,7 +495,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Go ``meters`` north from current position.
 
@@ -524,7 +524,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Go ``meters`` east from current position."""
         target = self.position + VectorNED(0, meters, 0)
@@ -542,7 +542,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Go ``meters`` south from current position."""
         target = self.position + VectorNED(-meters, 0, 0)
@@ -560,7 +560,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Go ``meters`` west from current position."""
         target = self.position + VectorNED(0, -meters, 0)
@@ -580,7 +580,7 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Go by NED offset from current position.
 
@@ -612,14 +612,14 @@ class Drone(Vehicle):
         tolerance: float = DEFAULT_POSITION_TOLERANCE_M,
         target_heading: float | None = None,
         timeout: float = DEFAULT_GOTO_TIMEOUT_S,
-        blocking: bool = True,  # noqa: FBT001, FBT002
+        blocking: bool = True,
     ) -> VehicleTask | None:
         """Fly along ``bearing_deg`` for ``distance_m`` metres from current position.
 
         Bearing: 0=north, 90=east, 180=south, 270=west.
 
         Args:
-            bearing_deg: Bearing in degrees (0–360).
+            bearing_deg: Bearing in degrees (0-360).
             distance_m: Distance to travel in metres.
             tolerance: Arrival radius in metres.
             target_heading: Optional heading to face before navigating.
@@ -642,7 +642,7 @@ class Drone(Vehicle):
     async def set_velocity(
         self,
         velocity: VectorNED,
-        global_relative: bool = True,  # noqa: FBT001, FBT002
+        global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
         """Set the drone's velocity in the NED frame.
@@ -730,7 +730,7 @@ class Drone(Vehicle):
             self._command_tasks.append(vel_task)
             logger.debug("Drone: set_velocity offboard started, velocity loop active")
         except (OffboardError, ActionError) as e:
-            raise VelocityError(str(e), original_error=e)
+            raise VelocityError(str(e), original_error=e) from e
 
     async def stop_velocity(self) -> None:
         """Stop any active velocity command and exit offboard mode.

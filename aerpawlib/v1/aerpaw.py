@@ -80,7 +80,7 @@ class AERPAW:
         """
         try:
             requests.post(
-                f"http://{self._forw_addr}:{self._forw_port}/ping",  # noqa
+                f"http://{self._forw_addr}:{self._forw_port}/ping",
                 timeout=AERPAW_PING_TIMEOUT_S,
             )
         except requests.exceptions.RequestException:
@@ -157,13 +157,13 @@ class AERPAW:
         try:
             if agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"  # noqa
+                    f"http://{self._forw_addr}:{self._forw_port}"
                     f"/oeo_msg/{severity}/{encoded.decode('utf-8')}/{agent_id}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"  # noqa
+                    f"http://{self._forw_addr}:{self._forw_port}"
                     f"/oeo_msg/{severity}/{encoded.decode('utf-8')}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
@@ -183,7 +183,7 @@ class AERPAW:
             Full HTTP URL for the checkpoint request.
         """
         return (
-            f"http://{self._forw_addr}:{self._forw_port}"  # noqa
+            f"http://{self._forw_addr}:{self._forw_port}"
             f"/checkpoint/{var_type}/{var_name}"
         )
 
@@ -204,7 +204,7 @@ class AERPAW:
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
         response = requests.post(
-            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",  # noqa
+            f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
         )
         if response.status_code != 200:
@@ -325,10 +325,10 @@ class AERPAW:
         response_content = response.content.decode()
         try:
             return int(response_content)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
             raise Exception(
                 f"malformed content in response from server: {response_content}",
-            )
+            ) from e
 
     def checkpoint_set_string(self, string_name: str, value: str) -> None:
         """
@@ -422,13 +422,13 @@ class AERPAW:
         try:
             if not agent_id:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"  # noqa
+                    f"http://{self._forw_addr}:{self._forw_port}"
                     f"/oeo_pub/{topic_b64}/{value_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
                 requests.post(
-                    f"http://{self._forw_addr}:{self._forw_port}"  # noqa
+                    f"http://{self._forw_addr}:{self._forw_port}"
                     f"/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )

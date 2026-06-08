@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import types
+from collections.abc import Callable
 from enum import Enum, auto
-from typing import Any, Callable, cast
+from typing import Any, cast
 
 from aerpawlib.v2.exceptions import (
     InvalidStateNameError,

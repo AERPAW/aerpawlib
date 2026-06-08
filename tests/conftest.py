@@ -98,7 +98,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--sitl-port",
         action="store",
         default=str(DEFAULT_SITL_PORT),
-        help=f"UDP port for SITL (legacy, applies to drone; default: {DEFAULT_SITL_PORT})",  # noqa: E501
+        help=f"UDP port for SITL (legacy, applies to drone; default: {DEFAULT_SITL_PORT})",
     )
     parser.addoption(
         "--sitl-port-drone",
@@ -183,7 +183,7 @@ class SITLManager:
         self,
         port: int,
         vehicle_type: str = "ArduCopter",
-        manage: bool = True,  # noqa: FBT001, FBT002
+        manage: bool = True,
         instance_id: int = 0,
     ):
         self.port = port

@@ -68,11 +68,11 @@ def run_v1_experiment(
             # v1 Vehicle.__init__ blocks until connected or raises on failure
             vehicle = await asyncio.wait_for(
                 # linter has no idea what is going on here
-                asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),  # noqa
+                asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),
                 timeout=args.conn_timeout,
             )
         except Exception as e:
-            raise ConnectionError(f"Could not connect: {e}")
+            raise ConnectionError(f"Could not connect: {e}") from e
 
         if getattr(args, "structured_log", None):
             from aerpawlib.structured_log import StructuredEventLogger
@@ -109,7 +109,7 @@ def run_v1_experiment(
                 aerpaw_platform_cls._no_stdout = args.no_stdout
         elif aerpaw_platform_cls:
             aerpaw_platform_cls._no_stdout = args.no_stdout
-            if not aerpaw_platform_cls._connected:  # noqa
+            if not aerpaw_platform_cls._connected:
                 logger.critical(
                     "It seems like we're in standalone mode but "
                     "--no-aerpaw-environment was not passed. "
@@ -120,7 +120,7 @@ def run_v1_experiment(
 
         runner_instance.initialize_args(unknown_args)
         if args.initialize and hasattr(vehicle, "_preflight_wait"):
-            vehicle._preflight_wait(args.initialize)  # noqa
+            vehicle._preflight_wait(args.initialize)
 
         if flag_zmq_runner:
             if not args.zmq_identifier or not args.zmq_server_addr:
@@ -131,7 +131,7 @@ def run_v1_experiment(
                 raise ValueError(
                     "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
                 )
-            runner_instance._initialize_zmq_bindings(  # noqa
+            runner_instance._initialize_zmq_bindings(
                 args.zmq_identifier,
                 args.zmq_server_addr,
             )
@@ -166,7 +166,7 @@ def run_v1_experiment(
             if vehicle:
                 if (
                     success
-                    and not getattr(vehicle, "_closed")
+                    and not vehicle._closed
                     and vehicle.armed
                     and args.rtl_at_end
                     and not heartbeat_lost

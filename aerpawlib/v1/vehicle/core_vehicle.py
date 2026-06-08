@@ -22,8 +22,9 @@ import contextlib
 import math
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from grpc.aio import AioRpcError
 from mavsdk import System
@@ -345,15 +346,15 @@ class Vehicle:
                 asyncio.wrap_future(future),
                 timeout=_MAVSDK_LOOP_TIMEOUT_S,
             )
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
             future.cancel()
             raise RuntimeError(
                 f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s — "
                 "the MAVSDK event loop may have crashed",
-            )
+            ) from e
         except (AioRpcError, Exception) as e:
             if isinstance(e, AioRpcError):
-                raise AerpawConnectionError(f"MAVSDK gRPC error: {e}")
+                raise AerpawConnectionError(f"MAVSDK gRPC error: {e}") from e
             raise
         finally:
             with self._pending_mavsdk_lock:
@@ -380,13 +381,13 @@ class Vehicle:
 
         try:
             await asyncio.wait_for(_wait_for_heartbeat(), timeout=CONNECTION_TIMEOUT_S)
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
             raise ConnectionTimeoutError(
                 CONNECTION_TIMEOUT_S,
                 message=(
                     "Connection established but no heartbeat received within timeout"
                 ),
-            )
+            ) from e
 
         # Start telemetry subscriptions
         await self._start_telemetry()
@@ -921,7 +922,7 @@ class Vehicle:
 
         logger.info("Vehicle connection closed")
 
-    async def set_armed(self, value: bool) -> None:  # noqa: FBT001
+    async def set_armed(self, value: bool) -> None:
         """
         Arm or disarm this vehicle, and wait for it to be armed (if possible).
 
@@ -962,10 +963,10 @@ class Vehicle:
         except ActionError as e:
             logger.error(f"Arm/disarm failed: {e}")
             if value:
-                raise ArmError(str(e), original_error=e)
-            raise DisarmError(str(e), original_error=e)
+                raise ArmError(str(e), original_error=e) from e
+            raise DisarmError(str(e), original_error=e) from e
 
-    def _preflight_wait(self, should_arm: bool) -> None:  # noqa: FBT001
+    def _preflight_wait(self, should_arm: bool) -> None:
         """
         Wait for pre-arm conditions (GPS fix, etc.) to be satisfied.
 
@@ -1069,9 +1070,9 @@ class Vehicle:
                     )
                 except TimeoutError as e:
                     health_summary = self._get_health_status_summary()
-                    msg = f"{str(e)}. Status: {health_summary}"
+                    msg = f"{e!s}. Status: {health_summary}"
                     logger.error(msg)
-                    raise NotArmableError(msg)
+                    raise NotArmableError(msg) from e
 
                 # Wait for GPS 3D fix explicitly. MAVSDK's is_global_position_ok can
                 # report
@@ -1092,9 +1093,9 @@ class Vehicle:
                     )
                 except TimeoutError as e:
                     health_summary = self._get_health_status_summary()
-                    msg = f"{str(e)}. Status: {health_summary}"
+                    msg = f"{e!s}. Status: {health_summary}"
                     logger.error(msg)
-                    raise NotArmableError(msg)
+                    raise NotArmableError(msg) from e
                 logger.debug("Waiting for EKF ready...")
                 while not self._ekf_ready.get():
                     await asyncio.sleep(0.1)
@@ -1147,7 +1148,7 @@ class Vehicle:
     async def set_velocity(
         self,
         velocity_vector: util.VectorNED,
-        global_relative: bool = True,  # noqa: FBT001, FBT002
+        global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
         """

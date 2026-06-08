@@ -149,7 +149,7 @@ def run_v2_experiment(
                 timeout=args.conn_timeout,
             )
         except Exception as e:
-            raise ConnectionError(f"Could not connect: {e}")
+            raise ConnectionError(f"Could not connect: {e}") from e
 
         shutdown_event = asyncio.Event()
         _conn_handler_ref: list = [None]

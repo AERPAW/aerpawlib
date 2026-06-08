@@ -37,7 +37,7 @@ import datetime
 import os
 import random
 from argparse import ArgumentParser
-from typing import TextIO
+from typing import ClassVar, TextIO
 
 from aerpawlib.v1.runner import (
     StateMachine,
@@ -57,7 +57,7 @@ from aerpawlib.v1.vehicle import Vehicle
 
 
 class HideRover(StateMachine):
-    _waypoints = []
+    _waypoints: ClassVar[list] = []
     _waypoint_fname: str
     _current_waypoint: int = 0
 
@@ -76,7 +76,7 @@ class HideRover(StateMachine):
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
         default_file = (
-            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"  # noqa
+            f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
         )
 
         parser = ArgumentParser()
@@ -148,7 +148,7 @@ class HideRover(StateMachine):
             self._hide_longitude = args.longitude
 
         if self._sampling:
-            self._log_file = open(args.output, "w+")  # noqa (bad practice but will not be changed)
+            self._log_file = open(args.output, "w+")
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
@@ -160,7 +160,7 @@ class HideRover(StateMachine):
         pos = vehicle.position
         lat, lon, alt = pos.lat, pos.lon, pos.alt
         volt = vehicle.battery.voltage
-        timestamp = datetime.datetime.now()  # noqa
+        timestamp = datetime.datetime.now()
         gps = vehicle.gps
         fix, num_sat = gps.fix_type, gps.satellites_visible
         if fix < 2:
