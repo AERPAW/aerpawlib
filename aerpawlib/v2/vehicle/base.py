@@ -756,7 +756,7 @@ class Vehicle:
         )
         self._command_tasks.append(task)
         from aerpawlib.cli.progress_bar import update_progress
-        update_progress(state="Waiting for arm...")
+        update_progress(state="Waiting for safety pilot to arm")
         await _wait_for_condition(
             lambda: self._state.armable,
             poll_interval=POLLING_DELAY_S,

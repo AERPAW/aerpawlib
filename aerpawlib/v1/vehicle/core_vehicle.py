@@ -761,7 +761,7 @@ class Vehicle:
                 ).start()
                 logger.info("Waiting for safety pilot to arm vehicle...")
                 from aerpawlib.cli.progress_bar import update_progress
-                update_progress(state="Waiting for arm...")
+                update_progress(state="Waiting for safety pilot to arm")
 
                 await wait_for_condition(
                     lambda: self._ts_state.is_armable_state.get(),
