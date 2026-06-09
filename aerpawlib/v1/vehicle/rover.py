@@ -97,13 +97,13 @@ class Rover(Vehicle):
         MAVLink. We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll until the flight controller confirms the mode change.
         """
-        if self._mode.get() == GUIDED_MODE_NAME:
+        if self._ts_state.mode.get() == GUIDED_MODE_NAME:
             logger.debug(
                 f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch",
             )
             return
         logger.info(
-            f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._mode.get()!r})",
+            f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )
         fields = {
             "target_system": 1,
@@ -139,10 +139,10 @@ class Rover(Vehicle):
             return
 
         start = time.time()
-        while self._mode.get() != GUIDED_MODE_NAME:
+        while self._ts_state.mode.get() != GUIDED_MODE_NAME:
             if time.time() - start > ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S:
                 logger.warning(
-                    f"Rover: mode switch timeout (current mode={self._mode.get()!r}); arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
+                    f"Rover: mode switch timeout (current mode={self._ts_state.mode.get()!r}); arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
             time.sleep(POLLING_DELAY_S)

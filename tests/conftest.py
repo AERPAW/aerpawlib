@@ -70,6 +70,21 @@ def is_udp_port_in_use(host: str, port: int) -> bool:
             return True
 
 
+def can_receive_udp_packets(host: str, port: int, timeout: float = 0.5) -> bool:
+    """
+    Check if we can receive any UDP packets on the given port.
+    """
+    family = socket.AF_INET6 if ":" in host else socket.AF_INET
+    with socket.socket(family, socket.SOCK_DGRAM) as s:
+        s.settimeout(timeout)
+        try:
+            s.bind((host, port))
+            data, addr = s.recvfrom(1024)
+            return True
+        except (socket.timeout, OSError):
+            return False
+
+
 def _find_sim_vehicle() -> Path | None:
     """Locate sim_vehicle.py from ARDUPILOT_HOME or common paths."""
     project_root = Path(__file__).resolve().parent.parent
@@ -119,9 +134,23 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
+class BlockingIOErrorFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and isinstance(record.exc_info[1], BlockingIOError):
+            return False
+        if "Resource temporarily unavailable" in record.getMessage():
+            return False
+        return True
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Pytest configuration."""
     configure_logging(level=LogLevel.DEBUG, root_name="aerpawlib")
+
+    # Suppress asyncio log spam from grpc.aio on macOS
+    asyncio_logger = logging.getLogger("asyncio")
+    asyncio_logger.addFilter(BlockingIOErrorFilter())
+
     # Grab the root aerpawlib logger
     aerpaw_logger = logging.getLogger("aerpawlib")
 
@@ -210,7 +239,7 @@ class SITLManager:
 
         env = os.environ.copy()
         env["ARDUPILOT_HOME"] = str(ardupilot_home)
-        env.setdefault("SIM_SPEEDUP", "5")
+        env.setdefault("SIM_SPEEDUP", "2")
         # Prevent sim_vehicle's run_in_terminal_window.sh from opening a new Terminal
         # window in GUI environments
         env.pop("DISPLAY", None)
@@ -250,10 +279,11 @@ class SITLManager:
             f"Waiting for MAVLink port {self.port} (timeout {SITL_STARTUP_TIMEOUT}s)...",
         )
 
+        sitl_process_log = f"/tmp/{self.vehicle_type}.log"
         # Wait for MAVLink port
         start = time.monotonic()
         while time.monotonic() - start < SITL_STARTUP_TIMEOUT:
-            if is_udp_port_in_use("127.0.0.1", self.port):
+            if can_receive_udp_packets("127.0.0.1", self.port):
                 logger.info(f"SITL Ready on udpin://127.0.0.1:{self.port}")
                 return f"udpin://127.0.0.1:{self.port}"
 
@@ -262,7 +292,6 @@ class SITLManager:
                 self._sitl_log.close()
                 with sitl_log_path.open() as f:
                     output = f.read()
-                sitl_process_log = f"/tmp/{self.vehicle_type}.log"
                 msg = f"SITL process exited prematurely with code {self._process.returncode}. sim_vehicle output:\n{output}\nAlso check {sitl_process_log} for SITL binary output."
                 logger.error(msg)
                 pytest.fail(msg)
@@ -496,12 +525,12 @@ async def _connect_and_wait_gps(
     start = time.monotonic()
     while time.monotonic() - start < timeout:
         fix = vehicle.gps.fix_type
-        if fix >= 3:
+        if fix >= 3 and getattr(vehicle, "ekf_ready", True):
             return vehicle
         await asyncio.sleep(1)
 
     vehicle.close()
-    pytest.fail(f"No 3D GPS fix within {timeout}s")
+    pytest.fail(f"No 3D GPS fix and EKF ready within {timeout}s")
 
 
 # ---------------------------------------------------------------------------
@@ -566,12 +595,12 @@ async def _connect_and_wait_gps_v2(
     start = time.monotonic()
     while time.monotonic() - start < timeout:
         fix = vehicle.gps.fix_type
-        if fix >= 3:
+        if fix >= 3 and getattr(vehicle, "ekf_ready", True):
             return vehicle
         await asyncio.sleep(1)
 
     vehicle.close()
-    pytest.fail(f"No 3D GPS fix within {timeout}s")
+    pytest.fail(f"No 3D GPS fix and EKF ready within {timeout}s")
 
 
 @pytest_asyncio.fixture

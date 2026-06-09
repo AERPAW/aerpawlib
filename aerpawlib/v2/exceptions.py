@@ -148,6 +148,9 @@ class LandingError(CommandError):
 class TaskCancelledError(CommandError):
     """Raised when a non-blocking VehicleTask is cancelled."""
 
+    def __init__(self, message: str = "Task was cancelled", **kwargs: Any) -> None:
+        super().__init__(message, code="TASK_CANCELLED", **kwargs)
+
 
 class NavigationError(CommandError):
     """Raised when navigation to a target cannot be completed."""

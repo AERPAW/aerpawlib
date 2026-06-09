@@ -14,11 +14,11 @@ class TestDroneVelocity:
     async def test_set_velocity_verify_movement(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
 
-        connected_drone_v2._preflight_wait(should_arm=True)
+        await connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         await connected_drone_v2.set_velocity(VectorNED(2, 0, 0), duration=2.0)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(3.0)
         end = connected_drone_v2.position
         dist = start.ground_distance(end)
         assert dist > 1

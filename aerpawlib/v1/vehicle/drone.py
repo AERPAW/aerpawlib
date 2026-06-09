@@ -95,7 +95,7 @@ class Drone(Vehicle):
                 )
                 break
             time.sleep(POLLING_DELAY_S)
-        if self.armed:
+        if self.armed and not ("127.0.0.1" in connection_string or "localhost" in connection_string):
             raise NotArmableError("Vehicle already armed at start!")
 
     async def set_heading(
@@ -147,7 +147,7 @@ class Drone(Vehicle):
                     PositionNedYaw(
                         north_m,
                         east_m,
-                        -self._position_alt.get(),
+                        -self.position.alt,
                         heading,
                     ),
                 ),

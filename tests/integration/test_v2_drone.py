@@ -41,6 +41,10 @@ class TestDroneConnection:
     @pytest.mark.asyncio
     async def test_home_coords_set_after_guided(self, connected_drone_v2):
         await connected_drone_v2._preflight_wait(should_arm=True)
+        for _ in range(50):
+            if connected_drone_v2.home_coords is not None:
+                break
+            await asyncio.sleep(0.1)
         home = connected_drone_v2.home_coords
         assert home is not None
         assert -90 <= home.lat <= 90

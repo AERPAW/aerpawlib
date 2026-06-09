@@ -13,8 +13,9 @@ class TestVehicleTaskCancel:
     @pytest.mark.asyncio
     async def test_cancel_triggers_rtl(self, connected_drone_v2):
         from aerpawlib.v2.types import VectorNED
+        from aerpawlib.v2.exceptions import TaskCancelledError
 
-        connected_drone_v2._preflight_wait(should_arm=True)
+        await connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)
         start = connected_drone_v2.position
         target = start + VectorNED(50, 0, 0)
@@ -26,7 +27,8 @@ class TestVehicleTaskCancel:
         assert handle is not None
         await asyncio.sleep(3)
         handle.cancel()
-        await handle.wait_done()
+        with pytest.raises(TaskCancelledError):
+            await handle.wait_done()
         while connected_drone_v2.armed:
             await asyncio.sleep(0.5)
         assert connected_drone_v2.armed is False
