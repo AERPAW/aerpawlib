@@ -169,6 +169,7 @@ class Rover(Vehicle):
 
         if blocking:
             from aerpawlib.cli.progress_bar import update_progress
+
             try:
                 update_progress(state="Navigating")
                 await wait_for_blocking_goto(

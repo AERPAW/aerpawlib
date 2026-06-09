@@ -180,6 +180,7 @@ class Drone(Vehicle):
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Taking off")
             logger.debug(
@@ -230,6 +231,7 @@ class Drone(Vehicle):
         if self._event_log:
             self._event_log.log_event("land_start")
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Landing")
             logger.debug("Drone: land sending land() command")
@@ -263,6 +265,7 @@ class Drone(Vehicle):
         if self._event_log:
             self._event_log.log_event("command", type="return_to_launch")
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Returning home")
             logger.debug("Drone: return_to_launch navigating home then landing")
@@ -349,6 +352,7 @@ class Drone(Vehicle):
 
         if blocking:
             from aerpawlib.cli.progress_bar import update_progress
+
             try:
                 update_progress(state="Navigating")
                 await wait_for_blocking_goto(

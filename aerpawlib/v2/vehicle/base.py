@@ -700,6 +700,7 @@ class Vehicle:
         start = time.monotonic()
         last_log = 0.0
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Waiting for armable...")
             while not self._state.armable:
@@ -734,6 +735,7 @@ class Vehicle:
         label = self._vehicle_type_label()
         logger.info(f"Standalone mode: auto-arming {label}...")
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Waiting for armable...")
             await _wait_for_condition(
@@ -768,6 +770,7 @@ class Vehicle:
         )
         self._command_tasks.append(task)
         from aerpawlib.cli.progress_bar import update_progress
+
         update_progress(state="Waiting for safety pilot to arm")
         await _wait_for_condition(
             lambda: self._state.armable,

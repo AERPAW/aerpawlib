@@ -205,6 +205,7 @@ class Drone(Vehicle):
             self._mission_start_time = time.time()
 
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Taking off")
             logger.debug(f"Takeoff to {target_alt}m")
@@ -240,6 +241,7 @@ class Drone(Vehicle):
         await self.await_ready_to_move()
         self._abortable = False
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Landing")
             logger.debug(f"Executing {name}, waiting for disarm...")
@@ -267,6 +269,7 @@ class Drone(Vehicle):
             logger.error("Return-to-launch requested but home coordinates are unset")
             raise RTLError("Home coordinates are not available for return-to-launch")
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Returning home")
             await self.goto_coordinates(home)
@@ -308,6 +311,7 @@ class Drone(Vehicle):
         heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
 
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Navigating")
             target_alt = coordinates.alt + self.home_amsl

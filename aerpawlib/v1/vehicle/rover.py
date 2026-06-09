@@ -187,6 +187,7 @@ class Rover(Vehicle):
             self._mission_start_time = time.time()
 
         from aerpawlib.cli.progress_bar import update_progress
+
         try:
             update_progress(state="Navigating")
             logger.debug(f"Navigating to: lat={coordinates.lat}, lon={coordinates.lon}")
