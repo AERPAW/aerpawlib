@@ -760,6 +760,8 @@ class Vehicle:
                     daemon=True,
                 ).start()
                 logger.info("Waiting for safety pilot to arm vehicle...")
+                from aerpawlib.cli.progress_bar import update_progress
+                update_progress("Waiting for arm...")
 
                 await wait_for_condition(
                     lambda: self._ts_state.is_armable_state.get(),
@@ -769,6 +771,7 @@ class Vehicle:
                     lambda: self.armed,
                     poll_interval=POLLING_DELAY_S,
                 )
+                update_progress("Running experiment...")
             else:
                 # In standalone/SITL, auto-arm the vehicle
                 logger.info("Standalone mode: auto-arming vehicle...")
