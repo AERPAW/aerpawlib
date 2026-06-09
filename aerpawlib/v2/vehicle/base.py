@@ -755,9 +755,8 @@ class Vehicle:
             ),
         )
         self._command_tasks.append(task)
-        logger.info("Waiting for safety pilot to arm vehicle...")
         from aerpawlib.cli.progress_bar import update_progress
-        update_progress("Waiting for arm...")
+        update_progress(state="Waiting for arm...")
         await _wait_for_condition(
             lambda: self._state.armable,
             poll_interval=POLLING_DELAY_S,
@@ -766,7 +765,7 @@ class Vehicle:
             lambda: self.armed,
             poll_interval=POLLING_DELAY_S,
         )
-        update_progress("Running experiment...")
+        update_progress(state="")
 
     async def _arm_vehicle_post_arm_home_wait(self) -> None:
         """Shared tail after vehicle is armed (AERPAW or auto-arm): delay + home."""

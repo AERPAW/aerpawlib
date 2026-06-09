@@ -55,7 +55,7 @@ def start_progress(enabled: bool = True) -> None:
 
 
 def update_progress(
-    description: str,
+    description: str | None = None,
     advance: float = 0,
     completed: float | None = None,
     phase: str | None = None,
@@ -78,13 +78,18 @@ def update_progress(
     if phase is not None:
         phase = phase.capitalize()
 
-    kwargs: dict[str, Any] = {"description": description, "advance": advance}
+    kwargs: dict[str, Any] = {"advance": advance}
+    if description is not None:
+        kwargs["description"] = description
     if completed is not None:
         kwargs["completed"] = completed
     if phase is not None:
         kwargs["phase"] = phase
     if state is not None:
-        kwargs["state"] = f" [bold dim]│[/bold dim] [bold magenta]State: {state}[/bold magenta]"
+        if state == "":
+            kwargs["state"] = ""
+        else:
+            kwargs["state"] = f" [bold dim]│[/bold dim] [bold magenta]State: {state}[/bold magenta]"
 
     _progress.update(_task_id, **kwargs)
 
