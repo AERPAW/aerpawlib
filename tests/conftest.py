@@ -79,9 +79,9 @@ def can_receive_udp_packets(host: str, port: int, timeout: float = 0.5) -> bool:
         s.settimeout(timeout)
         try:
             s.bind((host, port))
-            data, addr = s.recvfrom(1024)
+            s.recvfrom(1024)
             return True
-        except (socket.timeout, OSError):
+        except (TimeoutError, OSError):
             return False
 
 

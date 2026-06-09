@@ -12,8 +12,8 @@ class TestVehicleTaskCancel:
 
     @pytest.mark.asyncio
     async def test_cancel_triggers_rtl(self, connected_drone_v2):
-        from aerpawlib.v2.types import VectorNED
         from aerpawlib.v2.exceptions import TaskCancelledError
+        from aerpawlib.v2.types import VectorNED
 
         await connected_drone_v2._preflight_wait(should_arm=True)
         await connected_drone_v2.takeoff(10)

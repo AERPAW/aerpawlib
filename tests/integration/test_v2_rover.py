@@ -1,5 +1,7 @@
 """Integration tests for aerpawlib v2 Rover. Requires SITL."""
 
+import asyncio
+
 import pytest
 
 pytestmark = [pytest.mark.integration]
