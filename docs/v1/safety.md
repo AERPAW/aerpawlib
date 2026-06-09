@@ -101,7 +101,7 @@ If you are digging into the source code, here are a few structural choices to ke
 You can spin up the server directly from the command line using the provided CLI entry point:
 
 ```bash
-python -m aerpawlib.v1.safety --port 14580 --vehicle_config config.yaml
+aerpawlib-safety-checker --port 14580 --vehicle_config config.yaml
 ```
 
 **Deprecation Warning:** You may see older code using `aerpawlib.v1.safetyChecker`. This is a legacy alias that is strictly deprecated. Always use `aerpawlib.v1.safety` for new development to ensure future compatibility.

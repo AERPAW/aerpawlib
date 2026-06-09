@@ -3,7 +3,7 @@
 """
 
 from .client import SafetyCheckerClient
-from .server import SafetyCheckerServer, main_cli
+from .server import SafetyCheckerServer
 from .wire_format import (
     deserialize_msg,
     serialize_msg,
@@ -19,7 +19,3 @@ __all__ = [
     "serialize_request",
     "serialize_response",
 ]
-
-
-if __name__ == "__main__":
-    main_cli()

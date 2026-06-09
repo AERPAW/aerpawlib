@@ -84,6 +84,8 @@ aerpawlib-setup-sitl = "scripts.setup_sitl:main"
 aerpawlib-run-example = "scripts.run_example:main"
 aerpawlib-generate-pdoc = "scripts.generate_pdoc:main"
 aerpawlib-run-proxy = "scripts.run_proxy:main"
+aerpawlib-safety-checker = "aerpawlib.v1.safety.server:main_cli"
+
 
 [tool.setuptools]
 include-package-data = true
