@@ -186,7 +186,9 @@ class Rover(Vehicle):
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
 
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Navigating")
             logger.debug(f"Navigating to: lat={coordinates.lat}, lon={coordinates.lon}")
             await self._run_on_mavsdk_loop(
                 self._system.action.goto_location(
@@ -215,6 +217,8 @@ class Rover(Vehicle):
         except TimeoutError as e:
             logger.error(f"Goto timed out: {e}")
             raise NavigationError(str(e), original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def set_velocity(
         self,

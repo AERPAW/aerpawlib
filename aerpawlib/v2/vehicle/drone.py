@@ -179,7 +179,9 @@ class Drone(Vehicle):
             await asyncio.sleep(delay)  # Justified: min arm-to-takeoff delay
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Taking off")
             logger.debug(
                 "Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()",
             )
@@ -213,6 +215,8 @@ class Drone(Vehicle):
             if self.armed:
                 err_msg += " (drone is already armed)"
             raise TakeoffError(err_msg, original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def land(self) -> None:
         """Command the drone to land and wait for disarm.
@@ -225,7 +229,9 @@ class Drone(Vehicle):
         await self.await_ready_to_move()
         if self._event_log:
             self._event_log.log_event("land_start")
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Landing")
             logger.debug("Drone: land sending land() command")
             await self._system.action.land()
             self._expecting_disarm = True
@@ -242,6 +248,7 @@ class Drone(Vehicle):
             raise LandingError(str(e), original_error=e) from e
         finally:
             self._expecting_disarm = False
+            update_progress(state="")
 
     async def return_to_launch(self) -> None:
         """Fly to home coordinates and land (RTL mode is not used).
@@ -255,13 +262,17 @@ class Drone(Vehicle):
             raise RTLError("Home coordinates are not available for return_to_launch")
         if self._event_log:
             self._event_log.log_event("command", type="return_to_launch")
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Returning home")
             logger.debug("Drone: return_to_launch navigating home then landing")
             await self.goto_coordinates(home)
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
             raise RTLError(str(e), original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def goto_coordinates(
         self,
@@ -337,23 +348,28 @@ class Drone(Vehicle):
         self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
 
         if blocking:
-            await wait_for_blocking_goto(
-                self,
-                coordinates,
-                distance_fn=lambda: coordinates.distance(self.position),
-                tolerance=tolerance,
-                timeout=timeout,
-                log_prefix="Drone",
-            )
-            logger.debug("Drone: goto_coordinates complete (blocking)")
-            if self._event_log:
-                self._event_log.log_event(
-                    "location",
-                    lat=self.position.lat,
-                    lon=self.position.lon,
-                    alt=self.position.alt,
+            from aerpawlib.cli.progress_bar import update_progress
+            try:
+                update_progress(state="Navigating")
+                await wait_for_blocking_goto(
+                    self,
+                    coordinates,
+                    distance_fn=lambda: coordinates.distance(self.position),
+                    tolerance=tolerance,
+                    timeout=timeout,
+                    log_prefix="Drone",
                 )
-            return None
+                logger.debug("Drone: goto_coordinates complete (blocking)")
+                if self._event_log:
+                    self._event_log.log_event(
+                        "location",
+                        lat=self.position.lat,
+                        lon=self.position.lon,
+                        alt=self.position.alt,
+                    )
+                return None
+            finally:
+                update_progress(state="")
 
         def _log_location() -> None:
             if self._event_log:

@@ -204,7 +204,9 @@ class Drone(Vehicle):
         if self._mission_start_time is None:
             self._mission_start_time = time.time()
 
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Taking off")
             logger.debug(f"Takeoff to {target_alt}m")
             await self._run_on_mavsdk_loop(
                 self._system.action.set_takeoff_altitude(target_alt),
@@ -223,6 +225,8 @@ class Drone(Vehicle):
             if self.armed:
                 err_msg += " (drone is already armed)"
             raise TakeoffError(err_msg, original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def _action_wait_disarm(self, coro, name, exc_cls):
         """
@@ -235,7 +239,9 @@ class Drone(Vehicle):
         """
         await self.await_ready_to_move()
         self._abortable = False
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Landing")
             logger.debug(f"Executing {name}, waiting for disarm...")
             await self._run_on_mavsdk_loop(coro)
             self._ready_to_move = lambda _: False
@@ -247,6 +253,8 @@ class Drone(Vehicle):
         except ActionError as e:
             logger.error(f"{name} failed: {e}")
             raise exc_cls(str(e), original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def land(self) -> None:
         """Land the drone and wait for it to be disarmed."""
@@ -258,12 +266,16 @@ class Drone(Vehicle):
         if home is None:
             logger.error("Return-to-launch requested but home coordinates are unset")
             raise RTLError("Home coordinates are not available for return-to-launch")
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Returning home")
             await self.goto_coordinates(home)
             await self.land()
         except (NavigationError, LandingError) as e:
             logger.error(f"Return-to-launch failed: {e}")
             raise RTLError(str(e), original_error=e) from e
+        finally:
+            update_progress(state="")
 
     async def goto_coordinates(
         self,
@@ -295,7 +307,9 @@ class Drone(Vehicle):
         self._ready_to_move = lambda _: False
         heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
 
+        from aerpawlib.cli.progress_bar import update_progress
         try:
+            update_progress(state="Navigating")
             target_alt = coordinates.alt + self.home_amsl
             if self.home_amsl == 0.0 and self.home_coords is None:
                 logger.warning(
@@ -331,6 +345,7 @@ class Drone(Vehicle):
         finally:
             # Clear locked heading so it does not contaminate subsequent commands
             self._current_heading = None
+            update_progress(state="")
 
     async def set_velocity(
         self,

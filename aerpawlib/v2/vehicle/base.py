@@ -699,18 +699,23 @@ class Vehicle:
         """Poll until armable or timeout (used by preflight/initialize)."""
         start = time.monotonic()
         last_log = 0.0
-        while not self._state.armable:
-            if time.monotonic() - start > ARMABLE_TIMEOUT_S:
-                logger.warning(
-                    f"{log_prefix}Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
-                )
-                break
-            if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
-                logger.debug(
-                    f"{log_prefix}Waiting for armable... {self._get_health_summary()}",
-                )
-                last_log = time.monotonic()
-            await asyncio.sleep(POLLING_DELAY_S)
+        from aerpawlib.cli.progress_bar import update_progress
+        try:
+            update_progress(state="Waiting for armable...")
+            while not self._state.armable:
+                if time.monotonic() - start > ARMABLE_TIMEOUT_S:
+                    logger.warning(
+                        f"{log_prefix}Timeout waiting for armable ({ARMABLE_TIMEOUT_S}s). Status: {self._get_health_summary()}",
+                    )
+                    break
+                if time.monotonic() - last_log > ARMABLE_STATUS_LOG_INTERVAL_S:
+                    logger.debug(
+                        f"{log_prefix}Waiting for armable... {self._get_health_summary()}",
+                    )
+                    last_log = time.monotonic()
+                await asyncio.sleep(POLLING_DELAY_S)
+        finally:
+            update_progress(state="")
 
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Wait for pre-arm conditions. Call before run."""
@@ -728,21 +733,28 @@ class Vehicle:
         """Arm in standalone/SITL mode after local preflight checks pass."""
         label = self._vehicle_type_label()
         logger.info(f"Standalone mode: auto-arming {label}...")
-        await _wait_for_condition(
-            lambda: self._state.armable,
-            timeout=CONNECTION_TIMEOUT_S,
-            timeout_message=f"{label.capitalize()} not armable: {self._get_health_summary()}",
-        )
-        await _wait_for_condition(
-            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
-            timeout=POSITION_READY_TIMEOUT_S,
-            timeout_message=f"{label.capitalize()}: no GPS 3D fix",
-        )
-        if self._standalone_arm_wait_ekf():
-            while not self.ekf_ready:
-                await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
-        await self.set_armed(True)
-        logger.info(f"{label.capitalize()} armed successfully")
+        from aerpawlib.cli.progress_bar import update_progress
+        try:
+            update_progress(state="Waiting for armable...")
+            await _wait_for_condition(
+                lambda: self._state.armable,
+                timeout=CONNECTION_TIMEOUT_S,
+                timeout_message=f"{label.capitalize()} not armable: {self._get_health_summary()}",
+            )
+            update_progress(state="Waiting for GPS...")
+            await _wait_for_condition(
+                lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+                timeout=POSITION_READY_TIMEOUT_S,
+                timeout_message=f"{label.capitalize()}: no GPS 3D fix",
+            )
+            if self._standalone_arm_wait_ekf():
+                update_progress(state="Waiting for EKF...")
+                while not self.ekf_ready:
+                    await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
+            await self.set_armed(True)
+            logger.info(f"{label.capitalize()} armed successfully")
+        finally:
+            update_progress(state="")
 
     async def _await_aerpaw_safety_pilot_arm(self) -> None:
         """AERPAW: OEO notice (async), then wait indefinitely for pilot to arm."""

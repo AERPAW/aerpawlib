@@ -168,7 +168,9 @@ class Rover(Vehicle):
         self._ready_to_move = lambda s: coordinates.ground_distance(s.position) <= tolerance
 
         if blocking:
+            from aerpawlib.cli.progress_bar import update_progress
             try:
+                update_progress(state="Navigating")
                 await wait_for_blocking_goto(
                     self,
                     coordinates,
@@ -181,6 +183,8 @@ class Rover(Vehicle):
             except TimeoutError as e:
                 logger.error(f"Rover: goto_coordinates failed (timeout): {e}")
                 raise NavigationError(str(e), original_error=e) from e
+            finally:
+                update_progress(state="")
 
         async def _on_cancel() -> None:
             try:

@@ -776,47 +776,54 @@ class Vehicle:
                 # In standalone/SITL, auto-arm the vehicle
                 logger.info("Standalone mode: auto-arming vehicle...")
 
-                # Wait for armable state with timeout
+                from aerpawlib.cli.progress_bar import update_progress
                 try:
-                    await wait_for_condition(
-                        lambda: self._ts_state.is_armable_state.get(),
-                        timeout=CONNECTION_TIMEOUT_S,
-                        poll_interval=POLLING_DELAY_S,
-                        timeout_message=(f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions"),
-                    )
-                except TimeoutError as e:
-                    health_summary = self._get_health_status_summary()
-                    msg = f"{e!s}. Status: {health_summary}"
-                    logger.error(msg)
-                    raise NotArmableError(msg) from e
+                    # Wait for armable state with timeout
+                    update_progress(state="Waiting for armable...")
+                    try:
+                        await wait_for_condition(
+                            lambda: self._ts_state.is_armable_state.get(),
+                            timeout=CONNECTION_TIMEOUT_S,
+                            poll_interval=POLLING_DELAY_S,
+                            timeout_message=(f"Vehicle not armable after {CONNECTION_TIMEOUT_S}s - check GPS and pre-flight conditions"),
+                        )
+                    except TimeoutError as e:
+                        health_summary = self._get_health_status_summary()
+                        msg = f"{e!s}. Status: {health_summary}"
+                        logger.error(msg)
+                        raise NotArmableError(msg) from e
 
-                # Wait for GPS 3D fix explicitly. MAVSDK's is_global_position_ok can
-                # report
-                # true before the autopilot has valid position for GUIDED mode (e.g.
-                # when
-                # SITL is still starting up). Without this, takeoff fails with
-                # "Mode change to GUIDED failed: requires position".
-                logger.debug("Waiting for GPS 3D fix (position ready for GUIDED)...")
-                try:
-                    await wait_for_condition(
-                        lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
-                        timeout=POSITION_READY_TIMEOUT_S,
-                        poll_interval=POLLING_DELAY_S,
-                        timeout_message=(f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started"),
-                    )
-                except TimeoutError as e:
-                    health_summary = self._get_health_status_summary()
-                    msg = f"{e!s}. Status: {health_summary}"
-                    logger.error(msg)
-                    raise NotArmableError(msg) from e
-                logger.debug("Waiting for EKF ready...")
-                while not self._ts_state.ekf_ready.get():
-                    await asyncio.sleep(0.1)
-                logger.debug("Vehicle is armable, sending arm command...")
+                    # Wait for GPS 3D fix explicitly. MAVSDK's is_global_position_ok can
+                    # report
+                    # true before the autopilot has valid position for GUIDED mode (e.g.
+                    # when
+                    # SITL is still starting up). Without this, takeoff fails with
+                    # "Mode change to GUIDED failed: requires position".
+                    logger.debug("Waiting for GPS 3D fix (position ready for GUIDED)...")
+                    update_progress(state="Waiting for GPS...")
+                    try:
+                        await wait_for_condition(
+                            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+                            timeout=POSITION_READY_TIMEOUT_S,
+                            poll_interval=POLLING_DELAY_S,
+                            timeout_message=(f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S}s - ensure SITL/hardware is fully started"),
+                        )
+                    except TimeoutError as e:
+                        health_summary = self._get_health_status_summary()
+                        msg = f"{e!s}. Status: {health_summary}"
+                        logger.error(msg)
+                        raise NotArmableError(msg) from e
+                    logger.debug("Waiting for EKF ready...")
+                    update_progress(state="Waiting for EKF...")
+                    while not self._ts_state.ekf_ready.get():
+                        await asyncio.sleep(0.1)
+                    logger.debug("Vehicle is armable, sending arm command...")
 
-                # Arm the vehicle
-                await self.set_armed(True)
-                logger.info("Vehicle armed successfully")
+                    # Arm the vehicle
+                    await self.set_armed(True)
+                    logger.info("Vehicle armed successfully")
+                finally:
+                    update_progress(state="")
 
             await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
