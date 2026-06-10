@@ -15,6 +15,10 @@ from aerpawlib.log import ColoredFormatter
 class AnsiRichHandler(RichHandler):
     """Subclass of RichHandler that renders ANSI escape sequences in log messages."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.highlighter = None
+
     def render_message(self, record: logging.LogRecord, message: str) -> Text:
         return Text.from_ansi(message)
 
@@ -42,6 +46,9 @@ def setup_logging(
 
     root_logger.handlers.clear()
 
+    import os
+    use_colors = sys.stdout.isatty() or "PYCHARM_HOSTED" in os.environ or "FORCE_COLOR" in os.environ or "COLORTERM" in os.environ
+
     if sys.stdout.isatty():
         from aerpawlib.cli.progress_bar import console
 
@@ -55,7 +62,7 @@ def setup_logging(
         console_handler = logging.StreamHandler(sys.stdout)
 
     console_handler.setLevel(level)
-    console_handler.setFormatter(ColoredFormatter(use_colors=True))
+    console_handler.setFormatter(ColoredFormatter(use_colors=use_colors))
     root_logger.addHandler(console_handler)
     # Mute the gRPC logging. This is done because it is very spammy,
     # especially on debug and on macOS.

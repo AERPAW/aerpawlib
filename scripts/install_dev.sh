@@ -5,8 +5,8 @@
 set -e
 cd "$(dirname "$0")/.."
 
-echo "Installing aerpawlib with dev dependencies..."
-pip install -e .[dev]
+echo "Installing aerpawlib with all dependencies..."
+pip install -e .
 
 echo ""
 echo "Setting up ArduPilot SITL..."
