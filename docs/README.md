@@ -4,7 +4,15 @@ Welcome to the documentation for `aerpawlib`. This library provides a high-level
 
 The `aerpawlib` framework simplifies the process of writing experiment scripts for drones and rovers. It abstracts away the complex underlying communications (such as MAVLink), allowing researchers to focus entirely on their specific mobility and networking experiments rather than low-level vehicle control.
 
-There are two versions of the API: v1 and v2. Version 1 is the stable and fully-featured API, while version 2 is a newer, beta API design. Both versions offer robust APIs for controlling your vehicles over ArduPilot.
+There are two versions of the API: v1 and v2. 
+
+The [original aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control) was built on DroneKit and pymavlink. As DroneKit has not been maintained in years, the primary goal of this project is to move it to MAVSDK (the preferred framework).
+
+There are two versions: v1 and v2.
+
+Version 1 contains the exact same API as the original aerpawlib and fully-featured API.  Version 2 is a newer, beta API design focused on simplifying the API and improving performance. It is not yet completely ready for production but works for most use cases. 
+
+Both versions offer robust APIs for controlling your vehicles over ArduPilot.
 
 ## Documentation Index
 

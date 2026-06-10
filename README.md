@@ -29,9 +29,9 @@ pip install .
 For running integration tests and local SITL simulation:
 
 ```bash
-pip install -e .[dev]
+pip install -e .
 # Note that -e allows for local editing of the library (suitable for developers).
-aerpawlib-setup-sitl
+aerpawlib-setup-sitl  # This allows integration tests to work by installing and building ardupilot
 ```
 
 Or use the one-liner script:
@@ -39,7 +39,7 @@ Or use the one-liner script:
 ```bash
 ./scripts/install_dev.sh
 ```
-This installs dev dependencies (pytest, etc.), ArduPilot SITL, MAVProxy, and compiles Copter + Rover SITL.
+This installs all dependencies, ArduPilot SITL, MAVProxy, and compiles Copter + Rover SITL.
 
 ## Running Tests
 
@@ -58,8 +58,8 @@ pytest tests/integration
 ```
 
 > [!IMPORTANT]
-> Integration tests require stdout/stderr capturing to be disabled so MAVProxy does not block. This is configured by default via the `-s` flag in `pytest.ini`. If running pytest manually with custom overrides, ensure `-s` (or `--capture=no`) is included.
-> This is a really weird bug with how MavProxy works, just don't touch it.
+> Integration tests require stdout/stderr capturing to be disabled. This is configured by default via the `-s` flag in `pytest.ini`. If running pytest manually with custom overrides, ensure `-s` (or `--capture=no`) is included.
+> This is because MAVProxy will block and wait for user input when we don't need or want that behavior. Weird, seemingly unrelated errors will show up without `-s`
 ## Quick Start
 
 ```python

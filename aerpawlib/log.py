@@ -74,7 +74,7 @@ class ColoredFormatter(logging.Formatter):
         use_colors: bool = True,
     ):
         super().__init__(fmt, datefmt)
-        self.use_colors = use_colors and sys.stdout.isatty()
+        self.use_colors = use_colors
 
     def format(self, record: logging.LogRecord) -> str:
         color = self.COLORS.get(record.levelno, "") if self.use_colors else ""
@@ -145,7 +145,9 @@ def configure_logging(
 
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(level_value)
-    console.setFormatter(ColoredFormatter(fmt, use_colors=use_colors))
+    import os
+    has_color = sys.stdout.isatty() or "PYCHARM_HOSTED" in os.environ or "FORCE_COLOR" in os.environ or "COLORTERM" in os.environ
+    console.setFormatter(ColoredFormatter(fmt, use_colors=use_colors and has_color))
     root_logger.addHandler(console)
 
     if log_file:

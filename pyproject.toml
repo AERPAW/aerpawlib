@@ -39,38 +39,29 @@ dependencies = [
     "pyyaml>=6.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
-]
 
-[project.optional-dependencies]
-dev = [
+    # Development and Documentation dependencies
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "psutil>=5.9.0",
-    "aerpawlib[docs]",
-]
-docs = [
     "pdoc>=15.0.0",
-]
-sitl = [
+
+    # SITL simulation dependencies
     "msgspec>=0.18.0",
     "empy<4.0.0",
     "pexpect>=4.8.0",
     "MAVProxy>=1.8.0",
     "dronecan>=1.0.0",
     "future>=1.0.0",
-]
-v1 = [
+
+    # V1/V2 vehicle driver dependencies
     "dronekit>=2.9.2",
     "pymavlink>=2.4.0",
     "pyserial>=3.5",
-]
-v2 = [
     "mavsdk>=2.0.0",
     "aiohttp>=3.12.14",
 ]
-all = [
-    "aerpawlib[dev,docs,sitl,v1,v2]",
-]
+
 
 [project.urls]
 Homepage = "https://github.com/aerpaw/aerpawlib"
