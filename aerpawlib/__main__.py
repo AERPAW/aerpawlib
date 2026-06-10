@@ -51,15 +51,13 @@ from aerpawlib.cli.paths import (
 
 logger: logging.Logger
 start_time: float
+unknown_args: list[str] = []
 
-app = typer.Typer(
+app = typer.Typer()
+
+
+@app.command(
     help="aerpawlib - wrap and run aerpaw experimenter scripts",
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
-)
-
-
-@app.callback(
-    invoke_without_command=True,
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(
@@ -190,10 +188,10 @@ def run(
     ),
 ) -> None:
     """Run aerpawlib experimenter scripts."""
-    global logger, start_time
+    global logger, start_time, unknown_args
+    unknown_args = ctx.args
 
     invocation_cwd = Path.cwd().resolve()
-    unknown_args = [arg for arg in ctx.args if arg != ""]
 
     if vehicle and vehicle not in [
         VEHICLE_TYPE_GENERIC,
