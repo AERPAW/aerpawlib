@@ -146,6 +146,7 @@ def configure_logging(
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(level_value)
     import os
+
     has_color = sys.stdout.isatty() or "PYCHARM_HOSTED" in os.environ or "FORCE_COLOR" in os.environ or "COLORTERM" in os.environ
     console.setFormatter(ColoredFormatter(fmt, use_colors=use_colors and has_color))
     root_logger.addHandler(console)
