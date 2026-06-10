@@ -47,6 +47,7 @@ def setup_logging(
     root_logger.handlers.clear()
 
     import os
+
     use_colors = sys.stdout.isatty() or "PYCHARM_HOSTED" in os.environ or "FORCE_COLOR" in os.environ or "COLORTERM" in os.environ
 
     if sys.stdout.isatty():
