@@ -186,6 +186,12 @@ def run(
         help="Mute all console stdout output from the aerpawlib library.",
         rich_help_panel="Output & Logging Options",
     ),
+    no_status_bar: bool = typer.Option(
+        False,
+        "--no-status-bar",
+        help="Disable the live mission status bar (spinner and telemetry overlay).",
+        rich_help_panel="Output & Logging Options",
+    ),
 ) -> None:
     """Run aerpawlib experimenter scripts."""
     global logger, start_time, unknown_args
@@ -215,6 +221,7 @@ def run(
         initialize=not skip_init,
         rtl_at_end=not skip_rtl,
         no_stdout=no_stdout,
+        no_status_bar=no_status_bar,
         no_aerpaw_environment=no_aerpaw_environment,
         run_zmq_proxy=False,
         zmq_identifier=zmq_identifier,
@@ -251,7 +258,7 @@ def run(
     from aerpawlib.cli.progress_bar import start_progress, stop_progress
 
     # Start the progress bar before setting up logging so RichHandler binds to the progress console
-    start_progress(enabled=not args.no_stdout)
+    start_progress(enabled=not args.no_stdout and not args.no_status_bar)
 
     try:
         logger = setup_logging(

@@ -84,11 +84,23 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             new_att.yaw = math.radians(attitude.yaw_deg)
             vehicle._ts_state.attitude_val.set(new_att)
             vehicle._ts_state.heading_deg.set(attitude.yaw_deg % 360)
+            from aerpawlib.cli.progress_bar import update_telemetry
+
+            update_telemetry(heading=attitude.yaw_deg)
 
     async def _velocity_update() -> None:
         async for velocity in vehicle._system.telemetry.velocity_ned():
             vehicle._ts_state.velocity_ned.set(
                 [velocity.north_m_s, velocity.east_m_s, velocity.down_m_s],
+            )
+            from aerpawlib.cli.progress_bar import update_telemetry
+
+            update_telemetry(
+                velocity_ned=(
+                    velocity.north_m_s,
+                    velocity.east_m_s,
+                    velocity.down_m_s,
+                ),
             )
 
     async def _gps_update() -> None:
@@ -99,7 +111,10 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             vehicle._ts_state.gps_val.set(new_gps)
             from aerpawlib.cli.progress_bar import update_telemetry
 
-            update_telemetry(sats=gps_info.num_satellites)
+            update_telemetry(
+                sats=gps_info.num_satellites,
+                gps_fix=gps_info.fix_type.value,
+            )
 
     async def _battery_update() -> None:
         async for battery in vehicle._system.telemetry.battery():
@@ -110,7 +125,10 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             vehicle._ts_state.battery_val.set(new_bat)
             from aerpawlib.cli.progress_bar import update_telemetry
 
-            update_telemetry(battery=int(battery.remaining_percent))
+            update_telemetry(
+                battery=int(battery.remaining_percent),
+                voltage=battery.voltage_v,
+            )
 
     async def _flight_mode_update() -> None:
         async for mode in vehicle._system.telemetry.flight_mode():

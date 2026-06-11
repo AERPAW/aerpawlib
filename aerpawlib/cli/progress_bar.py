@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import sys
+from dataclasses import dataclass
 from typing import Any
 
 from rich.console import Console
@@ -13,45 +15,101 @@ _progress: Progress | None = None
 _task_id: Any = None
 _enabled: bool = False
 
+_GPS_FIX_LABELS = {
+    0: "No fix",
+    1: "No fix",
+    2: "2D",
+    3: "3D",
+    4: "DGPS",
+    5: "RTK",
+    6: "RTK",
+}
+
+
+@dataclass
+class _StatusFields:
+    description: str = "Preparing..."
+    phase: str = "Startup"
+    state: str = ""
+    mode: str = "UNKNOWN"
+    armed: bool | None = None
+    battery: int | None = None
+    voltage: float | None = None
+    sats: int | None = None
+    gps_fix: int | None = None
+    altitude: float | None = None
+    heading: float | None = None
+    speed: float | None = None
+
+
+_status = _StatusFields()
+
 
 def is_enabled() -> bool:
     """Check if progress bar is enabled."""
     return _enabled
 
 
+def _gps_fix_label(fix_type: int) -> str:
+    return _GPS_FIX_LABELS.get(fix_type, f"fix {fix_type}")
+
+
+def _format_line() -> str:
+    parts: list[str] = [f"[bold]{_status.description}[/bold]"]
+    parts.append(f"[cyan]{_status.phase}[/cyan]")
+    if _status.state:
+        parts.append(f"[magenta]{_status.state}[/magenta]")
+    if _status.mode != "UNKNOWN":
+        parts.append(f"[green]{_status.mode}[/green]")
+    if _status.armed is not None:
+        parts.append(
+            "[green]Armed[/green]" if _status.armed else "[red]Disarmed[/red]",
+        )
+    if _status.battery is not None:
+        if _status.battery > 20:
+            batt_style = "yellow"
+        elif _status.battery > 10:
+            batt_style = "dark_orange"
+        else:
+            batt_style = "red"
+        parts.append(f"[{batt_style}]{_status.battery}%[/{batt_style}]")
+    if _status.voltage is not None:
+        parts.append(f"[yellow]{_status.voltage:.1f}V[/yellow]")
+    if _status.gps_fix is not None:
+        parts.append(f"[blue]{_gps_fix_label(_status.gps_fix)}[/blue]")
+    if _status.sats is not None:
+        parts.append(f"[blue]{_status.sats} sats[/blue]")
+    if _status.altitude is not None:
+        parts.append(f"[green]{_status.altitude:.1f} m[/green]")
+    if _status.heading is not None:
+        parts.append(f"[cyan]{_status.heading:.0f}°[/cyan]")
+    if _status.speed is not None:
+        parts.append(f"[cyan]{_status.speed:.1f} m/s[/cyan]")
+    return " · ".join(parts)
+
+
+def _refresh() -> None:
+    if _progress is not None and _task_id is not None:
+        _progress.update(_task_id, line=_format_line())
+
+
 def start_progress(enabled: bool = True) -> None:
     """Start the progress bar if enabled."""
-    global _progress, _task_id, _enabled
+    global _progress, _task_id, _enabled, _status
     _enabled = enabled and sys.stdout.isatty()
     if not _enabled:
         return
+    _status = _StatusFields()
     if _progress is None:
         _progress = Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            TextColumn("[bold dim]│[/bold dim] [bold cyan]Phase: {task.fields[phase]}[/bold cyan]"),
-            TextColumn("{task.fields[state]}"),
-            TextColumn("[bold dim]│[/bold dim] [bold green]Mode: {task.fields[mode]}[/bold green]"),
-            TextColumn("[bold dim]│[/bold dim] {task.fields[armed]}"),
-            TextColumn("[bold dim]│[/bold dim] {task.fields[battery]}"),
-            TextColumn("[bold dim]│[/bold dim] {task.fields[sats]}"),
-            TextColumn("[bold dim]│[/bold dim] {task.fields[altitude]}"),
+            SpinnerColumn(spinner_name="dots", style="cyan"),
+            TextColumn("{task.fields[line]}"),
             TimeElapsedColumn(),
             console=console,
             transient=True,
         )
         _progress.start()
-        _task_id = _progress.add_task(
-            "Preparing...",
-            total=100,
-            phase="Startup",
-            state="",
-            mode="UNKNOWN",
-            armed="[bold red]Disarmed[/bold red]",
-            battery="[bold yellow]Power: --%[/bold yellow]",
-            sats="[bold blue]Sats: --[/bold blue]",
-            altitude="[bold green]Alt: 0.0m[/bold green]",
-        )
+        _task_id = _progress.add_task("", line=_format_line())
 
 
 def update_progress(
@@ -62,11 +120,10 @@ def update_progress(
     state: str | None = None,
 ) -> None:
     """Update description and completion status of the progress bar."""
-    global _progress, _task_id, _enabled
+    global _enabled
     if not _enabled or _progress is None or _task_id is None:
         return
 
-    # Map completion percentage to experiment phase
     if phase is None and completed is not None:
         if completed < 60:
             phase = "Startup"
@@ -75,57 +132,65 @@ def update_progress(
         else:
             phase = "Teardown"
 
-    if phase is not None:
-        phase = phase.capitalize()
-
-    kwargs: dict[str, Any] = {"advance": advance}
     if description is not None:
-        kwargs["description"] = description
-    if completed is not None:
-        kwargs["completed"] = completed
+        _status.description = description
     if phase is not None:
-        kwargs["phase"] = phase
+        _status.phase = phase.capitalize()
     if state is not None:
-        if state == "":
-            kwargs["state"] = ""
-        else:
-            kwargs["state"] = f" [bold dim]│[/bold dim] [bold magenta]State: {state}[/bold magenta]"
+        _status.state = state
 
-    _progress.update(_task_id, **kwargs)
+    _refresh()
 
 
 def update_telemetry(
     armed: bool | None = None,
     battery: int | None = None,
+    voltage: float | None = None,
     sats: int | None = None,
+    gps_fix: int | None = None,
     altitude: float | None = None,
+    heading: float | None = None,
+    speed: float | None = None,
     mode: str | None = None,
+    *,
+    velocity_ned: tuple[float, float, float] | None = None,
 ) -> None:
     """Update the real-time telemetry variables shown on the progress bar."""
-    global _progress, _task_id, _enabled
+    global _enabled
     if not _enabled or _progress is None or _task_id is None:
         return
 
-    kwargs: dict[str, Any] = {}
     if armed is not None:
-        kwargs["armed"] = "[bold green]Armed[/bold green]" if armed else "[bold red]Disarmed[/bold red]"
+        _status.armed = armed
     if battery is not None:
-        kwargs["battery"] = f"[bold yellow]Power: {battery}%[/bold yellow]"
+        _status.battery = battery
+    if voltage is not None:
+        _status.voltage = voltage
     if sats is not None:
-        kwargs["sats"] = f"[bold blue]Sats: {sats}[/bold blue]"
+        _status.sats = sats
+    if gps_fix is not None:
+        _status.gps_fix = gps_fix
     if altitude is not None:
-        kwargs["altitude"] = f"[bold green]Alt: {altitude:.1f}m[/bold green]"
+        _status.altitude = altitude
+    if heading is not None:
+        _status.heading = heading % 360
+    if speed is not None:
+        _status.speed = speed
+    elif velocity_ned is not None:
+        north, east, _down = velocity_ned
+        _status.speed = math.hypot(north, east)
     if mode is not None:
-        kwargs["mode"] = mode
+        _status.mode = mode
 
-    _progress.update(_task_id, **kwargs)
+    _refresh()
 
 
 def stop_progress() -> None:
     """Stop the progress bar and clean up."""
-    global _progress, _task_id, _enabled
+    global _progress, _task_id, _enabled, _status
     if _progress is not None:
         _progress.stop()
         _progress = None
         _task_id = None
+    _status = _StatusFields()
     _enabled = False
