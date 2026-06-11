@@ -1,11 +1,21 @@
 ## Overview
 
-`typing.Protocol` definitions for the v2 API. They exist so safety checks, disconnect monitoring, and tests can depend on a narrow surface while avoiding circular imports.
+`typing.Protocol` definitions describing the vehicle and GPS surfaces for internal use, safety checks, and tests.
 
-You shouldn't actually need to import these; they exist for testing and internal use.
-`GPSProtocol` describes GPS fix and satellite count readers.
-`VehicleProtocol` is the contract for connection lifecycle and telemetry: `connected`, `closed`, `watch_disconnect()`, arming, position, home, battery, GPS, heading, and `heartbeat_tick`.
+## When to use this
 
-### Usage
-- In production code, real `Vehicle` / `Drone` / `Rover` instances satisfy these protocols naturally.
-- In tests, you can hand-roll small stand-ins that implement the same properties without MAVSDK; `MockVehicle` in (``aerpawlib.v2.runner``) also covers a subset of needs.
+Experiment scripts do not need these types. Import when writing tests or extensions that depend on a minimal vehicle interface without circular imports.
+
+## Key concepts
+
+| Protocol | Description |
+|----------|-------------|
+| `GPSProtocol` | GPS fix and satellite count readers |
+| `VehicleProtocol` | Connection lifecycle, telemetry, arming, `watch_disconnect` |
+
+`Drone`, `Rover`, and `MockVehicle` satisfy these protocols.
+
+## See also
+
+- `aerpawlib.v2.testing`: `MockVehicle` test double
+- `aerpawlib.v2.vehicle`: concrete implementations

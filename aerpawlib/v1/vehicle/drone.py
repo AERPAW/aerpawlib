@@ -1,17 +1,6 @@
-"""
-Drone vehicle implementation for the v1 API.
+"""MAVSDK-backed multirotor implementation for the v1 API.
 
-This module defines the MAVSDK-backed `Drone` class used for multirotor mission
-execution in v1 scripts.
-
-Capabilities:
-- Execute high-level flight commands (takeoff, land, RTL, goto variants).
-- Control heading and velocity via managed offboard operations.
-- Emit structured mission events when event logging is enabled.
-
-Notes:
-- Shared connection, telemetry, and lifecycle behavior comes from
-  `aerpawlib.v1.vehicle.core_vehicle`.
+See ``aerpawlib.v1.vehicle`` module documentation for usage and commands.
 """
 
 from __future__ import annotations

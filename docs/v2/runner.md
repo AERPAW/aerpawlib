@@ -1,22 +1,91 @@
 ## Overview
 
-Runners are how aerpawlib turns a Python class into a mission. v2 uses descriptor-based decorators and optional `config` dataclasses: you write async methods, attach `@entrypoint` or `@state`, and the implementation schedules them on the same event loop that drives the vehicle.
+Runners turn your Python class into an executable experiment. This module provides `BasicRunner`, `StateMachine`, and `ZmqStateMachine` plus decorators and optional config dataclasses.
 
-This package re-exports `BasicRunner`, `StateMachine`, and `ZmqStateMachine` from `impl`, plus all decorators and config types from `config` and `decorators`.
+## When to use this
 
-### Runner types
-- `BasicRunner`:  one coroutine marked with `@entrypoint`. Good for straight-line experiments and examples.
-- `StateMachine`:  many `@state` / `@timed_state` methods that return the next state name, optional `@background` coroutines, and `@at_init` hooks that run before the first state.
-- `ZmqStateMachine`:  like `StateMachine` but also registers ZMQ entrypoints for remote `transition_runner` and `query_field` among brokers and peers. Requires proxy setup and identifier flags from the CLI.
+Import from `aerpawlib.v2.runner` (or `aerpawlib.v2`) when you define experiment scripts launched by the `aerpawlib` CLI.
 
-### Config vs decorators
-- You can rely entirely on decorators (the usual path for examples).
-- Or set `config = BasicRunnerConfig(...)` / `StateMachineConfig` / `ZmqStateMachineConfig` on the class to name entrypoints and states without relying on attribute scanning in edge cases.
+| Runner | Use when |
+|--------|----------|
+| `BasicRunner` | One linear `@entrypoint` flow |
+| `StateMachine` | Named states with return-based transitions |
+| `ZmqStateMachine` | Multi-vehicle coordination over ZMQ |
+
+## Common workflow
+
+```python
+from aerpawlib.v2 import BasicRunner, Drone, entrypoint
+
+class Patrol(BasicRunner):
+    @entrypoint
+    async def run(self, drone: Drone):
+        await drone.takeoff(altitude=5)
+        await drone.land()
+```
+
+```bash
+aerpawlib --api-version v2 --script patrol.py --vehicle drone --conn udpin://127.0.0.1:14550
+```
+
+## Key concepts
+
+### Decorators (default)
+
+| Decorator | Class | Description |
+|-----------|-------|-------------|
+| `@entrypoint` | `BasicRunner` | Single entry coroutine |
+| `@state(name, first=False)` | `StateMachine` | Standard state |
+| `@timed_state(name, duration, loop=False, first=False)` | `StateMachine` | State held for at least `duration` seconds |
+| `@background` | `StateMachine` | Concurrent coroutine restarted on exception |
+| `@at_init` | `StateMachine` | Runs once before arm and first state |
+| `@expose_zmq(name)` | `ZmqStateMachine` | Remote state transition target |
+| `@expose_field_zmq(name)` | `ZmqStateMachine` | Queryable field via `query_field` |
+
+### Config dataclasses (optional)
+
+Set `config = BasicRunnerConfig(entrypoint="run")`, `StateMachineConfig`, or `ZmqStateMachineConfig` on the class instead of relying solely on decorators.
 
 ### ZMQ
-- Run the proxy first (`aerpawlib-run-proxy` or the helper in `aerpawlib.v2.zmqutil`), then launch runners with matching `--zmq-identifier` and `--zmq-proxy-server`.
 
-### Error handling
-- Misconfigured runners raise the `RunnerError` family (`NoEntrypointError`, `NoInitialStateError`, `InvalidStateError`, and similar). See `aerpawlib.v2.exceptions`.
+1. Start `aerpawlib-run-proxy`
+2. Launch runners with `--zmq-identifier` and `--zmq-proxy-server`
 
-The `aerpawlib.v2` package documentation has end-to-end snippets for each runner style and a decorator reference table; use that for copy-pastable mission skeletons.
+```python
+await self.transition_runner("other-vehicle", "land")
+alt = await self.query_field("other-vehicle", "altitude")
+```
+
+### StateMachine example
+
+```python
+from aerpawlib.v2 import StateMachine, Drone, state, timed_state, at_init
+
+class Patrol(StateMachine):
+    @at_init
+    async def setup(self, drone: Drone):
+        print(drone.home_coords)
+
+    @state(name="start", first=True)
+    async def start(self, drone: Drone):
+        await drone.takeoff(altitude=5)
+        return "hold"
+
+    @timed_state(name="hold", duration=10)
+    async def hold(self, drone: Drone):
+        return "land"
+
+    @state(name="land")
+    async def land(self, drone: Drone):
+        await drone.land()
+```
+
+## Errors
+
+Misconfigured runners raise `RunnerError` subclasses: `NoEntrypointError`, `NoInitialStateError`, `MultipleInitialStatesError`, `InvalidStateError`, `InvalidStateNameError`. See `aerpawlib.v2.exceptions`.
+
+## See also
+
+- `aerpawlib.v2.vehicle`: vehicle passed to runner methods
+- `aerpawlib.cli`: `--script`, ZMQ flags
+- `aerpawlib.v1.runner`: v1 runner API

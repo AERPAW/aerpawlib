@@ -1,90 +1,80 @@
 ## Overview
 
-v2 provides command validation (`can_takeoff`, `can_goto`, `can_land`) with optional integration to an external SafetyCheckerServer via `vehicle.safety`. Enforcement stays in the autopilot and C-VM (Controller VM) on AERPAW.
+Validate commands before flight and integrate with the AERPAW SafetyCheckerServer. Vehicles expose `can_takeoff`, `can_goto`, and `can_land`; pass a `SafetyCheckerClient` at connect time or set `vehicle.safety`.
 
-## Command Validation
+## When to use this
 
-Before running a command, check if it would succeed:
+- Preflight checks in experiment scripts before takeoff or goto
+- Geofence enforcement on the AERPAW testbed (server required)
+- Local development with optional passthrough when no server runs
 
-```python
-ok, msg = await drone.can_takeoff(10)
-if not ok:
-    print(f"Cannot takeoff: {msg}")
-    return
-await drone.takeoff(altitude=10)
-```
-
-### can_takeoff
-
-Local checks: armable, GPS 3D fix, minimum battery. If `vehicle.safety` is set, also calls `safety.validate_takeoff`.
-
-### can_goto
-
-Local checks: tolerance within valid range. If `vehicle.safety` is set, calls `safety.validate_waypoint`.
-
-### can_land
-
-If `vehicle.safety` is set, calls `safety.validate_landing`. Otherwise returns `(True, "")`.
-
-## vehicle.safety
-
-The vehicle constructor and `connect()` accept a `safety` argument (a `SafetyCheckerClient` or `NoOpSafetyChecker`). Pass it when connecting:
+## Common workflow
 
 ```python
+from aerpawlib.v2 import Drone
 from aerpawlib.v2.safety import SafetyCheckerClient
 
 client = SafetyCheckerClient("127.0.0.1", 14580)
 drone = await Drone.connect("udpin://127.0.0.1:14550", safety=client)
+
 ok, msg = await drone.can_takeoff(10)
+if not ok:
+    print(msg)
+    return
+await drone.takeoff(altitude=10)
 ```
 
-You can also set `vehicle.safety` after construction if needed. If `safety` is `None`, `can_*` methods run only local checks (for takeoff/goto) or return success (for land).
+Or rely on the CLI: `--safety-checker-port` (and `--safety-checker-ip`) wire the client automatically.
 
-### Automatic Setup via CLI (`--safety-checker-port`)
+## Key concepts
 
-When you run aerpawlib v2 via the CLI, a safety client (real or passthrough) is built first and passed to `vehicle.connect(safety=...)`. The vehicle constructor is responsible for accepting and storing the safety client.
+### can_* methods
 
-| Environment | `--safety-checker-port`                       | Behavior                                                                                                                               |
-|-------------|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
-| Non-AERPAW  | Not provided                                  | `vehicle.safety` uses a passthrough checker: all validations pass, errors logged explaining the SafetyCheckerServer is not configured. |
-| Non-AERPAW  | Provided (e.g. `--safety-checker-port 14580`) | Attempts to connect to `127.0.0.1:<port>`. On failure: uses passthrough, logs the error.                                               |
-| AERPAW      | Not provided                                  | Defaults to port 14580. Attempts to connect. On failure: crash with critical error.                                                |
-| AERPAW      | Provided                                      | Attempts to connect to given port. On failure: crash with critical error.                                                          |
+| Method | Local checks | With safety client |
+|--------|--------------|-------------------|
+| `can_takeoff(altitude)` | Armable, GPS 3D fix, battery | + server takeoff validation |
+| `can_goto(target, …)` | Tolerance bounds | + waypoint validation |
+| `can_land()` | - | Server landing validation if configured |
 
-The passthrough checker (`NoOpSafetyChecker`) always returns success for all validations but logs that the SafetyCheckerServer is not available. Use it only for local development when no geofence server is running.
+### CLI safety behavior
 
-```bash
-# Non-AERPAW: optional, uses passthrough if not provided or connection fails
-aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn ... --safety-checker-port 14580
+| Environment | Port omitted | Port provided |
+|-------------|--------------|---------------|
+| Non-AERPAW | Passthrough (all checks pass, warning logged) | Connect or fall back to passthrough |
+| AERPAW | Default 14580; failure exits | Connect or exit |
 
-# AERPAW: defaults to 14580; must succeed or program exits
-aerpawlib --api-version v2 --script my_mission.py --vehicle drone --conn ...
-```
+### SafetyCheckerClient
 
-## SafetyCheckerClient
-
-Async ZMQ client for external geofence validation:
+Async ZMQ client for direct validation:
 
 ```python
-from aerpawlib.v2.safety import SafetyCheckerClient
-
-client = SafetyCheckerClient(addr="192.168.32.25", port=14580)
 ok, msg = await client.validate_waypoint(current, next_loc)
 ok, msg = await client.validate_takeoff(altitude, lat, lon)
 ok, msg = await client.validate_landing(lat, lon)
 ```
 
-## PreflightChecks
-
-Integrated preflight checks before arm/takeoff:
+### PreflightChecks
 
 ```python
 from aerpawlib.v2.safety import PreflightChecks
 
-ok = await PreflightChecks.run_all(vehicle)
-# Checks: GPS 3D fix, minimum battery
+ok = await PreflightChecks.run_all(vehicle)  # GPS fix, battery
 ```
 
-## Connection monitoring
+### Connection monitoring
 
-Disconnect detection lives on the vehicle via `watch_disconnect(timeout)`. The CLI races that future against the runner and calls `setup_signal_handlers()` from `aerpawlib.v2.safety` for async-safe SIGINT/SIGTERM handling.
+`vehicle.watch_disconnect(timeout)` detects heartbeat loss. The CLI races this against your runner. `setup_signal_handlers()` enables async-safe SIGINT/SIGTERM handling.
+
+## Errors
+
+| Situation | Result |
+|-----------|--------|
+| Validation fails | `can_*` returns `(False, message)` |
+| AERPAW, no safety server | Process exits with critical error |
+| Non-AERPAW, no server | `NoOpSafetyChecker` passes checks (development only) |
+
+## See also
+
+- `aerpawlib.v1.safety`: server YAML config and `SafetyCheckerServer`
+- `aerpawlib.v2.vehicle`: connect with `safety=`
+- `aerpawlib.cli`: `--safety-checker-port`, `--safety-checker-ip`

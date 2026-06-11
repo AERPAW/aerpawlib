@@ -1,17 +1,40 @@
 ## Overview
 
-QGroundControl plan importers. If you build missions in QGC, you can check them in next to your script and parse the waypoint stream into tuples the vehicle layer understands.
+Load QGroundControl `.plan` files into waypoint structures your mission can iterate.
 
-### Primary functions
-- `read_from_plan`:  return a list of `Waypoint` tuples `(command, x/lat, y/lon, z/alt, waypoint_id, speed)` for navigation commands, using sensible defaults for speed when missing in the file.
-- `read_from_plan_complete`:  return a list of per-item dicts with `id`, `command`, `pos`, `wait_for`, and `speed` for takeoff, waypoint, and RTL items so you can mirror the full QGC mission structure in code.
-- `get_location_from_waypoint`:  build a `Coordinate` from a `Waypoint` tuple (lat, lon, alt from the tuple’s position fields).
+## When to use this
 
-### Error handling
-- `aerpawlib.v2.PlanError` (subclass of `AerpawlibError`) is raised for missing files, invalid JSON, or malformed mission items, often wrapping the original exception in `original_error` for debug logs.
+Import when you design missions in QGC and execute them from a v2 runner script.
 
-### Behavior notes
-- Command constants (`PLAN_CMD_*`) live in `aerpawlib.v2.constants` and stay aligned with the parser and ArduPilot mission expectations.
-- Unknown mission items are skipped where possible so odd QGC configurations do not crash the parser. Verify critical legs in SITL before field deployment.
+## Common workflow
 
-The `aerpawlib.v2` package documentation has a short example loop over `read_from_plan`.
+```python
+from pathlib import Path
+
+from aerpawlib.v2.plan import read_from_plan, get_location_from_waypoint
+
+for wp in read_from_plan(Path("mission.plan")):
+    coord = get_location_from_waypoint(wp)
+    await drone.goto_coordinates(coord)
+```
+
+## Key concepts
+
+| Function | Description |
+|----------|-------------|
+| `read_from_plan` | Navigation waypoints as tuples |
+| `read_from_plan_complete` | All items (takeoff, RTL, etc.) as dicts |
+| `get_location_from_waypoint` | Build `Coordinate` from a waypoint tuple |
+
+Unknown QGC items are skipped when possible. Verify critical legs in SITL before field deployment.
+
+Plan command IDs live in `aerpawlib.v2.constants`.
+
+## Errors
+
+`PlanError`: missing file, invalid JSON, or malformed mission items.
+
+## See also
+
+- `aerpawlib.v2.vehicle`: `goto_coordinates`
+- `aerpawlib.v1.util`: v1 plan parsing (`str` paths)

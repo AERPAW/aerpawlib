@@ -1,91 +1,95 @@
 ## Overview
 
-Operating autonomous vehicles means handling a lot of concurrent logic. This module provides the core runner implementations and decorators you need to build v1 missions in `aerpawlib`. 
+Runners turn your Python class into an executable experiment. This module provides `BasicRunner`, `StateMachine`, and `ZmqStateMachine` plus the decorators that mark entry points and states.
 
-Whether you want to write a straightforward, single-entry script or a highly complex, multi-vehicle state machine, this module handles the underlying execution flow so you can focus on your experiment's logic.
+## When to use this
 
-## The Runner Architecture
+Import from `aerpawlib.v1.runner` (or `aerpawlib.v1`) when you define experiment scripts launched by the `aerpawlib` CLI.
 
-At the highest level, all scripts in `aerpawlib` are built on a foundational `Runner` class. Subclasses of `Runner` dictate your script's execution model and provide optional hooks like `initialize_args` and `cleanup`. 
+| Runner | Use when |
+|--------|----------|
+| `BasicRunner` | One linear `@entrypoint` flow |
+| `StateMachine` | Named states with return-based transitions |
+| `ZmqStateMachine` | Multi-vehicle coordination over ZMQ |
 
-When you're ready to write your mission logic, you'll choose one of these three implementations:
+## Common workflow
 
-### `BasicRunner`
-For simple scripts where you want to manually control the entire flow of the program, `BasicRunner` is your pragmatic, go-to choice. 
-* How it works: It looks for a single method in your script decorated with `@entrypoint` and executes it. 
-* Guardrails: If you accidentally include multiple entrypoints, it will raise a `StateMachineError` to prevent spaghetti logic. If you forget to include an entrypoint entirely, you'll get a `NoEntrypointError`.
-
-
-### `StateMachine`
-When your experiment logic gets more complex, `StateMachine` is the powerhouse framework. It allows you to build a map of distinct "states" and seamlessly transition between them.
-* How it works: You decorate your methods with `@state` or `@timed_state`. The state machine `await`s the current state's function, and whatever string you return becomes the next state it executes. 
-* Initialization: You *must* tell the runner where to start by marking exactly one state with `first=True`. If you don't, it raises a `NoInitialStateError`. If you mark more than one, you'll trigger a `MultipleInitialStatesError`.
-
-### `ZmqStateMachine`
-Multi-vehicle control software is inherently difficult. `ZmqStateMachine` extends the standard state machine to support remote control and synchronization via a ZeroMQ (ZMQ) proxy. 
-* How it works: It collects any methods you've annotated with `@expose_zmq` and `@expose_field_zmq` and serves them over ZMQ, allowing other vehicles or a ground station to trigger transitions or query data.
-* Important Setup: Before calling `run()` on a `ZmqStateMachine`, you must initialize the ZMQ bindings using `_initialize_zmq_bindings(vehicle_identifier, proxy_server_addr)`—this is typically wired up via CLI flags. If you forget this step, `run()` will immediately raise a `StateMachineError`.
-
----
-
-## Available Decorators
-
-To make defining your mission logic as clean and Pythonic as possible, `aerpawlib` relies heavily on decorators. 
-
-A quick note on async: Decorated functions are expected to be `async` coroutines, as the runners will inherently `await` them. State functions should always return the next state's name as a string, or `None` if the mission is complete.
-
-* `@entrypoint`: Your starting line. Marks a single-entry async function for `BasicRunner`.
-* `@state(name, first=False)`: Defines a standard state for a `StateMachine`. 
-* `@timed_state(name, duration, loop=False, first=False)`: A highly useful decorator that guarantees a state runs for *at least* the allotted `duration` (in seconds) before transitioning. 
-* `@background`: Marks an async method to run repeatedly in the background while your state machine is active. This is perfect for continuous tasks like logging telemetry.
-* `@at_init`: Marks an async function that needs to run exactly once during vehicle initialization, *before* the vehicle is armed.
-* `@expose_zmq(name)` / `@expose_field_zmq(name)`: Opens up methods to the ZMQ control/query API, allowing for multi-vehicle coordination.
-
----
-
-## Error Handling Guide
-
-`aerpawlib` uses specific exceptions to help you catch configuration and logic bugs early:
-
-* `NoEntrypointError`: Your `BasicRunner` can't find its `@entrypoint`.
-* `NoInitialStateError`: Your `StateMachine` doesn't know where to start (missing `first=True`).
-* `MultipleInitialStatesError`: You've accidentally set `first=True` on more than one state.
-* `InvalidStateError`: You returned a state name that doesn't exist (e.g., returning `"go_north"` when the state is actually named `"fly_north"`).
-* `StateMachineError`: A catch-all for various runtime or configuration issues (like forgetting to initialize ZMQ bindings).
-
----
-
-## Quick Reference Examples
-
-### BasicRunner
 ```python
-class MyScript(BasicRunner):
+from aerpawlib.v1 import BasicRunner, Drone, entrypoint
+
+class Patrol(BasicRunner):
     @entrypoint
-    async def main(self, vehicle: Vehicle):
-        # We take off, and we're done! Simple and clean.
+    async def run(self, vehicle: Drone):
         await vehicle.takeoff(5)
+        await vehicle.land()
 ```
 
-### StateMachine
+```bash
+aerpawlib --api-version v1 --script patrol.py --vehicle drone --conn udp:127.0.0.1:14550
+```
+
+## Key concepts
+
+### Runner base
+
+All runners subclass `Runner`. Optional hooks: `initialize_args` (extra CLI args), `cleanup` (shutdown).
+
+### Decorators
+
+Decorated methods must be `async`. State methods return the next state name (`str`) or `None` to finish.
+
+| Decorator | Class | Description |
+|-----------|-------|-------------|
+| `@entrypoint` | `BasicRunner` | Single entry coroutine |
+| `@state(name, first=False)` | `StateMachine` | Standard state |
+| `@timed_state(name, duration, loop=False, first=False)` | `StateMachine` | State held for at least `duration` seconds |
+| `@background` | `StateMachine` | Repeated background coroutine |
+| `@at_init` | `StateMachine` | Runs once before arm |
+| `@expose_zmq(name)` | `ZmqStateMachine` | Remote state transition target |
+| `@expose_field_zmq(name)` | `ZmqStateMachine` | Queryable field via `query_field` |
+
+### ZmqStateMachine setup
+
+Initialize ZMQ before `run()` (normally via CLI `--zmq-identifier` and `--zmq-proxy-server`):
+
 ```python
-class MySm(StateMachine):
+self._initialize_zmq_bindings("vehicle-a", "127.0.0.1")
+coords = await self.query_field("vehicle-b", "position")
+await self.transition_runner("vehicle-b", "land")
+```
+
+### StateMachine example
+
+```python
+from aerpawlib.v1 import StateMachine, Vehicle, state, timed_state
+
+class Patrol(StateMachine):
     @state(name="start", first=True)
     async def start(self, vehicle: Vehicle):
-        # Setup complete, let's move to the patrol state
-        return "patrol"
+        await vehicle.takeoff(5)
+        return "hold"
 
-    @timed_state(name="patrol", duration=10)
-    async def patrol(self, vehicle: Vehicle):
-        # This state is guaranteed to hold for 10 seconds
-        # before the runner accepts "land" and transitions.
+    @timed_state(name="hold", duration=10)
+    async def hold(self, vehicle: Vehicle):
         return "land"
+
+    @state(name="land")
+    async def land(self, vehicle: Vehicle):
+        await vehicle.land()
 ```
 
-### ZmqStateMachine
-```python
-# During setup, before calling run():
-self._initialize_zmq_bindings("leader", "127.0.0.1")
+## Errors
 
-# Inside your state, asking another runner for a data field:
-target_coords = await self.query_field("follower", "position")
-```
+| Exception | Cause |
+|-----------|-------|
+| `NoEntrypointError` | `BasicRunner` missing `@entrypoint` |
+| `NoInitialStateError` | No state with `first=True` |
+| `MultipleInitialStatesError` | More than one `first=True` state |
+| `InvalidStateError` | Returned state name not defined |
+| `StateMachineError` | ZMQ not initialized or other runtime config issue |
+
+## See also
+
+- `aerpawlib.v1.vehicle`: vehicle passed to runner methods
+- `aerpawlib.cli`: `--script`, ZMQ flags
+- `aerpawlib.v2.runner`: v2 runner API

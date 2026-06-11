@@ -1,5 +1,6 @@
-"""
-Rover vehicle for aerpawlib v2.
+"""MAVSDK-backed ground vehicle implementation for the v2 API.
+
+See ``aerpawlib.v2.vehicle`` module documentation for usage and commands.
 """
 
 from __future__ import annotations

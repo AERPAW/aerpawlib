@@ -294,7 +294,7 @@ class Vehicle:
         except asyncio.TimeoutError as e:
             future.cancel()
             raise RuntimeError(
-                f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s — the MAVSDK event loop may have crashed",
+                f"MAVSDK operation timed out after {_MAVSDK_LOOP_TIMEOUT_S}s; the MAVSDK event loop may have crashed",
             ) from e
         except (AioRpcError, Exception) as e:
             if isinstance(e, AioRpcError):

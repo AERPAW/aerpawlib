@@ -93,7 +93,7 @@ def validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float
 
     This is a client-side sanity check for navigation tolerances (e.g. how
     close the vehicle must get to a waypoint before considering it reached).
-    It is *not* related to mission safety constraints — altitude and speed
+    It is *not* related to mission safety constraints; altitude and speed
     limits are the responsibility of the SafetyCheckerServer, which enforces
     mission-specific bounds loaded from the vehicle YAML config.
 

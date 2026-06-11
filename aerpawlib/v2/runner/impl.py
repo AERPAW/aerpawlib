@@ -57,7 +57,10 @@ class OrchestratedRunDescriptor:
 
 
 class Runner:
-    """Base execution framework for aerpawlib v2 scripts."""
+    """Base class for experiment runners executed by the CLI.
+
+    Subclass ``BasicRunner``, ``StateMachine``, or ``ZmqStateMachine``.
+    """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -163,7 +166,10 @@ class Runner:
 
 
 class BasicRunner(Runner):
-    """Single entry point runner."""
+    """Runner with a single ``@entrypoint`` coroutine.
+
+    See ``aerpawlib.v2.runner`` module documentation.
+    """
 
     async def run(self, vehicle: Any) -> None:
         """Run the decorated entrypoint method.
@@ -196,7 +202,11 @@ class BasicRunner(Runner):
 
 
 class StateMachine(Runner):
-    """State-based mission runner."""
+    """Runner that transitions between named ``@state`` methods.
+
+    Each state returns the next state name or ``None`` to finish.
+    See ``aerpawlib.v2.runner`` module documentation.
+    """
 
     def __init__(self) -> None:
         """Initialise runtime state for one execution of the state machine."""
@@ -420,20 +430,9 @@ class StateMachine(Runner):
 
 
 class ZmqStateMachine(StateMachine):
-    """
-    StateMachine with ZMQ-based remote control.
+    """StateMachine with remote ``transition_runner`` and ``query_field`` over ZMQ.
 
-    Improvements over original implementation:
-    - Messages are processed sequentially (inline in recv loop, not via
-      asyncio.create_task), eliminating concurrent-handler ordering issues.
-    - asyncio.Event per pending field reply replaces the busy-poll loop.
-    - All message key accesses use .get() to avoid KeyError on malformed messages.
-    - ZMQ context is destroyed cleanly in run()'s finally block.
-    - Send and receive loops are named _zmq_recv_loop / _zmq_send_loop to
-      avoid collisions with user-defined @background methods.
-
-    Requires _initialize_zmq_bindings(vehicle_identifier, proxy_server_addr)
-    before run().
+    See ``aerpawlib.v2.runner`` module documentation.
     """
 
     def __init__(self) -> None:

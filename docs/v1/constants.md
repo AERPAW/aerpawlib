@@ -1,14 +1,22 @@
 ## Overview
 
-Shared constants for `aerpawlib.v1`.
+Shared defaults and protocol constants for the v1 API (timeouts, tolerances, safety request names, ZMQ ports).
 
-This module centralizes defaults and protocol values used across v1 vehicle,
-runner, safety, and platform integrations.
+## When to use this
 
-### Groups
-- Connection/timeouts: startup waits, heartbeat intervals, polling delays.
-- Movement: tolerances, goto timeout, rover mode constants.
-- Safety protocol: request names and checker client/server defaults.
-- ZMQ: proxy ports, message type labels, query timeout values.
-- AERPAW platform: forward-server defaults and OEO severity labels.
-- Geography/math: Earth constants and coordinate conversion coefficients.
+Reference when tuning mission parameters or integrating with the safety checker and ZMQ proxy. Most experiment scripts use CLI flags or method defaults instead of importing constants directly.
+
+## Key concepts
+
+| Group | Examples |
+|-------|----------|
+| Connection | Startup waits, heartbeat intervals, polling delays |
+| Movement | Goto tolerance, timeout, rover mode values |
+| Safety | Request name strings for `SafetyCheckerClient` |
+| ZMQ | Proxy ports, query timeouts |
+| Geography | Earth radius, coordinate conversion coefficients |
+
+## See also
+
+- `aerpawlib.v2.constants`: v2 defaults
+- `aerpawlib.v1.safety`: safety protocol usage

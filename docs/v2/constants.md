@@ -1,16 +1,23 @@
 ## Overview
 
-This module contains the constants for the v2 API.
+Shared defaults and protocol constants for the v2 API (timeouts, tolerances, safety request names, ZMQ ports, plan command IDs).
 
-The CLI, vehicles, runner, ZMQ multi-vehicle stack, and safety client all read from this module so the magic numbers are at least somewhat consistent.
+## When to use this
 
-### Groups
-- Connection: `CONNECTION_TIMEOUT_S`, `HEARTBEAT_TIMEOUT_S`, `HEARTBEAT_CHECK_INTERVAL_S`, and related timing for `watch_disconnect()` and vehicle setup.
-- Movement: default goto tolerance and timeout, heading tolerance, arming and takeoff delays, offboard/velocity loop delays, position readiness waits.
-- Validation: min/max position tolerance for `can_goto` and similar checks.
-- State machine: `STATE_MACHINE_DELAY_S` between state loop iterations.
-- ZMQ: proxy in/out port strings, query timeout, and message type labels for transitions and field queries.
-- Safety: `DEFAULT_SAFETY_CHECKER_PORT`, request names (`VALIDATE_WAYPOINT_REQ`, `VALIDATE_TAKEOFF_REQ`, etc.), and checker timeouts.
-- AERPAW / platform: forward server address defaults, OEO timeout values, and environment flags used by the platform helpers.
-- Geography: Earth radius and latitude correction coefficients shared with `Coordinate` / `VectorNED` math in `aerpawlib.v2.types`.
-- QGC plans: command type IDs and default cruise speed for plan parsing.
+Reference when tuning mission parameters or reading safety/ZMQ protocol values. Most experiment scripts rely on CLI flags and method defaults.
+
+## Key concepts
+
+| Group | Examples |
+|-------|----------|
+| Connection | `CONNECTION_TIMEOUT_S`, `HEARTBEAT_TIMEOUT_S` |
+| Movement | Default goto tolerance, heading tolerance, arm delays |
+| Validation | Min/max position tolerance for `can_goto` |
+| ZMQ | Proxy ports, message type labels |
+| Safety | `DEFAULT_SAFETY_CHECKER_PORT`, validation request names |
+| Plans | QGC command type IDs, default cruise speed |
+
+## See also
+
+- `aerpawlib.v1.constants`: v1 defaults
+- `aerpawlib.v2.plan`: plan parsing constants

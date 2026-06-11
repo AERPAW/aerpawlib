@@ -89,11 +89,13 @@ class _State:
 
 
 def entrypoint(func: _DecoratedFunc) -> _DecoratedFunc:
-    """
-    Decorator used to identify the entry point used by `BasicRunner` driven
-    scripts.
+    """Mark the single async entry point for a BasicRunner.
 
-    The function decorated by this is expected to be `async`
+    Args:
+        func: Async method invoked with the connected vehicle.
+
+    Returns:
+        The decorated function with an entrypoint marker.
     """
     func._entrypoint = True
     return func
@@ -103,19 +105,17 @@ def state(
     name: str,
     first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
-    """
-    Decorator to specify a state in a StateMachine.
+    """Decorate a method as a named StateMachine state.
 
     Args:
-        name: The name of the state.
-        first: Whether this is the initial state of the machine.
-            Defaults to False.
+        name: Unique state name used for transitions.
+        first: If True, this state is the initial state.
 
     Returns:
-        Callable: The decorated function.
+        Decorator that registers the method as the named state.
 
     Raises:
-        InvalidStateNameError: If the name is empty.
+        InvalidStateNameError: If name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -141,21 +141,19 @@ def timed_state(
     loop: bool = False,
     first: bool = False,
 ) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
-    """
-    Decorator for a state that runs for a fixed duration.
+    """Decorate a method as a timed StateMachine state.
 
     Args:
-        name: The name of the state.
-        duration: Minimum duration in seconds for this state.
-        loop: Whether to repeatedly call the decorated function
-            during the duration. Defaults to False.
-        first: Whether this is the initial state. Defaults to False.
+        name: Unique state name used for transitions.
+        duration: Minimum seconds to remain in this state.
+        loop: If True, re-invoke the method until duration elapses.
+        first: If True, this state is the initial state.
 
     Returns:
-        Callable: The decorated function.
+        Decorator that registers the method as the named timed state.
 
     Raises:
-        InvalidStateNameError: If the name is empty.
+        InvalidStateNameError: If name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -178,17 +176,16 @@ def timed_state(
 
 
 def expose_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
-    """
-    Decorator to expose a state for remote control via ZMQ.
+    """Expose a state for remote ZMQ transition commands.
 
     Args:
-        name: The name of the state to expose.
+        name: ZMQ message name that triggers a transition to this state.
 
     Returns:
-        Callable: The decorated function.
+        Decorator that marks the state method as ZMQ-exposed.
 
     Raises:
-        InvalidStateNameError: If the name is empty.
+        InvalidStateNameError: If name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -203,17 +200,16 @@ def expose_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
 
 
 def expose_field_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
-    """
-    Decorator to make a field requestable via ZMQ.
+    """Expose a method return value for ZMQ query_field calls.
 
     Args:
-        name: The name of the field to expose.
+        name: ZMQ field name remote runners use in query_field.
 
     Returns:
-        Callable: The decorated function.
+        Decorator that marks the method as a queryable ZMQ field.
 
     Raises:
-        InvalidStateNameError: If the name is empty.
+        InvalidStateNameError: If name is empty.
     """
     if name == "":
         raise InvalidStateNameError()
@@ -228,30 +224,26 @@ def expose_field_zmq(name: str) -> Callable[[_DecoratedFunc], _DecoratedFunc]:
 
 
 def background(func: _DecoratedFunc) -> _DecoratedFunc:
-    """
-    Designate a function to be run in parallel to a StateMachine.
+    """Mark a method to run concurrently while the StateMachine is active.
 
     Args:
-        func: The asynchronous function to run in the background.
+        func: Async method restarted on exception until the runner finishes.
 
     Returns:
-        Callable: The decorated function.
+        The decorated function with a background marker.
     """
     func._is_background = True
     return func
 
 
 def at_init(func: _DecoratedFunc) -> _DecoratedFunc:
-    """
-    Designate a function to be run during vehicle initialization.
-
-    The function will run before the vehicle is armed.
+    """Mark a method to run once before arming and the first state.
 
     Args:
-        func: The asynchronous function to run.
+        func: Async setup method called during initialization.
 
     Returns:
-        Callable: The decorated function.
+        The decorated function with an at_init marker.
     """
     func._run_at_init = True
     return func

@@ -1,18 +1,38 @@
 ## Overview
 
-`ExternalProcess` is the v2 subprocess helper.
+Async wrapper for sidecar subprocesses in v2 missions (sensor bridges, helper tools).
 
-It wraps `asyncio.create_subprocess_exec` so mission code can tail stdout, feed stdin, and wait for regex-matched output without blocking the main event loop, unlike v1 where blocking was much more difficult to get around.
+## When to use this
 
-You will use it when a mission needs a sidecar (sensor bridge, custom bridge process, SITL helper) running alongside aerpawlib, all orchestrated from the same `asyncio` program.
+Import `ExternalProcess` when your experiment launches and communicates with an external process on the same asyncio loop.
 
-### Capabilities
-- `start`: launch with executable plus argv list, optional stdio to files.
-- `read_line`: incremental stdout reads as lines.
-- `send_input`: write bytes to the subprocess stdin when a pipe is open.
-- `wait_until_output` / `wait_until_terminated`: awaitable completion and pattern matching on output.
-- `aclose`: async cleanup to avoid leaving transports around, especially in tests.
+## Common workflow
 
-### Behavior notes
-- `wait_until_output` requires a piped stdout; if you redirect stdout to a file, the streaming helpers cannot read it.
-- If stdin is not available, `send_input` will raise `RuntimeError`, matching the guardrails described in the v1 external doc and preserved in v2.
+```python
+from aerpawlib.v2 import ExternalProcess
+
+proc = ExternalProcess("python3", params=["-u", "sensor_reader.py"])
+await proc.start()
+line = await proc.read_line()
+await proc.send_input("start\n")
+lines = await proc.wait_until_output(r"READY")
+await proc.wait_until_terminated()
+await proc.aclose()
+```
+
+## Key concepts
+
+| Method | Description |
+|--------|-------------|
+| `start` | Launch with executable + argv list |
+| `read_line` | Read stdout line (piped mode) |
+| `send_input` | Write to stdin |
+| `wait_until_output` | Await regex match on stdout |
+| `wait_until_terminated` | Await process exit |
+| `aclose` | Async cleanup |
+
+> **Note:** `wait_until_output` requires piped stdout. `send_input` raises if stdin is unavailable.
+
+## See also
+
+- `aerpawlib.v1.external`: v1 subprocess helper
