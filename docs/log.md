@@ -9,4 +9,4 @@ The `aerpawlib.log` module is the shared logging foundation for the whole packag
 - `get_logger`: Returns a `logging.Logger` for a dotted name, enum member, or object with a string `value`.
 - `set_level`: Adjusts level on a specific logger (default root: `aerpawlib`).
 
-This module should not be used by experiments, end users should either log using the `aerpawlib.v1.log` or `aerpawlib.v2.log` modules. This is because those modules actually implement the `LogComponent` class :)
+This module should not be used directly by experiments; end users should use the `aerpawlib.v1.log` or `aerpawlib.v2.log` modules.

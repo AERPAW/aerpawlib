@@ -26,17 +26,17 @@ def read_from_plan(
     default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[Waypoint]:
     """
-    Parse a QGroundControl .plan file into a list of waypoints.
+    Parse a QGroundControl plan file into a list of waypoints.
 
     Args:
-        path: Path to the .plan file.
+        path: Path to the plan file.
         default_speed: Speed (m/s) to use if none specified in plan.
 
     Returns:
         List of waypoint tuples (command, x, y, z, waypoint_id, speed).
 
     Raises:
-        Exception: If the file is not a valid .plan file.
+        Exception: If the file is not a valid plan file.
     """
     waypoints: list[Waypoint] = []  # Use Path object directly
     try:
@@ -95,12 +95,12 @@ def read_from_plan_complete(
     default_speed: float = DEFAULT_WAYPOINT_SPEED,
 ) -> list[dict]:
     """
-    Read a .plan file and return detailed waypoint dictionaries.
+    Read a plan file and return detailed waypoint dictionaries.
 
     Includes id, command, pos, wait_for, speed.
 
     Args:
-        path: Path to the .plan file.
+        path: Path to the plan file.
         default_speed: Default speed in m/s.
 
     Returns:

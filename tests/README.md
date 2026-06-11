@@ -1,6 +1,6 @@
 # aerpawlib Test Suite
 
-Pytest-based tests for aerpawlib v1 API. See [docs/DEVELOPMENT.md](../docs/DEVELOPMENT.md) for contributor testing guidelines. **SITL is managed by pytest** for integration tests: it starts ArduPilot SITL before tests and stops it after. A full SITL reset (disarm, clear mission, battery reset) runs between each integration test.
+Pytest-based tests for aerpawlib v1 API. See the root [README.md](../README.md#running-tests) for quick-start testing, and this document for contributor testing guidelines. SITL is managed by pytest for integration tests: it starts ArduPilot SITL before tests and stops it after. A full SITL reset (disarm, clear mission, battery reset) runs between each integration test.
 
 ## Structure
 

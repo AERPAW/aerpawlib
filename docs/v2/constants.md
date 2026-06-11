@@ -13,4 +13,4 @@ The CLI, vehicles, runner, ZMQ multi-vehicle stack, and safety client all read f
 - Safety: `DEFAULT_SAFETY_CHECKER_PORT`, request names (`VALIDATE_WAYPOINT_REQ`, `VALIDATE_TAKEOFF_REQ`, etc.), and checker timeouts.
 - AERPAW / platform: forward server address defaults, OEO timeout values, and environment flags used by the platform helpers.
 - Geography: Earth radius and latitude correction coefficients shared with `Coordinate` / `VectorNED` math in `aerpawlib.v2.types`.
-- QGC plans: command type IDs and default cruise speed for `.plan` parsing in `aerpawlib.v2.plan`.
+- QGC plans: command type IDs and default cruise speed for plan parsing.

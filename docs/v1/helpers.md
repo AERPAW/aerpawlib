@@ -12,10 +12,4 @@ thread-safe value wrapper used by the v1 dual-loop architecture.
 - `validate_tolerance(...)`: bounds-check mission tolerances and raise
   `InvalidToleranceError` when out of range.
 - `normalize_heading(...)` and `heading_difference(...)`: heading math helpers.
-- `ThreadSafeValue`: lock-protected read/write/compare-and-set container.
-
-### Why it matters
-- v1 vehicle telemetry is updated from a background MAVSDK loop and consumed on
-  the main runner loop; `ThreadSafeValue` is the synchronization primitive used
-  across that boundary.
 

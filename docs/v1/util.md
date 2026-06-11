@@ -20,7 +20,7 @@ When dealing with autonomous flight, keeping your drone inside safe operational 
 * Parsing KMLs: Use `read_geofence(...)` to parse standard KML polygons directly into memory. 
 * Spatial Logic: The module provides robust geometry predicates like `inside(...)` (which uses ray-casting algorithms to determine if a point is within a polygon) and `do_intersect(...)` (which tests if a flight path segment crosses a geofence boundary).
 
-> **Deprecation**: You might notice camelCase aliases in the code, such as `readGeofence` or `doIntersect`. These are kept purely for backward compatibility with older AERPAW scripts. Be kind to your future self and stick to Pythonic `snake_case` in your new code.
+> Deprecation: You might notice camelCase aliases in the code, such as `readGeofence` or `doIntersect`. These are kept purely for backward compatibility with older AERPAW scripts. Be kind to your future self and stick to Pythonic `snake_case` in your new code.
 
 ## Plan Parsing
 

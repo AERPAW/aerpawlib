@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -133,8 +135,10 @@ def main() -> int:
 
     command = _build_pdoc_command(config, output_dir)
     subprocess.run(command, check=True, cwd=_repo_root())
+    
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

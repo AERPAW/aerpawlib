@@ -285,7 +285,7 @@ class UnexpectedDisarmError(StateError):
 
 
 class PlanError(AerpawlibError):
-    """Raised when a .plan file cannot be parsed."""
+    """Raised when a plan file cannot be parsed."""
 
     def __init__(self, message: str = "Plan file error", **kwargs: Any) -> None:
         kwargs.setdefault("code", "PLAN_ERROR")

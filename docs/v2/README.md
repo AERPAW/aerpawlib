@@ -106,7 +106,7 @@ vehicle.close()  # cancel all telemetry and command tasks, release connection
 
 `Rover` is a ground-vehicle variant that shares the base `Vehicle` interface. Key differences:
 
-- Uses **ground distance** (2D) for arrival tolerance; default tolerance is `2.1` m.
+- Uses ground distance (2D) for arrival tolerance; default tolerance is `2.1` m.
 - `set_velocity` ignores the `down` component (rovers don't fly).
 - There is no `takeoff`, `land`, `return_to_launch`, `set_heading`, or `stop_velocity` method.
 - Switches to ArduPilot GUIDED mode automatically before arming.
@@ -311,7 +311,7 @@ ok, msg = await drone.can_land()
 
 ## Safety Integration
 
-Pass a safety client (`SafetyCheckerClient` or `NoOpSafetyChecker`) to `connect(safety=...)`. The vehicle constructor stores it for `can_takeoff`, `can_goto`, `can_land`. When running via CLI, aerpawlib builds the safety client and passes it automatically (see [Safety — Automatic Setup](safety.md#automatic-setup-via-cli-safety-checker-port)).
+Pass a safety client (`SafetyCheckerClient` or `NoOpSafetyChecker`) to `connect(safety=...)`. The vehicle constructor stores it for `can_takeoff`, `can_goto`, `can_land`. When running via CLI, aerpawlib builds the safety client and passes it automatically (see `aerpawlib.v2.safety`).
 
 ```python
 from aerpawlib.v2.safety import SafetyCheckerClient
@@ -434,27 +434,7 @@ AerpawlibError
 │   ├── MultipleInitialStatesError
 │   ├── InvalidStateError        # state transition returned unknown state name
 │   └── InvalidStateNameError    # empty state name passed to @state
-└── PlanError                    # .plan file cannot be parsed
+└── PlanError                    # plan file cannot be parsed
 ```
 
 `UnexpectedDisarmError` is raised automatically by `BasicRunner` and `StateMachine` when the vehicle disarms during a mission (e.g. motor failsafe), terminating the experiment cleanly.
-
-## Module reference
-
-Short per-module pages (mirroring [v1 module docs](../v1/)):
-
-* [aerpaw](aerpaw.md) — AERPAW platform helper, OEO forwarding
-* [constants](constants.md) — shared defaults and protocol values
-* [event_log](event_log.md) — structured JSONL logger re-export
-* [exceptions](exceptions.md) — `AerpawlibError` hierarchy
-* [external](external.md) — `ExternalProcess` async subprocess helper
-* [geofence](geofence.md) — KML polygons, point-in-polygon, segment intersection
-* [log](log.md) — v2 `LogComponent` and logging helpers
-* [plan](plan.md) — QGroundControl `.plan` parsing
-* [protocols](protocols.md) — `Protocol` types for tests and disconnect monitoring
-* [runner](runner.md) — `BasicRunner`, `StateMachine`, `ZmqStateMachine`, decorators, config
-* [safety](safety.md) — validation, `SafetyCheckerClient`, CLI wiring
-* [testing](testing.md) — `MockVehicle` and test helpers
-* [types](types.md) — `Coordinate`, `VectorNED`, telemetry dataclasses
-* [vehicle](vehicle.md) — `Vehicle`, `Drone`, `Rover`, `DummyVehicle`, tasks
-* [zmqutil](zmqutil.md) — ZMQ proxy reachability and `run_zmq_proxy`
