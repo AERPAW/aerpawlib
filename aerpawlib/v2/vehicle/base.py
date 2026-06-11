@@ -448,6 +448,9 @@ class Vehicle:
                     math.radians(att.pitch_deg),
                     math.radians(att.yaw_deg),
                 )
+                from aerpawlib.cli.progress_bar import update_telemetry
+
+                update_telemetry(heading=att.yaw_deg)
                 if first[0]:
                     logger.info(
                         f"Telemetry: attitude stream active (roll={att.roll_deg:.1f} pitch={att.pitch_deg:.1f} yaw={att.yaw_deg:.1f} deg)",
@@ -466,6 +469,11 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_velocity(vel.north_m_s, vel.east_m_s, vel.down_m_s)
+                from aerpawlib.cli.progress_bar import update_telemetry
+
+                update_telemetry(
+                    velocity_ned=(vel.north_m_s, vel.east_m_s, vel.down_m_s),
+                )
                 if first[0]:
                     logger.info(
                         f"Telemetry: velocity stream active (N={vel.north_m_s:.2f} E={vel.east_m_s:.2f} D={vel.down_m_s:.2f} m/s)",
@@ -487,7 +495,7 @@ class Vehicle:
                 self._state.update_gps(fix, gps.num_satellites)
                 from aerpawlib.cli.progress_bar import update_telemetry
 
-                update_telemetry(sats=gps.num_satellites)
+                update_telemetry(sats=gps.num_satellites, gps_fix=fix)
                 if first[0]:
                     logger.info(
                         f"Telemetry: gps stream active (fix_type={fix}, sats={gps.num_satellites})",
@@ -513,7 +521,10 @@ class Vehicle:
                 )
                 from aerpawlib.cli.progress_bar import update_telemetry
 
-                update_telemetry(battery=int(bat.remaining_percent))
+                update_telemetry(
+                    battery=int(bat.remaining_percent),
+                    voltage=bat.voltage_v,
+                )
                 if first[0]:
                     logger.info(
                         f"Telemetry: battery stream active ({bat.voltage_v:.1f}V, {int(bat.remaining_percent)}%)",

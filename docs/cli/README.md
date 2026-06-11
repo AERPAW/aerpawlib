@@ -70,6 +70,8 @@ aerpawlib --zmq-identifier leader --zmq-proxy-server 127.0.0.1 ...  # terminal 2
 | `-q` / `--quiet` | WARNING and above only |
 | `--log-file PATH` | DEBUG log file |
 | `--structured-log FILE` | JSONL mission/telemetry events |
+| `--no-aerpawlib-stdout` | Mute aerpawlib console output |
+| `--no-status-bar` | Hide the live mission status bar (spinner and telemetry) |
 
 ### Safety (v2)
 
