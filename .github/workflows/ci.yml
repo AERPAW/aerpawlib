@@ -19,6 +19,6 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install aerpawlib
-        run: pip install -e .
-      - name: Unit tests
-        run: pytest tests/unit/ -v
+        run: pip install -e ".[dev]"
+      - name: Unit tests with coverage
+        run: pytest tests/unit/ -v --cov=aerpawlib --cov-report=term-missing

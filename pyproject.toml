@@ -39,27 +39,29 @@ dependencies = [
     "pyyaml>=6.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
-
-    # Development and Documentation dependencies
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21.0",
-    "psutil>=5.9.0",
-    "pdoc>=15.0.0",
-
-    # SITL simulation dependencies
-    "msgspec>=0.18.0",
-    "empy<4.0.0",
-    "pexpect>=4.8.0",
-    "MAVProxy>=1.8.0",
-    "dronecan>=1.0.0",
-    "future>=1.0.0",
-
     # V1/V2 vehicle driver dependencies
     "dronekit>=2.9.2",
     "pymavlink>=2.4.0",
     "pyserial>=3.5",
     "mavsdk>=2.0.0",
     "aiohttp>=3.12.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+    "psutil>=5.9.0",
+    "pdoc>=15.0.0",
+    "coverage>=7.0.0",
+]
+sitl = [
+    "msgspec>=0.18.0",
+    "empy<4.0.0",
+    "pexpect>=4.8.0",
+    "MAVProxy>=1.8.0",
+    "dronecan>=1.0.0",
+    "future>=1.0.0",
 ]
 
 
@@ -150,6 +152,19 @@ unfixable = []
 "__init__.py" = ["F401"]
 # Ignore function call in argument default (B008) in CLI callback parameters
 "aerpawlib/__main__.py" = ["B008"]
+# Backward-compat shims: deprecation warning before star re-export.
+"aerpawlib/runner.py" = ["E402", "F403"]
+"aerpawlib/vehicle.py" = ["E402", "F403"]
+"aerpawlib/util.py" = ["E402", "F403"]
+"aerpawlib/aerpaw.py" = ["E402", "F403"]
+"aerpawlib/external.py" = ["E402", "F403"]
+"aerpawlib/zmqutil.py" = ["E402", "F403"]
+"aerpawlib/safetyChecker.py" = ["E402", "F403"]
+"aerpawlib/v1/__init__.py" = ["F403"]
+"aerpawlib/v2/__init__.py" = ["F403"]
+"aerpawlib/v1/safetyChecker.py" = ["F403"]
+"aerpawlib/v1/aerpaw.py" = ["E402"]
+"examples/v1/zmq_preplanned_orbit/*.py" = ["F403", "F405"]
 
 [tool.ruff.format]
 # Configure the formatter to match Black's settings, but with 120 line length.

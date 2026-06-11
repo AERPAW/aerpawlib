@@ -10,12 +10,14 @@ import asyncio
 import json
 import math
 import time
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
     ARMABLE_TIMEOUT_S,
@@ -420,8 +422,6 @@ class Vehicle:
                     position.relative_altitude_m,
                     position.absolute_altitude_m,
                 )
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(altitude=position.relative_altitude_m)
                 self._connection.record_telemetry()
                 if first[0]:
@@ -448,8 +448,6 @@ class Vehicle:
                     math.radians(att.pitch_deg),
                     math.radians(att.yaw_deg),
                 )
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(heading=att.yaw_deg)
                 if first[0]:
                     logger.info(
@@ -469,8 +467,6 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_velocity(vel.north_m_s, vel.east_m_s, vel.down_m_s)
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(
                     velocity_ned=(vel.north_m_s, vel.east_m_s, vel.down_m_s),
                 )
@@ -493,8 +489,6 @@ class Vehicle:
                     return
                 fix = gps.fix_type.value if hasattr(gps.fix_type, "value") else gps.fix_type
                 self._state.update_gps(fix, gps.num_satellites)
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(sats=gps.num_satellites, gps_fix=fix)
                 if first[0]:
                     logger.info(
@@ -519,8 +513,6 @@ class Vehicle:
                     current,
                     int(bat.remaining_percent),
                 )
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(
                     battery=int(bat.remaining_percent),
                     voltage=bat.voltage_v,
@@ -544,8 +536,6 @@ class Vehicle:
                     return
                 mode_name = mode.name
                 self._state.update_mode(mode_name)
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(mode=mode_name)
                 if first[0]:
                     logger.info(
@@ -567,8 +557,6 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_armed(armed)
-                from aerpawlib.cli.progress_bar import update_telemetry
-
                 update_telemetry(armed=armed)
                 if first[0]:
                     logger.info(f"Telemetry: armed stream active (armed={armed})")
@@ -925,7 +913,12 @@ class Vehicle:
         logger.info("Vehicle connection closed")
 
     def close(self) -> None:
-        """Clean up. Cancels all telemetry and command tasks."""
+        """Sync cleanup. Prefer :meth:`aclose` in async code."""
+        warnings.warn(
+            "Vehicle.close() does not await task cancellation; use 'await vehicle.aclose()' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if self._connection.closed:
             logger.debug("close() called but already closed")
             return

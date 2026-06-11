@@ -599,7 +599,7 @@ async def _connect_and_wait_gps_v2(
             return vehicle
         await asyncio.sleep(1)
 
-    vehicle.close()
+    await vehicle.aclose()
     pytest.fail(f"No 3D GPS fix and EKF ready within {timeout}s")
 
 
@@ -617,7 +617,7 @@ async def connected_drone_v2(sitl_connection_string_drone: str) -> AsyncGenerato
     try:
         await _full_sitl_reset_v2(drone)
     finally:
-        drone.close()
+        await drone.aclose()
 
 
 @pytest_asyncio.fixture
@@ -634,4 +634,4 @@ async def connected_rover_v2(sitl_connection_string_rover: str) -> AsyncGenerato
     try:
         await _full_sitl_reset_v2(rover)
     finally:
-        rover.close()
+        await rover.aclose()

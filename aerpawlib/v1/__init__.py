@@ -2,7 +2,6 @@
 .. include:: ../../docs/v1/README.md
 """
 
-# ruff: noqa: F403
 
 from .aerpaw import *
 from .constants import *
