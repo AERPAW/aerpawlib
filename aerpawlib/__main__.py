@@ -84,7 +84,7 @@ def run(
     api_version: str = typer.Option(
         "v1",
         "--api-version",
-        help="The version of the vehicle control API to use ('v1' or 'v2').",
+        help="The version of the vehicle control API to use ('v1' or 'v2'). v2 is recommended for new experiments.",
         rich_help_panel="Core Options",
     ),
     config: list[str] | None = typer.Option(

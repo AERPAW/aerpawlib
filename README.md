@@ -33,7 +33,7 @@ pip install .
 For running integration tests and local SITL simulation:
 
 ```bash
-pip install -e .
+pip install -e ".[dev,sitl]"
 # Note that -e allows for local editing of the library (suitable for developers).
 aerpawlib-setup-sitl  # This allows integration tests to work by installing and building ardupilot
 ```
@@ -68,15 +68,14 @@ pytest tests/integration
 
 ```python
 # my_mission.py
-from aerpawlib.v1 import Drone, Coordinate, BasicRunner, entrypoint
+from aerpawlib.v2 import Drone, VectorNED, BasicRunner, entrypoint
 
 class MyMission(BasicRunner):
     @entrypoint
-    async def run(self, vehicle):
-        await vehicle.takeoff(10)
-        for wp in [Coordinate(35.7275, -78.6960, 10), Coordinate(35.7280, -78.6955, 10)]:
-            await vehicle.goto_coordinates(wp)
-        await vehicle.land()
+    async def run(self, drone: Drone):
+        await drone.takeoff(10)
+        await drone.goto_coordinates(drone.position + VectorNED(20, 0))
+        await drone.land()
 ```
 
 ```bash

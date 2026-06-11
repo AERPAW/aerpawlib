@@ -56,3 +56,20 @@ class TestDummyVehicleContract:
         fut = v.watch_disconnect(0.1)
         assert fut is not None
         v.close()
+
+    @pytest.mark.asyncio
+    async def test_aclose_cancels_and_awaits_tasks(self):
+        v = DummyVehicle()
+
+        async def slow_task() -> None:
+            try:
+                await asyncio.sleep(100)
+            except asyncio.CancelledError:
+                pass
+
+        task = asyncio.create_task(slow_task())
+        v._telemetry_tasks.append(task)
+        await v.aclose()
+        assert v.closed
+        assert task.done()
+        assert len(v._telemetry_tasks) == 0

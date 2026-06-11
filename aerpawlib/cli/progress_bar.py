@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import sys
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,6 +44,8 @@ class _StatusFields:
 
 
 _status = _StatusFields()
+_TELEMETRY_REFRESH_INTERVAL_S = 0.1
+_last_telemetry_refresh = 0.0
 
 
 def is_enabled() -> bool:
@@ -156,7 +159,7 @@ def update_telemetry(
     velocity_ned: tuple[float, float, float] | None = None,
 ) -> None:
     """Update the real-time telemetry variables shown on the progress bar."""
-    global _enabled
+    global _enabled, _last_telemetry_refresh
     if not _enabled or _progress is None or _task_id is None:
         return
 
@@ -182,15 +185,21 @@ def update_telemetry(
     if mode is not None:
         _status.mode = mode
 
-    _refresh()
+    now = time.monotonic()
+    if now - _last_telemetry_refresh >= _TELEMETRY_REFRESH_INTERVAL_S:
+        _last_telemetry_refresh = now
+        _refresh()
 
 
 def stop_progress() -> None:
     """Stop the progress bar and clean up."""
-    global _progress, _task_id, _enabled, _status
+    global _progress, _task_id, _enabled, _status, _last_telemetry_refresh
+    if _enabled and _progress is not None and _task_id is not None:
+        _refresh()
     if _progress is not None:
         _progress.stop()
         _progress = None
         _task_id = None
     _status = _StatusFields()
+    _last_telemetry_refresh = 0.0
     _enabled = False

@@ -1,28 +1,51 @@
 # aerpawlib Test Suite
 
-Pytest-based tests for aerpawlib v1 API. See the root [README.md](../README.md#running-tests) for quick-start testing, and this document for contributor testing guidelines. SITL is managed by pytest for integration tests: it starts ArduPilot SITL before tests and stops it after. A full SITL reset (disarm, clear mission, battery reset) runs between each integration test.
+Pytest-based tests for aerpawlib v1 and v2 APIs. See the root [README.md](../README.md#running-tests) for quick-start testing; this document covers structure and contributor guidelines. SITL is managed by pytest for integration tests: it starts ArduPilot SITL before tests and stops it after. A full SITL reset (disarm, clear mission, battery reset) runs between each integration test.
 
 ## Structure
 
 ```
 tests/
-├── conftest.py           # Fixtures, SITL manager, markers
-├── unit/                 # Unit tests (no SITL)
-│   ├── test_v1_util.py       # Coordinate, VectorNED, plan, geofence
-│   ├── test_v1_helpers.py    # wait_for_condition, validate_*
-│   ├── test_v1_runner.py     # BasicRunner, StateMachine
-│   ├── test_v1_external.py   # ExternalProcess
-│   └── test_v1_exceptions.py # Exception hierarchy
-└── integration/          # Integration tests (SITL)
-    ├── test_v1_drone.py     # Drone connection, takeoff, nav, land
-    ├── test_v1_rover.py     # Rover (requires Rover SITL)
-    └── test_v1_vehicles.py  # DummyVehicle (no SITL)
+├── conftest.py              # Fixtures, SITL manager, markers
+├── unit/                    # Unit tests (no SITL)
+│   ├── test_v1_util.py          # Coordinate, VectorNED, plan, geofence
+│   ├── test_v1_helpers.py       # wait_for_condition, validate_*
+│   ├── test_v1_runner.py        # BasicRunner, StateMachine
+│   ├── test_v1_external.py      # ExternalProcess
+│   ├── test_v1_exceptions.py    # Exception hierarchy
+│   ├── test_v1_safety.py        # Safety wire format
+│   ├── test_v1_vehicle.py       # DummyVehicle, UDP parsing
+│   ├── test_v2_types.py         # v2 Coordinate, VectorNED, etc.
+│   ├── test_v2_exceptions.py    # v2 exception hierarchy
+│   ├── test_v2_geofence.py      # v2 KML geofence parsing
+│   ├── test_v2_runner.py        # v2 BasicRunner, StateMachine, ZMQ
+│   ├── test_v2_testing.py       # MockVehicle
+│   ├── test_v2_vehicle.py       # ConnectionState, DummyVehicle, aclose
+│   ├── test_v2_plan.py          # v2 QGC plan parsing
+│   ├── test_v2_validation.py      # PreflightChecks, can_takeoff/goto/land
+│   ├── test_v2_task.py          # VehicleTask cancel/progress
+│   ├── test_v2_navigation.py    # Goto polling helpers
+│   ├── test_config_merge.py     # Layered --config JSON merge
+│   ├── test_connection_string.py # udpin:// parsing and validation
+│   ├── test_disconnect.py       # CLI disconnect racing
+│   ├── test_main_runner_discovery.py
+│   └── test_progress_bar.py     # Rich status bar
+└── integration/             # Integration tests (SITL)
+    ├── test_v1_drone.py         # v1 Drone connection, takeoff, nav, land
+    ├── test_v1_rover.py         # v1 Rover (requires Rover SITL)
+    ├── test_v1_vehicles.py      # v1 DummyVehicle (no SITL)
+    ├── test_v2_drone.py         # v2 Drone
+    ├── test_v2_rover.py         # v2 Rover
+    ├── test_v2_safety.py        # v2 safety client integration
+    ├── test_v2_state_machine.py # v2 StateMachine
+    ├── test_v2_velocity.py      # v2 offboard velocity
+    └── test_v2_vehicle_task_cancel.py
 ```
 
 ## Prerequisites
 
-1. Unit tests: `pip install -e .[dev]`
-2. Integration tests: Run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
+1. Unit tests: `pip install -e ".[dev]"`
+2. Integration tests: `pip install -e ".[dev,sitl]"` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
 
 ## Running Tests
 
@@ -43,6 +66,7 @@ pytest -m integration -v
 ```
 
 Pytest will:
+
 1. Start ArduCopter SITL with MAVProxy on instance 0, UDP output to port 14550
 2. Start Rover SITL with MAVProxy on instance 1, UDP output to port 14560
 3. Run integration tests (only starts SITLs for the vehicle types being tested)
@@ -76,13 +100,13 @@ pytest tests/integration/ -v --no-sitl
 ### Log files
 
 SITL output is captured to separate log files per vehicle type:
+
 - `logs/sitl_drone_output.log` – sim_vehicle.py output (build, progress)
 - `logs/sitl_rover_output.log` – sim_vehicle.py output (build, progress)
 - `logs/sitl_drone_process.log` – ArduCopter SITL binary output (headless process log)
 - `logs/sitl_rover_process.log` – Rover SITL binary output (headless process log)
 
-Pytest redirects ArduPilot's default `/tmp/<Vehicle>.log` output to the repo-local
-`logs/` files above so all test logs are stored together.
+Pytest redirects ArduPilot's default `/tmp/<Vehicle>.log` output to the repo-local `logs/` files above so all test logs are stored together.
 
 Pytest unsets `DISPLAY` so sim_vehicle does not open a new Terminal window; the SITL process runs headless.
 
@@ -103,10 +127,11 @@ Integration tests disable pytest output capture (`-s` behavior) because MAVProxy
 
 ### "Mode change to GUIDED failed: requires position"
 
-This occurs when starting an experiment before SITL has fully initialized. 
-This is an inconsistency where MAVSDK can briefly report the vehicle as ready
-before position data is actually usable.
+This occurs when starting an experiment before SITL has fully initialized. MAVSDK can briefly report the vehicle as ready before position data is actually usable.
 
-There are two solutions:
+Solutions:
+
 - Wait for SITL to fully start – Give SITL 10–15 seconds after `sim_vehicle.py` reports "Ready to FLY" before running your script.
 - Use external SITL – Run SITL in a separate terminal first, then run your experiment with `--no-sitl` (for pytest) after SITL is ready.
+
+v2 integration fixtures wait for a 3D GPS fix and EKF readiness before yielding the connected vehicle.

@@ -14,7 +14,7 @@ Notes:
 
 import warnings
 
-from .safety import *  # noqa: F403
+from .safety import *
 
 # Issue a deprecation warning
 warnings.warn(

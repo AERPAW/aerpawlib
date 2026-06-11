@@ -13,7 +13,7 @@ from aerpawlib.v1.log import LogComponent, get_logger
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
 
-from .constants import (  # noqa: E402
+from .constants import (
     AERPAW_CHECKPOINT_TIMEOUT_S,
     AERPAW_OEO_MSG_TIMEOUT_S,
     AERPAW_PING_TIMEOUT_S,

@@ -19,4 +19,4 @@ warnings.warn(
 )
 
 # Re-export everything from v1 for backward compatibility
-from .v1.aerpaw import *  # noqa: E402,F403
+from .v1.aerpaw import *

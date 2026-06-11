@@ -155,8 +155,9 @@ def run_v2_experiment(
             """Initiate graceful shutdown from signal handlers or disconnects."""
             logger.warning("Initiating graceful shutdown...")
             shutdown_event.set()
-            if vehicle:
-                vehicle.close()
+            if vehicle and not vehicle.closed:
+                with contextlib.suppress(RuntimeError):
+                    asyncio.get_running_loop().create_task(vehicle.aclose())
 
         if event_log:
             assert structured_log_path is not None
@@ -286,7 +287,7 @@ def run_v2_experiment(
                     except Exception as e:
                         logger.error(f"Return home failed: {e}")
                         traceback.print_exc()
-                vehicle.close()
+                await vehicle.aclose()
             if safety_client is not None and hasattr(safety_client, "close"):
                 try:
                     safety_client.close()
