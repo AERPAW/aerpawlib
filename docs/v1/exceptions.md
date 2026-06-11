@@ -1,23 +1,39 @@
 ## Overview
 
-Exception hierarchy for `aerpawlib.v1`.
+Exception hierarchy for the v1 API. Catch `AerpawlibError` for broad handling or specific subclasses for targeted recovery.
 
-All v1-specific exceptions derive from `AerpawlibError`, allowing callers to
-catch either a broad framework error or a domain-specific subtype.
+## When to use this
 
-### Top-level families
-- Connection: `AerpawConnectionError`, `ConnectionTimeoutError`,
-  `HeartbeatLostError`, `PortInUseError`, `MAVSDKNotInstalledError`.
-- Platform: `AERPAWPlatformError`, `NotInAERPAWEnvironmentError`.
-- Commands: `ArmError`, `TakeoffError`, `NavigationError`, `RTLError`, etc.
-- State/runtime: `StateError`, `NotConnectedError`, `AbortedError`.
-- Validation: `ValidationError`, `InvalidToleranceError`,
-  `InvalidAltitudeError`, `InvalidSpeedError`.
-- State machine: `StateMachineError` and transition/build-time variants such
-  as `NoEntrypointError`, `NoInitialStateError`, `InvalidStateError`.
+Import exception types when you handle failures in experiment scripts or extend the library.
 
-### Usage notes
-- Wrap lower-level exceptions with `original_error` where available so upstream
-  handlers can inspect root causes.
-- Prefer domain-specific subclasses for recoverable control flow in missions.
+## Common workflow
 
+```python
+from aerpawlib.v1.exceptions import NavigationError, AerpawlibError
+
+try:
+    await vehicle.goto_coordinates(target)
+except NavigationError as e:
+    print(e.message)
+except AerpawlibError as e:
+    print(e)
+```
+
+## Key concepts
+
+| Family | Examples |
+|--------|----------|
+| Connection | `ConnectionTimeoutError`, `HeartbeatLostError`, `PortInUseError` |
+| Commands | `TakeoffError`, `NavigationError`, `ArmError`, `RTLError` |
+| State | `NotConnectedError`, `NotArmableError` |
+| Runner | `NoEntrypointError`, `InvalidStateError`, `StateMachineError` |
+| Validation | `InvalidToleranceError`, `InvalidAltitudeError` |
+| Platform | `AERPAWPlatformError`, `NotInAERPAWEnvironmentError` |
+
+Wrap lower-level failures with `original_error` when re-raising.
+
+## See also
+
+- `aerpawlib.v2.exceptions`: v2 hierarchy with `code` and `severity`
+- `aerpawlib.v1.vehicle`: command failures
+- `aerpawlib.v1.runner`: configuration errors

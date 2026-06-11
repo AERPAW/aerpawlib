@@ -1,37 +1,36 @@
 ## Overview
 
-`aerpawlib.v1.log` defines the v1 logging surface: a `str`-based `LogComponent` enum and thin wrappers that default the configured root to `aerpawlib.v1`.
+Versioned logging for v1 experiment and library code. Tag messages by subsystem for console and file output.
 
-### `LogComponent` values
+## When to use this
 
-| Member                                 | Logger name (prefix)                                    |
-|----------------------------------------|---------------------------------------------------------|
-| `ROOT`                                 | `aerpawlib.v1`                                          |
-| `VEHICLE`                              | `aerpawlib.v1.vehicle`                                  |
-| `DRONE` / `ROVER`                      | `aerpawlib.v1.vehicle.drone` / `...rover`               |
-| `SAFETY`                               | `aerpawlib.v1.safety`                                   |
-| `RUNNER`                               | `aerpawlib.v1.runner`                                   |
-| `TELEMETRY`                            | `aerpawlib.v1.telemetry`                                |
-| `COMMAND`                              | `aerpawlib.v1.command`                                  |
-| `NAVIGATION`                           | `aerpawlib.v1.navigation`                               |
-| `CONNECTION`                           | `aerpawlib.v1.connection`                               |
-| `GEOFENCE`                             | `aerpawlib.v1.geofence`                                 |
-| `ZMQ`                                  | `aerpawlib.v1.zmq`                                      |
-| `AERPAW` / `OEO` / `EXTERNAL` / `USER` | Mission and integration subsystems under `aerpawlib.v1` |
-| `SITL`                                 | `aerpawlib.sitl` (simulation / test harness)            |
+Import in v1 mission or library code when you need structured debug output.
 
-### API
-
-- `get_logger(component=...)`: same behavior as :func:`aerpawlib.log.get_logger`, with default `LogComponent.ROOT`.
-- `configure_logging(..., root_name=...)`:  defaults `root_name` to `aerpawlib.v1` so v1 child loggers receive handlers.
-- `set_level(level, component=None)`: when `component` is omitted, adjusts the v1 root (`LogComponent.ROOT`).
-
-`LogLevel` and `ColoredFormatter` are re-exported here for convenience alongside v1 configuration.
-
-### Importing
-
-In v1 mission and vehicle code, use:
+## Common workflow
 
 ```python
 from aerpawlib.v1.log import LogComponent, get_logger
+
+logger = get_logger(LogComponent.VEHICLE)
+logger.info("Starting measurement leg")
 ```
+
+Enable verbose CLI output with `-v` / `--verbose`; write DEBUG to a file with `--log-file`.
+
+## Key concepts
+
+| Component | Logger name |
+|-----------|-------------|
+| `VEHICLE`, `DRONE`, `ROVER` | Vehicle subsystems |
+| `RUNNER` | Runner execution |
+| `SAFETY` | Safety checker |
+| `NAVIGATION`, `COMMAND` | Flight commands |
+| `ZMQ` | Multi-vehicle messaging |
+
+`configure_logging` defaults the root logger to `aerpawlib.v1`.
+
+## See also
+
+- `aerpawlib.log`: shared logging foundation
+- `aerpawlib.cli`: `-v`, `--log-file`, `--structured-log`
+- `aerpawlib.v2.log`: v2 components

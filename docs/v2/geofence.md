@@ -1,10 +1,30 @@
 ## Overview
 
-Geometric helpers for working with KML polygons and 2D checks. The module was factored out of the old v1 `util` package so v2 can import geofence logic without dragging in the entire legacy surface.
+Polygon utilities for KML geofences and 2D spatial checks. Used by the safety server and available for custom validation in experiments.
 
-`read_geofence` walks a KML document, finds a polygon ring, and returns a list of `{ "lat", "lon" }` points. `inside` answers whether a WGS point lies in a polygon, and `do_intersect` tests two line segments in lon/lat space. These are the same building blocks the safety server uses when validating that planned paths do not cut through excluded areas.
+## When to use this
 
-### Primary functions
-- `read_geofence` — load polygon vertices from a KML file; raises if no ring is found.
-- `inside` / related predicates — check containment for mission or validation logic.
-- `do_intersect` — test segment–segment intersection for path checks.
+Import when you need to test whether a planned point or path segment lies inside or crosses a geofence polygon.
+
+## Common workflow
+
+```python
+from aerpawlib.v2 import read_geofence, inside, do_intersect
+
+polygon = read_geofence("flight_area.kml")
+if inside(lon=-78.696, lat=35.727, geofence=polygon):
+    await drone.goto_coordinates(target)
+```
+
+## Key concepts
+
+| Function | Description |
+|----------|-------------|
+| `read_geofence` | Load KML polygon vertices |
+| `inside` | Point-in-polygon test |
+| `do_intersect` | Test if two segments intersect |
+
+## See also
+
+- `aerpawlib.v1.util`: v1 geofence helpers
+- `aerpawlib.v2.safety`: server-side enforcement

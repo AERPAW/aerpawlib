@@ -1,48 +1,59 @@
-You're not going to be able to write a script without a vehicle.
-This module provides the vehicle classes you interact with, which translate your high-level Python commands into the low-level MAVSDK instructions needed to physically fly a drone or drive a rover.
+## Overview
 
+Vehicle classes translate your experiment commands into MAVSDK actions. The CLI connects a `Drone` or `Rover` and passes it to your runner.
 
-## Example Usage
+## When to use this
 
-In practice, the CLI framework creates and passes the vehicle object to your script. All you have to do is fly it.
+Import `Drone` or `Rover` from `aerpawlib.v1.vehicle` (or `aerpawlib.v1`). Use `Drone` for multirotor flight; use `Rover` for ground experiments.
+
+## Common workflow
 
 ```python
-from aerpawlib.v1 import BasicRunner, Drone, entrypoint
+from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
-        # We start by going up
         await vehicle.takeoff(10)
-        
-        # We can issue commands using the vehicle's telemetry data
-        target = vehicle.position  # We could add a VectorNED here to move
-        await vehicle.goto_coordinates(target)
-        
-        # Bring it home safely
+        await vehicle.goto_coordinates(vehicle.position + VectorNED(20, 0, 0))
         await vehicle.land()
 ```
 
-*(Note: The `close()` method is called by the CLI runner during shutdown. If you are ever managing a vehicle lifecycle manually, ensure `close()` is called to properly sever connections and terminate background threads.)*
+> **Note:** The CLI calls `close()` on shutdown. If you manage the vehicle lifecycle manually, call `close()` to stop background threads and release the connection.
 
----
+## Key concepts
 
-## Error Handling Guide
+### Commands (Drone)
 
-There are a lot of errors that can be raised by this module especially
+| Command | Description |
+|---------|-------------|
+| `takeoff(altitude)` | Climb to relative altitude (m) |
+| `goto_coordinates(coord, …)` | Fly to `Coordinate` |
+| `set_heading(degrees, …)` | Turn to heading |
+| `land()` | Land at current position |
+| `return_to_launch()` | RTL and land |
+| `set_velocity(VectorNED, …)` | Offboard velocity |
 
-### Connectivity and Startup Errors
-* `ConnectionTimeoutError`: The MAVSDK background process couldn't talk to the vehicle hardware within the allotted time.
-* `AerpawConnectionError`: A broader category for underlying transport, GRPC, or network failures.
-* `PortInUseError`: The network port required by the MAVSDK server is already blocked by another process.
-* `NotArmableError`: The vehicle failed its preflight safety checks or—crucially for `Drone`s—it powered on and found it was *already armed*, which triggers an immediate shutdown for safety.
+### Telemetry
 
-### Action Failures
-* `ArmError` / `DisarmError`: The vehicle failed to transition into the requested armed/disarmed state.
-* `TakeoffError` / `LandingError` / `RTLError`: The hardware rejected or failed to complete standard multirotor commands.
-* `NavigationError`: A `goto` command failed, timed out, or was interrupted before completion.
-* `VelocityError`: Failed to execute offboard velocity control commands.
+Read `position`, `battery`, `armed`, `heading`, and related properties during the mission. Positions use absolute lat/lon; altitude is relative to home.
 
-### Developer API Errors
-* `NotImplementedForVehicleError`: You tried to call a movement API on the base `Vehicle` class instead of a concrete `Drone` or `Rover`.
-* `RuntimeError`: Occasionally raised during shutdown if you attempt to send a command while the internal MAVSDK background loop is already tearing down.
+### Rover differences
+
+Rover omits copter-only commands (`takeoff`, `land`, `return_to_launch`, `set_heading`). Navigation uses 2D ground distance for arrival.
+
+## Errors
+
+| Exception | Action |
+|-----------|--------|
+| `ConnectionTimeoutError` | Check `--conn` and that SITL or hardware is running |
+| `PortInUseError` | Use a unique `--mavsdk-port` per concurrent vehicle |
+| `NotArmableError` | Wait for GPS/preflight; on hardware, ensure vehicle is disarmed at start |
+| `TakeoffError` / `NavigationError` / `LandingError` | Inspect `message`; verify GPS fix and safety constraints |
+| `NotImplementedForVehicleError` | Call movement APIs on `Drone` or `Rover`, not base `Vehicle` |
+
+## See also
+
+- `aerpawlib.v1.util`: `Coordinate`, `VectorNED`
+- `aerpawlib.v1.safety`: geofence validation
+- `aerpawlib.v2.vehicle`: v2 vehicle API

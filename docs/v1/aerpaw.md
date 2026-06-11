@@ -1,27 +1,23 @@
 ## Overview
 
-AERPAW platform helpers used by the v1 runtime internals.
+AERPAW platform integration for v1: OEO logging, checkpoints, and forward-server connectivity. Used by the CLI and runtime; mission scripts rarely import this directly.
 
-This module provides HTTP-backed helper utilities for interacting with AERPAW services,
-including Operator Experimenter Override (OEO) console logging, OEO topic publishing, and checkpoint state management.
+## When to use this
 
-### High-Level Overview
-- `AERPAW`
-  - Eager client that verifies platform reachability upon initialization.
-  - Exposes helpers for OEO logging (e.g., `log_to_oeo`) and checkpoint read/write operations.
-- `AERPAW_Platform`
-  - Lazy singleton proxy that defers the `AERPAW` client construction until its first use.
+Reference when you need OEO console output or checkpoint coordination on the AERPAW testbed. Use `--no-aerpaw-environment` for local SITL without platform services.
 
-### Primary Capabilities
-- Platform connectivity probe (`attach_to_aerpaw_platform`).
-- OEO message forwarding with severity filtering.
-- Checkpoint booleans, counters, and string key/value coordination.
-- User-topic publish helper for dashboard and experiment telemetry.
+## Key concepts
 
-### Behavioral Notes
-- When services are unreachable, methods will either return safely or raise a clear
-  error depending on the operation type.
-- A one-time warning is emitted if platform-exclusive features are invoked outside of an
-  AERPAW deployment.
-- This module is primarily used by CLI and runtime plumbing rather than directly by mission
-  scripts.
+| Symbol | Description |
+|--------|-------------|
+| `AERPAW` | Eager client; probes platform on init |
+| `AERPAW_Platform` | Lazy singleton for deferred connection |
+| `log_to_oeo` | Forward messages to OEO with severity |
+| Checkpoint helpers | Boolean, counter, and string state on the platform |
+
+Unreachable services return safe defaults or raise clear errors depending on the operation.
+
+## See also
+
+- `aerpawlib.v2.aerpaw`: v2 platform helper
+- `aerpawlib.cli`: `--no-aerpaw-environment`

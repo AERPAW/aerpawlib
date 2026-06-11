@@ -1,21 +1,37 @@
 ## Overview
 
-Async subprocess helper for v1 flows.
+Async wrapper for sidecar subprocesses in v1 missions (sensor bridges, helper tools).
 
-`ExternalProcess` is a small wrapper around `asyncio.create_subprocess_shell`
-used to start and monitor sidecar processes (for example SITL tools or local
-infrastructure helpers) from mission runtime code.
+## When to use this
 
-### Capabilities
-- Start a process with optional stdin/stdout file redirection.
-- Read incremental stdout lines when output is piped.
-- Send input to interactive subprocesses.
-- Wait for process termination or for regex-matched output.
-- Perform explicit async cleanup (`aclose`) to avoid deferred transport leaks.
+Import `ExternalProcess` when your experiment launches and communicates with an external process from runner code.
 
-### Operational notes
-- `wait_until_output` only works when stdout is not redirected to a file.
-- `send_input` raises `RuntimeError` if stdin is unavailable.
-- `aclose` should be used on shutdown to reap pending subprocess resources,
-  especially in tests.
+## Common workflow
 
+```python
+from aerpawlib.v1.external import ExternalProcess
+
+proc = ExternalProcess("python3", params=["-u", "sensor_reader.py"])
+await proc.start()
+line = await proc.read_line()
+await proc.send_input("start\n")
+await proc.wait_until_terminated()
+await proc.aclose()
+```
+
+## Key concepts
+
+| Method | Description |
+|--------|-------------|
+| `start` | Launch subprocess |
+| `read_line` | Read stdout line (piped mode) |
+| `send_input` | Write to stdin |
+| `wait_until_output` | Await regex match on stdout |
+| `wait_until_terminated` | Await process exit |
+| `aclose` | Async cleanup |
+
+> **Note:** `wait_until_output` requires piped stdout, not file redirection.
+
+## See also
+
+- `aerpawlib.v2.external`: v2 subprocess helper (`create_subprocess_exec`)

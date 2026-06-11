@@ -1,24 +1,36 @@
 ## Overview
 
-`aerpawlib.v2.log` tags messages with v2 component names so operator dashboards and file logs are easy to filter by subsystem. It subclasses the empty `aerpawlib.log.LogComponent` base and adds string constants for the v2 stack.
+Versioned logging for v2 experiment and library code. Tag messages by subsystem for console and file output.
 
-It reuses `aerpawlib.log.configure_logging` and `aerpawlib.log.get_logger` but sets the default `root_name` to `aerpawlib.v2`.
+## When to use this
 
-### `LogComponent` values
+Import in v2 mission or library code when you need structured debug output.
 
-| Member            | Logger name                               |
-|-------------------|-------------------------------------------|
-| `ROOT`            | `aerpawlib.v2`                            |
-| `VEHICLE`         | `aerpawlib.v2.vehicle`                    |
-| `DRONE` / `ROVER` | `aerpawlib.v2.vehicle.drone` / `...rover` |
-| `SAFETY`          | `aerpawlib.v2.safety`                     |
-| `RUNNER`          | `aerpawlib.v2.runner`                     |
-| `AERPAW`          | `aerpawlib.v2.aerpaw`                     |
-| `ZMQ`             | `aerpawlib.v2.zmq`                        |
+## Common workflow
 
-### Primary symbols
+```python
+from aerpawlib.v2.log import LogComponent, get_logger
 
-- `LogComponent`: Dotted logger name constants for v2.
-- `get_logger(component=...)`: Return a `logging.Logger` for that component.
-- `configure_logging(...)`: v2-tuned entry point; default root is `aerpawlib.v2`.
-- `set_level(...)`: Adjust verbosity in line with shared aerpawlib log settings.
+logger = get_logger(LogComponent.DRONE)
+logger.info("Waypoint reached")
+```
+
+Enable verbose CLI output with `-v` / `--verbose`; write DEBUG to a file with `--log-file`.
+
+## Key concepts
+
+| Component | Logger name |
+|-----------|-------------|
+| `VEHICLE`, `DRONE`, `ROVER` | Vehicle subsystems |
+| `RUNNER` | Runner execution |
+| `SAFETY` | Safety and validation |
+| `AERPAW` | Platform integration |
+| `ZMQ` | Multi-vehicle messaging |
+
+`configure_logging` defaults the root logger to `aerpawlib.v2`.
+
+## See also
+
+- `aerpawlib.log`: shared logging foundation
+- `aerpawlib.cli`: `-v`, `--log-file`, `--structured-log`
+- `aerpawlib.v1.log`: v1 components

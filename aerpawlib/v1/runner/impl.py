@@ -67,11 +67,9 @@ class OrchestratedRunDescriptor:
 
 
 class Runner:
-    """
-    Base execution framework for aerpawlib scripts.
+    """Base class for experiment runners executed by the CLI.
 
-    All custom execution frameworks must extend this class to be executable
-    by the aerpawlib infrastructure.
+    Subclass ``BasicRunner``, ``StateMachine``, or ``ZmqStateMachine``.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -140,10 +138,9 @@ class Runner:
 
 
 class BasicRunner(Runner):
-    """
-    BasicRunners have a single entry point (specified by `entrypoint`) that is
-    executed when the script is run. The function provided can be anything, as
-    it will be run in parallel to background services used by aerpawlib.
+    """Runner with a single ``@entrypoint`` coroutine.
+
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
     def _build(self) -> None:
@@ -172,11 +169,10 @@ class BasicRunner(Runner):
 
 
 class StateMachine(Runner):
-    """
-    A runner that executes states in a sequence.
+    """Runner that transitions between named ``@state`` methods.
 
-    Each state returns the name of the next state to transition to.
-    Supports background tasks and initialization tasks.
+    Each state returns the next state name or ``None`` to finish.
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
     def __init__(self) -> None:
@@ -319,8 +315,9 @@ class StateMachine(Runner):
 
 
 class ZmqStateMachine(StateMachine):
-    """
-    A StateMachine that can be controlled remotely via ZMQ.
+    """StateMachine with remote ``transition_runner`` and ``query_field`` over ZMQ.
+
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
     _exported_states: dict[str, _State]

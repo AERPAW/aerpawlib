@@ -104,7 +104,7 @@ class NoOpSafetyChecker:
         current_lat: float,
         current_lon: float,
     ) -> tuple[bool, str]:
-        """Passthrough takeoff validation — always returns True.
+        """Passthrough takeoff validation; always returns True.
 
         Args:
             takeoff_alt: Requested takeoff altitude in metres.
@@ -124,7 +124,7 @@ class NoOpSafetyChecker:
         current: Coordinate,
         next_loc: Coordinate,
     ) -> tuple[bool, str]:
-        """Passthrough waypoint validation — always returns True.
+        """Passthrough waypoint validation; always returns True.
 
         Args:
             current: Current vehicle position.
@@ -139,7 +139,7 @@ class NoOpSafetyChecker:
         return True, ""
 
     async def validate_change_speed(self, new_speed: float) -> tuple[bool, str]:
-        """Passthrough speed validation — always returns True.
+        """Passthrough speed validation; always returns True.
 
         Args:
             new_speed: Requested new speed in m/s.
@@ -157,7 +157,7 @@ class NoOpSafetyChecker:
         current_lat: float,
         current_lon: float,
     ) -> tuple[bool, str]:
-        """Passthrough landing validation — always returns True.
+        """Passthrough landing validation; always returns True.
 
         Args:
             current_lat: Current latitude in degrees.
