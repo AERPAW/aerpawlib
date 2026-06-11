@@ -13,13 +13,10 @@ This package re-exports `BasicRunner`, `StateMachine`, and `ZmqStateMachine` fro
 - You can rely entirely on decorators (the usual path for examples).
 - Or set `config = BasicRunnerConfig(...)` / `StateMachineConfig` / `ZmqStateMachineConfig` on the class to name entrypoints and states without relying on attribute scanning in edge cases.
 
-### Custom `run()` Methods
-- Defining a custom `run(self, vehicle)` method in your scripts is fully supported. To prevent name collisions and shadowing of the base runner's internal orchestrator, `aerpawlib` employs `OrchestratedRunDescriptor` internally. This intercepts and resolves the custom method name so that both user logic and execution orchestration function correctly.
-
 ### ZMQ
-- Run the proxy first (`aerpawlib-run-proxy` or the helper in [zmqutil](zmqutil.md)), then launch runners with matching `--zmq-identifier` and `--zmq-proxy-server`.
+- Run the proxy first (`aerpawlib-run-proxy` or the helper in `aerpawlib.v2.zmqutil`), then launch runners with matching `--zmq-identifier` and `--zmq-proxy-server`.
 
 ### Error handling
-- Misconfigured runners raise the `RunnerError` family (`NoEntrypointError`, `NoInitialStateError`, `InvalidStateError`, and similar). See [exceptions](exceptions.md).
+- Misconfigured runners raise the `RunnerError` family (`NoEntrypointError`, `NoInitialStateError`, `InvalidStateError`, and similar). See `aerpawlib.v2.exceptions`.
 
-The [v2 README](README.md) has end-to-end snippets for each runner style and a decorator reference table; use that for copy-pastable mission skeletons.
+The `aerpawlib.v2` package documentation has end-to-end snippets for each runner style and a decorator reference table; use that for copy-pastable mission skeletons.

@@ -22,7 +22,7 @@ When you launch the CLI, the system executes the following sequence.
 2. The process changes the working directory (`chdir`) to the repository root and prepends it to `sys.path` to guarantee consistent imports.
 3. The system loads and merges JSON configuration files before the main parser executes.
 4. The CLI imports the specified API module (`aerpawlib.v1` or `aerpawlib.v2`) and loads your target experimenter script.
-5. The CLI scans the script for exactly one class inheriting **directly** from `Runner`, `StateMachine`, `BasicRunner`, or `ZmqStateMachine`. Deep inheritance chains are not supported.
+5. The CLI scans the script for exactly one class inheriting directly from `Runner`, `StateMachine`, `BasicRunner`, or `ZmqStateMachine`. Deep inheritance chains are not supported.
 6. Unrecognized arguments bypass the main parser and route directly to `runner.initialize_args(...)` for custom script-specific handling.
 
 ## Minimal Example
@@ -85,10 +85,10 @@ This flag is required. It specifies the vehicle type for the experiment.
 
 | Value     | Target                                          |
 |:----------|:------------------------------------------------|
-| `drone`   | `Drone`                                         |
-| `rover`   | `Rover`                                         |
-| `none`    | `DummyVehicle` (ideal for dry runs and testing) |
-| `generic` | `Vehicle` (deprecated, shouldn't use)           |
+| `drone`   | `aerpawlib.v2.vehicle.Drone`                                         |
+| `rover`   | `aerpawlib.v2.vehicle.Rover`                                         |
+| `none`    | `aerpawlib.v2.vehicle.DummyVehicle` (ideal for dry runs and testing) |
+| `generic` | `aerpawlib.v2.vehicle.Vehicle` (deprecated, shouldn't use)           |
 
 ### `--api-version`
 Selects either the `aerpawlib.v1` or `aerpawlib.v2` package. It defaults to `v1`. Selecting a version incompatible with your script's imports will trigger discovery or runtime errors.
@@ -123,7 +123,7 @@ aerpawlib-run-proxy
 ```
 
 ### `--zmq-identifier`
-Identifies the specific runner instance (e.g., `leader`) to the proxy mesh. This is required for `ZmqStateMachine` runners and must be paired with `--zmq-proxy-server`.
+Identifies the specific runner instance (e.g., `leader`) to the proxy mesh. This is required for `aerpawlib.v2.runner.ZmqStateMachine` runners and must be paired with `--zmq-proxy-server`.
 
 ### `--zmq-proxy-server`
 Defines the hostname or IP address of the machine running the ZMQ proxy.

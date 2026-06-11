@@ -48,8 +48,8 @@ When you run aerpawlib v2 via the CLI, a safety client (real or passthrough) is 
 |-------------|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
 | Non-AERPAW  | Not provided                                  | `vehicle.safety` uses a passthrough checker: all validations pass, errors logged explaining the SafetyCheckerServer is not configured. |
 | Non-AERPAW  | Provided (e.g. `--safety-checker-port 14580`) | Attempts to connect to `127.0.0.1:<port>`. On failure: uses passthrough, logs the error.                                               |
-| AERPAW      | Not provided                                  | Defaults to port 14580. Attempts to connect. **On failure: crash with critical error.**                                                |
-| AERPAW      | Provided                                      | Attempts to connect to given port. **On failure: crash with critical error.**                                                          |
+| AERPAW      | Not provided                                  | Defaults to port 14580. Attempts to connect. On failure: crash with critical error.                                                |
+| AERPAW      | Provided                                      | Attempts to connect to given port. On failure: crash with critical error.                                                          |
 
 The passthrough checker (`NoOpSafetyChecker`) always returns success for all validations but logs that the SafetyCheckerServer is not available. Use it only for local development when no geofence server is running.
 

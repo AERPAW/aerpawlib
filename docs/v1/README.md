@@ -44,14 +44,14 @@ To update aerpawlib, you can simply `git pull` inside the dir to sync with the u
 
 *Note*: All API classes here start with `aerpawlib.v1`. Previously in aerpawlig legacy, you would import from `aerpawlib`. All previous imports are still supported and are deprecated in favor of `aerpawlib.v1` imports.
 
-aerpawlib is built so that any script made with it in mind can be run in the same way. To do this, it sacrifices a bit of functionality and enforces that scripts implement a `aerpawlib.v1.runner.Runner`.
+aerpawlib is built so that any script made with it in mind can be run in the same way. To do this, it sacrifices a bit of functionality and enforces that scripts implement a `Runner`.
 
 There are two main runners used by aerpawlib -- the `aerpawlib.v1.runner.BasicRunner`, and the `aerpawlib.v1.runner.StateMachine`:
 
-* `aerpawlib.v1.runner.BasicRunner` -- has a single entry point, all flow control is handled by the user program
-* `aerpawlib.v1.runner.StateMachine` -- has multiple states of various types, flow between states is handled by aerpawlib
+* `BasicRunner` -- has a single entry point, all flow control is handled by the user program
+* `StateMachine` -- has multiple states of various types, flow between states is handled by aerpawlib
 
-`aerpawlib.v1.runner.BasicRunner` is appropriate for the most basic of scripts, so we'll use that here. It can be imported directly and linked to your script's `aerpawlib.v1.runner.Runner` instance by doing the following:
+`BasicRunner` is appropriate for the most basic of scripts, so we'll use that here. It can be imported directly and linked to your script's `Runner` instance by doing the following:
 
 ```python
 from aerpawlib.v1.runner import BasicRunner
@@ -83,7 +83,7 @@ python -m aerpawlib \
 # I'm doing things!
 ```
 
-The above command assumes you have SITL installed and it's up and running. To install SITL, check out TODO.
+The above command assumes you have SITL installed and it's up and running. To install SITL, check out the [installation guide](../../README.md#development-with-ardupilot-sitl).
 
 ## Interacting with vehicles
 
@@ -179,12 +179,12 @@ async def my_function(self, vehicle: Drone):
 
 In the second example above, we capture the `asyncio.Task` returned by `asyncio.ensure_future`, which allows for us to then await it later on. It's not necessary to do this unless you want to use `await` later.
 
-**Important!**
+Important!
 One caveat of using `asyncio` is that you can't use any functions that would normally block the execution of the program. Fortunately, `asyncio` provides implementations of the common culprits, such as `time.sleep` -- you can see how they're used in some of the above examples.
 
 ## Background tasks
 
-One of the benefits of asyncio is that it allows for aerpawlib to cleanly implement tasks that run in the background. aerpawlib exposes this functionality through the `aerpawlib.v1.runner.background()` decorator, which causes the decorated function to be repeatedly called in the background:
+One of the benefits of asyncio is that it allows for aerpawlib to cleanly implement tasks that run in the background. aerpawlib exposes this functionality through the `aerpawlib.v1.runner.background` decorator, which causes the decorated function to be repeatedly called in the background:
 
 ```python
 class MyRunner(StateMachine):
@@ -206,7 +206,7 @@ When the state function is done running, it should return a string that is the n
 
 The first state used in a script must be designated by setting the first parameter to true when creating it.
 
-Finally, there's also a `aerpawlib.v1.runner.timed_state()` decorator available. This decorator will make sure that a state is run for at least a set number of seconds before transitioning to the next state, even if the state exits early. If the function designated as a state takes longer than the allotted time, it will continue running until a value is returned or the function exits.
+Finally, there's also a `aerpawlib.v1.runner.timed_state` decorator available. This decorator will make sure that a state is run for at least a set number of seconds before transitioning to the next state, even if the state exits early. If the function designated as a state takes longer than the allotted time, it will continue running until a value is returned or the function exits.
 
 Here's an example of a state machine that makes use of all the things we've talked about so far. It makes a drone continually "take measurements" spaced 10m apart until it gets a measurement that is 0, at which point it lands.
 
