@@ -84,13 +84,16 @@ def run_v2_experiment(
 
         update_progress("Checking safety client...", completed=15)
         is_aerpaw = aerpaw_platform.is_connected if aerpaw_platform else False
-        effective_port = args.safety_checker_port if args.safety_checker_port is not None else (DEFAULT_SAFETY_CHECKER_PORT if is_aerpaw else None)
-        if effective_port is None:
+        port_set = getattr(args, "safety_checker_port", None) is not None
+        ip_set = getattr(args, "safety_checker_ip", None) is not None
+
+        if not port_set and not ip_set and not is_aerpaw:
             safety_client = NoOpSafetyChecker(
-                "Not in AERPAW environment and --safety-checker-port not provided.",
+                "Not in AERPAW environment and neither --safety-checker-port nor --safety-checker-ip was provided.",
             )
         else:
-            safety_addr = getattr(args, "safety_checker_ip", "127.0.0.1")
+            effective_port = args.safety_checker_port if port_set else DEFAULT_SAFETY_CHECKER_PORT
+            safety_addr = args.safety_checker_ip if ip_set else "127.0.0.1"
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = await client.check_server_status()
