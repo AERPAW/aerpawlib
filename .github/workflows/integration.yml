@@ -1,0 +1,22 @@
+name: Integration tests (SITL)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install aerpawlib with SITL extras
+        run: pip install -e ".[dev,sitl]"
+      - name: Setup ArduPilot SITL
+        run: aerpawlib-setup-sitl
+      - name: Integration tests
+        run: pytest tests/integration/ -v
