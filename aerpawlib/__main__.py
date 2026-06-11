@@ -136,8 +136,8 @@ def run(
         help=f"The ZMQ port for the AERPAW SafetyCheckerServer (v2 only). Defaults to {DEFAULT_SAFETY_CHECKER_PORT} in AERPAW environments.",
         rich_help_panel="Connection & Safety Options",
     ),
-    safety_checker_ip: str = typer.Option(
-        "127.0.0.1",
+    safety_checker_ip: str | None = typer.Option(
+        None,
         "--safety-checker-ip",
         help="The IP/host address for the AERPAW SafetyCheckerServer (v2 only).",
         rich_help_panel="Connection & Safety Options",
