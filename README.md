@@ -4,7 +4,6 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Version](https://img.shields.io/badge/version-1.4.3-blue)
 [![Unit Tests](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml/badge.svg)](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/AERPAW/aerpawlib/graph/badge.svg)](https://codecov.io/gh/AERPAW/aerpawlib)
 [![Ruff](https://github.com/AERPAW/aerpawlib/actions/workflows/ruff.yml/badge.svg)](https://github.com/AERPAW/aerpawlib/actions/workflows/ruff.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://aerpaw.github.io/aerpawlib)
 [![AERPAW](https://img.shields.io/badge/platform-AERPAW-orange)](https://aerpaw.org)
