@@ -10,8 +10,8 @@ Use `aerpawlib` when you run scripted experiments on AERPAW drones or rovers. In
 
 | Version | Module | Best for |
 |---------|--------|----------|
-| **v2** (recommended for new work) | `aerpawlib.v2` | New experiments; single asyncio loop, simpler connection strings (`udpin://…`), built-in safety hooks |
-| **v1** (stable, legacy-compatible) | `aerpawlib.v1` | Existing scripts written for the original aerpawlib API; full multi-vehicle and feature parity |
+| **v1** (stable, production default) | `aerpawlib.v1` | Existing experiment scripts written for the [original DroneKit-based aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control); same runner, vehicle, ZMQ, and safety API with MAVSDK under the hood |
+| **v2** (recommended for new work) | `aerpawlib.v2` | New experiments; single asyncio loop, `udpin://…` connection strings, built-in preflight validation and safety hooks |
 
 > **Note:** Imports from `aerpawlib` (without `.v1`) still work but are deprecated in favor of `aerpawlib.v1`.
 
