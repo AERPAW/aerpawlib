@@ -9,7 +9,7 @@ v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpaw
 ## When to use this
 
 - You maintain an existing v1 experiment script
-- You need full v1 multi-vehicle (ZMQ) patterns documented in production use
+- You need multi-vehicle (ZMQ) patterns from the original DroneKit-era library
 - You import from `aerpawlib.v1` (or legacy `aerpawlib.*`)
 
 Install the package with `pip install -e .` (see the [repository README](../../README.md)).
