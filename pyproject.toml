@@ -45,18 +45,16 @@ dependencies = [
     "pyserial>=3.5",
     "mavsdk>=2.0.0",
     "aiohttp>=3.12.14",
-]
 
-[project.optional-dependencies]
-dev = [
+    # Development and Documentation dependencies
     "pytest>=7.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "psutil>=5.9.0",
     "pdoc>=15.0.0",
     "coverage>=7.0.0",
-]
-sitl = [
+
+    # SITL simulation dependencies
     "msgspec>=0.18.0",
     "empy<4.0.0",
     "pexpect>=4.8.0",

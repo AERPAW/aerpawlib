@@ -1,12 +1,12 @@
 #!/bin/bash
-# Full development setup: pip install -e .[dev] + ArduPilot SITL
+# Full development setup: pip install -e . + ArduPilot SITL
 # Run from project root: ./scripts/install_dev.sh
 
 set -e
 cd "$(dirname "$0")/.."
 
 echo "Installing aerpawlib with all dependencies..."
-pip install -e ".[dev,sitl]"
+pip install -e .
 
 echo ""
 echo "Setting up ArduPilot SITL..."

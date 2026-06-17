@@ -33,7 +33,7 @@ pip install .
 For running integration tests and local SITL simulation:
 
 ```bash
-pip install -e ".[dev,sitl]"
+pip install -e .
 # Note that -e allows for local editing of the library (suitable for developers).
 aerpawlib-setup-sitl  # This allows integration tests to work by installing and building ardupilot
 ```

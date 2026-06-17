@@ -44,8 +44,8 @@ tests/
 
 ## Prerequisites
 
-1. Unit tests: `pip install -e ".[dev]"`
-2. Integration tests: `pip install -e ".[dev,sitl]"` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
+1. Unit tests: `pip install -e .`
+2. Integration tests: `pip install -e .` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
 
 ## Running Tests
 
