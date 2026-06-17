@@ -8,7 +8,7 @@ initializes submodules, and compiles SITL for Copter and Rover.
 Matches the Dockerfile SITL setup. Run manually with:
     aerpawlib-setup-sitl
 
-Or it runs automatically when you: pip install -e .[dev]
+Or it runs automatically when you: pip install -e .
 """
 
 from __future__ import annotations
