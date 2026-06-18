@@ -22,13 +22,13 @@ from typing import ClassVar
 from consts import ZMQ_ORBITER, ZMQ_TRACER
 
 from aerpawlib.v2 import Coordinate
+from aerpawlib.v2.plan import read_from_plan_complete
 from aerpawlib.v2.runner import (
     ZmqStateMachine,
     expose_field_zmq,
     expose_zmq,
     state,
 )
-from aerpawlib.v2.plan import read_from_plan_complete
 
 
 class GroundCoordinatorRunner(ZmqStateMachine):
