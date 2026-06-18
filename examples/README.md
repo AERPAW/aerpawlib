@@ -13,7 +13,7 @@
 | `hide_rover`                    | v1, v2  | Rover follows plan, then hides in geofence               |
 | `external_runner`               | v1, v2  | Spawns and interacts with external processes             |
 | `zmq_runner`                    | v1, v2  | Leader/follower multi-vehicle coordination via ZMQ       |
-| `zmq_preplanned_orbit`          | v1      | Multi-drone tracer + orbiter mission                     |
+| `zmq_preplanned_orbit`          | v1, v2  | Multi-drone tracer + orbiter mission                     |
 | `enhanced_example`              | v2      | Preflight checks and pre-command validations             |
 | `rover_example`                 | v2      | Ground vehicle waypoint navigation                       |
 | `velocity_example`              | v2      | Guided mode velocity control pattern                     |
