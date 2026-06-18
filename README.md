@@ -92,7 +92,7 @@ There is a GitHub pages site with documentation for this project: https://aerpaw
 # Basic square flight
 aerpawlib --script examples/v1/basic_example.py --conn udp://127.0.0.1:14550 --vehicle drone
 
-# Layered config presets (API/vehicle, SITL connection, optional JSONL logging)
+# A more complex example using --config to specify multiple arguments at once
 aerpawlib --config configs/v1-drone.json --config configs/sitl-drone.json --script examples.v1.basic_runner
 ```
 
