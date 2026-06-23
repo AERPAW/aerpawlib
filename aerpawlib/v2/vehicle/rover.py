@@ -212,7 +212,9 @@ class Rover(Vehicle):
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """Set rover velocity using MAVSDK offboard mode.
+        """[NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
+
+        Set rover velocity using MAVSDK offboard mode.
 
         ArduRover supports velocity control in GUIDED mode via offboard
         SET_POSITION_TARGET_LOCAL_NED. The vertical component is always zeroed
