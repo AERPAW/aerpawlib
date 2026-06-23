@@ -287,6 +287,9 @@ def run(
                 script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
                 script_p = Path(script_path)
                 module_name = script_p.stem
+                script_dir = str(script_p.parent.resolve())
+                if script_dir not in sys.path:
+                    sys.path.insert(0, script_dir)
                 spec = importlib.util.spec_from_file_location(module_name, str(script_path))
                 if spec is None:
                     raise ImportError(
