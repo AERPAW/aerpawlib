@@ -1,4 +1,5 @@
 """
+[NOT SUPPORTED] (uses velocity control)
 circle will make a vehicle (drone) fly in a 10m radius circle centered
 on where it started. This is a good example of how to use velocity control
 and dynamic heading adjustment.
@@ -21,7 +22,7 @@ N_LAPS = 1
 
 
 class Circle(StateMachine):
-    """Make a vehicle fly in a circular trajectory using velocity control."""
+    """[NOT SUPPORTED] (uses velocity control) Make a vehicle fly in a circular trajectory using velocity control."""
 
     _target_center: Coordinate
     _point_to_center: bool = False

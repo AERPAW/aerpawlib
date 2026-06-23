@@ -364,7 +364,9 @@ class Drone(Vehicle):
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """Set the drone's velocity in the NED frame.
+        """[NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
+
+        Set the drone's velocity in the NED frame.
 
         Enters offboard mode and sends the velocity setpoint. The velocity loop
         runs until the next movement command or until duration expires.

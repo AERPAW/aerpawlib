@@ -1,4 +1,5 @@
 """
+[NOT SUPPORTED] (uses velocity control)
 circle will make a vehicle (drone is the only supported one for now) fly in a
 3m radius circle centered on where it started. This is a good example of how to
 use velocity control.

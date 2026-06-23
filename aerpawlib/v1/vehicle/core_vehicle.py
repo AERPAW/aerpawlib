@@ -873,6 +873,8 @@ class Vehicle:
         duration: float | None = None,
     ) -> None:
         """
+        [NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
+
         Set a drone's velocity that it will use for `duration` seconds.
 
         Args:
