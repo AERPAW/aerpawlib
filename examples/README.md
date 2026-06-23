@@ -14,6 +14,9 @@
 | `external_runner`               | v1, v2  | Spawns and interacts with external processes             |
 | `zmq_runner`                    | v1, v2  | Leader/follower multi-vehicle coordination via ZMQ       |
 | `zmq_preplanned_orbit`          | v1, v2  | Multi-drone tracer + orbiter mission                     |
+| `gps_logger`                    | v1      | Periodically log vehicle position and state to CSV       |
+| `guided_mission_ping_iperf`     | v1      | Preplanned trajectory with ping/iperf network traffic    |
+| `rover_search`                  | v1      | Drone search algorithm using safety checker and RSSI     |
 | `enhanced_example`              | v2      | Preflight checks and pre-command validations             |
 | `rover_example`                 | v2      | Ground vehicle waypoint navigation                       |
 | `velocity_example`              | v2      | Guided mode velocity control pattern                     |
@@ -57,6 +60,18 @@ aerpawlib --script examples/v1/preplanned_trajectory.py \
 # External process
 aerpawlib --script examples/v1/external_runner.py \
     --vehicle drone --conn udp://127.0.0.1:14550
+
+# GPS Logger (periodically log telemetry to CSV)
+aerpawlib --script examples/v1/gps_logger.py \
+    --vehicle drone --conn udp://127.0.0.1:14550 --output logs.csv --samplerate 2
+
+# Guided mission with background traffic testing (ping/iperf)
+aerpawlib --script examples/v1/guided_mission_ping_iperf.py \
+    --vehicle drone --conn udp://127.0.0.1:14550 --file plans/default.plan --destination_ip 127.0.0.1
+
+# Rover search (search for rover utilizing safety checker and RSSI values)
+aerpawlib --script examples/v1/rover_search.py \
+    --vehicle drone --conn udp://127.0.0.1:14550 --fake_radio True --search_time 10
 ```
 
 ### v2 API
