@@ -512,15 +512,6 @@ class Drone(Vehicle):
             message_name=MAVLINK_MSG_COMMAND_LONG,
             fields_json=json.dumps(fields),
         )
-        try:
-            await self._run_on_mavsdk_loop(
-                self._system.mavlink_direct.send_message(msg),
-            )
-        except Exception as e:
-            logger.warning(
-                f"Drone: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
-            )
-            return
 
         start = time.time()
         while self._ts_state.mode.get() != GUIDED_MODE_NAME:
@@ -529,6 +520,14 @@ class Drone(Vehicle):
                     f"Drone: mode switch timeout (current mode={self._ts_state.mode.get()!r}); commands may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
-            await asyncio.sleep(POLLING_DELAY_S)
+            try:
+                await self._run_on_mavsdk_loop(
+                    self._system.mavlink_direct.send_message(msg),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Drone: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
+                )
+            await asyncio.sleep(0.5)
         logger.info(f"Drone: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 

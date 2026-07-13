@@ -116,15 +116,6 @@ class Rover(Vehicle):
             message_name=MAVLINK_MSG_COMMAND_LONG,
             fields_json=json.dumps(fields),
         )
-        try:
-            await self._run_on_mavsdk_loop(
-                self._system.mavlink_direct.send_message(msg),
-            )
-        except Exception as e:
-            logger.warning(
-                f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
-            )
-            return
 
         start = time.time()
         while self._ts_state.mode.get() != GUIDED_MODE_NAME:
@@ -133,7 +124,15 @@ class Rover(Vehicle):
                     f"Rover: mode switch timeout (current mode={self._ts_state.mode.get()!r}); arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
-            await asyncio.sleep(POLLING_DELAY_S)
+            try:
+                await self._run_on_mavsdk_loop(
+                    self._system.mavlink_direct.send_message(msg),
+                )
+            except Exception as e:
+                logger.warning(
+                    f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
+                )
+            await asyncio.sleep(0.5)
         logger.info(f"Rover: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 
     def _preflight_wait(self, should_arm: bool) -> None:
