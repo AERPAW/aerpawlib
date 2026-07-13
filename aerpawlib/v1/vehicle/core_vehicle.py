@@ -39,6 +39,7 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     GPS_3D_FIX_TYPE,
+    GUIDED_MODE_NAME,
     INTERNAL_UPDATE_DELAY_S,
     MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
     POLLING_DELAY_S,
@@ -566,6 +567,10 @@ class Vehicle:
             return self._ready_to_move.__func__(self)
         return self._ready_to_move(self)
 
+    async def _set_guided_mode(self) -> None:
+        """Set guided/offboard flight mode on the vehicle. Subclasses should override."""
+        pass
+
     async def await_ready_to_move(self) -> None:
         """
         Block and wait until the vehicle is ready for the next command.
@@ -574,6 +579,9 @@ class Vehicle:
         """
         if not self.armed:
             await self._arm_vehicle()
+
+        if self.armed and self._ts_state.mode.get() != GUIDED_MODE_NAME:
+            await self._set_guided_mode()
 
         await wait_for_condition(
             self.done_moving,

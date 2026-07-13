@@ -81,6 +81,12 @@ ROVER_GUIDED_MODE = 15
 ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0
 """Seconds to wait for GUIDED mode switch confirmation before continuing"""
 
+COPTER_GUIDED_MODE = 4
+"""ArduPilot Copter GUIDED mode number"""
+
+COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0
+"""Seconds to wait for GUIDED mode switch confirmation before continuing"""
+
 DEFAULT_GOTO_TIMEOUT_S = 300.0
 """
 Default timeout for goto / navigation commands (seconds)

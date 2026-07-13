@@ -7,17 +7,23 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import math
 import time
 
 from mavsdk.action import ActionError
+from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+from pymavlink import mavutil
 
 from aerpawlib.v2.constants import (
+    COPTER_GUIDED_MODE,
+    COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
     HEADING_TOLERANCE_DEG,
+    MAVLINK_MSG_COMMAND_LONG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     POLLING_DELAY_S,
     POST_TAKEOFF_STABILIZATION_S,
@@ -472,3 +478,58 @@ class Drone(Vehicle):
         """Stop drone-specific background control before final shutdown."""
         await super()._stop()
         await self._stop_offboard()
+
+    async def _set_guided_mode(self) -> None:
+        """Switch to GUIDED mode.
+
+        ArduPilot Drone/Copter requires GUIDED mode to accept takeoff/navigation commands.
+        We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
+        then poll until the flight controller confirms the mode change.
+        """
+        if self.mode == "OFFBOARD":
+            logger.debug(
+                "Drone: already in GUIDED (OFFBOARD) mode, skipping mode switch",
+            )
+            return
+        logger.info(
+            f"Drone: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
+        )
+        try:
+            fields = {
+                "target_system": 1,
+                "target_component": 1,
+                "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                "confirmation": 0,
+                "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+                "param2": float(COPTER_GUIDED_MODE),
+                "param3": 0.0,
+                "param4": 0.0,
+                "param5": 0.0,
+                "param6": 0.0,
+                "param7": 0.0,
+            }
+            msg = MavlinkMessage(
+                system_id=1,
+                component_id=1,
+                target_system_id=1,
+                target_component_id=1,
+                message_name=MAVLINK_MSG_COMMAND_LONG,
+                fields_json=json.dumps(fields),
+            )
+            await self._system.mavlink_direct.send_message(msg)
+        except Exception as e:
+            logger.warning(f"Drone: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            return
+
+        try:
+            await _wait_for_condition(
+                lambda: self.mode == "OFFBOARD",
+                timeout=COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
+                timeout_message=(f"Drone did not enter GUIDED (OFFBOARD) mode within {COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"),
+            )
+            logger.info("Drone: GUIDED (OFFBOARD) mode confirmed")
+        except TimeoutError:
+            logger.warning(
+                f"Drone: mode switch timeout (current mode={self.mode!r}); commands may fail if vehicle is not in GUIDED (OFFBOARD) mode",
+            )
+
