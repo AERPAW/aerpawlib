@@ -479,7 +479,6 @@ class Drone(Vehicle):
         await super()._stop()
         await self._stop_offboard()
 
-
     async def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode.
 

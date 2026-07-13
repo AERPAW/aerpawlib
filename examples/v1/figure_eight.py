@@ -104,8 +104,7 @@ class FigureEight(BasicRunner):
             wp_in_loop = i % self._waypoints_per_loop + 1
 
             print(
-                f"[example] Loop {loop_num}, waypoint "
-                f"{wp_in_loop}/{self._waypoints_per_loop}",
+                f"[example] Loop {loop_num}, waypoint {wp_in_loop}/{self._waypoints_per_loop}",
             )
             await drone.goto_coordinates(target, tolerance=2)
 

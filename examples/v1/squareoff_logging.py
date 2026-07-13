@@ -91,9 +91,7 @@ class SquareOff(StateMachine):
     def initialize_args(self, extra_args: list[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d_%H:%M:%S"
-        )
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H:%M:%S")
         default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
@@ -168,9 +166,7 @@ class SquareOff(StateMachine):
         # if there are no more legs, complete the script
         return "finish"
 
-    async def command_leg(
-        self, vehicle: Vehicle, d_north: float, d_east: float
-    ):
+    async def command_leg(self, vehicle: Vehicle, d_north: float, d_east: float):
         # helper function to send a drone or rover to a specific position
         await vehicle.goto_coordinates(
             vehicle.position + VectorNED(d_north, d_east),
