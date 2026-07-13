@@ -894,7 +894,7 @@ class Vehicle:
         if self._connection.closed or self._system is None:
             raise RuntimeError("Cannot set_groundspeed: vehicle is closed")
         try:
-            await self._system.action.set_maximum_speed(velocity)
+            await self._system.action.set_current_speed(velocity)
         except Exception as e:
             logger.warning("set_groundspeed failed: %s", e)
 
