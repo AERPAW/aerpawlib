@@ -63,7 +63,7 @@ from aerpawlib.v1.log import LogComponent, get_logger
 from aerpawlib.v1.util import is_tcp_port_in_use, is_udp_port_in_use
 
 from . import telemetry_subscriptions
-from .connection import _parse_udp_connection_port, _validate_connection_string
+from .connection import _parse_udp_connection_port
 from .connection_lifecycle import ConnectionLifecycle
 from .state import InitPhase, ThreadSafeVehicleState
 from .telemetry_compat import (
@@ -178,9 +178,6 @@ class Vehicle:
 
         This is a synchronous wrapper around asynchronous connection logic.
         """
-        # Validate the connection string before spawning mavsdk_server so we
-        # get an immediate, clear error instead of a 30-second timeout hang.
-        _validate_connection_string(self._connection_string)
 
         # Fail fast if UDP port from connection string is already in use
         # (avoids hanging)

@@ -34,8 +34,6 @@ import re
 from argparse import ArgumentParser
 from typing import TextIO
 
-import dronekit as dk
-from pymavlink import mavutil
 
 from aerpawlib.aerpaw import AERPAW_Platform
 from aerpawlib.external import ExternalProcess
@@ -100,14 +98,12 @@ class PreplannedTrajectory(StateMachine):
             dest="default_heading",
             type=float,
         )
-        parser.add_argument("--noupload", help="don't upload the .plan file to the drone for GCS visualization", action="store_true")
         args = parser.parse_args(args=extra_args)
 
         self._pinging = not args.ping
         self._sampling = args.skipoutput
         self._sampling_delay = 1 / args.samplerate
         self._waypoint_fname = args.file
-        self._no_plan_upload = args.noupload
 
         if args.default_speed is not None:
             self._default_leg_speed = args.default_speed
@@ -193,61 +189,6 @@ class PreplannedTrajectory(StateMachine):
 
         AERPAW_Platform.log_to_oeo("Reading .plan file...")
         self._waypoints = read_from_plan_complete(self._waypoint_fname, default_speed)
-
-        if self._no_plan_upload:
-            return
-
-        # Upload the plan file to the drone
-        AERPAW_Platform.log_to_oeo("Building CommandSequence...")
-        current_commands = vehicle._vehicle.commands
-
-        # Wait for the vehicle to be ready (so we can grab the commands)
-        vehicle._vehicle.wait_ready(True, raise_exception=False)
-
-        # Clear out initial home location value and any builtin commands
-        current_commands._vehicle._wploader.clear()
-        current_commands.clear()
-
-        # Add a dummy home position command to populate sequence 0
-        home_cmd = dk.Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 0, 0, 0, 0, 0, vehicle.position.lat, vehicle.position.lon, 0)
-        current_commands.add(home_cmd)
-
-        # Loop over waypoint list (no longer ignoring index 0)
-        for waypoint in self._waypoints:
-            # AERPAW_Platform.log_to_oeo(str(waypoint["pos"]))
-            wp_coord = Coordinate(*waypoint["pos"])
-            cmd_type = waypoint["command"]
-
-            lat = wp_coord.lat
-            lon = wp_coord.lon
-            alt = wp_coord.alt
-
-            if cmd_type == 20:  # RTL command
-                # if an RTL command, have the uploaded waypoint either be of type RTL or be a waypoint going to the home location (current vehicle position)
-                mav_cmd = mavutil.mavlink.MAV_CMD_NAV_RETURN_TO_LAUNCH
-                lat = vehicle.position.lat
-                lon = vehicle.position.lon
-                alt = vehicle.position.alt
-            elif cmd_type == 22:  # TAKEOFF command
-                # if a TAKEOFF command, use the drone's current position if the provided coordinates are at 0,0,0, otherwise use the provided coordinates
-                mav_cmd = mavutil.mavlink.MAV_CMD_NAV_TAKEOFF
-                if lat == 0.0 and lon == 0.0:
-                    lat = vehicle.position.lat
-                    lon = vehicle.position.lon
-            else:
-                mav_cmd = mavutil.mavlink.MAV_CMD_NAV_WAYPOINT
-
-            # Make a new command with the coordinates
-            new_cmd = dk.Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mav_cmd, 0, 0, 0, 0, 0, 0, lat, lon, alt)
-
-            # Add the new waypoint to our command list
-            current_commands.add(new_cmd)
-
-        # Upload the command list to our drone
-        AERPAW_Platform.log_to_oeo("Uploading .plan file...")
-        current_commands.upload()
-
-        AERPAW_Platform.log_to_oeo(".plan file uploaded!")
 
     @state(name="take_off", first=True)
     async def take_off(self, vehicle: Vehicle):
