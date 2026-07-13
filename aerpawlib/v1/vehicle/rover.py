@@ -80,7 +80,7 @@ class Rover(Vehicle):
         self._velocity_generation: int = 0
         self._offboard_active: bool = False
 
-    async def _set_guided_mode(self) -> None:
+    def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode before arming.
 
         ArduPilot Rover requires GUIDED mode to accept arm commands via
@@ -117,9 +117,11 @@ class Rover(Vehicle):
             fields_json=json.dumps(fields),
         )
         try:
-            await self._run_on_mavsdk_loop(
+            future = asyncio.run_coroutine_threadsafe(
                 self._system.mavlink_direct.send_message(msg),
+                self._mavsdk_loop,
             )
+            future.result(timeout=MAVLINK_COMMAND_TIMEOUT_S)
         except Exception as e:
             logger.warning(
                 f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
@@ -133,19 +135,12 @@ class Rover(Vehicle):
                     f"Rover: mode switch timeout (current mode={self._ts_state.mode.get()!r}); arming may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
-            await asyncio.sleep(POLLING_DELAY_S)
+            time.sleep(POLLING_DELAY_S)
         logger.info(f"Rover: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
 
     def _preflight_wait(self, should_arm: bool) -> None:
         """Wait for pre-arm conditions, setting GUIDED mode first."""
-        future = asyncio.run_coroutine_threadsafe(
-            self._set_guided_mode(),
-            self._mavsdk_loop,
-        )
-        try:
-            future.result(timeout=MAVLINK_COMMAND_TIMEOUT_S + 5)
-        except Exception as e:
-            logger.warning(f"Rover: failed waiting for GUIDED mode switch: {e}")
+        self._set_guided_mode()
         super()._preflight_wait(should_arm)
 
     async def goto_coordinates(

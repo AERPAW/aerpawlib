@@ -6,25 +6,18 @@ See ``aerpawlib.v1.vehicle`` module documentation for usage and commands.
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import time
 from typing import TYPE_CHECKING
 
 from mavsdk.action import ActionError
-from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
-from pymavlink import mavutil
 
 from aerpawlib.v1.constants import (
-    COPTER_GUIDED_MODE,
-    COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
-    GUIDED_MODE_NAME,
     HEADING_TOLERANCE_DEG,
-    MAVLINK_MSG_COMMAND_LONG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
@@ -475,60 +468,3 @@ class Drone(Vehicle):
                 logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)
             finally:
                 self._offboard_active = False
-
-    async def _set_guided_mode(self) -> None:
-        """Switch to GUIDED mode.
-
-        ArduPilot Drone/Copter requires GUIDED mode to accept takeoff/navigation commands.
-        We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
-        then poll until the flight controller confirms the mode change.
-        """
-        if self._ts_state.mode.get() == GUIDED_MODE_NAME:
-            logger.debug(
-                f"Drone: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch",
-            )
-            return
-        logger.info(
-            f"Drone: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
-        )
-        fields = {
-            "target_system": 1,
-            "target_component": 1,
-            "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-            "confirmation": 0,
-            "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-            "param2": float(COPTER_GUIDED_MODE),
-            "param3": 0.0,
-            "param4": 0.0,
-            "param5": 0.0,
-            "param6": 0.0,
-            "param7": 0.0,
-        }
-        msg = MavlinkMessage(
-            system_id=1,
-            component_id=1,
-            target_system_id=1,
-            target_component_id=1,
-            message_name=MAVLINK_MSG_COMMAND_LONG,
-            fields_json=json.dumps(fields),
-        )
-        try:
-            await self._run_on_mavsdk_loop(
-                self._system.mavlink_direct.send_message(msg),
-            )
-        except Exception as e:
-            logger.warning(
-                f"Drone: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
-            )
-            return
-
-        start = time.time()
-        while self._ts_state.mode.get() != GUIDED_MODE_NAME:
-            if time.time() - start > COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S:
-                logger.warning(
-                    f"Drone: mode switch timeout (current mode={self._ts_state.mode.get()!r}); commands may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
-                )
-                return
-            await asyncio.sleep(POLLING_DELAY_S)
-        logger.info(f"Drone: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")
-
