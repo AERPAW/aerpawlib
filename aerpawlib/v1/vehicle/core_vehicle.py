@@ -904,11 +904,11 @@ class Vehicle:
         logger.debug(f"set_groundspeed({velocity}) called")
         try:
             await self._run_on_mavsdk_loop(
-                self._system.action.set_maximum_speed(velocity),
+                self._system.action.set_current_speed(velocity),
             )
-            logger.debug(f"Maximum speed set to {velocity} m/s")
+            logger.debug(f"Current speed set to {velocity} m/s")
         except ActionError:
-            logger.debug("set_maximum_speed not supported by autopilot")
+            logger.debug("set_current_speed not supported by autopilot")
             pass  # Not all autopilots support this
 
     async def _stop(self) -> None:
