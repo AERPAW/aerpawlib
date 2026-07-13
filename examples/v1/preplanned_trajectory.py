@@ -66,9 +66,7 @@ class PreplannedTrajectory(StateMachine):
 
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d_%H:%M:%S"
-        )
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H:%M:%S")
         default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
@@ -103,10 +101,7 @@ class PreplannedTrajectory(StateMachine):
         )
         parser.add_argument(
             "--look-at-heading",
-            help=(
-                "heading to maintain while flying, if set. "
-                "attitude is autopilot controlled if not set"
-            ),
+            help=("heading to maintain while flying, if set. attitude is autopilot controlled if not set"),
             required=False,
             default=None,
             action="store",
@@ -157,12 +152,8 @@ class PreplannedTrajectory(StateMachine):
     async def ping_before_running(self, _):
         # do a few pings before waiting for the drone to arm
         if self._pinging:
-            avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
-            )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
     def _dump_to_csv(self, vehicle: Vehicle, line_num: int, writer):
         """
@@ -241,10 +232,7 @@ class PreplannedTrajectory(StateMachine):
                 await vehicle.takeoff(takeoff_alt)
 
         # Skip all takeoff commands for both drones and rovers
-        while (
-            self._current_waypoint < len(self._waypoints)
-            and self._waypoints[self._current_waypoint]["command"] == 22
-        ):
+        while self._current_waypoint < len(self._waypoints) and self._waypoints[self._current_waypoint]["command"] == 22:
             self._current_waypoint += 1
 
         return "next_waypoint"
@@ -264,11 +252,7 @@ class PreplannedTrajectory(StateMachine):
         # go to next waypoint
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
-        in_background(
-            vehicle.goto_coordinates(
-                coords, target_heading=self._default_heading
-            )
-        )
+        in_background(vehicle.goto_coordinates(coords, target_heading=self._default_heading))
         # TODO(jjreder): speed change race; needs field testing
         await asyncio.sleep(0.5)
         await vehicle.set_groundspeed(target_speed)
@@ -280,12 +264,8 @@ class PreplannedTrajectory(StateMachine):
 
         # also as an example, measure ping latency while on the move
         if self._pinging:
-            avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
-            )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
         await vehicle.await_ready_to_move()
         return "at_waypoint"
@@ -303,12 +283,8 @@ class PreplannedTrajectory(StateMachine):
 
         # example: measure average ping latency
         if self._pinging:
-            avg_ping_latency = await self._ping_latency(
-                "127.0.0.1", 5
-            )  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(
-                f"Average ping latency: {avg_ping_latency}ms"
-            )
+            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
 
         # We have finished executing this waypoint, advance the index for the next loop
         self._current_waypoint += 1
@@ -322,9 +298,7 @@ class PreplannedTrajectory(StateMachine):
             vehicle.home_coords.lon,
             vehicle.position.alt,
         )
-        await vehicle.goto_coordinates(
-            home_coords, target_heading=self._default_heading
-        )
+        await vehicle.goto_coordinates(home_coords, target_heading=self._default_heading)
         if isinstance(vehicle, Drone):
             await vehicle.land()
 

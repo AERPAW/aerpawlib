@@ -44,4 +44,3 @@ def parse_udp_connection_port(connection_string: str) -> tuple[str, int] | None:
 
     host = host.strip() if host else "0.0.0.0"
     return (host, port)
-

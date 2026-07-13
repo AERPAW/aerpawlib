@@ -76,9 +76,7 @@ class HideRover(StateMachine):
 
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
-        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%d_%H:%M:%S"
-        )
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d_%H:%M:%S")
         default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
@@ -256,11 +254,7 @@ class HideRover(StateMachine):
         # checks if only one coordinate was specified via arguments (this is invalid, so
         # the script will stop)
         if (self._hide_latitude is None) ^ (self._hide_longitude is None):
-            print(
-                "Only one coordinate unit was specified "
-                "(either latitude or longitude). Please specify "
-                "either both or neither.\nStopping script"
-            )
+            print("Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script")
             return None
 
         # generate random hide coords if not specified

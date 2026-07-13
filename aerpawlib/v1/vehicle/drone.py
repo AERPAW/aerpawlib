@@ -476,7 +476,6 @@ class Drone(Vehicle):
             finally:
                 self._offboard_active = False
 
-
     async def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode.
 
