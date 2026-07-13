@@ -100,11 +100,6 @@ ROVER_GUIDED_MODE = 15  # ArduPilot Rover GUIDED mode number
 ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0  # Seconds to wait for mode change
 """Max wait for Rover GUIDED mode switch confirmation."""
 
-COPTER_GUIDED_MODE = 4  # ArduPilot Copter GUIDED mode number
-"""ArduPilot Copter GUIDED mode enum value used for navigation."""
-COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S = 3.0  # Seconds to wait for mode change
-"""Max wait for Copter GUIDED mode switch confirmation."""
-
 # Waypoint and plan (QGroundControl .plan files)
 DEFAULT_WAYPOINT_SPEED = 5
 """Default waypoint speed (m/s) applied when plan items omit speed changes."""

@@ -31,21 +31,21 @@ Structured experiment logs: pass `--structured-log FILE` for JSON Lines (`missio
 
 ## Runners
 
-| Runner            | Use when                                                         |
-|-------------------|------------------------------------------------------------------|
-| `BasicRunner`     | One `@entrypoint` coroutine                                      |
-| `StateMachine`    | `@state` / `@timed_state` transitions, `@background`, `@at_init` |
-| `ZmqStateMachine` | Multi-vehicle remote control via ZMQ                             |
+| Runner | Use when |
+|--------|----------|
+| `BasicRunner` | One `@entrypoint` coroutine |
+| `StateMachine` | `@state` / `@timed_state` transitions, `@background`, `@at_init` |
+| `ZmqStateMachine` | Multi-vehicle remote control via ZMQ |
 
-| Decorator                         | Class             | Description                                 |
-|-----------------------------------|-------------------|---------------------------------------------|
-| `@entrypoint`                     | `BasicRunner`     | Single async entry point                    |
-| `@state(name, first=False)`       | `StateMachine`    | State; return next name or `None` to finish |
-| `@timed_state(name, duration, …)` | `StateMachine`    | State held for at least `duration` seconds  |
-| `@background`                     | `StateMachine`    | Concurrent coroutine restarted on exception |
-| `@at_init`                        | `StateMachine`    | Runs once before arm and first state        |
-| `@expose_zmq(name)`               | `ZmqStateMachine` | Remote state transition target              |
-| `@expose_field_zmq(name)`         | `ZmqStateMachine` | Queryable field via `query_field`           |
+| Decorator | Class | Description |
+|-----------|-------|-------------|
+| `@entrypoint` | `BasicRunner` | Single async entry point |
+| `@state(name, first=False)` | `StateMachine` | State; return next name or `None` to finish |
+| `@timed_state(name, duration, …)` | `StateMachine` | State held for at least `duration` seconds |
+| `@background` | `StateMachine` | Concurrent coroutine restarted on exception |
+| `@at_init` | `StateMachine` | Runs once before arm and first state |
+| `@expose_zmq(name)` | `ZmqStateMachine` | Remote state transition target |
+| `@expose_field_zmq(name)` | `ZmqStateMachine` | Queryable field via `query_field` |
 
 Run ZMQ missions with `--zmq-identifier` and `--zmq-proxy-server` after starting `aerpawlib-run-proxy`.
 
@@ -67,18 +67,18 @@ drone = await Drone.connect(
 
 ### Telemetry properties
 
-| Property               | Type                 | Description                   |
-|------------------------|----------------------|-------------------------------|
-| `position`             | `Coordinate`         | Lat, lon, alt AGL             |
-| `home_coords`          | `Coordinate \| None` | Home position                 |
-| `battery`              | `Battery`            | Voltage, current, remaining % |
-| `gps`                  | `GPSInfo`            | Fix type, satellite count     |
-| `armed`                | `bool`               | Armed state                   |
-| `heading`              | `float`              | Degrees                       |
-| `velocity`             | `VectorNED`          | m/s                           |
-| `attitude`             | `Attitude`           | Roll, pitch, yaw (rad)        |
-| `mode`                 | `str`                | Flight mode name              |
-| `connected` / `closed` | `bool`               | Connection lifecycle          |
+| Property | Type | Description |
+|----------|------|-------------|
+| `position` | `Coordinate` | Lat, lon, alt AGL |
+| `home_coords` | `Coordinate \| None` | Home position |
+| `battery` | `Battery` | Voltage, current, remaining % |
+| `gps` | `GPSInfo` | Fix type, satellite count |
+| `armed` | `bool` | Armed state |
+| `heading` | `float` | Degrees |
+| `velocity` | `VectorNED` | m/s |
+| `attitude` | `Attitude` | Roll, pitch, yaw (rad) |
+| `mode` | `str` | Flight mode name |
+| `connected` / `closed` | `bool` | Connection lifecycle |
 
 ### Drone commands
 
@@ -131,14 +131,14 @@ v2 uses `pathlib.Path` for plan paths (v1 often accepts `str`).
 
 ## Supporting modules
 
-| Module                    | Purpose                                 |
-|---------------------------|-----------------------------------------|
-| `aerpawlib.v2.types`      | `Coordinate`, `VectorNED`, `Battery`, … |
-| `aerpawlib.v2.plan`       | QGroundControl `.plan` parsing          |
-| `aerpawlib.v2.geofence`   | Polygon utilities                       |
-| `aerpawlib.v2.external`   | `ExternalProcess` for subprocess I/O    |
-| `aerpawlib.v2.testing`    | `MockVehicle`, `DummyVehicle`           |
-| `aerpawlib.v2.exceptions` | `AerpawlibError` hierarchy              |
+| Module | Purpose |
+|--------|---------|
+| `aerpawlib.v2.types` | `Coordinate`, `VectorNED`, `Battery`, … |
+| `aerpawlib.v2.plan` | QGroundControl `.plan` parsing |
+| `aerpawlib.v2.geofence` | Polygon utilities |
+| `aerpawlib.v2.external` | `ExternalProcess` for subprocess I/O |
+| `aerpawlib.v2.testing` | `MockVehicle`, `DummyVehicle` |
+| `aerpawlib.v2.exceptions` | `AerpawlibError` hierarchy |
 
 ## Error handling
 
