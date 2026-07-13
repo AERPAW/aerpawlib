@@ -105,16 +105,21 @@ class Rover(Vehicle):
                 message_name=MAVLINK_MSG_COMMAND_LONG,
                 fields_json=json.dumps(fields),
             )
-
-            # Send directly to the flight controller.
-            await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
-            logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            logger.warning(f"Rover: failed to prepare GUIDED (OFFBOARD) mode fields: {e}")
             return
+
+        async def _send_and_check() -> bool:
+            try:
+                await self._system.mavlink_direct.send_message(msg)
+            except Exception as e:
+                logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            await asyncio.sleep(0.5)
+            return self.mode == "OFFBOARD"
 
         try:
             await _wait_for_condition(
-                lambda: self.mode == "OFFBOARD",
+                _send_and_check,
                 timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
                 timeout_message=(f"Rover did not enter GUIDED (OFFBOARD) mode within {ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"),
             )

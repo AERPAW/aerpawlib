@@ -516,14 +516,21 @@ class Drone(Vehicle):
                 message_name=MAVLINK_MSG_COMMAND_LONG,
                 fields_json=json.dumps(fields),
             )
-            await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
-            logger.warning(f"Drone: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            logger.warning(f"Drone: failed to prepare GUIDED (OFFBOARD) mode fields: {e}")
             return
+
+        async def _send_and_check() -> bool:
+            try:
+                await self._system.mavlink_direct.send_message(msg)
+            except Exception as e:
+                logger.warning(f"Drone: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            await asyncio.sleep(0.5)
+            return self.mode == "OFFBOARD"
 
         try:
             await _wait_for_condition(
-                lambda: self.mode == "OFFBOARD",
+                _send_and_check,
                 timeout=COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
                 timeout_message=(f"Drone did not enter GUIDED (OFFBOARD) mode within {COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"),
             )
