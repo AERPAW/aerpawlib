@@ -776,7 +776,7 @@ class Vehicle:
             poll_interval=POLLING_DELAY_S,
         )
         await _wait_for_condition(
-            lambda: self.armed and self.mode == "OFFBOARD",
+            lambda: self.armed,
             poll_interval=POLLING_DELAY_S,
         )
         update_progress(state="")

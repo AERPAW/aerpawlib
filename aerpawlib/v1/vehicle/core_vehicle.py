@@ -39,7 +39,6 @@ from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     GPS_3D_FIX_TYPE,
-    GUIDED_MODE_NAME,
     INTERNAL_UPDATE_DELAY_S,
     MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
     POLLING_DELAY_S,
@@ -770,7 +769,7 @@ class Vehicle:
                     poll_interval=POLLING_DELAY_S,
                 )
                 await wait_for_condition(
-                    lambda: self.armed and self._ts_state.mode.get() == GUIDED_MODE_NAME,
+                    lambda: self.armed,
                     poll_interval=POLLING_DELAY_S,
                 )
                 update_progress(state="")
