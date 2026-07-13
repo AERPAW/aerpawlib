@@ -46,7 +46,6 @@ from aerpawlib.v2.log import LogComponent, get_logger
 from aerpawlib.v2.safety.validation import PreflightChecks
 
 from .connection_helpers import (
-    _validate_connection_string,
     _wait_for_condition,
 )
 from .connection_state import ConnectionState
@@ -349,7 +348,6 @@ class Vehicle:
         logger.info(
             f"Connecting to vehicle at {connection_string} (port={mavsdk_server_port}, timeout={timeout}s)",
         )
-        _validate_connection_string(connection_string)
         system = System(port=mavsdk_server_port)
         await asyncio.wait_for(
             system.connect(system_address=connection_string),

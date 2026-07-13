@@ -3,12 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
 from urllib.parse import urlparse
-
-MAVSDK_VALID_SCHEMES = frozenset(
-    ("udpin", "udpout", "tcpin", "tcpout", "serial", "tcp", "udp"),
-)
 
 
 def parse_udp_connection_port(connection_string: str) -> tuple[str, int] | None:
@@ -50,21 +45,3 @@ def parse_udp_connection_port(connection_string: str) -> tuple[str, int] | None:
     host = host.strip() if host else "0.0.0.0"
     return (host, port)
 
-
-def validate_connection_scheme(
-    conn_str: str,
-    *,
-    raise_error: Callable[[str], BaseException],
-    example_port: int = 14550,
-) -> None:
-    """Raise via ``raise_error`` if the connection string scheme is invalid."""
-    s = conn_str.strip()
-    if "://" not in s:
-        raise raise_error(
-            f"Invalid connection string {conn_str!r}: missing '://'. Expected format e.g. 'udpin://0.0.0.0:{example_port}', 'udpout://host:port', 'tcpin://host:port', 'tcpout://host:port', or 'serial:///dev/path[:baud]'.",
-        )
-    scheme = s.split("://")[0].lower()
-    if scheme not in MAVSDK_VALID_SCHEMES:
-        raise raise_error(
-            f"Invalid connection string {conn_str!r}: unknown scheme {scheme!r}. Supported schemes: {', '.join(sorted(MAVSDK_VALID_SCHEMES))}.",
-        )

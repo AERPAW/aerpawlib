@@ -7,25 +7,12 @@ import time
 from collections.abc import Callable
 
 from aerpawlib.v2.constants import (
-    DEFAULT_MAV_UDP_PORT,
     MAX_POSITION_TOLERANCE_M,
     MIN_POSITION_TOLERANCE_M,
 )
-from aerpawlib.v2.exceptions import AerpawConnectionError
 from aerpawlib.v2.log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.VEHICLE)
-
-from aerpawlib._internal.connection_string import validate_connection_scheme  # noqa: E402
-
-
-def _validate_connection_string(conn_str: str) -> None:
-    """Raise AerpawConnectionError immediately if conn_str is malformed."""
-    validate_connection_scheme(
-        conn_str,
-        raise_error=AerpawConnectionError,
-        example_port=DEFAULT_MAV_UDP_PORT,
-    )
 
 
 def _validate_tolerance(tolerance: float, param_name: str = "tolerance") -> float:
