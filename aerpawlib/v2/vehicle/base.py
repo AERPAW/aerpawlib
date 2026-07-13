@@ -809,6 +809,11 @@ class Vehicle:
         if self._will_arm and not self.armed:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
+
+        if hasattr(self, "_set_guided_mode"):
+            await self._set_guided_mode()
+            await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+
         logger.debug("await_ready_to_move: waiting for done_moving")
         start = time.monotonic()
         last_log = 0.0

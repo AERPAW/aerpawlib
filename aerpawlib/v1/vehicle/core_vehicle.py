@@ -575,6 +575,10 @@ class Vehicle:
         if not self.armed:
             await self._arm_vehicle()
 
+        if hasattr(self, "_set_guided_mode"):
+            await self._set_guided_mode()
+            await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+
         await wait_for_condition(
             self.done_moving,
             timeout=DEFAULT_GOTO_TIMEOUT_S,
