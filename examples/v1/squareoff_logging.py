@@ -39,6 +39,7 @@ import datetime
 import os
 import time
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import ClassVar, TextIO
 
 from aerpawlib.v1.runner import StateMachine, background, state, timed_state
@@ -56,14 +57,14 @@ def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
     pos = vehicle.position
     lat, lon, alt = pos.lat, pos.lon, pos.alt
     volt = vehicle.battery.voltage
-    timestamp = datetime.datetime.now()
+    timestamp = datetime.datetime.now(datetime.timezone.utc)
     gps = vehicle.gps
     fix, num_sat = gps.fix_type, gps.satellites_visible
     if fix < 2:
         lat, lon, alt = -999, -999, -999
     vel = vehicle.velocity
     attitude = vehicle.attitude
-    attitude_str = "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
+    attitude_str = f"({attitude.pitch},{attitude.yaw},{attitude.roll})"
     writer.writerow(
         [
             line_num,
@@ -90,7 +91,10 @@ class SquareOff(StateMachine):
     def initialize_args(self, extra_args: list[str]):
         # initialize extra arguments as well as any additional variables used by
         # this StateMachine
-        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%d_%H:%M:%S"
+        )
+        default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
         parser.add_argument(
@@ -109,7 +113,7 @@ class SquareOff(StateMachine):
         args = parser.parse_args(args=extra_args)
 
         self._sampling_delay = 1 / args.samplerate
-        self._log_file = open(args.output, "a+")
+        self._log_file = Path(args.output).open("a+")
         self._log_file.seek(0)
         self._cur_line = sum(1 for _ in self._log_file) + 1
         self._log_file.seek(0, 2)  # Seek back to end for appending
@@ -164,10 +168,12 @@ class SquareOff(StateMachine):
         # if there are no more legs, complete the script
         return "finish"
 
-    async def command_leg(self, vehicle: Vehicle, dNorth: float, dEast: float):
+    async def command_leg(
+        self, vehicle: Vehicle, d_north: float, d_east: float
+    ):
         # helper function to send a drone or rover to a specific position
         await vehicle.goto_coordinates(
-            vehicle.position + VectorNED(dNorth, dEast),
+            vehicle.position + VectorNED(d_north, d_east),
             tolerance=LOCATION_TOLERANCE,
         )
 

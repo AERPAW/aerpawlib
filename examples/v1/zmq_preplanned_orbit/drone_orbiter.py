@@ -56,7 +56,8 @@ class OrbiterRunner(ZmqStateMachine):
     @state(name="orbit")
     async def state_orbit(self, drone: Drone):
         current_pos = drone.position
-        radius_vec = current_pos - self._orbit_coord_center  # points out to drone, use tangent to orbit
+        # points out to drone, use tangent to orbit
+        radius_vec = current_pos - self._orbit_coord_center
         perp_vec = radius_vec.cross_product(VectorNED(0, 0, 1))
 
         leg_dist = radius_vec.hypot(ignore_down=True)
