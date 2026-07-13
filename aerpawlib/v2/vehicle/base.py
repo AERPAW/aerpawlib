@@ -802,6 +802,10 @@ class Vehicle:
             await self._auto_arm_standalone()
         await self._arm_vehicle_post_arm_home_wait()
 
+    async def _set_guided_mode(self) -> None:
+        """Set guided/offboard flight mode on the vehicle. Subclasses should override."""
+        pass
+
     async def await_ready_to_move(self) -> None:
         """Wait until vehicle is ready for next command."""
         if self._connection.closed:
@@ -809,6 +813,10 @@ class Vehicle:
         if self._will_arm and not self.armed:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
+
+        if self.armed and self.mode != "OFFBOARD":
+            await self._set_guided_mode()
+
         logger.debug("await_ready_to_move: waiting for done_moving")
         start = time.monotonic()
         last_log = 0.0
