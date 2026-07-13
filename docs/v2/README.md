@@ -1,4 +1,4 @@
-> **Note:** This is the v2 API. For the legacy API, see `aerpawlib.v1`.
+> **Note:** This is the v2 API. For the backwards-compatible API, see `aerpawlib.v1`.
 
 ## Overview
 

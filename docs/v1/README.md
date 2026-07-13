@@ -1,4 +1,4 @@
-> **Note:** This is the v1 API. For new experiments, prefer `aerpawlib.v2`.
+> **Note:** This is the v1 API, intended to be backwards compatible with the old dronekit-based aerpawlib. If you are looking for the v2 API, see `aerpawlib.v2`.
 
 ## Overview
 
