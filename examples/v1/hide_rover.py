@@ -37,6 +37,7 @@ import datetime
 import os
 import random
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import ClassVar, TextIO
 
 from aerpawlib.v1.runner import (
@@ -75,7 +76,10 @@ class HideRover(StateMachine):
 
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%d_%H:%M:%S"
+        )
+        default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
         parser.add_argument("--file", help="Mission plan file path.", required=True)
@@ -146,7 +150,7 @@ class HideRover(StateMachine):
             self._hide_longitude = args.longitude
 
         if self._sampling:
-            self._log_file = open(args.output, "w+")
+            self._log_file = Path(args.output).open("w+")
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
@@ -158,14 +162,14 @@ class HideRover(StateMachine):
         pos = vehicle.position
         lat, lon, alt = pos.lat, pos.lon, pos.alt
         volt = vehicle.battery.voltage
-        timestamp = datetime.datetime.now()
+        timestamp = datetime.datetime.now(datetime.timezone.utc)
         gps = vehicle.gps
         fix, num_sat = gps.fix_type, gps.satellites_visible
         if fix < 2:
             lat, lon, alt = -999, -999, -999
         vel = vehicle.velocity
         attitude = vehicle.attitude
-        attitude_str = "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
+        attitude_str = f"({attitude.pitch},{attitude.yaw},{attitude.roll})"
         writer.writerow(
             [
                 line_num,
@@ -253,7 +257,9 @@ class HideRover(StateMachine):
         # the script will stop)
         if (self._hide_latitude is None) ^ (self._hide_longitude is None):
             print(
-                "Only one coordinate unit was specified (either latitude or longitude). Please specify either both or neither.\nStopping script",
+                "Only one coordinate unit was specified "
+                "(either latitude or longitude). Please specify "
+                "either both or neither.\nStopping script"
             )
             return None
 

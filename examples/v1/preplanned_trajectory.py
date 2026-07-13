@@ -32,8 +32,8 @@ import datetime
 import os
 import re
 from argparse import ArgumentParser
+from pathlib import Path
 from typing import TextIO
-
 
 from aerpawlib.aerpaw import AERPAW_Platform
 from aerpawlib.external import ExternalProcess
@@ -66,13 +66,25 @@ class PreplannedTrajectory(StateMachine):
 
     def initialize_args(self, extra_args: list[str]):
         # use an extra argument parser to read in custom script arguments
-        default_file = f"GPS_DATA_{datetime.datetime.now().strftime('%Y-%m-%d_%H:%M:%S')}.csv"
+        now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
+            "%Y-%m-%d_%H:%M:%S"
+        )
+        default_file = f"GPS_DATA_{now_str}.csv"
 
         parser = ArgumentParser()
         parser.add_argument("--file", help="Mission plan file path.", required=True)
         parser.add_argument("--ping", help="call ping coroutine", action="store_false")
-        parser.add_argument("--skipoutput", help="don't dump gps data to a file", action="store_false")
-        parser.add_argument("--output", help="log output file", required=False, default=default_file)
+        parser.add_argument(
+            "--skipoutput",
+            help="don't dump gps data to a file",
+            action="store_false",
+        )
+        parser.add_argument(
+            "--output",
+            help="log output file",
+            required=False,
+            default=default_file,
+        )
         parser.add_argument(
             "--samplerate",
             help="log sampling rate (Hz)",
@@ -91,7 +103,10 @@ class PreplannedTrajectory(StateMachine):
         )
         parser.add_argument(
             "--look-at-heading",
-            help="heading to maintain while flying, if set. attitude is autopilot controlled if not set",
+            help=(
+                "heading to maintain while flying, if set. "
+                "attitude is autopilot controlled if not set"
+            ),
             required=False,
             default=None,
             action="store",
@@ -111,7 +126,7 @@ class PreplannedTrajectory(StateMachine):
             self._default_heading = args.default_heading
 
         if self._sampling:
-            self._log_file = open(args.output, "w+")
+            self._log_file = Path(args.output).open("w+")
             self._cur_line = sum(1 for _ in self._log_file) + 1
             self._csv_writer = csv.writer(self._log_file)
 
@@ -130,9 +145,10 @@ class PreplannedTrajectory(StateMachine):
         buff = 1
         while buff:
             buff = await ping.wait_until_output(r"icmp_seq=")
-            ping_re_match = self._ping_regex.match(buff[-1])  # last line contains useful data
+            ping_re_match = self._ping_regex.match(buff[-1])
             latencies.append(float(ping_re_match.group("time")))
-            if ping_re_match.group("seq") == str(count):  # if icmp_seq shows we've sent everything
+            # if icmp_seq shows we've sent everything
+            if ping_re_match.group("seq") == str(count):
                 break
         avg_latency = sum(latencies) / len(latencies)
         return avg_latency
@@ -141,31 +157,49 @@ class PreplannedTrajectory(StateMachine):
     async def ping_before_running(self, _):
         # do a few pings before waiting for the drone to arm
         if self._pinging:
-            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            avg_ping_latency = await self._ping_latency(
+                "127.0.0.1", 5
+            )  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
     def _dump_to_csv(self, vehicle: Vehicle, line_num: int, writer):
         """
-        This function will continually log stats about the vehicle to a file specified by command line args
+        This function will continually log stats about the vehicle to a file
+        specified by command line args
         """
         pos = vehicle.position
         lat, lon, alt = pos.lat, pos.lon, pos.alt
         volt = vehicle.battery.voltage
-        timestamp = datetime.datetime.now()
+        timestamp = datetime.datetime.now(datetime.timezone.utc)
         gps = vehicle.gps
         fix, num_sat = gps.fix_type, gps.satellites_visible
         if fix < 2:
             lat, lon, alt = -999, -999, -999
         vel = vehicle.velocity
         attitude = vehicle.attitude
-        attitude_str = "(" + ",".join(map(str, [attitude.pitch, attitude.yaw, attitude.roll])) + ")"
+        attitude_str = f"({attitude.pitch},{attitude.yaw},{attitude.roll})"
 
         # If you ever update this list of parameters logged please also change
         #  ../../../PostProcessing/log2csv.py    and
         #  ../../GPSLogger/gps_logger.py
         # to keep them in sync
 
-        writer.writerow([line_num, lon, lat, alt, attitude_str, vel, volt, timestamp, fix, num_sat])
+        writer.writerow(
+            [
+                line_num,
+                lon,
+                lat,
+                alt,
+                attitude_str,
+                vel,
+                volt,
+                timestamp,
+                fix,
+                num_sat,
+            ]
+        )
 
     @background
     async def periodic_dump(self, vehicle: Vehicle):
@@ -207,7 +241,10 @@ class PreplannedTrajectory(StateMachine):
                 await vehicle.takeoff(takeoff_alt)
 
         # Skip all takeoff commands for both drones and rovers
-        while self._current_waypoint < len(self._waypoints) and self._waypoints[self._current_waypoint]["command"] == 22:
+        while (
+            self._current_waypoint < len(self._waypoints)
+            and self._waypoints[self._current_waypoint]["command"] == 22
+        ):
             self._current_waypoint += 1
 
         return "next_waypoint"
@@ -227,8 +264,13 @@ class PreplannedTrajectory(StateMachine):
         # go to next waypoint
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
-        in_background(vehicle.goto_coordinates(coords, target_heading=self._default_heading))
-        await asyncio.sleep(0.5)  # TODO to deal with MAV_CMD_DO_CHANGE_SPEED race condition -- needs field testing!
+        in_background(
+            vehicle.goto_coordinates(
+                coords, target_heading=self._default_heading
+            )
+        )
+        # TODO(jjreder): speed change race; needs field testing
+        await asyncio.sleep(0.5)
         await vehicle.set_groundspeed(target_speed)
         return "in_transit"
 
@@ -238,8 +280,12 @@ class PreplannedTrajectory(StateMachine):
 
         # also as an example, measure ping latency while on the move
         if self._pinging:
-            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            avg_ping_latency = await self._ping_latency(
+                "127.0.0.1", 5
+            )  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
         await vehicle.await_ready_to_move()
         return "at_waypoint"
@@ -257,8 +303,12 @@ class PreplannedTrajectory(StateMachine):
 
         # example: measure average ping latency
         if self._pinging:
-            avg_ping_latency = await self._ping_latency("127.0.0.1", 5)  # ping 127.0.0.1 5 times
-            AERPAW_Platform.log_to_oeo(f"Average ping latency: {avg_ping_latency}ms")
+            avg_ping_latency = await self._ping_latency(
+                "127.0.0.1", 5
+            )  # ping 127.0.0.1 5 times
+            AERPAW_Platform.log_to_oeo(
+                f"Average ping latency: {avg_ping_latency}ms"
+            )
 
         # We have finished executing this waypoint, advance the index for the next loop
         self._current_waypoint += 1
@@ -267,8 +317,14 @@ class PreplannedTrajectory(StateMachine):
     @state(name="rtl")
     async def rtl(self, vehicle: Vehicle):
         # return to the take off location and stop the script
-        home_coords = Coordinate(vehicle.home_coords.lat, vehicle.home_coords.lon, vehicle.position.alt)
-        await vehicle.goto_coordinates(home_coords, target_heading=self._default_heading)
+        home_coords = Coordinate(
+            vehicle.home_coords.lat,
+            vehicle.home_coords.lon,
+            vehicle.position.alt,
+        )
+        await vehicle.goto_coordinates(
+            home_coords, target_heading=self._default_heading
+        )
         if isinstance(vehicle, Drone):
             await vehicle.land()
 
