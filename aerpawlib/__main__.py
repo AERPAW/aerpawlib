@@ -331,10 +331,15 @@ def main() -> None:
         project_root = current_file.parent.parent
 
     project_root_str = str(project_root)
-    import os
 
-    os.chdir(project_root_str)
-    sys.path.insert(0, project_root_str)
+    # Insert invocation_cwd to sys.path so scripts in the current directory can be imported
+    invocation_cwd_str = str(invocation_cwd)
+    if invocation_cwd_str not in sys.path:
+        sys.path.insert(0, invocation_cwd_str)
+
+    # Insert project root to sys.path so aerpawlib can be imported if running from development checkout
+    if project_root_str not in sys.path:
+        sys.path.insert(0, project_root_str)
 
     conf_parser = ArgumentParser(add_help=False)
     conf_parser.add_argument(
