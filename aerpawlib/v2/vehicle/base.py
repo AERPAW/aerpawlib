@@ -97,6 +97,8 @@ class Vehicle:
                     None disables AERPAW platform notifications.
         """
         self._system = system
+        if connection_string.lower().startswith("udp://"):
+            connection_string = "udpin://" + connection_string[6:]
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._state = VehicleState()
@@ -331,7 +333,7 @@ class Vehicle:
         """Connect to vehicle and start telemetry.
 
         Args:
-            connection_string: MAVLink connection string (e.g. ``udp://:14550``).
+            connection_string: MAVLink connection string (e.g. ``udpin://:14550``).
             mavsdk_server_port: gRPC port for the mavsdk_server process.
             timeout: Connection timeout in seconds.
             safety: SafetyCheckerClient or NoOpSafetyChecker. None disables
@@ -345,6 +347,8 @@ class Vehicle:
         Raises:
             ConnectionTimeoutError: If no heartbeat is received within timeout.
         """
+        if connection_string.lower().startswith("udp://"):
+            connection_string = "udpin://" + connection_string[6:]
         logger.info(
             f"Connecting to vehicle at {connection_string} (port={mavsdk_server_port}, timeout={timeout}s)",
         )

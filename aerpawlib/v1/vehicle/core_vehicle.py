@@ -118,7 +118,7 @@ class Vehicle:
         Initialize the vehicle and connect to the autopilot.
 
         Args:
-            connection_string: MAVLink connection string (e.g., 'udp://:14540').
+            connection_string: MAVLink connection string (e.g., 'udpin://:14540').
             mavsdk_server_port: Port for the embedded mavsdk_server gRPC interface.
                 Each Vehicle instance should use a unique port to avoid conflicts.
                 Defaults to 50051.
@@ -126,6 +126,8 @@ class Vehicle:
         Raises:
             ConnectionTimeoutError: If connection cannot be established within timeout.
         """
+        if connection_string.lower().startswith("udp://"):
+            connection_string = "udpin://" + connection_string[6:]
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._system = None

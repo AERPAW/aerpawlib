@@ -73,3 +73,21 @@ class TestDummyVehicleContract:
         assert v.closed
         assert task.done()
         assert len(v._telemetry_tasks) == 0
+
+
+class TestConnectionNormalization:
+    def test_udp_normalized_to_udpin(self):
+        from unittest.mock import MagicMock
+        from aerpawlib.v2.vehicle.base import Vehicle
+        mock_system = MagicMock()
+        v = Vehicle(mock_system, "udp://127.0.0.1:14550")
+        assert v._connection_string == "udpin://127.0.0.1:14550"
+
+        v2 = Vehicle(mock_system, "UDP://:14540")
+        assert v2._connection_string == "udpin://:14540"
+
+        v3 = Vehicle(mock_system, "udpin://127.0.0.1:14550")
+        assert v3._connection_string == "udpin://127.0.0.1:14550"
+
+        v4 = Vehicle(mock_system, "tcp://127.0.0.1:5760")
+        assert v4._connection_string == "tcp://127.0.0.1:5760"
