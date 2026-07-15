@@ -123,14 +123,14 @@ target-version = "py310"
 [tool.ruff.lint]
 # Select rules to enforce.
 # We include standard rules (E, F, W) as well as isort (I) and bugbear (B)
-# which are standard, high-signal linters for modern Python code.
+# which are standard, high-signal linters for Python code.
 select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes (syntax, undefined names, etc.)
     "I",   # isort (import sorting)
     "B",   # flake8-bugbear (common bugs and design issues)
-    "UP",  # pyupgrade (modern Python syntax upgrades)
+    "UP",  # pyupgrade (Python syntax upgrades)
     "RUF", # Ruff-specific rules
 ]
 

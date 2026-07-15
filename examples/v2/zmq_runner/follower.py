@@ -1,5 +1,5 @@
 """
-ZMQ Runner Example (Follower) - modern v2 API
+ZMQ Runner Example (Follower) - v2 API
 
 This script demonstrates multi-vehicle coordination using ZMQ.
 The follower drone executes remote commands sent by the leader.

@@ -4,7 +4,7 @@
 
 The v1 API provides a Python framework for AERPAW experiment scripts. It abstracts MAVSDK so you can express mission logic (takeoff, navigation, measurements, landing) without managing low-level flight control.
 
-v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control) (DroneKit-based) but uses MAVSDK internally.
+v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control) (DroneKit-based) but uses MAVSDK internally. There are a few minor changes though, see the **Migration from DroneKit aerpawlib** section for more information.
 
 ## When to use this
 
@@ -14,9 +14,13 @@ v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpaw
 
 Install the package with `pip install -e .` (see the [repository README](../../README.md)).
 
-## Quick start
+## Tutorial: Writing your first v1 mission
 
-Define a `BasicRunner` with one `@entrypoint` method. The CLI connects the vehicle and passes it to your method.
+This tutorial guides you through writing a basic autonomous flight mission using the backwards-compatible `v1` API.
+
+### Step 1: Create the script
+
+Create a file named `square_mission.py` containing a `BasicRunner` subclass. When the script runs, it will execute the `@entrypoint` method, also passing in the connected vehicle instance:
 
 ```python
 import asyncio
@@ -26,12 +30,23 @@ from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 class SquareMission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
+        # 1. Takeoff to 5 meters altitude
         await vehicle.takeoff(5)
+
+        # 2. Fly a square pattern of 10m x 10m
         for north, east in [(10, 0), (0, -10), (-10, 0), (0, 10)]:
-            await vehicle.goto_coordinates(vehicle.position + VectorNED(north, east, 0))
+            # Add offset to current position using VectorNED
+            target_pos = vehicle.position + VectorNED(north, east, 0)
+            await vehicle.goto_coordinates(target_pos)
             await asyncio.sleep(5)
+
+        # 3. Land the vehicle
         await vehicle.land()
 ```
+
+### Step 2: Run in SITL
+
+Start your ArduPilot simulation, then execute the script with the CLI:
 
 ```bash
 aerpawlib --api-version v1 --script square_mission.py --vehicle drone --conn udp:127.0.0.1:14550
@@ -119,6 +134,14 @@ Design pattern:
 
 Full example: `examples/zmq_preplanned_orbit/` (tracer, orbiter, ground coordinator).
 
+## Migration from DroneKit aerpawlib (morzack/aerpawlib-vehicle-control)
+
+When migrating legacy scripts written for the original DroneKit-based aerpawlib, please note the following breaking changes and updates:
+
+- The underlying `._vehicle` attribute (which exposed the raw `dronekit.Vehicle` object) is no longer available since the library backend was migrated to MAVSDK. Any script accessing `._vehicle` directly for customized telemetry or command logic must be updated to use the standard async methods provided by `aerpawlib.v1`.
+- All flight commands (`takeoff`, `goto_coordinates`, `land`, `set_heading`, etc.) are now asynchronous coroutines and must be `await`ed inside your `@entrypoint` or `@state` methods. All other arguments and behavior is identical.
+- MAVSDK connection syntax differs from DroneKit.
+
 ## Key modules
 
 | Module | Purpose |
@@ -127,9 +150,3 @@ Full example: `examples/zmq_preplanned_orbit/` (tracer, orbiter, ground coordina
 | `aerpawlib.v1.vehicle` | `Drone`, `Rover`, movement commands |
 | `aerpawlib.v1.util` | `Coordinate`, `VectorNED`, plan I/O |
 | `aerpawlib.v1.safety` | Safety checker client/server |
-| `aerpawlib.cli` | CLI invocation and flags |
-
-## See also
-
-- `aerpawlib.v2`: recommended API for new experiments
-- `aerpawlib.cli`: `--script`, `--conn`, `--vehicle`, ZMQ flags

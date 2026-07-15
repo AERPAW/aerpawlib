@@ -2,7 +2,7 @@
 
 This example demonstrates coordinated multi-vehicle operation using ZMQ for
 inter-vehicle communication. The leader coordinates the follower via state
-transitions using the modern v2 API.
+transitions using the v2 API.
 
 ## Setup
 
@@ -34,5 +34,5 @@ transitions using the modern v2 API.
      --zmq-proxy-server 127.0.0.1
    ```
 
-> Note: `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
+> **Note:** `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
 > scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).

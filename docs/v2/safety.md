@@ -45,7 +45,7 @@ Or rely on the CLI: `--safety-checker-port` (and `--safety-checker-ip`) wire the
 
 ### SafetyCheckerClient
 
-Async ZMQ client for direct validation:
+Asynchronous ZMQ client for direct validation. Unlike the v1 counterpart, the v2 safety client runs completely asynchronously on the shared event loop using `zmq.asyncio`. Additionally, there is no built-in `SafetyCheckerServer` inside `v2`; all validations are sent to an external server process or bypass using `NoOpSafetyChecker`.
 
 ```python
 ok, msg = await client.validate_waypoint(current, next_loc)
