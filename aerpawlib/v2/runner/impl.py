@@ -486,6 +486,7 @@ class ZmqStateMachine(StateMachine):
             while self._running:
                 try:
                     message = await sock.recv_pyobj()
+                    logger.debug(f"Received ZMQ message: {message}")
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:

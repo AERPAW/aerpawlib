@@ -474,6 +474,11 @@ class TestTimedStateLoop:
 
 
 class TestZmqStateMachine:
+    @pytest.fixture(autouse=True)
+    def mock_proxy_reachable(self, monkeypatch):
+        import aerpawlib.v1.runner.impl
+        monkeypatch.setattr(aerpawlib.v1.runner.impl, "check_zmq_proxy_reachable", lambda *args, **kwargs: True)
+
     @pytest.mark.asyncio
     async def test_run_without_bindings_raises(self):
         """ZmqStateMachine.run() should raise StateMachineError if not initialized."""
