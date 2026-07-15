@@ -135,7 +135,7 @@ def run_v1_experiment(
                 vehicle._preflight_wait(args.initialize)
 
         if flag_zmq_runner:
-            if not args.zmq_identifier or not args.zmq_server_addr:
+            if not args.zmq_identifier or not args.zmq_proxy_server:
                 logger.error(
                     "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
                 )
@@ -144,7 +144,7 @@ def run_v1_experiment(
                 )
             runner_instance._initialize_zmq_bindings(
                 args.zmq_identifier,
-                args.zmq_server_addr,
+                args.zmq_proxy_server,
             )
 
         success = False
