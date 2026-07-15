@@ -78,7 +78,9 @@ class TestDummyVehicleContract:
 class TestConnectionNormalization:
     def test_udp_normalized_to_udpin(self):
         from unittest.mock import MagicMock
+
         from aerpawlib.v2.vehicle.base import Vehicle
+
         mock_system = MagicMock()
         v = Vehicle(mock_system, "udp://127.0.0.1:14550")
         assert v._connection_string == "udpin://127.0.0.1:14550"

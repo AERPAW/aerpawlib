@@ -240,6 +240,7 @@ class TestZmqStateMachine:
     @pytest.fixture(autouse=True)
     def mock_proxy_reachable(self, monkeypatch):
         import aerpawlib.v2.runner.impl
+
         monkeypatch.setattr(aerpawlib.v2.runner.impl, "check_zmq_proxy_reachable", lambda *args, **kwargs: True)
 
     """Unit tests for ZmqStateMachine (no live ZMQ proxy needed)."""
@@ -318,6 +319,7 @@ class TestDisconnectWatch:
     @pytest.fixture(autouse=True)
     def mock_proxy_reachable(self, monkeypatch):
         import aerpawlib.v2.runner.impl
+
         monkeypatch.setattr(aerpawlib.v2.runner.impl, "check_zmq_proxy_reachable", lambda *args, **kwargs: True)
 
     @pytest.mark.asyncio
