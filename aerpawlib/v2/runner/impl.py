@@ -1,16 +1,26 @@
-"""Runner, BasicRunner, StateMachine, and ZmqStateMachine implementations."""
+"""
+Runner implementations for the v1 API.
+
+This module contains the concrete Runner implementations used by the v1
+interface: ``Runner`` (the abstract base), ``BasicRunner``, ``StateMachine``,
+and ``ZmqStateMachine``.  The implementations here are intentionally small and
+opinionated to make mission code easy to write while keeping runtime
+behavior explicit and testable.
+"""
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
+import inspect
+import traceback
 import types
-from typing import Any, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import zmq
 import zmq.asyncio
 
-from aerpawlib.v2.constants import (
+from aerpawlib.v1.constants import (
     STATE_MACHINE_DELAY_S,
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
@@ -19,25 +29,25 @@ from aerpawlib.v2.constants import (
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_TRANSITION,
 )
-from aerpawlib.v2.exceptions import (
+from aerpawlib.v1.exceptions import (
     InvalidStateError,
+    MultipleInitialStatesError,
     NoEntrypointError,
     NoInitialStateError,
-    RunnerError,
-    UnexpectedDisarmError,
+    StateMachineError,
 )
-from aerpawlib.v2.log import LogComponent, get_logger
-from aerpawlib.v2.zmqutil import check_zmq_proxy_reachable
+from aerpawlib.v1.log import LogComponent, get_logger
+from aerpawlib.v1.zmqutil import check_zmq_proxy_reachable
 
-from .config import (
-    BasicRunnerConfig,
-    StateMachineConfig,
-    StateSpec,
-    V,
-    ZmqStateMachineConfig,
-)
+from .decorators import _State, background
+
+if TYPE_CHECKING:
+    from aerpawlib.v1.vehicle import Vehicle
 
 logger = get_logger(LogComponent.RUNNER)
+
+_BackgroundTask = Callable[..., Any]
+_InitializationTask = Callable[..., Any]
 
 
 class OrchestratedRunDescriptor:
@@ -82,121 +92,78 @@ class Runner:
             if base_run_method is not None:
                 cls.run = OrchestratedRunDescriptor(user_run_func, base_run_method)
 
-    def set_event_log(self, event_log: Any) -> None:
-        """Set the structured event logger for mission events."""
-        self._event_log = event_log
+    def _get_decorated_methods(self) -> list[tuple[str, Any, Any]]:
+        """Returns a list of tuples (name, bound_method, raw_func) for all class methods,
+        resolving any OrchestratedRunDescriptor to inspect the original decorated function.
+        """
+        results = []
+        for name, attr in inspect.getmembers(self.__class__):
+            if isinstance(attr, OrchestratedRunDescriptor):
+                func = attr.user_run_func
+                method = types.MethodType(func, self)
+            else:
+                func = attr
+                method = getattr(self, name, None)
+                if not inspect.ismethod(method):
+                    continue
+            results.append((name, method, func))
+        return results
 
-    async def run(self, vehicle: V) -> None:
-        """Execute the runner's core logic.
+    async def run(self, vehicle: Vehicle) -> None:
+        """
+        Core logic of the script.
+
+        This method is called by the launch script after initializations.
+        It should be overridden by subclasses to implement specific execution models.
 
         Args:
-            vehicle: The connected vehicle instance.
+            vehicle: The vehicle object initialized for this script.
         """
         pass
 
-    def _get_runner_method(self, name: str, default: Any = None) -> Any:
-        """Retrieve a method from this runner instance, resolving any
-        OrchestratedRunDescriptor to avoid infinite recursion/overrides.
+    def initialize_args(self, _: list[str]) -> None:
         """
-        descriptor = getattr(self.__class__, name, None)
-        if isinstance(descriptor, OrchestratedRunDescriptor):
-            return types.MethodType(descriptor.user_run_func, self)
-        return getattr(self, name, default)
-
-    def initialize_args(self, args: list[str]) -> None:
-        """Parse additional CLI arguments.
+        Parse and handle additional command-line arguments.
 
         Args:
-            args: List of unrecognised argument strings passed from the CLI.
+            _: List of command-line arguments as strings.
         """
         pass
 
     def cleanup(self) -> None:
-        """Cleanup on exit."""
-        pass
-
-    async def _run_with_disarm_guard(self, vehicle: Any, coro: Any) -> None:
-        """Run *coro* but raise UnexpectedDisarmError if the vehicle disarms
-        unexpectedly.
-
-        Uses ``asyncio.wait(FIRST_COMPLETED)`` to race the main coroutine
-        against the vehicle's unexpected-disarm event.  If the event fires first
-        the main task is cancelled and ``UnexpectedDisarmError`` is raised so the
-        experiment terminates cleanly.  If the vehicle object has no
-        ``_unexpected_disarm_event`` attribute (e.g. DummyVehicle in tests) the
-        coro is awaited directly without the guard.
         """
-        disarm_event = getattr(vehicle, "_unexpected_disarm_event", None)
-        if disarm_event is None:
-            await coro
-            return
-
-        main_task = asyncio.ensure_future(coro)
-
-        async def _watch_disarm() -> None:
-            """Wait for the vehicle unexpected-disarm event to be set."""
-            await disarm_event.wait()
-
-        disarm_task = asyncio.ensure_future(_watch_disarm())
-
-        try:
-            done, pending = await asyncio.wait(
-                [main_task, disarm_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-        except asyncio.CancelledError:
-            main_task.cancel()
-            disarm_task.cancel()
-            raise
-
-        disarm_triggered = disarm_task in done and main_task in pending
-
-        for task in pending:
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
-
-        if disarm_triggered:
-            raise UnexpectedDisarmError()
-
-        if main_task.done() and not main_task.cancelled():
-            exc = main_task.exception()
-            if exc is not None:
-                raise exc
+        Perform cleanup tasks when the script exits.
+        """
+        pass
 
 
 class BasicRunner(Runner):
     """Runner with a single ``@entrypoint`` coroutine.
 
-    See ``aerpawlib.v2.runner`` module documentation.
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
-    async def run(self, vehicle: Any) -> None:
-        """Run the decorated entrypoint method.
+    def _build(self) -> None:
+        """Discover and validate the single ``@entrypoint`` method."""
+        self._entry = None
+        for _name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_entrypoint"):
+                if self._entry is not None:
+                    raise StateMachineError(
+                        "Multiple @entrypoint decorators found. BasicRunner supports exactly one entry point.",
+                    )
+                self._entry = method
 
-        Args:
-            vehicle: The connected vehicle instance passed to the entrypoint.
-
-        Raises:
-            NoEntrypointError: If no @entrypoint was declared on the class.
-        """
-        config = getattr(self.__class__, "config", None)
-        if not isinstance(config, BasicRunnerConfig):
+    async def run(self, vehicle: Vehicle) -> None:
+        """Execute the discovered entrypoint and then call cleanup."""
+        self._build()
+        if self._entry is None:
             raise NoEntrypointError()
-        name = config.entrypoint
-        method = self._get_runner_method(name, None)
-        if method is None:
-            raise NoEntrypointError()
-        logger.info(f"BasicRunner: starting entrypoint '{name}'")
         from aerpawlib.cli.progress_bar import update_progress
 
-        update_progress(f"Running entrypoint: {name}", completed=70)
+        update_progress(f"Running entrypoint: {self._entry.__name__}", completed=70)
         try:
-            await self._run_with_disarm_guard(vehicle, method(vehicle))
-            logger.info(f"BasicRunner: entrypoint '{name}' completed")
-        except Exception as e:
-            logger.error(f"BasicRunner: entrypoint '{name}' failed: {e}")
-            raise
+            await self._entry.__func__(self, vehicle)
         finally:
             self.cleanup()
 
@@ -205,251 +172,184 @@ class StateMachine(Runner):
     """Runner that transitions between named ``@state`` methods.
 
     Each state returns the next state name or ``None`` to finish.
-    See ``aerpawlib.v2.runner`` module documentation.
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
     def __init__(self) -> None:
-        """Initialise runtime state for one execution of the state machine."""
-        self._current_state: str | None = None
-        self._running = False
-        self._background_futures: list[asyncio.Future] = []
+        """Initialise per-run state machine fields."""
+        self._states: dict[str, _State] = {}
+        self._background_tasks: list[_BackgroundTask] = []
+        self._initialization_tasks: list[_InitializationTask] = []
+        self._background_task_futures: list[asyncio.Future] = []
+        self._entrypoint = ""
+        self._current_state = ""
         self._override_next_state_transition = False
         self._next_state_overr = ""
+        self._running = False
 
-    def _get_config(self) -> StateMachineConfig:
-        """Return the StateMachineConfig for this class.
+    def _build(self) -> None:
+        """
+        Introspect the class to identify states, background tasks, and init tasks.
 
         Raises:
-            NoInitialStateError: If no config is present.
+            MultipleInitialStatesError: If more than one state is marked 'first'.
+            NoInitialStateError: If no initial state is found.
         """
-        config = getattr(self.__class__, "config", None)
-        if not isinstance(config, StateMachineConfig):
+        self._states = {}
+        self._background_tasks = []
+        self._initialization_tasks = []
+        self._background_task_futures = []
+        _found_initial = False
+        for _name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_is_state"):
+                self._states[func._state_name] = _State(method, func._state_name)
+                if func._state_first:
+                    if _found_initial:
+                        raise MultipleInitialStatesError()
+                    self._entrypoint = func._state_name
+                    _found_initial = True
+            if hasattr(func, "_is_background"):
+                self._background_tasks.append(method)
+            if hasattr(func, "_run_at_init"):
+                self._initialization_tasks.append(method)
+        if not _found_initial:
             raise NoInitialStateError()
-        return config
 
-    def _get_states(self) -> dict[str, StateSpec]:
-        """Return a mapping of state name to StateSpec for this runner.
-
-        Returns:
-            Dict mapping state name strings to their StateSpec metadata.
+    async def _start_background_tasks(self, vehicle: Vehicle) -> None:
         """
-        cfg = self._get_config()
-        return {s.name: s for s in cfg.states}
-
-    def _get_initial_state(self) -> str:
-        """Return the name of the initial state.
-
-        Returns:
-            Name of the state marked with first=True.
-
-        Raises:
-            NoInitialStateError: If no initial state was declared.
-        """
-        cfg = self._get_config()
-        if not cfg.initial_state:
-            raise NoInitialStateError()
-        return cfg.initial_state
-
-    def _get_backgrounds(self) -> list[str]:
-        """Return method names registered as background tasks.
-
-        Returns:
-            List of method name strings for @background-decorated methods.
-        """
-        return self._get_config().backgrounds
-
-    def _get_at_init(self) -> list[str]:
-        """Return method names registered to run at initialisation.
-
-        Returns:
-            List of method name strings for @at_init-decorated methods.
-        """
-        return self._get_config().at_init
-
-    async def _run_state(self, spec: StateSpec, vehicle: Any) -> str:
-        """Execute a single state and return the name of the next state.
-
-        For timed states the method runs (optionally in a loop) for ``spec.duration``
-        seconds before the next state name is returned.
+        Start all background tasks in the asyncio event loop.
 
         Args:
-            spec: Metadata describing the state to run.
-            vehicle: The vehicle instance passed to the state method.
-
-        Returns:
-            Name of the next state, or an empty string / None to stop the machine.
+            vehicle: The vehicle instance.
         """
-        method = self._get_runner_method(spec.method_name)
-        logger.debug(f"StateMachine: entering state '{spec.name}'")
-        if spec.duration <= 0:
-            return await method(vehicle)
-        stop_event = asyncio.Event()
-        last_state = ""
+        for task in self._background_tasks:
 
-        async def _bg() -> str:
-            """Execute timed-state iterations until stop_event is set."""
-            nonlocal last_state
-            while not stop_event.is_set():
-                last_state = await method(vehicle)
-                if stop_event.is_set():
-                    break
-                if not spec.loop:
-                    stop_event.set()
-                    break
-                await asyncio.sleep(STATE_MACHINE_DELAY_S)
-            return last_state
+            async def _task_runner(t: _BackgroundTask = task) -> None:
+                """Run and automatically restart a background task on failure."""
+                while self._running:
+                    try:
+                        await t.__func__(self, vehicle)
+                    except asyncio.CancelledError:
+                        return
+                    except Exception as e:
+                        logger.error(f"Background task {t.__name__} failed: {e}")
+                        traceback.print_exc()
+                        await asyncio.sleep(0.5)
 
-        task = asyncio.create_task(_bg())
-        logger.debug(
-            f"StateMachine: timed_state '{spec.name}' (duration={spec.duration}s, loop={spec.loop})",
-        )
-        await asyncio.sleep(spec.duration)
-        stop_event.set()
-        return await task
+            future = asyncio.ensure_future(_task_runner())
+            self._background_task_futures.append(future)
 
-    async def run(self, vehicle: Any) -> None:
-        """Run the state machine from the initial state to completion.
-
-        Executes at_init tasks, starts background tasks, then iterates
-        through states until a state returns None or stop() is called.
+    async def run(
+        self,
+        vehicle: Vehicle,
+        build_before_running: bool = True,
+    ) -> None:
+        """
+        Execute the state machine logic.
 
         Args:
-            vehicle: The connected vehicle instance passed to each state method.
+            vehicle: The vehicle instance.
+            build_before_running: Whether to call _build() first.
+                Defaults to True.
 
         Raises:
-            NoInitialStateError: If no initial state was declared.
-            InvalidStateError: If a state transition targets an unknown state.
+            InvalidStateError: If the machine transitions to an unregistered state.
         """
-        states = self._get_states()
-        self._background_futures = []
-        self._current_state = self._get_initial_state()
+        if build_before_running:
+            self._build()
+        if not self._entrypoint:
+            raise NoInitialStateError()
+        self._current_state = self._entrypoint
+        self._override_next_state_transition = False
+        self._next_state_overr = ""
         self._running = True
-        logger.info(
-            f"StateMachine: starting with initial state '{self._current_state}' (states: {list(states.keys())})",
-        )
 
-        async def _main_loop() -> None:
-            """Execute init hooks, backgrounds, then state transitions."""
-            at_init_list = self._get_at_init()
-            if at_init_list:
-                logger.debug(
-                    f"StateMachine: running {len(at_init_list)} at_init task(s)",
-                )
-            for name in at_init_list:
-                logger.debug(f"StateMachine: at_init '{name}'")
-                method = self._get_runner_method(name)
-                await method(vehicle)
+        if len(self._initialization_tasks) != 0:
+            try:
+                await asyncio.gather(*[f(vehicle) for f in self._initialization_tasks])
+            except Exception as e:
+                logger.error(f"StateMachine: at_init task failed: {e}", exc_info=True)
+                for future in self._background_task_futures:
+                    future.cancel()
+                raise
 
-            backgrounds = self._get_backgrounds()
-            if backgrounds:
-                logger.info(
-                    f"StateMachine: starting {len(backgrounds)} background task(s)",
-                )
-            max_background_retries = 10
-            for name in backgrounds:
-                method = self._get_runner_method(name)
+        await self._start_background_tasks(vehicle)
 
-                async def _bg_task(task: Any, _name: str = name) -> None:
-                    """Run a background task with bounded retry/backoff on errors."""
-                    consecutive_failures = 0
-                    while self._running:
-                        try:
-                            await task(vehicle)
-                            consecutive_failures = 0
-                        except asyncio.CancelledError:
-                            return
-                        except Exception as e:
-                            consecutive_failures += 1
-                            if consecutive_failures >= max_background_retries:
-                                logger.error(
-                                    f"Background task '{_name}' exceeded max retries ({max_background_retries}), stopping.",
-                                    exc_info=True,
-                                )
-                                return
-                            backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
-                            logger.error(
-                                f"Background task '{_name}' failed (attempt {consecutive_failures}/{max_background_retries}), retrying in {backoff:.1f}s: {e}",
-                                exc_info=True,
-                            )
-                            await asyncio.sleep(backoff)
+        while self._running:
+            if self._current_state not in self._states:
+                raise InvalidStateError(self._current_state, list(self._states.keys()))
 
-                fut = asyncio.create_task(_bg_task(method))
-                self._background_futures.append(fut)
+            from aerpawlib.cli.progress_bar import update_progress
 
-            while self._running:
-                current_state = self._current_state
-                assert current_state is not None
-                if current_state not in states:
-                    logger.error(
-                        f"StateMachine: invalid state '{current_state}' (valid: {list(states.keys())})",
-                    )
-                    raise InvalidStateError(current_state, list(states.keys()))
-                spec = states[current_state]
-                from aerpawlib.cli.progress_bar import update_progress
+            update_progress(
+                f"Running state: {self._current_state}",
+                completed=70,
+                state=self._current_state,
+            )
 
-                update_progress(
-                    f"Running state: {current_state}",
-                    completed=70,
-                    state=current_state,
-                )
-                next_state = await self._run_state(spec, vehicle)
-                if self._override_next_state_transition:
-                    self._override_next_state_transition = False
-                    self._current_state = self._next_state_overr
-                    logger.info(
-                        f"StateMachine: state transition (override) -> '{self._current_state}'",
-                    )
-                else:
-                    self._current_state = next_state
-                    logger.info(
-                        f"StateMachine: state transition '{spec.name}' -> '{next_state}'",
-                    )
-                if self._current_state is None:
-                    logger.info("StateMachine: completed (final state returned None)")
-                    break
-                await asyncio.sleep(STATE_MACHINE_DELAY_S)
+            next_state = await self._states[self._current_state].run(self, vehicle)
+            if self._override_next_state_transition:
+                self._override_next_state_transition = False
+                self._current_state = self._next_state_overr
+            else:
+                self._current_state = next_state
 
-        try:
-            await self._run_with_disarm_guard(vehicle, _main_loop())
-        finally:
-            self._running = False
-            logger.info("StateMachine: stopping")
+            if self._current_state is None:
+                self.stop()
+            await asyncio.sleep(STATE_MACHINE_DELAY_S)
+        self._running = False
+        for future in self._background_task_futures:
+            future.cancel()
+        if self._background_task_futures:
+            await asyncio.gather(*self._background_task_futures, return_exceptions=True)
 
-            for fut in self._background_futures:
-                fut.cancel()
-            if self._background_futures:
-                await asyncio.gather(*self._background_futures, return_exceptions=True)
-            self.cleanup()
+        self.cleanup()
 
     def stop(self) -> None:
-        """Stop the state machine after current state."""
-        logger.debug(
-            f"StateMachine: stop() called (current state: {self._current_state})",
-        )
+        """
+        Call `stop` to stop the execution of the `StateMachine` after
+        completion of the current state. This is equivalent to returning `None`
+        at the end of a state's execution.
+        """
         self._running = False
 
 
 class ZmqStateMachine(StateMachine):
     """StateMachine with remote ``transition_runner`` and ``query_field`` over ZMQ.
 
-    See ``aerpawlib.v2.runner`` module documentation.
+    See ``aerpawlib.v1.runner`` module documentation.
     """
 
-    def __init__(self) -> None:
-        """Initialise ZMQ transport state in addition to base StateMachine state."""
-        super().__init__()
-        self._zmq_identifier: str | None = None
-        self._zmq_proxy_server: str | None = None
-        self._zmq_context: zmq.asyncio.Context | None = None
-        self._zmq_send_queue: asyncio.Queue | None = None
-        self._zmq_received_fields: dict[str, dict[str, Any]] = {}
+    _exported_states: dict[str, _State]
+
+    def _build(self) -> None:
+        """Build base state maps and collect ZMQ-exposed states/fields."""
+        super()._build()
+        self._exported_states = {}
+        self._exported_fields = {}
+        for _name, method, func in self._get_decorated_methods():
+            if hasattr(func, "_is_exposed_zmq"):
+                if not hasattr(func, "_is_state"):
+                    raise StateMachineError(
+                        "@expose_zmq can only be used on @state/@timed_state methods",
+                    )
+                self._exported_states[func._zmq_name] = _State(
+                    method,
+                    func._zmq_name,
+                )
+            elif hasattr(func, "_is_exposed_field_zmq"):
+                self._exported_fields[func._zmq_name] = method
+
+    _zmq_identifier: str
+    _zmq_proxy_server: str
+
+    _ZMQ_FIELD_PENDING = object()
 
     def _initialize_zmq_bindings(
         self,
         vehicle_identifier: str,
         proxy_server_addr: str,
     ) -> None:
-        """Configure ZMQ connection. Call before run()."""
         if not check_zmq_proxy_reachable(proxy_server_addr):
             raise ConnectionError(
                 f"ZMQ proxy at {proxy_server_addr} is not reachable. Ensure the proxy is started before this runner (aerpawlib-run-proxy)."
@@ -458,74 +358,35 @@ class ZmqStateMachine(StateMachine):
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr
         self._zmq_context = zmq.asyncio.Context()
-        self._zmq_send_queue = None
+        self._zmq_messages_sending = asyncio.Queue()
         self._zmq_received_fields = {}
-        self._override_next_state_transition = False
-        self._next_state_overr = ""
 
-    def _get_zmq_config(self) -> ZmqStateMachineConfig:
-        """Return validated ZMQ configuration for this runner class."""
-        cfg = getattr(self.__class__, "config", None)
-        if not isinstance(cfg, ZmqStateMachineConfig):
-            raise RunnerError("ZmqStateMachine requires config from @state/@expose_zmq")
-        return cfg
+    @background
+    async def _zmq_bg_sub(self, vehicle: Vehicle) -> None:
+        socket = zmq.asyncio.Socket(
+            context=self._zmq_context,
+            io_loop=asyncio.get_running_loop(),
+            socket_type=zmq.SUB,
+        )
+        socket.setsockopt_string(zmq.SUBSCRIBE, "")
 
-    async def _zmq_recv_loop(self, vehicle: Any) -> None:
-        """Subscribe to the ZMQ proxy and handle messages sequentially.
+        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
 
-        Args:
-            vehicle: The vehicle instance, passed to field-request handlers.
-        """
-        ctx = self._zmq_context
-        if ctx is None or self._zmq_proxy_server is None:
-            return
-        sock = ctx.socket(zmq.SUB)
-        sock.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
-        sock.setsockopt_string(zmq.SUBSCRIBE, "")
         try:
             while self._running:
-                try:
-                    message = await sock.recv_pyobj()
-                    logger.debug(f"Received ZMQ message: {message}")
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    logger.warning(f"ZmqStateMachine: recv error: {e}")
-                    continue
+                message = await socket.recv_pyobj()
+                logger.debug(f"Received ZMQ message: {message}")
                 if message.get("identifier") != self._zmq_identifier:
                     continue
-                await self._zmq_handle_message(vehicle, message)
+                await self._zmq_handle_request(vehicle, message)
         finally:
-            sock.close()
+            socket.close()
 
-    async def _zmq_send_loop(self, vehicle: Any) -> None:
-        """Publish ZMQ messages from the internal send queue.
-
-        Args:
-            vehicle: Unused; present for background-task signature compatibility.
-        """
-        ctx = self._zmq_context
-        if ctx is None or self._zmq_proxy_server is None:
-            return
-        sock = ctx.socket(zmq.PUB)
-        sock.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
-        try:
-            while self._running:
-                try:
-                    msg = await self._zmq_send_queue.get()
-                except asyncio.CancelledError:
-                    raise
-                await sock.send_pyobj(msg)
-        finally:
-            sock.close()
-
-    async def _zmq_handle_message(self, vehicle: Any, message: dict) -> None:
-        """
-        Handle one incoming ZMQ message.
-
-        Called inline from _zmq_recv_loop (sequential, never concurrent), so no
-        locking is needed for shared state mutation.
-        """
+    async def _zmq_handle_request(
+        self,
+        vehicle: Vehicle,
+        message: dict[str, Any],
+    ) -> None:
         msg_type = message.get("msg_type")
 
         if msg_type == ZMQ_TYPE_TRANSITION:
@@ -535,10 +396,9 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
                 return
-            self._next_state_overr = cast("str", next_state)
+            self._next_state_overr = next_state
             self._override_next_state_transition = True
             logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
-
         elif msg_type == ZMQ_TYPE_FIELD_REQUEST:
             field = message.get("field")
             sender = message.get("from")
@@ -547,78 +407,60 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
                 return
-            field_name = cast("str", field)
-            sender_name = cast("str", sender)
-            cfg = self._get_zmq_config()
             return_val = None
-            method_name = cfg.exposed_fields.get(field_name)
-            if method_name is not None:
-                method = self._get_runner_method(method_name)
-                return_val = await method(vehicle)
-            await self._zmq_send_reply(sender_name, field_name, return_val)
-
+            if field in self._exported_fields:
+                return_val = await self._exported_fields[field](vehicle)
+            await self._reply_queried_field(sender, field, return_val)
         elif msg_type == ZMQ_TYPE_FIELD_CALLBACK:
             field = message.get("field")
-            sender = message.get("from")
-            if not field or sender is None:
+            msg_from = message.get("from")
+            if not field or msg_from is None:
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
                 return
-            field_name = cast("str", field)
-            sender_name = cast("str", sender)
             value = message.get("value")
-            pending = self._zmq_received_fields.get(sender_name, {})
-            waiting = pending.get(field_name)
-            if isinstance(waiting, asyncio.Event):
-                pending[field_name] = value
-                waiting.set()
-            else:
-                if sender_name not in self._zmq_received_fields:
-                    self._zmq_received_fields[sender_name] = {}
-                self._zmq_received_fields[sender_name][field_name] = value
+            if msg_from not in self._zmq_received_fields:
+                self._zmq_received_fields[msg_from] = {}
+            self._zmq_received_fields[msg_from][field] = value
 
-    def _get_backgrounds(self) -> list[str]:
-        """Return base backgrounds plus mandatory ZMQ send/receive loops."""
-        base = list(super()._get_backgrounds())
-        if "_zmq_recv_loop" not in base:
-            base.insert(0, "_zmq_recv_loop")
-        if "_zmq_send_loop" not in base:
-            base.insert(1, "_zmq_send_loop")
-        return base
-
-    async def run(self, vehicle: Any) -> None:
-        """Run with ZMQ. Requires _initialize_zmq_bindings first."""
-        if self._zmq_identifier is None or self._zmq_proxy_server is None:
-            raise RunnerError(
-                "ZmqStateMachine requires _initialize_zmq_bindings before run. Pass --zmq-identifier and --zmq-proxy-server.",
-            )
-        if self._zmq_send_queue is None:
-            self._zmq_send_queue = asyncio.Queue()
-        try:
-            await super().run(vehicle)
-        finally:
-            if self._zmq_context is not None:
-                self._zmq_context.destroy(linger=0)
-                self._zmq_context = None
-
-    async def transition_runner(self, identifier: str, state_name: str) -> None:
-        """Send a ZMQ state-transition command to another runner.
-
-        Args:
-            identifier: ZMQ identifier of the target runner.
-            state_name: Name of the state to transition the target runner into.
-        """
-        if self._zmq_send_queue is None:
-            return
-        await self._zmq_send_queue.put(
-            {
-                "msg_type": ZMQ_TYPE_TRANSITION,
-                "from": self._zmq_identifier,
-                "identifier": identifier,
-                "next_state": state_name,
-            },
+    @background
+    async def _zmq_bg_pub(self, _: Vehicle) -> None:
+        socket = zmq.asyncio.Socket(
+            context=self._zmq_context,
+            io_loop=asyncio.get_running_loop(),
+            socket_type=zmq.PUB,
         )
+        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
+        try:
+            while self._running:
+                msg_sending = await self._zmq_messages_sending.get()
+                await socket.send_pyobj(msg_sending)
+        finally:
+            socket.close()
+
+    async def run(
+        self,
+        vehicle: Vehicle,
+        zmq_proxy: bool = False,
+    ) -> None:
+        self._build()
+
+        if getattr(self, "_zmq_identifier", None) is None or getattr(self, "_zmq_proxy_server", None) is None:
+            raise StateMachineError(
+                "ZMQ bindings not initialized. Pass --zmq-identifier and --zmq-proxy-server when running (e.g. --zmq-identifier leader --zmq-proxy-server 127.0.0.1)",
+            )
+
+        await super().run(vehicle, build_before_running=False)
+
+    async def transition_runner(self, identifier: str, state: str) -> None:
+        transition_obj = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": self._zmq_identifier,
+            "identifier": identifier,
+            "next_state": state,
+        }
+        await self._zmq_messages_sending.put(transition_obj)
 
     async def query_field(
         self,
@@ -626,62 +468,43 @@ class ZmqStateMachine(StateMachine):
         field: str,
         timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
     ) -> Any:
-        """Query a field from another ZMQ runner and return the value.
-
-        Uses asyncio.Event to block until the reply arrives (no busy-poll).
-
-        Args:
-            identifier: ZMQ identifier of the target runner.
-            field: Name of the exposed field to query.
-            timeout: Maximum seconds to wait for a reply.
-
-        Returns:
-            The value returned by the remote runner's @expose_field_zmq method.
-
-        Raises:
-            RuntimeError: If ZMQ has not been initialised via
-                _initialize_zmq_bindings.
-            asyncio.TimeoutError: If the reply does not arrive within timeout.
-        """
-        if self._zmq_send_queue is None:
-            raise RuntimeError(
-                "ZMQ not initialized; call _initialize_zmq_bindings first",
-            )
         if identifier not in self._zmq_received_fields:
             self._zmq_received_fields[identifier] = {}
-        event = asyncio.Event()
-        self._zmq_received_fields[identifier][field] = event
-        await self._zmq_send_queue.put(
-            {
-                "msg_type": ZMQ_TYPE_FIELD_REQUEST,
-                "from": self._zmq_identifier,
-                "identifier": identifier,
-                "field": field,
-            },
-        )
+        self._zmq_received_fields[identifier][field] = self._ZMQ_FIELD_PENDING
+        query_obj = {
+            "msg_type": ZMQ_TYPE_FIELD_REQUEST,
+            "from": self._zmq_identifier,
+            "identifier": identifier,
+            "field": field,
+        }
+        await self._zmq_messages_sending.put(query_obj)
+
+        async def _wait_for_reply() -> None:
+            """Wait until the requested field value is received."""
+            while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
+                await asyncio.sleep(0.01)
+
         try:
-            await asyncio.wait_for(event.wait(), timeout=timeout)
+            await asyncio.wait_for(
+                _wait_for_reply(),
+                timeout=timeout,
+            )
         except asyncio.TimeoutError:
-            self._zmq_received_fields.get(identifier, {}).pop(field, None)
+            self._zmq_received_fields[identifier].pop(field, None)
             raise
-        return self._zmq_received_fields[identifier].pop(field)
+        return self._zmq_received_fields[identifier][field]
 
-    async def _zmq_send_reply(self, identifier: str, field: str, value: Any) -> None:
-        """Send a field-query reply to the requesting runner.
-
-        Args:
-            identifier: ZMQ identifier of the requesting runner.
-            field: The field name that was queried.
-            value: The value to send back.
-        """
-        if self._zmq_send_queue is None:
-            return
-        await self._zmq_send_queue.put(
-            {
-                "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
-                "from": self._zmq_identifier,
-                "identifier": identifier,
-                "field": field,
-                "value": value,
-            },
-        )
+    async def _reply_queried_field(
+        self,
+        identifier: str,
+        field: str,
+        value: Any,
+    ) -> None:
+        reply_obj = {
+            "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
+            "from": self._zmq_identifier,
+            "identifier": identifier,
+            "field": field,
+            "value": value,
+        }
+        await self._zmq_messages_sending.put(reply_obj)
