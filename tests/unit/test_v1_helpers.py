@@ -261,7 +261,7 @@ class TestHeadingDifference:
 
 
 class TestThreadSafeValue:
-    """ThreadSafeValue — basic and concurrent access."""
+    """ThreadSafeValue: basic and concurrent access."""
 
     def test_initial_value(self):
         v = ThreadSafeValue(42)

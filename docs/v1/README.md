@@ -41,7 +41,7 @@ aerpawlib --api-version v1 --script square_mission.py --vehicle drone --conn udp
 
 ## Runners
 
-Every v1 script implements a **runner**, a class the CLI discovers and executes.
+Every v1 script implements a runner, a class the CLI discovers and executes.
 
 | Runner | Use when |
 |--------|----------|
@@ -73,7 +73,7 @@ class MeasureMission(StateMachine):
 
 The CLI passes a connected `Drone` or `Rover` to your runner. Call `takeoff` explicitly at the start of drone missions.
 
-Positions use **absolute** latitude and longitude. Altitude is relative to the vehicle home position. Wrap coordinates in `Coordinate`; combine with `VectorNED` for offsets.
+Positions use absolute latitude and longitude. Altitude is relative to the vehicle home position. Wrap coordinates in `Coordinate`; combine with `VectorNED` for offsets.
 
 ```python
 from aerpawlib.v1 import Coordinate, VectorNED
@@ -108,8 +108,8 @@ Use `asyncio.sleep`, not `time.sleep`, inside runner coroutines. Background tele
 Coordinate multiple vehicles with `ZmqStateMachine`:
 
 1. Start the proxy: `aerpawlib-run-proxy`
-2. Run one **ground coordinator** script with high-level experiment logic
-3. Run **vehicle scripts** with low-level commands (goto waypoint, orbit, return)
+2. Run one ground coordinator script with high-level experiment logic
+3. Run vehicle scripts with low-level commands (goto waypoint, orbit, return)
 
 Design pattern:
 
