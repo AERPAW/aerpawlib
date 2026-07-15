@@ -49,7 +49,7 @@ Set `config = BasicRunnerConfig(entrypoint="run")`, `StateMachineConfig`, or `Zm
 ### ZMQ
 
 1. Start `aerpawlib-run-proxy`
-2. Launch runners with `--zmq-identifier` and `--zmq-proxy-server`
+1. Launch runners with `--zmq-identifier` and `--zmq-proxy-server`
 
 ```python
 await self.transition_runner("other-vehicle", "land")

@@ -2,34 +2,34 @@
 
 ## Quick Reference
 
-| Example                         | Version | Description                                              |
+| Example | Version | Description |
 |---------------------------------|---------|----------------------------------------------------------|
-| `basic_example`                 | v1, v2  | Square flight pattern (10m × 10m)                        |
-| `basic_runner`                  | v1, v2  | Minimal `BasicRunner`: takeoff, fly north, land         |
-| `figure_eight`                  | v1, v2  | Figure-8 waypoint pattern                                |
-| `circle`                        | v1, v2  | Circular flight using velocity control                   |
-| `squareoff_logging`             | v1, v2  | Square flight with background position logging           |
-| `preplanned_trajectory`         | v1, v2  | Waypoints loaded from QGroundControl `.plan` file        |
-| `hide_rover`                    | v1, v2  | Rover follows plan, then hides in geofence               |
-| `external_runner`               | v1, v2  | Spawns and interacts with external processes             |
-| `zmq_runner`                    | v1, v2  | Leader/follower multi-vehicle coordination via ZMQ       |
-| `zmq_preplanned_orbit`          | v1, v2  | Multi-drone tracer + orbiter mission                     |
-| `gps_logger`                    | v1      | Periodically log vehicle position and state to CSV       |
-| `guided_mission_ping_iperf`     | v1      | Preplanned trajectory with ping/iperf network traffic    |
-| `rover_search`                  | v1      | Drone search algorithm using safety checker and RSSI     |
-| `enhanced_example`              | v2      | Preflight checks and pre-command validations             |
-| `rover_example`                 | v2      | Ground vehicle waypoint navigation                       |
-| `velocity_example`              | v2      | Guided mode velocity control pattern                     |
-| `command_handle_example`        | v2      | Non-blocking command handle progress querying            |
-| `command_handle_cancel_example` | v2      | Cancel non-blocking goto mid-flight (triggers RTL)       |
-| `command_validation_example`    | v2      | Pre-check capability validation                          |
-| `geofence_example`              | v2      | Waypoint and path validation using geofence KML          |
-| `logging_example`               | v2      | Structured logging using `get_logger` and `LogComponent` |
-| `dummy_vehicle_example`         | v2      | Dry-run / CI vehicle mock using `DummyVehicle`           |
-| `at_init_example`               | v2      | StateMachine with pre-arm setup hooks                    |
-| `plan_example`                  | v2      | Parsing and executing QGroundControl waypoint files      |
-| `state_machine_example`         | v2      | Timed state machine with background logging              |
-| `zmq_state_machine_example`     | v2      | Remote transition execution using `ZmqStateMachine`      |
+| `basic_example` | v1, v2 | Square flight pattern (10m × 10m) |
+| `basic_runner` | v1, v2 | Minimal `BasicRunner`: takeoff, fly north, land |
+| `figure_eight` | v1, v2 | Figure-8 waypoint pattern |
+| `circle` | v1, v2 | Circular flight using velocity control |
+| `squareoff_logging` | v1, v2 | Square flight with background position logging |
+| `preplanned_trajectory` | v1, v2 | Waypoints loaded from QGroundControl `.plan` file |
+| `hide_rover` | v1, v2 | Rover follows plan, then hides in geofence |
+| `external_runner` | v1, v2 | Spawns and interacts with external processes |
+| `zmq_runner` | v1, v2 | Leader/follower multi-vehicle coordination via ZMQ |
+| `zmq_preplanned_orbit` | v1, v2 | Multi-drone tracer + orbiter mission |
+| `gps_logger` | v1 | Periodically log vehicle position and state to CSV |
+| `guided_mission_ping_iperf` | v1 | Preplanned trajectory with ping/iperf network traffic |
+| `rover_search` | v1 | Drone search algorithm using safety checker and RSSI |
+| `enhanced_example` | v2 | Preflight checks and pre-command validations |
+| `rover_example` | v2 | Ground vehicle waypoint navigation |
+| `velocity_example` | v2 | Guided mode velocity control pattern |
+| `command_handle_example` | v2 | Non-blocking command handle progress querying |
+| `command_handle_cancel_example` | v2 | Cancel non-blocking goto mid-flight (triggers RTL) |
+| `command_validation_example` | v2 | Pre-check capability validation |
+| `geofence_example` | v2 | Waypoint and path validation using geofence KML |
+| `logging_example` | v2 | Structured logging using `get_logger` and `LogComponent` |
+| `dummy_vehicle_example` | v2 | Dry-run / CI vehicle mock using `DummyVehicle` |
+| `at_init_example` | v2 | StateMachine with pre-arm setup hooks |
+| `plan_example` | v2 | Parsing and executing QGroundControl waypoint files |
+| `state_machine_example` | v2 | Timed state machine with background logging |
+| `zmq_state_machine_example` | v2 | Remote transition execution using `ZmqStateMachine` |
 
 ## Running Examples
 
@@ -120,10 +120,8 @@ aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1  # Terminal 2
 ```
 
-
 ## Notable Examples
 
 `squareoff_logging:` Demonstrates `StateMachine` with `@background` for parallel position logging. Uses dynamic state transitions (`_legs`, `_current_leg`) to fly a square.
 
 `preplanned_trajectory:` Loads waypoints from a QGroundControl `.plan` file. Uses `at_init`, `timed_state`, and `ExternalProcess` (ping) for waypoint-based missions.
-

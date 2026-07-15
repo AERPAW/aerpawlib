@@ -108,8 +108,8 @@ Use `asyncio.sleep`, not `time.sleep`, inside runner coroutines. Background tele
 Coordinate multiple vehicles with `ZmqStateMachine`:
 
 1. Start the proxy: `aerpawlib-run-proxy`
-2. Run one ground coordinator script with high-level experiment logic
-3. Run vehicle scripts with low-level commands (goto waypoint, orbit, return)
+1. Run one ground coordinator script with high-level experiment logic
+1. Run vehicle scripts with low-level commands (goto waypoint, orbit, return)
 
 Design pattern:
 

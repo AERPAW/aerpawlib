@@ -24,11 +24,11 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 ### Execution flow
 
 1. Resolve paths (`--script`, `--config`, `--log-file`, `--structured-log`) from your current working directory
-2. Change to repository root and adjust `sys.path`
-3. Merge JSON config files (`--config` may be repeated; later files override)
-4. Import `aerpawlib.v1` or `aerpawlib.v2` and load your script
-5. Find exactly one direct subclass of `Runner`, `BasicRunner`, `StateMachine`, or `ZmqStateMachine`
-6. Forward unrecognized argv to `runner.initialize_args(...)`
+1. Change to repository root and adjust `sys.path`
+1. Merge JSON config files (`--config` may be repeated; later files override)
+1. Import `aerpawlib.v1` or `aerpawlib.v2` and load your script
+1. Find exactly one direct subclass of `Runner`, `BasicRunner`, `StateMachine`, or `ZmqStateMachine`
+1. Forward unrecognized argv to `runner.initialize_args(...)`
 
 ### Required flags
 

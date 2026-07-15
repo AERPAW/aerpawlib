@@ -4,14 +4,14 @@
 
 ## When to use this
 
-`aerpawlib` is used within 
+`aerpawlib` is used within
 
 ## Choosing an API version
 
-| Version | Module         | Best for                                                                                                                                                                                                    |
+| Version | Module | Best for |
 |---------|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **v1**  | `aerpawlib.v1` | Existing experiment scripts written for the [original DroneKit-based aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control); same runner, vehicle, ZMQ, and safety API with MAVSDK under the hood |
-| **v2**  | `aerpawlib.v2` | An improved and streamlined API that is easier to use and provides better performance, but has not been fully stress-tested yet                                                                             |
+| **v1** | `aerpawlib.v1` | Existing experiment scripts written for the [original DroneKit-based aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control); same runner, vehicle, ZMQ, and safety API with MAVSDK under the hood |
+| **v2** | `aerpawlib.v2` | An improved and streamlined API that is easier to use and provides better performance, but has not been fully stress-tested yet |
 
 > **Note:** Imports from `aerpawlib` (without `.v1`) still work but are deprecated in favor of `aerpawlib.v1`.
 
