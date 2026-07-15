@@ -114,7 +114,7 @@ class SafetyCheckerClient:
                 f"Safety checker server did not respond within {self._timeout_s}s",
             ) from e
         message = deserialize_msg(raw_msg)
-        logger.debug(f"Received reply [{message}]")
+        logger.debug(f"Received ZMQ message: {message}")
         return message
 
     def parse_response(self, response: dict) -> tuple[bool, str]:

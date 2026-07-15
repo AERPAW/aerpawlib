@@ -247,6 +247,7 @@ class SafetyCheckerClient:
             logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")
             raise
         resp = _deserialize_response(raw)
+        logger.debug(f"Received ZMQ message: {resp}")
         try:
             result = resp["result"]
         except KeyError as e:
@@ -256,9 +257,6 @@ class SafetyCheckerClient:
                 original_error=e,
             ) from e
         message = resp.get("message", "")
-        logger.debug(
-            f"SafetyCheckerClient: response result={result}, message={message}",
-        )
         return result, message
 
     async def check_server_status(self) -> tuple[bool, str]:

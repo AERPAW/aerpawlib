@@ -144,7 +144,7 @@ class SafetyCheckerServer:
                 try:
                     raw_msg = socket.recv()
                     message = deserialize_msg(raw_msg)
-                    logger.debug(f"Received request: {message}")
+                    logger.debug(f"Received ZMQ message: {message}")
                     function_name = message.get("request_function", "unknown")
                     req_function = self.REQUEST_FUNCTIONS[function_name]
                     params = message.get("params")

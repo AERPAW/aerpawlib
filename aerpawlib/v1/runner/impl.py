@@ -375,6 +375,7 @@ class ZmqStateMachine(StateMachine):
         try:
             while self._running:
                 message = await socket.recv_pyobj()
+                logger.debug(f"Received ZMQ message: {message}")
                 if message.get("identifier") != self._zmq_identifier:
                     continue
                 await self._zmq_handle_request(vehicle, message)
