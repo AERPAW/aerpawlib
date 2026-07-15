@@ -45,7 +45,7 @@ tests/
 ## Prerequisites
 
 1. Unit tests: `pip install -e .`
-2. Integration tests: `pip install -e .` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
+1. Integration tests: `pip install -e .` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
 
 ## Running Tests
 
@@ -68,10 +68,10 @@ pytest -m integration -v
 Pytest will:
 
 1. Start ArduCopter SITL with MAVProxy on instance 0, UDP output to port 14550
-2. Start Rover SITL with MAVProxy on instance 1, UDP output to port 14560
-3. Run integration tests (only starts SITLs for the vehicle types being tested)
-4. Perform full SITL reset between each test
-5. Stop SITL when done
+1. Start Rover SITL with MAVProxy on instance 1, UDP output to port 14560
+1. Run integration tests (only starts SITLs for the vehicle types being tested)
+1. Perform full SITL reset between each test
+1. Stop SITL when done
 
 Different instance IDs (`-I 0` for drone, `-I 1` for rover) ensure the internal TCP ports don't conflict when running both concurrently.
 
@@ -90,12 +90,12 @@ pytest tests/integration/ -v --no-sitl
 
 ### Options
 
-| Option                   | Description                                                                       |
+| Option | Description |
 |--------------------------|-----------------------------------------------------------------------------------|
-| `--sitl-port PORT`       | Legacy: UDP port for drone SITL (default: 14550)                                  |
-| `--sitl-port-drone PORT` | UDP port for ArduCopter SITL (default: 14550)                                     |
-| `--sitl-port-rover PORT` | UDP port for ArduRover SITL (default: 14560)                                      |
-| `--no-sitl`              | Do not start SITL; use externally running instance                                |
+| `--sitl-port PORT` | Legacy: UDP port for drone SITL (default: 14550) |
+| `--sitl-port-drone PORT` | UDP port for ArduCopter SITL (default: 14550) |
+| `--sitl-port-rover PORT` | UDP port for ArduRover SITL (default: 14560) |
+| `--no-sitl` | Do not start SITL; use externally running instance |
 
 ### Log files
 

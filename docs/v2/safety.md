@@ -28,7 +28,7 @@ Or rely on the CLI: `--safety-checker-port` (and `--safety-checker-ip`) wire the
 
 ## Key concepts
 
-### can_* methods
+### can\_\* methods
 
 | Method | Local checks | With safety client |
 |--------|--------------|-------------------|

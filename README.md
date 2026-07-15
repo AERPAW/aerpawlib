@@ -43,6 +43,7 @@ Or use the one-liner script:
 ```bash
 ./scripts/install_dev.sh
 ```
+
 This installs all dependencies, ArduPilot SITL, MAVProxy, and compiles Copter + Rover SITL.
 
 ## Running Tests
@@ -50,13 +51,17 @@ This installs all dependencies, ArduPilot SITL, MAVProxy, and compiles Copter + 
 The test suite consists of both unit tests and integration tests.
 
 ### Unit Tests (Fast, no SITL)
+
 To run only the unit tests:
+
 ```bash
 pytest tests/unit
 ```
 
 ### Integration Tests (Pytest manages SITL)
+
 To run the integration tests (which automatically spin up and tear down ArduPilot SITL and MAVSDK server):
+
 ```bash
 pytest tests/integration
 ```
@@ -64,6 +69,7 @@ pytest tests/integration
 > [!IMPORTANT]
 > Integration tests require stdout/stderr capturing to be disabled. This is configured by default via the `-s` flag in `pytest.ini`. If running pytest manually with custom overrides, ensure `-s` (or `--capture=no`) is included.
 > This is because MAVProxy will block and wait for user input when we don't need or want that behavior. Weird, seemingly unrelated errors will show up without `-s`
+
 ## Quick Start
 
 ```python

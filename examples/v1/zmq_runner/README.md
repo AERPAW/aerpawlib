@@ -12,7 +12,7 @@ transitions.
    aerpawlib-run-proxy
    ```
 
-2. Run the leader (waits 10s, then triggers follower takeoff):
+1. Run the leader (waits 10s, then triggers follower takeoff):
 
    ```bash
     aerpawlib \
@@ -23,7 +23,7 @@ transitions.
       --zmq-proxy-server 127.0.0.1
    ```
 
-3. Run the follower (waits for leader, then takes off when commanded):
+1. Run the follower (waits for leader, then takes off when commanded):
 
    ```bash
     aerpawlib \
@@ -35,4 +35,4 @@ transitions.
    ```
 
 > Note: `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
-scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).
+> scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).
