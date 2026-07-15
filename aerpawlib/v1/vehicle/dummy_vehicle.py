@@ -23,7 +23,13 @@ class DummyVehicle:
     implementations.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        connection_string: str = "",
+        mavsdk_server_port: int = 50051,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         self._closed = False
 
     @property
