@@ -451,9 +451,7 @@ class ZmqStateMachine(StateMachine):
     ) -> None:
         """Configure ZMQ connection. Call before run()."""
         if not check_zmq_proxy_reachable(proxy_server_addr):
-            raise ConnectionError(
-                f"ZMQ proxy at {proxy_server_addr} is not reachable. Ensure the proxy is started before this runner (aerpawlib-run-proxy)."
-            )
+            raise ConnectionError(f"ZMQ proxy at {proxy_server_addr} is not reachable. Ensure the proxy is started before this runner (aerpawlib-run-proxy).")
         logger.info("Successfully connected to ZMQ proxy at %s", proxy_server_addr)
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr

@@ -190,6 +190,7 @@ class TestHeartbeatMonitoring:
 class TestV1ConnectionNormalization:
     def test_v1_udp_normalization(self, monkeypatch):
         from aerpawlib.v1.vehicle.core_vehicle import Vehicle
+
         monkeypatch.setattr(Vehicle, "_connect_sync", lambda self: None)
         v = Vehicle("udp://127.0.0.1:14550")
         assert v._connection_string == "udpin://127.0.0.1:14550"
