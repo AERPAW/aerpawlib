@@ -68,11 +68,11 @@ def run(
         help="The path to the experimenter mission script to run (e.g. 'my_mission.py' or 'examples/v1/basic_runner.py').",
         rich_help_panel="Core Options",
     ),
-    conn: str = typer.Option(
-        ...,
+    conn: str | None = typer.Option(
+        None,
         "--conn",
         "--connection",
-        help="The vehicle MAVLink connection string (e.g., 'udpin://127.0.0.1:14550' or '/dev/ttyACM0').",
+        help="The vehicle MAVLink connection string (e.g., 'udpin://127.0.0.1:14550' or '/dev/ttyACM0'). Must be provided unless vehicle type is none.",
         rich_help_panel="Core Options",
     ),
     vehicle: str = typer.Option(
@@ -211,6 +211,13 @@ def run(
     if api_version not in ["v1", "v2"]:
         typer.echo(f"Error: Invalid choice for --api-version: {api_version}")
         raise typer.Exit(code=1)
+
+    if vehicle != VEHICLE_TYPE_NONE and not conn:
+        typer.echo("Error: --connection must be provided unless --vehicle is 'none'")
+        raise typer.Exit(code=1)
+
+    if conn is None:
+        conn = ""
 
     args = SimpleNamespace(
         config=config,
