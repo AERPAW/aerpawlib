@@ -71,20 +71,14 @@ def _log_message_flow(direction: str, msg_parts: list[bytes]) -> None:
 
         if msg_type == "TRANSITION":
             next_state = parsed_msg.get("next_state")
-            logger.info(
-                f"[Message] {direction}: TRANSITION message from='{sender}', to='{recipient}', next_state='{next_state}'"
-            )
+            logger.info(f"[Message] {direction}: TRANSITION message from='{sender}', to='{recipient}', next_state='{next_state}'")
         elif msg_type == "FIELD_REQUEST":
             field = parsed_msg.get("field")
-            logger.info(
-                f"[Message] {direction}: FIELD_REQUEST message from='{sender}', to='{recipient}', field='{field}'"
-            )
+            logger.info(f"[Message] {direction}: FIELD_REQUEST message from='{sender}', to='{recipient}', field='{field}'")
         elif msg_type == "FIELD_CALLBACK":
             field = parsed_msg.get("field")
             value = parsed_msg.get("value")
-            logger.info(
-                f"[Message] {direction}: FIELD_CALLBACK message from='{sender}', to='{recipient}', field='{field}', value={value}"
-            )
+            logger.info(f"[Message] {direction}: FIELD_CALLBACK message from='{sender}', to='{recipient}', field='{field}', value={value}")
         else:
             logger.info(f"[Message] {direction}: Custom dict payload: {parsed_msg}")
     else:
@@ -97,13 +91,7 @@ def _log_subscription_flow(msg_parts: list[bytes]) -> None:
         if len(part) > 0:
             action = part[0]
             topic = part[1:]
-            action_name = (
-                "SUBSCRIBE"
-                if action == 1
-                else "UNSUBSCRIBE"
-                if action == 0
-                else f"UNKNOWN_ACTION({action})"
-            )
+            action_name = "SUBSCRIBE" if action == 1 else "UNSUBSCRIBE" if action == 0 else f"UNKNOWN_ACTION({action})"
             topic_str = topic.decode("utf-8", errors="ignore")
             logger.info(f"[Subscription] Received: {action_name} for topic: '{topic_str}'")
 
