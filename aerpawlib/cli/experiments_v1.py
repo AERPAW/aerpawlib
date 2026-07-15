@@ -116,9 +116,15 @@ def run_v1_experiment(
             aerpaw_platform_cls._no_stdout = args.no_stdout
             if not aerpaw_platform_cls._connected:
                 logger.critical(
-                    "It seems like we're in standalone mode but --no-aerpaw-environment was not passed. Pass --no-aerpaw-environment to run outside the AERPAW environment.",
+                    "Failed to connect to AERPAW Environment. Because --no-aerpaw-environment was not passed, we are stopping. Pass --no-aerpaw-environment to run outside the AERPAW environment. If you are within the AERPAW environment, make sure the OEO Console is running.",
                 )
                 sys.exit(1)
+            try:
+                aerpaw_platform_cls.log_to_oeo(
+                    "[aerpawlib] Starting experiment execution (v1)",
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log start to OEO: {e}")
 
         runner_instance.initialize_args(unknown_args)
         if args.initialize:
@@ -162,6 +168,14 @@ def run_v1_experiment(
             success = True
         except Exception as exc:
             heartbeat_lost = isinstance(exc, heartbeat_error_cls)
+            if heartbeat_lost and aerpaw_platform_cls:
+                try:
+                    aerpaw_platform_cls.log_to_oeo(
+                        "[aerpawlib] Connection lost",
+                        severity="CRITICAL",
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to log connection loss to OEO: {e}")
             logger.error(f"Experiment failed: {exc}")
             traceback.print_exc()
         finally:

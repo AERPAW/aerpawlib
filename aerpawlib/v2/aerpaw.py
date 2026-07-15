@@ -121,6 +121,9 @@ class AerpawPlatform:
         agent_id: str | None = None,
     ) -> None:
         """Send a message to the OEO console synchronously."""
+        if not msg.startswith("[aerpawlib]") and not msg.startswith("[experiment]"):
+            msg = f"[experiment] {msg}"
+
         self._log_local(msg, severity)
 
         if not self.is_connected:
@@ -143,6 +146,9 @@ class AerpawPlatform:
         agent_id: str | None = None,
     ) -> None:
         """Send a message to the OEO console asynchronously."""
+        if not msg.startswith("[aerpawlib]") and not msg.startswith("[experiment]"):
+            msg = f"[experiment] {msg}"
+
         self._log_local(msg, severity)
 
         if not self.is_connected:

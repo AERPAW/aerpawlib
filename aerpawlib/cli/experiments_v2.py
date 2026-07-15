@@ -76,9 +76,12 @@ def run_v2_experiment(
             aerpaw_platform = api_module.AerpawPlatform(suppress_stdout=args.no_stdout)
             if not aerpaw_platform.is_connected:
                 logger.critical(
-                    "It seems like we're in standalone mode but --no-aerpaw-environment was not passed. Pass --no-aerpaw-environment to run outside the AERPAW environment.",
+                    "Failed to connect to AERPAW Environment. Because --no-aerpaw-environment was not passed, we are stopping. Pass --no-aerpaw-environment to run outside the AERPAW environment. If you are within the AERPAW environment, make sure the OEO Console is running.",
                 )
                 sys.exit(1)
+            aerpaw_platform.log_to_oeo(
+                "[aerpawlib] Starting experiment execution (v2)",
+            )
 
         from aerpawlib.v2.safety import NoOpSafetyChecker, SafetyCheckerClient
 

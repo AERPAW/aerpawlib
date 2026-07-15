@@ -124,6 +124,9 @@ class AERPAW:
         Raises:
             Exception: If `severity` is not one of the supported values.
         """
+        if not msg.startswith("[aerpawlib]") and not msg.startswith("[experiment]"):
+            msg = f"[experiment] {msg}"
+
         if not self._no_stdout:
             if severity == OEO_MSG_SEV_INFO:
                 oeo_logger.info(msg)
