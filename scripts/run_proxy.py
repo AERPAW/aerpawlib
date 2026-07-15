@@ -1,15 +1,11 @@
-#!/usr/bin/env python3
-"""
-Run the aerpawlib ZMQ proxy server.
-"""
-
 import sys
 
+from aerpawlib.cli.logging_setup import setup_logging
 from aerpawlib.v2.zmqutil import run_zmq_proxy
 
 
 def main() -> int:
-    print("Starting ZMQ proxy...")
+    setup_logging()
     try:
         run_zmq_proxy()
     except Exception as e:
