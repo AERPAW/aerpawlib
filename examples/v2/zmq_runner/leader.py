@@ -1,5 +1,5 @@
 """
-ZMQ Runner Example (Leader) - modern v2 API
+ZMQ Runner Example (Leader) - v2 API
 
 This script demonstrates multi-vehicle coordination using ZMQ.
 The leader drone measures ping latency and transitions the follower drone.

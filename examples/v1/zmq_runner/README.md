@@ -34,5 +34,5 @@ transitions.
       --zmq-proxy-server 127.0.0.1
    ```
 
-> Note: `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
+> **Note:** `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
 > scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).

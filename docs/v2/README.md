@@ -2,7 +2,7 @@
 
 ## Overview
 
-The v2 API is an async-first framework for AERPAW experiment scripts. A single event loop drives your runner and vehicle commands; telemetry is available as plain attributes updated from MAVSDK.
+The v2 API is an async framework for AERPAW experiment scripts. A single event loop drives your runner and vehicle commands; telemetry is available as plain attributes updated from MAVSDK.
 
 ## When to use this
 
@@ -10,7 +10,13 @@ The v2 API is an async-first framework for AERPAW experiment scripts. A single e
 - You want simpler connection strings (`udpin://127.0.0.1:14550`) and built-in `can_takeoff` / `can_goto` validation
 - You prefer non-blocking `goto_coordinates(..., blocking=False)` with `VehicleTask` handles
 
-## Quick start
+## Tutorial: Writing your first v2 mission
+
+This tutorial walks you through writing a basic autonomous flight mission using the v2 API.
+
+### Step 1: Create the script
+
+Create a file named `my_experiment.py` containing a `BasicRunner` subclass. The runner discovery mechanism will execute the `@entrypoint` method, passing in the connected vehicle instance:
 
 ```python
 from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
@@ -18,16 +24,26 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 class MyExperiment(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
+        # 1. Takeoff to 10 meters altitude
         await drone.takeoff(altitude=10)
-        await drone.goto_coordinates(drone.position + VectorNED(20, 0))
+
+        # 2. Fly 20 meters North of the current position
+        target_pos = drone.position + VectorNED(20, 0)
+        await drone.goto_coordinates(target_pos)
+
+        # 3. Land the vehicle
         await drone.land()
 ```
+
+### Step 2: Run in SITL
+
+Start your simulator, then run the script with the CLI:
 
 ```bash
 aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpin://127.0.0.1:14550
 ```
 
-Structured experiment logs: pass `--structured-log FILE` for JSON Lines (`mission_start`, throttled `telemetry`, `command`, `arm`/`disarm` events).
+To enable structured logging, add `--structured-log FILE`. This outputs JSON Lines tracking `mission_start`, throttled `telemetry` updates, commands, and `arm`/`disarm` events.
 
 ## Runners
 
@@ -147,8 +163,3 @@ Catch `AerpawlibError` subclasses (`TakeoffError`, `NavigationError`, `Unexpecte
 `UnexpectedDisarmError` terminates the runner if the vehicle disarms mid-mission (e.g. failsafe).
 
 Full hierarchy: `aerpawlib.v2.exceptions`.
-
-## See also
-
-- `aerpawlib.v1`: legacy API
-- `aerpawlib.cli`: CLI flags and config files

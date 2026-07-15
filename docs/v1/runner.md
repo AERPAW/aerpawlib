@@ -50,12 +50,23 @@ Decorated methods must be `async`. State methods return the next state name (`st
 
 ### ZmqStateMachine setup
 
-Initialize ZMQ before `run()` (normally via CLI `--zmq-identifier` and `--zmq-proxy-server`):
+The `ZmqStateMachine` class enables multi-vehicle coordination using ZMQ. It allows transitions and queries across runners.
+
+#### Features
+
+- Decorate standard states with `@expose_zmq(name)` to allow remote state transition requests.
+- Decorate runner methods with `@expose_field_zmq(name)` to expose their return values.
+- Transition remote runners to a state using `await self.transition_runner(target_id, state_name)`.
+- Fetch values from remote runners using `await self.query_field(target_id, field_name, timeout)`.
+
+To use:
+
+1. Start `aerpawlib-run-proxy`
+1. Launch runners with `--zmq-identifier` and `--zmq-proxy-server`
 
 ```python
-self._initialize_zmq_bindings("vehicle-a", "127.0.0.1")
-coords = await self.query_field("vehicle-b", "position")
-await self.transition_runner("vehicle-b", "land")
+await self.transition_runner("other-vehicle", "land")
+coords = await self.query_field("other-vehicle", "position")
 ```
 
 ### StateMachine example
@@ -76,6 +87,40 @@ class Patrol(StateMachine):
     @state(name="land")
     async def land(self, vehicle: Vehicle):
         await vehicle.land()
+```
+
+### ZmqStateMachine example
+
+Below is a v1 example demonstrating a simple leader-follower coordination workflow. The leader vehicle queries the follower's altitude and then instructs it to takeoff.
+
+```python
+from aerpawlib.v1 import ZmqStateMachine, Vehicle, state, expose_zmq, expose_field_zmq
+
+class LeaderRunner(ZmqStateMachine):
+    @state(name="monitor", first=True)
+    async def monitor(self, vehicle: Vehicle):
+        # Query follower's altitude
+        follower_alt = await self.query_field("follower", "altitude", timeout=5)
+        print(f"Follower altitude: {follower_alt}")
+        
+        # Command follower to takeoff
+        await self.transition_runner("follower", "remote_takeoff")
+        return None
+
+class FollowerRunner(ZmqStateMachine):
+    @state(name="idle", first=True)
+    async def idle(self, vehicle: Vehicle):
+        return "idle"
+
+    @expose_zmq("remote_takeoff")
+    @state(name="takeoff")
+    async def takeoff(self, vehicle: Vehicle):
+        await vehicle.takeoff(10)
+        return "idle"
+
+    @expose_field_zmq("altitude")
+    async def get_altitude(self, vehicle: Vehicle) -> float:
+        return vehicle.position.alt
 ```
 
 ## Errors

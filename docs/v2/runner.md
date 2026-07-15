@@ -48,6 +48,17 @@ Set `config = BasicRunnerConfig(entrypoint="run")`, `StateMachineConfig`, or `Zm
 
 ### ZMQ
 
+The `ZmqStateMachine` class enables multi-vehicle coordination using ZMQ. It allows transitions and queries across runners.
+
+#### Features
+
+- Decorate standard states with `@expose_zmq(name)` to allow remote state transition requests.
+- Decorate runner methods with `@expose_field_zmq(name)` to expose their return values.
+- Transition remote runners to a state using `await self.transition_runner(target_id, state_name)`.
+- Fetch values from remote runners using `await self.query_field(target_id, field_name, timeout)`.
+
+To use:
+
 1. Start `aerpawlib-run-proxy`
 1. Launch runners with `--zmq-identifier` and `--zmq-proxy-server`
 
@@ -78,6 +89,40 @@ class Patrol(StateMachine):
     @state(name="land")
     async def land(self, drone: Drone):
         await drone.land()
+```
+
+### ZmqStateMachine example
+
+Below is a v2 example demonstrating a simple leader-follower coordination workflow. The leader drone queries the follower's altitude and then instructs it to takeoff.
+
+```python
+from aerpawlib.v2 import ZmqStateMachine, Drone, state, expose_zmq, expose_field_zmq
+
+class LeaderRunner(ZmqStateMachine):
+    @state(name="monitor", first=True)
+    async def monitor(self, drone: Drone):
+        # Query follower's altitude
+        follower_alt = await self.query_field("follower", "altitude", timeout=5)
+        print(f"Follower altitude: {follower_alt}")
+        
+        # Command follower to takeoff
+        await self.transition_runner("follower", "remote_takeoff")
+        return None
+
+class FollowerRunner(ZmqStateMachine):
+    @state(name="idle", first=True)
+    async def idle(self, drone: Drone):
+        return "idle"
+
+    @expose_zmq("remote_takeoff")
+    @state(name="takeoff")
+    async def takeoff(self, drone: Drone):
+        await drone.takeoff(altitude=10)
+        return "idle"
+
+    @expose_field_zmq("altitude")
+    async def get_altitude(self, drone: Drone) -> float:
+        return drone.position.alt
 ```
 
 ## Errors

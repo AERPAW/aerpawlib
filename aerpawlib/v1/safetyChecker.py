@@ -6,7 +6,7 @@ by re-exporting symbols from `aerpawlib.v1.safety`.
 
 Capabilities:
 - Keep legacy imports working for older scripts and tests.
-- Emit a `DeprecationWarning` guiding users to the modern package path.
+- Emit a `DeprecationWarning` guiding users to the correct package path.
 
 Notes:
 - New code should import from `aerpawlib.v1.safety` directly.

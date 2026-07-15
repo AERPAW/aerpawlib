@@ -3,7 +3,7 @@ AERPAW platform integration module for aerpawlib.
 
 This module has been moved to version-specific directories:
 - aerpawlib.v1.aerpaw: V1 API compatible implementation
-- aerpawlib.v2.aerpaw: Modernized async-first implementation
+- aerpawlib.v2.aerpaw: v2 async implementation
 
 This file provides backward compatibility by re-exporting from v1.
 For new code, consider using aerpawlib.v2.aerpaw for async support.

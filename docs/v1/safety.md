@@ -30,9 +30,9 @@ with SafetyCheckerClient("127.0.0.1", 14580) as checker:
 
 ### SafetyCheckerClient
 
-ZMQ REQ client in your mission process. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, and `validate_change_speed_command`.
+Synchronous ZMQ REQ client in your mission process. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, and `validate_change_speed_command`.
 
-On timeout the client reconnects automatically for subsequent requests.
+> **Note:** Because the client is synchronous, calls will block the calling thread during the connection and request phases. On timeout the client reconnects automatically for subsequent requests.
 
 ### SafetyCheckerServer
 
