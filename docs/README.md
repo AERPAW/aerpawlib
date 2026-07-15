@@ -4,7 +4,7 @@
 
 ## When to use this
 
-`aerpawlib` is used within
+`aerpawlib` is used within AERPAW experiment scripts to run missions on UAVs, rovers, and other nodes in the AERPAW emulator or physical testbed.
 
 ## Choosing an API version
 
