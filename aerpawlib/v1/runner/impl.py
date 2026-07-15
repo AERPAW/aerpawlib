@@ -368,9 +368,9 @@ class ZmqStateMachine(StateMachine):
             io_loop=asyncio.get_running_loop(),
             socket_type=zmq.SUB,
         )
-        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
-
         socket.setsockopt_string(zmq.SUBSCRIBE, "")
+
+        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
 
         try:
             while self._running:
