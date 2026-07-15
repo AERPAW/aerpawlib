@@ -5,7 +5,7 @@
 | Example                         | Version | Description                                              |
 |---------------------------------|---------|----------------------------------------------------------|
 | `basic_example`                 | v1, v2  | Square flight pattern (10m × 10m)                        |
-| `basic_runner`                  | v1, v2  | Minimal `BasicRunner` – takeoff, fly north, land         |
+| `basic_runner`                  | v1, v2  | Minimal `BasicRunner`: takeoff, fly north, land         |
 | `figure_eight`                  | v1, v2  | Figure-8 waypoint pattern                                |
 | `circle`                        | v1, v2  | Circular flight using velocity control                   |
 | `squareoff_logging`             | v1, v2  | Square flight with background position logging           |

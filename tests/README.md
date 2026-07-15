@@ -101,10 +101,10 @@ pytest tests/integration/ -v --no-sitl
 
 SITL output is captured to separate log files per vehicle type:
 
-- `logs/sitl_drone_output.log` – sim_vehicle.py output (build, progress)
-- `logs/sitl_rover_output.log` – sim_vehicle.py output (build, progress)
-- `logs/sitl_drone_process.log` – ArduCopter SITL binary output (headless process log)
-- `logs/sitl_rover_process.log` – Rover SITL binary output (headless process log)
+- `logs/sitl_drone_output.log`: sim_vehicle.py output (build, progress)
+- `logs/sitl_rover_output.log`: sim_vehicle.py output (build, progress)
+- `logs/sitl_drone_process.log`: ArduCopter SITL binary output (headless process log)
+- `logs/sitl_rover_process.log`: Rover SITL binary output (headless process log)
 
 Pytest redirects ArduPilot's default `/tmp/<Vehicle>.log` output to the repo-local `logs/` files above so all test logs are stored together.
 
@@ -114,14 +114,14 @@ Integration tests disable pytest output capture (`-s` behavior) because MAVProxy
 
 ### Environment variables
 
-- `SITL_VERBOSE=1` – show SITL stdout/stderr
-- `SIM_SPEEDUP=5` – simulation speed (default: 5)
-- `ARDUPILOT_HOME` – path to ArduPilot (or use `./ardupilot`)
+- `SITL_VERBOSE=1`: show SITL stdout/stderr
+- `SIM_SPEEDUP=5`: simulation speed (default: 5)
+- `ARDUPILOT_HOME`: path to ArduPilot (or use `./ardupilot`)
 
 ## Markers
 
-- `unit` – unit tests (auto-applied to `tests/unit/`)
-- `integration` – integration tests (auto-applied to `tests/integration/`)
+- `unit`: unit tests (auto-applied to `tests/unit/`)
+- `integration`: integration tests (auto-applied to `tests/integration/`)
 
 ## Troubleshooting
 
@@ -131,7 +131,7 @@ This occurs when starting an experiment before SITL has fully initialized. MAVSD
 
 Solutions:
 
-- Wait for SITL to fully start – Give SITL 10–15 seconds after `sim_vehicle.py` reports "Ready to FLY" before running your script.
-- Use external SITL – Run SITL in a separate terminal first, then run your experiment with `--no-sitl` (for pytest) after SITL is ready.
+- Wait for SITL to fully start: Give SITL 10 to 15 seconds after `sim_vehicle.py` reports "Ready to FLY" before running your script.
+- Use external SITL: Run SITL in a separate terminal first, then run your experiment with `--no-sitl` (for pytest) after SITL is ready.
 
 v2 integration fixtures wait for a 3D GPS fix and EKF readiness before yielding the connected vehicle.

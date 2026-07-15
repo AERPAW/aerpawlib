@@ -100,4 +100,4 @@ See [examples/README.md](examples/README.md) for full list.
 
 ## License
 
-MIT License – see [LICENSE](LICENSE).
+MIT License: see [LICENSE](LICENSE).
