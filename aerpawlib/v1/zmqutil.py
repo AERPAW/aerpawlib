@@ -87,6 +87,46 @@ def _format_runner_message(msg: dict) -> str:
     return f"unrecognized runner message from={sender!r} to={recipient!r}: {msg}"
 
 
+def _validate_runner_message(msg: dict) -> str | None:
+    """Validate a runner message dict.
+
+    Returns:
+        A string describing the validation error, or None if valid.
+    """
+    if "msg_type" not in msg:
+        return "missing 'msg_type' field"
+    raw_msg_type = msg.get("msg_type")
+    msg_type = _normalize_msg_type(raw_msg_type)
+    if msg_type not in (
+        ZMQ_TYPE_HELLO,
+        ZMQ_TYPE_GOODBYE,
+        ZMQ_TYPE_TRANSITION,
+        ZMQ_TYPE_FIELD_REQUEST,
+        ZMQ_TYPE_FIELD_CALLBACK,
+    ):
+        return f"unrecognized msg_type {raw_msg_type!r}"
+
+    sender = msg.get("from")
+    if not sender or not isinstance(sender, str):
+        return f"missing or invalid 'from' field (expected non-empty string, got {sender!r})"
+
+    if msg_type in (ZMQ_TYPE_TRANSITION, ZMQ_TYPE_FIELD_REQUEST, ZMQ_TYPE_FIELD_CALLBACK):
+        recipient = msg.get("identifier")
+        if not recipient or not isinstance(recipient, str):
+            return f"missing or invalid 'identifier' field (expected non-empty string, got {recipient!r})"
+
+    if msg_type == ZMQ_TYPE_TRANSITION:
+        next_state = msg.get("next_state")
+        if not next_state or not isinstance(next_state, str):
+            return f"missing or invalid 'next_state' field (expected non-empty string, got {next_state!r})"
+    elif msg_type in (ZMQ_TYPE_FIELD_REQUEST, ZMQ_TYPE_FIELD_CALLBACK):
+        field = msg.get("field")
+        if not field or not isinstance(field, str):
+            return f"missing or invalid 'field' field (expected non-empty string, got {field!r})"
+
+    return None
+
+
 def _log_connection_event(channel: str, evt: dict) -> None:
     event_id = evt["event"]
     if event_id == zmq.EVENT_ACCEPTED:
@@ -107,7 +147,11 @@ def _log_forwarded_message(msg_parts: list[bytes]) -> None:
             pass
 
     if parsed_msg:
-        logger.info("Forwarded %s", _format_runner_message(parsed_msg))
+        validation_error = _validate_runner_message(parsed_msg)
+        if validation_error:
+            logger.warning("Forwarded invalid runner message: %s (payload: %s)", validation_error, parsed_msg)
+        else:
+            logger.info("Forwarded %s", _format_runner_message(parsed_msg))
         return
 
     raw_reprs = [part[:50].hex() + ("..." if len(part) > 50 else "") for part in msg_parts]
