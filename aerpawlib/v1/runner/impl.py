@@ -185,9 +185,31 @@ class StateMachine(Runner):
         self._background_task_futures: list[asyncio.Future] = []
         self._entrypoint = ""
         self._current_state = ""
-        self._override_next_state_transition = False
-        self._next_state_overr = ""
+        self._next_state_overrides: list[str] = []
         self._running = False
+
+    @property
+    def _override_next_state_transition(self) -> bool:
+        return len(self._next_state_overrides) > 0
+
+    @_override_next_state_transition.setter
+    def _override_next_state_transition(self, value: bool) -> None:
+        if not value:
+            if self._next_state_overrides:
+                self._next_state_overrides.pop(0)
+
+    @property
+    def _next_state_overr(self) -> str:
+        return self._next_state_overrides[0] if self._next_state_overrides else ""
+
+    @_next_state_overr.setter
+    def _next_state_overr(self, value: str) -> None:
+        if not value:
+            return
+        if self._next_state_overrides:
+            self._next_state_overrides[0] = value
+        else:
+            self._next_state_overrides.append(value)
 
     def _build(self) -> None:
         """
@@ -262,8 +284,7 @@ class StateMachine(Runner):
         if not self._entrypoint:
             raise NoInitialStateError()
         self._current_state = self._entrypoint
-        self._override_next_state_transition = False
-        self._next_state_overr = ""
+        self._next_state_overrides = []
         self._running = True
 
         if len(self._initialization_tasks) != 0:
@@ -290,9 +311,9 @@ class StateMachine(Runner):
             )
 
             next_state = await self._states[self._current_state].run(self, vehicle)
-            if self._override_next_state_transition:
-                self._override_next_state_transition = False
-                self._current_state = self._next_state_overr
+            if self._next_state_overrides:
+                self._current_state = self._next_state_overrides.pop(0)
+                logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
             else:
                 self._current_state = next_state
 
@@ -372,13 +393,19 @@ class ZmqStateMachine(StateMachine):
 
         socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
 
+        async def _handle(msg):
+            try:
+                await self._zmq_handle_request(vehicle, msg)
+            except Exception as e:
+                logger.error(f"Error handling ZMQ message: {e}", exc_info=True)
+
         try:
             while self._running:
                 message = await socket.recv_pyobj()
                 logger.debug(f"Received ZMQ message: {message}")
                 if message.get("identifier") != self._zmq_identifier:
                     continue
-                await self._zmq_handle_request(vehicle, message)
+                asyncio.create_task(_handle(message))
         finally:
             socket.close()
 
@@ -396,8 +423,7 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
                 return
-            self._next_state_overr = next_state
-            self._override_next_state_transition = True
+            self._next_state_overrides.append(next_state)
             logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
         elif msg_type == ZMQ_TYPE_FIELD_REQUEST:
             field = message.get("field")
