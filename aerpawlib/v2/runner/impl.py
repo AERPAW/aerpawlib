@@ -18,6 +18,8 @@ from aerpawlib.v2.constants import (
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_TRANSITION,
+    ZMQ_TYPE_HELLO,
+    ZMQ_TYPE_GOODBYE,
 )
 from aerpawlib.v2.exceptions import (
     InvalidStateError,
@@ -508,6 +510,15 @@ class ZmqStateMachine(StateMachine):
         sock = ctx.socket(zmq.PUB)
         sock.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
         try:
+            hello_msg = {
+                "msg_type": ZMQ_TYPE_HELLO,
+                "from": self._zmq_identifier,
+            }
+            await sock.send_pyobj(hello_msg)
+        except Exception as e:
+            logger.warning(f"ZmqStateMachine: failed to send hello: {e}")
+
+        try:
             while self._running:
                 try:
                     msg = await self._zmq_send_queue.get()
@@ -515,6 +526,14 @@ class ZmqStateMachine(StateMachine):
                     raise
                 await sock.send_pyobj(msg)
         finally:
+            try:
+                goodbye_msg = {
+                    "msg_type": ZMQ_TYPE_GOODBYE,
+                    "from": self._zmq_identifier,
+                }
+                await asyncio.wait_for(sock.send_pyobj(goodbye_msg), timeout=0.2)
+            except Exception:
+                pass
             sock.close()
 
     async def _zmq_handle_message(self, vehicle: Any, message: dict) -> None:

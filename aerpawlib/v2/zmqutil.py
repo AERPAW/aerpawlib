@@ -15,6 +15,8 @@ from .constants import (
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
     ZMQ_TYPE_TRANSITION,
+    ZMQ_TYPE_HELLO,
+    ZMQ_TYPE_GOODBYE,
 )
 from .log import LogComponent, get_logger
 
@@ -62,6 +64,10 @@ def _format_runner_message(msg: dict) -> str:
     sender = msg.get("from", "?")
     recipient = msg.get("identifier", "?")
 
+    if msg_type == ZMQ_TYPE_HELLO:
+        return f"hello client connected: name={sender!r}"
+    if msg_type == ZMQ_TYPE_GOODBYE:
+        return f"goodbye client disconnected: name={sender!r}"
     if msg_type == ZMQ_TYPE_TRANSITION:
         next_state = msg.get("next_state", "?")
         return f"state_transition {sender} -> {recipient}: next_state={next_state!r}"
