@@ -16,9 +16,9 @@ from .constants import (
     ZMQ_PROXY_OUT_PORT,
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_HELLO,
     ZMQ_TYPE_GOODBYE,
+    ZMQ_TYPE_HELLO,
+    ZMQ_TYPE_TRANSITION,
 )
 
 # Configure logger
