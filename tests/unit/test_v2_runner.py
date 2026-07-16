@@ -346,6 +346,54 @@ class TestDisconnectWatch:
             z._zmq_context.destroy(linger=0)
 
     @pytest.mark.asyncio
+    async def test_multiple_concurrent_transitions_queued(self):
+        """Test that multiple TRANSITION messages are queued rather than overwritten."""
+
+        class Z(ZmqStateMachine):
+            @state(name="a", first=True)
+            async def a(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        msg1 = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": "other",
+            "identifier": "me",
+            "next_state": "state_one",
+        }
+        msg2 = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": "other",
+            "identifier": "me",
+            "next_state": "state_two",
+        }
+        await z._zmq_handle_message(MockVehicle(), msg1)
+        await z._zmq_handle_message(MockVehicle(), msg2)
+
+        assert len(z._next_state_overrides) == 2
+        assert z._next_state_overrides[0] == "state_one"
+        assert z._next_state_overrides[1] == "state_two"
+
+        # Test backward-compatible property getters
+        assert z._override_next_state_transition is True
+        assert z._next_state_overr == "state_one"
+
+        # Consuming the first override
+        z._override_next_state_transition = False
+        assert len(z._next_state_overrides) == 1
+        assert z._next_state_overr == "state_two"
+
+        # Consuming the second override
+        z._override_next_state_transition = False
+        assert len(z._next_state_overrides) == 0
+        assert z._override_next_state_transition is False
+        assert z._next_state_overr == ""
+
+        if z._zmq_context is not None:
+            z._zmq_context.destroy(linger=0)
+
+    @pytest.mark.asyncio
     async def test_handle_field_callback_sets_value_and_signals_event(self):
         """FIELD_CALLBACK stores value and sets
         the asyncio.Event for a pending query."""

@@ -535,3 +535,70 @@ class TestZmqStateMachine:
         z._initialize_zmq_bindings("test", "127.0.0.1")
         z._build()
         assert "battery" in z._exported_fields
+
+    @pytest.mark.asyncio
+    async def test_handle_transition_message(self):
+        from aerpawlib.v1.constants import ZMQ_TYPE_TRANSITION
+
+        class Z(ZmqStateMachine):
+            @state("start", first=True)
+            async def start(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        msg = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": "other",
+            "identifier": "me",
+            "next_state": "target_state",
+        }
+        await z._zmq_handle_request(DummyVehicle(), msg)
+        assert z._override_next_state_transition is True
+        assert z._next_state_overr == "target_state"
+        if z._zmq_context is not None:
+            z._zmq_context.destroy(linger=0)
+
+    @pytest.mark.asyncio
+    async def test_multiple_concurrent_transitions_queued(self):
+        from aerpawlib.v1.constants import ZMQ_TYPE_TRANSITION
+
+        class Z(ZmqStateMachine):
+            @state("start", first=True)
+            async def start(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        msg1 = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": "other",
+            "identifier": "me",
+            "next_state": "state_one",
+        }
+        msg2 = {
+            "msg_type": ZMQ_TYPE_TRANSITION,
+            "from": "other",
+            "identifier": "me",
+            "next_state": "state_two",
+        }
+        await z._zmq_handle_request(DummyVehicle(), msg1)
+        await z._zmq_handle_request(DummyVehicle(), msg2)
+
+        assert len(z._next_state_overrides) == 2
+        assert z._next_state_overrides[0] == "state_one"
+        assert z._next_state_overrides[1] == "state_two"
+
+        assert z._override_next_state_transition is True
+        assert z._next_state_overr == "state_one"
+
+        z._override_next_state_transition = False
+        assert len(z._next_state_overrides) == 1
+        assert z._next_state_overr == "state_two"
+
+        z._override_next_state_transition = False
+        assert len(z._next_state_overrides) == 0
+        assert z._override_next_state_transition is False
+        assert z._next_state_overr == ""
+        if z._zmq_context is not None:
+            z._zmq_context.destroy(linger=0)
