@@ -110,22 +110,22 @@ def _find_sim_vehicle() -> Path | None:
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Add custom command-line options."""
     parser.addoption(
-        "--sitl-port",
+        "--instance",
         action="store",
-        default=str(DEFAULT_SITL_PORT),
-        help=f"UDP port for SITL (legacy, applies to drone; default: {DEFAULT_SITL_PORT})",
+        default=str(DEFAULT_SITL_INSTANCE_DRONE),
+        help=f"SITL instance ID (legacy, applies to drone; default: {DEFAULT_SITL_INSTANCE_DRONE})",
     )
     parser.addoption(
-        "--sitl-port-drone",
+        "--instance-drone",
         action="store",
         default=None,
-        help=f"UDP port for ArduCopter SITL (default: {DEFAULT_SITL_PORT_DRONE})",
+        help=f"SITL instance ID for ArduCopter SITL (default: {DEFAULT_SITL_INSTANCE_DRONE})",
     )
     parser.addoption(
-        "--sitl-port-rover",
+        "--instance-rover",
         action="store",
         default=None,
-        help=f"UDP port for Rover SITL (default: {DEFAULT_SITL_PORT_ROVER})",
+        help=f"SITL instance ID for Rover SITL (default: {DEFAULT_SITL_INSTANCE_ROVER})",
     )
     parser.addoption(
         "--no-sitl",
@@ -210,15 +210,14 @@ class SITLManager:
 
     def __init__(
         self,
-        port: int,
+        instance_id: int,
         vehicle_type: str = "ArduCopter",
         manage: bool = True,
-        instance_id: int = 0,
     ):
-        self.port = port
+        self.instance_id = instance_id
+        self.port = 14550 + 10 * instance_id
         self.vehicle_type = vehicle_type
         self.manage = manage
-        self.instance_id = instance_id
         self._process: subprocess.Popen | None = None
         self._sim_vehicle_path: Path | None = None
 
@@ -323,35 +322,34 @@ class SITLManager:
         return f"udpin://127.0.0.1:{self.port}"
 
 
-def _get_sitl_port_drone(config) -> int:
-    """Resolve drone SITL port: --sitl-port-drone or --sitl-port or default."""
-    port_opt = config.getoption("--sitl-port-drone", default=None)
-    if port_opt is not None:
-        return int(port_opt)
-    return int(config.getoption("--sitl-port", default=DEFAULT_SITL_PORT_DRONE))
+def _get_sitl_instance_drone(config) -> int:
+    """Resolve drone SITL instance ID: --instance-drone or --instance or default."""
+    inst_opt = config.getoption("--instance-drone", default=None)
+    if inst_opt is not None:
+        return int(inst_opt)
+    return int(config.getoption("--instance", default=DEFAULT_SITL_INSTANCE_DRONE))
 
 
-def _get_sitl_port_rover(config) -> int:
-    """Resolve rover SITL port: --sitl-port-rover or default."""
-    port_opt = config.getoption("--sitl-port-rover", default=None)
-    if port_opt is not None:
-        return int(port_opt)
-    return DEFAULT_SITL_PORT_ROVER
+def _get_sitl_instance_rover(config) -> int:
+    """Resolve rover SITL instance ID: --instance-rover or default."""
+    inst_opt = config.getoption("--instance-rover", default=None)
+    if inst_opt is not None:
+        return int(inst_opt)
+    return DEFAULT_SITL_INSTANCE_ROVER
 
 
 # Session-scoped SITL: started once per vehicle type, shared across integration tests
 @pytest.fixture(scope="session")
 def sitl_manager_drone(request: pytest.FixtureRequest) -> SITLManager:
     """Session-scoped ArduCopter SITL manager for drone tests."""
-    port = _get_sitl_port_drone(request.config)
+    instance = _get_sitl_instance_drone(request.config)
     no_sitl = request.config.getoption("--no-sitl", default=False)
     manage = not no_sitl
 
     manager = SITLManager(
-        port=port,
+        instance_id=instance,
         vehicle_type="ArduCopter",
         manage=manage,
-        instance_id=DEFAULT_SITL_INSTANCE_DRONE,
     )
     if manage:
         manager.start()
@@ -362,15 +360,14 @@ def sitl_manager_drone(request: pytest.FixtureRequest) -> SITLManager:
 @pytest.fixture(scope="session")
 def sitl_manager_rover(request: pytest.FixtureRequest) -> SITLManager:
     """Session-scoped Rover SITL manager for rover tests."""
-    port = _get_sitl_port_rover(request.config)
+    instance = _get_sitl_instance_rover(request.config)
     no_sitl = request.config.getoption("--no-sitl", default=False)
     manage = not no_sitl
 
     manager = SITLManager(
-        port=port,
+        instance_id=instance,
         vehicle_type="Rover",
         manage=manage,
-        instance_id=DEFAULT_SITL_INSTANCE_ROVER,
     )
     if manage:
         manager.start()
