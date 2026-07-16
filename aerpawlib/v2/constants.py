@@ -67,6 +67,11 @@ ZMQ_TYPE_FIELD_REQUEST = "field_request"
 """Message type for distributed field request messages."""
 ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
 """Message type for distributed field callback responses."""
+ZMQ_TYPE_HELLO = "hello"
+"""Message type for client connection handshake over ZMQ."""
+ZMQ_TYPE_GOODBYE = "goodbye"
+"""Message type for client disconnection over ZMQ."""
+
 
 # Safety checker
 DEFAULT_SAFETY_CHECKER_PORT = 14580

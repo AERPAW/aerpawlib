@@ -203,6 +203,11 @@ ZMQ_TYPE_FIELD_REQUEST = "field_request"
 """Message type for distributed field requests over ZMQ."""
 ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
 """Message type for distributed field callback responses over ZMQ."""
+ZMQ_TYPE_HELLO = "hello"
+"""Message type for client connection handshake over ZMQ."""
+ZMQ_TYPE_GOODBYE = "goodbye"
+"""Message type for client disconnection over ZMQ."""
+
 
 ZMQ_QUERY_FIELD_TIMEOUT_S = 30.0
 """Timeout for ZMQ field query (seconds) -
