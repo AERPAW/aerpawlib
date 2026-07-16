@@ -27,9 +27,9 @@ from aerpawlib.v1.constants import (
     ZMQ_QUERY_FIELD_TIMEOUT_S,
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_HELLO,
     ZMQ_TYPE_GOODBYE,
+    ZMQ_TYPE_HELLO,
+    ZMQ_TYPE_TRANSITION,
 )
 from aerpawlib.v1.exceptions import (
     InvalidStateError,

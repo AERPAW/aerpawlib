@@ -14,9 +14,9 @@ from .constants import (
     ZMQ_REACHABILITY_TIMEOUT_S,
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_TRANSITION,
-    ZMQ_TYPE_HELLO,
     ZMQ_TYPE_GOODBYE,
+    ZMQ_TYPE_HELLO,
+    ZMQ_TYPE_TRANSITION,
 )
 from .log import LogComponent, get_logger
 
