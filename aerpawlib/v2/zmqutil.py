@@ -12,10 +12,20 @@ from .constants import (
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
     ZMQ_REACHABILITY_TIMEOUT_S,
+    ZMQ_TYPE_FIELD_CALLBACK,
+    ZMQ_TYPE_FIELD_REQUEST,
+    ZMQ_TYPE_TRANSITION,
 )
 from .log import LogComponent, get_logger
 
 logger = get_logger(LogComponent.ZMQ)
+
+# Legacy msg_type strings used in older tests and scripts.
+_LEGACY_MSG_TYPES = {
+    "TRANSITION": ZMQ_TYPE_TRANSITION,
+    "FIELD_REQUEST": ZMQ_TYPE_FIELD_REQUEST,
+    "FIELD_CALLBACK": ZMQ_TYPE_FIELD_CALLBACK,
+}
 
 
 def check_zmq_proxy_reachable(
@@ -41,19 +51,39 @@ def check_zmq_proxy_reachable(
         return False
 
 
-def _log_connection_event(channel_name: str, evt: dict) -> None:
+def _normalize_msg_type(msg_type: object) -> str | None:
+    if not isinstance(msg_type, str):
+        return None
+    return _LEGACY_MSG_TYPES.get(msg_type, msg_type)
+
+
+def _format_runner_message(msg: dict) -> str:
+    msg_type = _normalize_msg_type(msg.get("msg_type"))
+    sender = msg.get("from", "?")
+    recipient = msg.get("identifier", "?")
+
+    if msg_type == ZMQ_TYPE_TRANSITION:
+        next_state = msg.get("next_state", "?")
+        return f"state_transition {sender} -> {recipient}: next_state={next_state!r}"
+    if msg_type == ZMQ_TYPE_FIELD_REQUEST:
+        field = msg.get("field", "?")
+        return f"field_request {sender} -> {recipient}: field={field!r}"
+    if msg_type == ZMQ_TYPE_FIELD_CALLBACK:
+        field = msg.get("field", "?")
+        value = msg.get("value")
+        return f"field_callback {sender} -> {recipient}: field={field!r}, value={value!r}"
+    return f"unrecognized runner message from={sender!r} to={recipient!r}: {msg}"
+
+
+def _log_connection_event(channel: str, evt: dict) -> None:
     event_id = evt["event"]
-    endpoint = evt["endpoint"]
-    if isinstance(endpoint, bytes):
-        endpoint = endpoint.decode("utf-8", errors="ignore")
-
     if event_id == zmq.EVENT_ACCEPTED:
-        logger.info(f"[Connection] Peer connected to {channel_name} (endpoint: {endpoint})")
+        logger.info("Runner %s client connected", channel)
     elif event_id == zmq.EVENT_DISCONNECTED:
-        logger.info(f"[Connection] Peer disconnected from {channel_name} (endpoint: {endpoint})")
+        logger.info("Runner %s client disconnected", channel)
 
 
-def _log_message_flow(direction: str, msg_parts: list[bytes]) -> None:
+def _log_forwarded_message(msg_parts: list[bytes]) -> None:
     parsed_msg = None
     for part in msg_parts:
         try:
@@ -65,35 +95,32 @@ def _log_message_flow(direction: str, msg_parts: list[bytes]) -> None:
             pass
 
     if parsed_msg:
-        msg_type = parsed_msg.get("msg_type")
-        sender = parsed_msg.get("from")
-        recipient = parsed_msg.get("identifier")
+        logger.info("Forwarded %s", _format_runner_message(parsed_msg))
+        return
 
-        if msg_type == "TRANSITION":
-            next_state = parsed_msg.get("next_state")
-            logger.info(f"[Message] {direction}: TRANSITION message from='{sender}', to='{recipient}', next_state='{next_state}'")
-        elif msg_type == "FIELD_REQUEST":
-            field = parsed_msg.get("field")
-            logger.info(f"[Message] {direction}: FIELD_REQUEST message from='{sender}', to='{recipient}', field='{field}'")
-        elif msg_type == "FIELD_CALLBACK":
-            field = parsed_msg.get("field")
-            value = parsed_msg.get("value")
-            logger.info(f"[Message] {direction}: FIELD_CALLBACK message from='{sender}', to='{recipient}', field='{field}', value={value}")
-        else:
-            logger.info(f"[Message] {direction}: Custom dict payload: {parsed_msg}")
-    else:
-        raw_reprs = [part[:50].hex() + ("..." if len(part) > 50 else "") for part in msg_parts]
-        logger.info(f"[Message] {direction}: Raw frames (hex): {raw_reprs}")
+    raw_reprs = [part[:50].hex() + ("..." if len(part) > 50 else "") for part in msg_parts]
+    logger.warning("Forwarded non-runner payload (raw hex): %s", raw_reprs)
 
 
 def _log_subscription_flow(msg_parts: list[bytes]) -> None:
     for part in msg_parts:
-        if len(part) > 0:
-            action = part[0]
-            topic = part[1:]
-            action_name = "SUBSCRIBE" if action == 1 else "UNSUBSCRIBE" if action == 0 else f"UNKNOWN_ACTION({action})"
-            topic_str = topic.decode("utf-8", errors="ignore")
-            logger.info(f"[Subscription] Received: {action_name} for topic: '{topic_str}'")
+        if not part:
+            continue
+        action = part[0]
+        topic = part[1:]
+        topic_str = topic.decode("utf-8", errors="ignore")
+        if action == 1:
+            if topic_str:
+                logger.debug("Runner subscribed to topic %r", topic_str)
+            else:
+                logger.debug("Runner subscribed to all topics")
+        elif action == 0:
+            if topic_str:
+                logger.debug("Runner unsubscribed from topic %r", topic_str)
+            else:
+                logger.debug("Runner unsubscribed from all topics")
+        else:
+            logger.warning("Unknown subscription action %s for topic %r", action, topic_str)
 
 
 def run_zmq_proxy(
@@ -116,7 +143,11 @@ def run_zmq_proxy(
     p_sub.bind(f"tcp://*:{in_port}")
     p_pub.bind(f"tcp://*:{out_port}")
 
-    logger.info(f"ZMQ proxy started. Listening for incoming on port {in_port} and outgoing on port {out_port}")
+    logger.info(
+        "ZMQ proxy ready for runner coordination: publish port %s, subscribe port %s",
+        in_port,
+        out_port,
+    )
 
     poller = zmq.Poller()
     poller.register(p_sub, zmq.POLLIN)
@@ -130,17 +161,16 @@ def run_zmq_proxy(
 
             if monitor_sub in events:
                 evt = recv_monitor_message(monitor_sub)
-                _log_connection_event("XSUB (publisher channel)", evt)
+                _log_connection_event("publish", evt)
 
             if monitor_pub in events:
                 evt = recv_monitor_message(monitor_pub)
-                _log_connection_event("XPUB (subscriber channel)", evt)
+                _log_connection_event("subscribe", evt)
 
             if p_sub in events:
                 msg_parts = p_sub.recv_multipart()
-                _log_message_flow("Received", msg_parts)
                 p_pub.send_multipart(msg_parts)
-                _log_message_flow("Forwarded", msg_parts)
+                _log_forwarded_message(msg_parts)
 
             if p_pub in events:
                 msg_parts = p_pub.recv_multipart()
