@@ -49,10 +49,10 @@ class SquareMission(BasicRunner):
 Start your ArduPilot simulation, then execute the script with the CLI:
 
 ```bash
-aerpawlib --api-version v1 --script square_mission.py --vehicle drone --conn udp:127.0.0.1:14550
+aerpawlib --api-version v1 --script square_mission.py --vehicle drone --conn udpin://127.0.0.1:14550
 ```
 
-> **Note:** v1 connection strings often use `udp:`; v2 prefers `udpin://`. Match the format to your SITL or hardware setup.
+> **Note:** Prefer MAVSDK `udpin://host:port`. DroneKit-style `udp:host:port` and `udp://host:port` are rewritten automatically.
 
 ## Runners
 

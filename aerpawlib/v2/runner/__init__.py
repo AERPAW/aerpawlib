@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from .config import (
     BasicRunnerConfig,
     StateMachineConfig,
@@ -26,6 +28,9 @@ from .impl import (
     ZmqStateMachine,
 )
 
+in_background = asyncio.ensure_future
+sleep = asyncio.sleep
+
 __all__ = [
     "BasicRunner",
     "BasicRunnerConfig",
@@ -40,6 +45,8 @@ __all__ = [
     "entrypoint",
     "expose_field_zmq",
     "expose_zmq",
+    "in_background",
+    "sleep",
     "state",
     "timed_state",
 ]

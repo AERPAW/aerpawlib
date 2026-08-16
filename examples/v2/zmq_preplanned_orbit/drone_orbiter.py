@@ -28,6 +28,7 @@ class OrbiterRunner(ZmqStateMachine):
 
     @state(name="report_ready", first=True)
     async def state_report_ready(self, _):
+        await self.wait_for_peers([ZMQ_GROUND])
         await self.transition_runner(ZMQ_GROUND, "callback_orbiter_ready")
         return "wait_loop"
 

@@ -49,8 +49,8 @@ class LeaderRunner(ZmqStateMachine):
 
     @state(name="launch", first=True)
     async def state_start(self, _):
-        print("[leader] waiting to start")
-        await asyncio.sleep(10)
+        print("[leader] waiting for follower")
+        await self.wait_for_peers(["follower"])
         return "start_ping"
 
     @state(name="start_ping")

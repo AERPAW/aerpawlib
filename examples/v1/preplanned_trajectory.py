@@ -252,10 +252,8 @@ class PreplannedTrajectory(StateMachine):
         # go to next waypoint
         coords = Coordinate(*waypoint["pos"])
         target_speed = waypoint["speed"]
-        in_background(vehicle.goto_coordinates(coords, target_heading=self._default_heading))
-        # TODO(jjreder): speed change race; needs field testing
-        await asyncio.sleep(0.5)
         await vehicle.set_groundspeed(target_speed)
+        in_background(vehicle.goto_coordinates(coords, target_heading=self._default_heading))
         return "in_transit"
 
     @state(name="in_transit")

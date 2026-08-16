@@ -59,6 +59,10 @@ class VectorNED:
             return math.hypot(self.north, self.east)
         return math.sqrt(self.north**2 + self.east**2 + self.down**2)
 
+    def magnitude(self, ignore_down: bool = False) -> float:
+        """Alias for hypot()."""
+        return self.hypot(ignore_down=ignore_down)
+
     def norm(self) -> VectorNED:
         """Return the unit vector in the same direction.
 

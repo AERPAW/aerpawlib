@@ -6,6 +6,21 @@ import re
 from urllib.parse import urlparse
 
 
+def normalize_mavsdk_connection_string(connection_string: str) -> str:
+    """Rewrite DroneKit-style UDP strings to MAVSDK ``udpin://`` form.
+
+    ``udp://host:port`` and ``udp:host:port`` both become ``udpin://host:port``.
+    Other schemes (serial, tcp, udpin, udpout) are returned unchanged.
+    """
+    raw = connection_string.strip()
+    lower = raw.lower()
+    if lower.startswith("udp://"):
+        return "udpin://" + raw[6:]
+    if lower.startswith("udp:") and not lower.startswith("udp://"):
+        return "udpin://" + raw[4:]
+    return raw
+
+
 def parse_udp_connection_port(connection_string: str) -> tuple[str, int] | None:
     """Parse host and port from a UDP listen connection string.
 

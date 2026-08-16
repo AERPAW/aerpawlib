@@ -11,7 +11,7 @@
 | Version | Module | Best for |
 |---------|----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **v1** | `aerpawlib.v1` | Existing experiment scripts written for the [original DroneKit-based aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control); same runner, vehicle, ZMQ, and safety API with MAVSDK under the hood |
-| **v2** | `aerpawlib.v2` | An improved and streamlined API that is easier to use and provides better performance, but has not been fully stress-tested yet |
+| **v2** | `aerpawlib.v2` | New experiments: async connect, `can_takeoff` / `can_goto` / `can_land` (enforced on the command path when a safety client is attached), `VehicleTask` |
 
 > **Note:** Imports from `aerpawlib` (without `.v1`) still work but are deprecated in favor of `aerpawlib.v1`.
 
@@ -20,6 +20,7 @@
 | Module | Description |
 |--------|-------------|
 | `aerpawlib.v2` | v2 API overview and quick reference |
+| `docs/v2/migration.md` | Porting v1 scripts to v2 |
 | `aerpawlib.v1` | v1 API overview and getting started |
 | `aerpawlib.cli` | CLI flags, config files, and execution flow |
 | `aerpawlib.log` | Logging and structured JSONL output |

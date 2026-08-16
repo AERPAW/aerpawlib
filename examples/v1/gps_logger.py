@@ -12,7 +12,7 @@ Usage:
     python -m aerpawlib gps_logger --conn <connection> --output <filename> --samplerate <Hz>
 
 Requirements:
-    dronekit
+    aerpawlib
 """
 
 import csv

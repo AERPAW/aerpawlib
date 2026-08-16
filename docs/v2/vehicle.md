@@ -26,7 +26,7 @@ drone = await Drone.connect("udpin://127.0.0.1:14550")
 try:
     await drone.takeoff(altitude=10)
 finally:
-    drone.close()
+    await drone.aclose()
 ```
 
 ## Key concepts

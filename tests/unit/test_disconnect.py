@@ -78,3 +78,36 @@ async def test_run_runner_with_disconnect_guard_lets_runner_finish_when_connecte
     disconnect_task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await disconnect_task
+
+
+@pytest.mark.asyncio
+async def test_return_home_if_armed_skips_when_closed():
+    from aerpawlib.cli.constants import VEHICLE_TYPE_DRONE
+    from aerpawlib.cli.rtl import return_home_if_armed
+
+    class ClosedArmed:
+        closed = True
+        armed = True
+
+        async def return_to_launch(self) -> None:
+            raise AssertionError("RTL must not run after aclose")
+
+    await return_home_if_armed(ClosedArmed(), VEHICLE_TYPE_DRONE, True, reason="test")
+
+
+@pytest.mark.asyncio
+async def test_return_home_if_armed_rtl_when_open_and_armed():
+    from aerpawlib.cli.constants import VEHICLE_TYPE_DRONE
+    from aerpawlib.cli.rtl import return_home_if_armed
+
+    called: list[int] = []
+
+    class OpenArmed:
+        closed = False
+        armed = True
+
+        async def return_to_launch(self) -> None:
+            called.append(1)
+
+    await return_home_if_armed(OpenArmed(), VEHICLE_TYPE_DRONE, True, reason="test")
+    assert called == [1]

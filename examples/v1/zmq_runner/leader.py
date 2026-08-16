@@ -13,7 +13,7 @@ target_ip = "127.0.0.1"
 
 
 class LeaderRunner(ZmqStateMachine):
-    _ping_regex = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d\.\d+) ms")
+    _ping_regex = re.compile(r".+icmp_seq=(?P<seq>\d+).+time=(?P<time>\d+(?:\.\d+)?) ms")
 
     async def _ping_latency(self, address: str, count: int):
         """
@@ -44,8 +44,8 @@ class LeaderRunner(ZmqStateMachine):
 
     @state(name="launch", first=True)
     async def state_start(self, _):
-        print("waiting to start")
-        await sleep(10)
+        print("waiting for follower")
+        await self.wait_for_peers(["follower"])
         return "start_ping"
 
     @state(name="start_ping")

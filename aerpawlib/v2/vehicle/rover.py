@@ -81,32 +81,10 @@ class Rover(Vehicle):
             f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )
         try:
-            # COMMAND_LONG payload for MAV_CMD_DO_SET_MODE -> GUIDED.
-            fields = {
-                "target_system": 1,
-                "target_component": 1,
-                "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                "confirmation": 0,
-                "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-                "param2": float(ROVER_GUIDED_MODE),
-                "param3": 0.0,
-                "param4": 0.0,
-                "param5": 0.0,
-                "param6": 0.0,
-                "param7": 0.0,
-            }
+            from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
 
-            # Wrap the payload for mavlink_direct transmission.
-            msg = MavlinkMessage(
-                system_id=1,
-                component_id=1,
-                target_system_id=1,
-                target_component_id=1,
-                message_name=MAVLINK_MSG_COMMAND_LONG,
-                fields_json=json.dumps(fields),
-            )
-
-            # Send directly to the flight controller.
+            sysid = resolve_mav_sysid(self._system)
+            msg = make_set_mode_message(sysid, ROVER_GUIDED_MODE)
             await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
             logger.warning(f"Rover: failed to send GUIDED (OFFBOARD) mode command: {e}")
@@ -148,6 +126,7 @@ class Rover(Vehicle):
             NavigationError: If command dispatch fails or arrival times out.
         """
         _validate_tolerance(tolerance, "tolerance")
+        await self._require_can(self.can_goto(coordinates, tolerance=tolerance), "goto", NavigationError)
         await self.await_ready_to_move()
         self._ready_to_move = lambda _: False
         logger.debug(

@@ -126,8 +126,9 @@ class Vehicle:
         Raises:
             ConnectionTimeoutError: If connection cannot be established within timeout.
         """
-        if connection_string.lower().startswith("udp://"):
-            connection_string = "udpin://" + connection_string[6:]
+        from aerpawlib._internal.connection_string import normalize_mavsdk_connection_string
+
+        connection_string = normalize_mavsdk_connection_string(connection_string)
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._system = None
@@ -146,6 +147,7 @@ class Vehicle:
         self._verbose_logging_delay = VERBOSE_LOG_DELAY_S
         self._verbose_log_lock = threading.Lock()
         self._event_log = None
+        self.safety = None
         self._structured_telemetry_last_log_time = 0.0
         self._will_arm = True
         self._mission_start_time: float | None = None
@@ -575,8 +577,10 @@ class Vehicle:
             await self._arm_vehicle()
 
         if hasattr(self, "_set_guided_mode"):
-            await self._set_guided_mode()
-            await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+            mode = self._ts_state.mode.get()
+            if mode not in {"OFFBOARD", "HOLD", "GUIDED"}:
+                await self._set_guided_mode()
+                await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
         await wait_for_condition(
             self.done_moving,
@@ -822,6 +826,12 @@ class Vehicle:
                     update_progress(state="Waiting for EKF...")
                     while not self._ts_state.ekf_ready.get():
                         await asyncio.sleep(0.1)
+                    # GUIDED before arm: ArduCopter auto-disarms if armed in
+                    # STABILIZE without RC. Mode switch also needs position.
+                    if hasattr(self, "_set_guided_mode"):
+                        update_progress(state="Switching to GUIDED...")
+                        await self._set_guided_mode()
+                        await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
                     logger.debug("Vehicle is armable, sending arm command...")
 
                     # Arm the vehicle
@@ -900,10 +910,11 @@ class Vehicle:
         Raises:
             ValueError: If velocity is out of acceptable range
         """
-        # Note: speed bounds (min_speed / max_speed) are enforced by the
-        # SafetyCheckerServer via validate_change_speed_command. No redundant
-        # constant-based check here.
         logger.debug(f"set_groundspeed({velocity}) called")
+        if self.safety is not None:
+            ok, msg = self.safety.validate_change_speed_command(velocity)
+            if not ok:
+                raise ValueError(f"set_groundspeed rejected by safety checks: {msg}")
         try:
             await self._run_on_mavsdk_loop(
                 self._system.action.set_current_speed(velocity),

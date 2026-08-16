@@ -27,7 +27,7 @@ WAYPOINT_WAIT_TIME = 3  # s
 
 
 def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
-    att = vehicle._vehicle.attitude
+    att = vehicle.attitude
     pitch = att.pitch
     yaw = att.yaw
     roll = att.roll

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from aerpawlib.v2.constants import GPS_3D_FIX_TYPE
+from aerpawlib.v2.exceptions import TakeoffError
 from aerpawlib.v2.safety import NoOpSafetyChecker
 from aerpawlib.v2.safety.validation import PreflightChecks
 from aerpawlib.v2.testing import MockVehicle
@@ -96,3 +99,52 @@ class TestCanTakeoff:
         ok, msg = await vehicle.can_land()
         assert ok is True
         assert msg == ""
+
+    @pytest.mark.asyncio
+    async def test_require_can_raises_when_check_fails(self):
+        vehicle = MockVehicle()
+        vehicle._state.update_armable(
+            global_ok=False,
+            local_ok=False,
+            home_ok=False,
+            armable=False,
+        )
+        with pytest.raises(TakeoffError, match="rejected by safety"):
+            await vehicle._require_can(vehicle.can_takeoff(10.0), "takeoff", TakeoffError)
+
+    @pytest.mark.asyncio
+    async def test_await_preflight_for_takeoff_waits_then_can_takeoff_passes(self):
+        vehicle = MockVehicle()
+        vehicle._state.update_armable(
+            global_ok=False,
+            local_ok=False,
+            home_ok=False,
+            armable=False,
+        )
+
+        async def become_ready() -> None:
+            await asyncio.sleep(0.05)
+            vehicle._state.update_armable(
+                global_ok=True,
+                local_ok=True,
+                home_ok=True,
+                armable=True,
+            )
+
+        await asyncio.gather(vehicle._await_preflight_for_takeoff(), become_ready())
+        ok, msg = await vehicle.can_takeoff(10.0)
+        assert ok is True
+        assert msg == ""
+        assert vehicle.armed is False
+
+    @pytest.mark.asyncio
+    async def test_await_preflight_for_takeoff_skips_wait_when_armed(self):
+        vehicle = MockVehicle(armed=True)
+        vehicle._state.update_armable(
+            global_ok=False,
+            local_ok=False,
+            home_ok=False,
+            armable=False,
+        )
+        await asyncio.wait_for(vehicle._await_preflight_for_takeoff(), timeout=0.5)
+        assert vehicle.armed is True

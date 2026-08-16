@@ -17,17 +17,20 @@ from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
 from pymavlink import mavutil
 
 from aerpawlib.v1.constants import (
+    ARMABLE_TIMEOUT_S,
     COPTER_GUIDED_MODE,
     COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
+    GPS_3D_FIX_TYPE,
     GUIDED_MODE_NAME,
     HEADING_TOLERANCE_DEG,
     MAVLINK_MSG_COMMAND_LONG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
+    POSITION_READY_TIMEOUT_S,
     POST_TAKEOFF_STABILIZATION_S,
     TELEMETRY_SUBSCRIPTION_TIMEOUT_S,
     VELOCITY_UPDATE_DELAY_S,
@@ -186,6 +189,30 @@ class Drone(Vehicle):
         Raises:
             TakeoffError: If the takeoff command fails or is rejected by the autopilot.
         """
+        if not self.armed:
+            try:
+                await wait_for_condition(
+                    lambda: self.armable,
+                    timeout=ARMABLE_TIMEOUT_S,
+                    poll_interval=POLLING_DELAY_S,
+                    timeout_message=f"Vehicle not armable after {ARMABLE_TIMEOUT_S:.0f}s",
+                )
+                await wait_for_condition(
+                    lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+                    timeout=POSITION_READY_TIMEOUT_S,
+                    poll_interval=POLLING_DELAY_S,
+                    timeout_message=f"No GPS 3D fix after {POSITION_READY_TIMEOUT_S:.0f}s",
+                )
+            except TimeoutError as e:
+                raise TakeoffError(str(e)) from e
+        if self.safety is not None:
+            ok, msg = self.safety.validate_takeoff_command(
+                target_alt,
+                self.position.lat,
+                self.position.lon,
+            )
+            if not ok:
+                raise TakeoffError(f"takeoff rejected by safety checks: {msg}")
         await self.await_ready_to_move()
 
         # Enforce minimum delay between arming and takeoff
@@ -214,6 +241,8 @@ class Drone(Vehicle):
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
+                timeout_message=f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s",
             )
             await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)
         except ActionError as e:
@@ -235,6 +264,13 @@ class Drone(Vehicle):
             exc_cls: Exception class to raise on failure.
         """
         await self.await_ready_to_move()
+        if self.safety is not None and name == "land":
+            ok, msg = self.safety.validate_landing_command(
+                self.position.lat,
+                self.position.lon,
+            )
+            if not ok:
+                raise exc_cls(f"land rejected by safety checks: {msg}")
         self._abortable = False
         from aerpawlib.cli.progress_bar import update_progress
 
@@ -246,6 +282,8 @@ class Drone(Vehicle):
             await wait_for_condition(
                 lambda: not self.armed,
                 poll_interval=POLLING_DELAY_S,
+                timeout=DEFAULT_GOTO_TIMEOUT_S,
+                timeout_message=f"{name} timed out waiting for disarm",
             )
             logger.debug(f"{name} complete")
         except ActionError as e:
@@ -266,9 +304,13 @@ class Drone(Vehicle):
             raise RTLError("Home coordinates are not available for return-to-launch")
         from aerpawlib.cli.progress_bar import update_progress
 
+        dest = type(home)(home.lat, home.lon, self.position.alt)
         try:
             update_progress(state="Returning home")
-            await self.goto_coordinates(home)
+            try:
+                await self.goto_coordinates(dest)
+            except NavigationError as e:
+                logger.warning("Could not navigate home for RTL (%s); landing in place", e)
             await self.land()
         except (NavigationError, LandingError) as e:
             logger.error(f"Return-to-launch failed: {e}")
@@ -297,6 +339,10 @@ class Drone(Vehicle):
             NavigationError: If navigation command fails
         """
         validate_tolerance(tolerance, "tolerance")
+        if self.safety is not None:
+            ok, msg = self.safety.validate_waypoint_command(self.position, coordinates)
+            if not ok:
+                raise NavigationError(f"goto rejected by safety checks: {msg}")
         if target_heading is not None:
             await self.set_heading(target_heading, blocking=False)
 
@@ -483,52 +529,47 @@ class Drone(Vehicle):
         We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll/resend until the flight controller confirms the mode change.
         """
-        if self._ts_state.mode.get() == GUIDED_MODE_NAME:
+        if self._ts_state.mode.get() in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
             logger.debug(
-                f"Drone: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch",
+                f"Drone: already in pre-arm mode {self._ts_state.mode.get()!r}, skipping mode switch",
             )
             return
         logger.info(
             f"Drone: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )
-        fields = {
-            "target_system": 1,
-            "target_component": 1,
-            "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-            "confirmation": 0,
-            "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-            "param2": float(COPTER_GUIDED_MODE),
-            "param3": 0.0,
-            "param4": 0.0,
-            "param5": 0.0,
-            "param6": 0.0,
-            "param7": 0.0,
-        }
-        msg = MavlinkMessage(
-            system_id=1,
-            component_id=1,
-            target_system_id=1,
-            target_component_id=1,
-            message_name=MAVLINK_MSG_COMMAND_LONG,
-            fields_json=json.dumps(fields),
-        )
-
         try:
-            await self._run_on_mavsdk_loop(
-                self._system.mavlink_direct.send_message(msg),
-            )
+            await self._run_on_mavsdk_loop(self._system.action.hold())
+            await asyncio.sleep(0.2)
         except Exception as e:
-            logger.warning(
-                f"Drone: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
+            logger.warning(f"Drone: action.hold() failed: {e}")
+        if self._ts_state.mode.get() in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
+            logger.info(
+                f"Drone: pre-arm mode confirmed ({self._ts_state.mode.get()})",
             )
             return
 
+        from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
+
+        sysid = resolve_mav_sysid(self._system)
+        msg = make_set_mode_message(sysid, COPTER_GUIDED_MODE)
+
         start = time.time()
-        while self._ts_state.mode.get() != GUIDED_MODE_NAME:
+        last_send = 0.0
+        while self._ts_state.mode.get() not in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
             if time.time() - start > COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S:
                 logger.warning(
                     f"Drone: mode switch timeout (current mode={self._ts_state.mode.get()!r}); commands may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",
                 )
                 return
+            if time.time() - last_send >= 0.5:
+                try:
+                    await self._run_on_mavsdk_loop(
+                        self._system.mavlink_direct.send_message(msg),
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Drone: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
+                    )
+                last_send = time.time()
             await asyncio.sleep(POLLING_DELAY_S)
         logger.info(f"Drone: GUIDED ({GUIDED_MODE_NAME}) mode confirmed")

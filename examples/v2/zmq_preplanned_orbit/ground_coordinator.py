@@ -47,6 +47,7 @@ class GroundCoordinatorRunner(ZmqStateMachine):
 
     @state(name="await_ready", first=True)
     async def state_await_ready(self, _):
+        await self.wait_for_peers([ZMQ_TRACER, ZMQ_ORBITER])
         if not (self._tracer_ready and self._orbiter_ready):
             return "await_ready"
         return "take_off"

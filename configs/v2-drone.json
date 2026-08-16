@@ -1,4 +1,5 @@
 {
   "api-version": "v2",
-  "vehicle": "drone"
+  "vehicle": "drone",
+  "mavsdk-port": 50051
 }
