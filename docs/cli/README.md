@@ -4,7 +4,7 @@ The `aerpawlib` CLI connects to a vehicle, loads your runner script, and execute
 
 ## When to use this
 
-Run any experiment script after `pip install -e .`. Pass `--script`, `--conn`, and `--vehicle` at minimum.
+Run any experiment script after `pip install .`. Pass `--script`, `--conn`, and `--vehicle` at minimum (`--conn` is optional with `--vehicle none`).
 
 ## Common workflow
 
@@ -21,14 +21,12 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 
 ## Key concepts
 
-### Execution flow
+### How a run is assembled
 
-1. Resolve paths (`--script`, `--config`, `--log-file`, `--structured-log`) from your current working directory
-1. Insert the repository root on `sys.path` (the process does **not** `chdir`; relative plan/KML paths follow your current working directory)
-1. Merge JSON config files (`--config` may be repeated; later files override)
-1. Import `aerpawlib.v1` or `aerpawlib.v2` and load your script
-1. Find exactly one direct subclass of `Runner`, `BasicRunner`, `StateMachine`, or `ZmqStateMachine`
-1. Forward unrecognized argv to `runner.initialize_args(...)`
+1. Paths (`--script`, `--config`, `--log-file`, `--structured-log`) are resolved from your current working directory. Relative plan and KML paths also use that directory.
+1. Repeated `--config` files merge; later files override earlier ones. CLI flags override config files.
+1. Your script must define exactly one runner class (`BasicRunner`, `StateMachine`, or `ZmqStateMachine`).
+1. Extra arguments after the known flags are passed to `runner.initialize_args(...)`.
 
 ### Required flags
 
@@ -84,11 +82,11 @@ On AERPAW the process exits if the server is unreachable. When a client is attac
 
 ### Production (C-VM)
 
-1. Start `aerpawlib-run-proxy` (opens TCP **5570 and 5571** on all interfaces; use `--in-port` / `--out-port` / `--bind` if needed).
+1. Start `aerpawlib-run-proxy` (default ports 5570 and 5571). Use `--in-port` / `--out-port` / `--bind` only if you need different ports or a bind address.
 2. Start `aerpawlib-safety-checker --port 14580 --vehicle_config <yaml>`.
 3. Give every vehicle a unique `--mavsdk-port` and `--zmq-identifier`.
-4. Point `--zmq-proxy-server` at the proxy host (not only `127.0.0.1` unless all runners share that host).
-5. `--skip-rtl` is the only way to leave a vehicle armed after Ctrl-C, a runner exception, or heartbeat loss. If the link is already down, the last GUIDED setpoint remains on the autopilot.
+4. Point `--zmq-proxy-server` at the host running the proxy (use `127.0.0.1` only when every runner is on that same host).
+5. Without `--skip-rtl`, an armed vehicle returns home on success, Ctrl-C, a script error, or a lost link.
 
 ### Config files
 

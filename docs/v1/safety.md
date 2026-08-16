@@ -4,7 +4,7 @@ Validate mission commands against geofences, speed limits, and altitude bounds b
 
 ## When to use this
 
-Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed. The CLI attaches a client with `--safety-checker-port` / `--safety-checker-ip`; `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then validate before they are sent and fail closed if the server rejects the maneuver.
+Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed. The CLI attaches a client with `--safety-checker-port` / `--safety-checker-ip`. After that, `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` ask the server first and do not run if the maneuver is rejected.
 
 ## Common workflow
 
@@ -30,9 +30,9 @@ with SafetyCheckerClient("127.0.0.1", 14580) as checker:
 
 ### SafetyCheckerClient
 
-Synchronous ZMQ REQ client in your mission process. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, and `validate_change_speed_command`.
+Use this from your script to ask the safety server about a maneuver. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, and `validate_change_speed_command`.
 
-> **Note:** Because the client is synchronous, calls will block the calling thread during the connection and request phases. On timeout the client reconnects automatically for subsequent requests.
+> **Note:** These calls wait for the server. If a request times out, the next call tries again.
 
 ### SafetyCheckerServer
 

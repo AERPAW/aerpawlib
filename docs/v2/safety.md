@@ -4,9 +4,9 @@ Validate commands before flight and integrate with the AERPAW SafetyCheckerServe
 
 ## When to use this
 
-- Preflight checks in experiment scripts before takeoff or goto
-- Geofence enforcement on the AERPAW testbed (server required)
-- Local development with optional passthrough when no server runs
+- Check takeoff, goto, and land before you send them
+- Enforce geofence and altitude rules on the AERPAW testbed (server required)
+- Run locally without a server (checks pass, with a warning)
 
 ## Common workflow
 
@@ -24,7 +24,7 @@ if not ok:
 await drone.takeoff(altitude=10)
 ```
 
-The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then call `can_*` and fail closed if the server rejects the maneuver.
+The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
 
 ## Key concepts
 
@@ -45,7 +45,7 @@ The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip`
 
 ### SafetyCheckerClient
 
-Asynchronous ZMQ client for direct validation. Unlike the v1 counterpart, the v2 safety client runs completely asynchronously on the shared event loop using `zmq.asyncio`. Additionally, there is no built-in `SafetyCheckerServer` inside `v2`; all validations are sent to an external server process or bypass using `NoOpSafetyChecker`.
+Ask the safety server from your script with `await`. v2 does not ship a server of its own: use `aerpawlib-safety-checker` (the v1 server) on the testbed, or omit the client locally.
 
 ```python
 ok, msg = await client.validate_waypoint(current, next_loc)
@@ -63,15 +63,15 @@ ok = await PreflightChecks.run_all(vehicle)  # GPS fix, battery
 
 ### Connection monitoring
 
-`vehicle.watch_disconnect(timeout)` detects heartbeat loss. The CLI races this against your runner. `setup_signal_handlers()` enables async-safe SIGINT/SIGTERM handling.
+If the vehicle link is lost, the CLI stops the mission. Ctrl-C also stops the runner so RTL can run (unless you pass `--skip-rtl`).
 
 ## Errors
 
 | Situation | Result |
 |-----------|--------|
-| Validation fails | `can_*` returns `(False, message)` |
-| AERPAW, no safety server | Process exits with critical error |
-| Non-AERPAW, no server | `NoOpSafetyChecker` passes checks (development only) |
+| Validation fails | `can_*` returns `(False, message)`; takeoff/goto/land raise if you call them anyway |
+| AERPAW, no safety server | The process exits |
+| Local / SITL, no server | Checks pass (with a warning) |
 
 ## See also
 
