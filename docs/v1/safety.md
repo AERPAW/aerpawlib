@@ -4,7 +4,7 @@ Validate mission commands against geofences, speed limits, and altitude bounds b
 
 ## When to use this
 
-Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed.
+Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed. The CLI attaches a client with `--safety-checker-port` / `--safety-checker-ip`; `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then validate before they are sent and fail closed if the server rejects the maneuver.
 
 ## Common workflow
 
@@ -67,5 +67,5 @@ aerpawlib-safety-checker --port 14580 --vehicle_config config.yaml
 ## See also
 
 - `aerpawlib.v2.safety`: v2 `can_*` integration with the same server
-- `aerpawlib.v1.vehicle`: execute commands after validation
-- `aerpawlib.cli`: safety-related flags for v2
+- `aerpawlib.v1.vehicle`: commands that call the attached client
+- `aerpawlib.cli`: `--safety-checker-port`, `--safety-checker-ip` (v1 and v2)

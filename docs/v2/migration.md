@@ -26,7 +26,7 @@ Prefer the CLI (`--api-version v2`); it calls `connect` and `initialize` for you
 | `await drone.goto_coordinates(c)` | same; add `blocking=False` for a `VehicleTask` |
 | `in_background(drone.goto_coordinates(c))` | `await drone.goto_coordinates(c, blocking=False)` or `in_background(...)` |
 | `initialize()` is **sync** | `await initialize()` |
-| No `can_*` | `takeoff` / `goto` / `land` call `can_*` when a safety client is attached |
+| Safety client on `vehicle.safety` | same fail-closed path; v2 also exposes `can_*` |
 
 ## Runners
 

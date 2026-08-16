@@ -35,7 +35,7 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 | Flag | Description |
 |------|-------------|
 | `--script` | Python file (`.py` or path) or dotted module name |
-| `--conn` | MAVSDK connection string |
+| `--conn` / `--connection` | MAVSDK connection string (required unless `--vehicle none`) |
 | `--vehicle` | `drone`, `rover`, `none` (DummyVehicle), or `generic` |
 
 ### API and environment
@@ -50,7 +50,7 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 | Flag | Description |
 |------|-------------|
 | `--skip-init` | Skip vehicle initialize/armable checks |
-| `--skip-rtl` | Do not auto RTL/RTH if still armed at end |
+| `--skip-rtl` | Do not auto RTL/RTH if still armed (success, exception, Ctrl-C, heartbeat loss) |
 | `--conn-timeout` | Initial connection wait (seconds) |
 | `--heartbeat-timeout` | Heartbeat loss threshold |
 | `--mavsdk-port` | gRPC port per vehicle instance |

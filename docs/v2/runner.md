@@ -56,7 +56,8 @@ The `ZmqStateMachine` class enables multi-vehicle coordination using ZMQ. It all
 - Decorate runner methods with `@expose_field_zmq(name)` to expose their return values.
 - Transition remote runners to a state using `await self.transition_runner(target_id, state_name)`.
 - Fetch values from remote runners using `await self.query_field(target_id, field_name, timeout)`.
-- Wait until peers have sent HELLO with `await self.wait_for_peers(["follower", "ground"])` before the first one-shot command.
+- Wait until peers have sent HELLO with `await self.wait_for_peers(["follower", "ground"])` before the first `transition_runner` or `query_field`.
+- `transition_runner` / `query_field` use ACK + retry. Control-plane frames are JSON. Unknown remote state names are ignored.
 
 To use:
 
@@ -102,7 +103,7 @@ from aerpawlib.v2 import ZmqStateMachine, Drone, state, expose_zmq, expose_field
 class LeaderRunner(ZmqStateMachine):
     @state(name="monitor", first=True)
     async def monitor(self, drone: Drone):
-        # Query follower's altitude
+        await self.wait_for_peers(["follower"])
         follower_alt = await self.query_field("follower", "altitude", timeout=5)
         print(f"Follower altitude: {follower_alt}")
         

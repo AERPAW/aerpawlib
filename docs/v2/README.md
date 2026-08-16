@@ -63,7 +63,7 @@ To enable structured logging, add `--structured-log FILE`. This outputs JSON Lin
 | `@expose_zmq(name)` | `ZmqStateMachine` | Remote state transition target |
 | `@expose_field_zmq(name)` | `ZmqStateMachine` | Queryable field via `query_field` |
 
-Run ZMQ missions with `--zmq-identifier` and `--zmq-proxy-server` after starting `aerpawlib-run-proxy`.
+Run ZMQ missions with `--zmq-identifier` and `--zmq-proxy-server` after starting `aerpawlib-run-proxy`. Call `await self.wait_for_peers([...])` before the first `transition_runner` or `query_field`.
 
 Details: `aerpawlib.v2.runner`.
 
@@ -104,7 +104,7 @@ await drone.goto_coordinates(target, tolerance=2)
 await drone.set_heading(90)
 await drone.land()
 await drone.return_to_launch()
-await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
+await drone.set_velocity(VectorNED(5, 0, 0), duration=10)  # [NOT SUPPORTED]
 await drone.stop_velocity()
 ```
 

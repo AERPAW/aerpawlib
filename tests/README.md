@@ -29,7 +29,9 @@ tests/
 │   ├── test_connection_string.py # udpin:// parsing and validation
 │   ├── test_disconnect.py       # CLI disconnect racing
 │   ├── test_main_runner_discovery.py
-│   └── test_progress_bar.py     # Rich status bar
+│   ├── test_progress_bar.py     # Rich status bar
+│   ├── test_zmq_e2e.py          # Two runners through a live proxy
+│   └── test_zmq_proxy.py        # Proxy forwarding and reachability
 └── integration/             # Integration tests (SITL)
     ├── test_v1_drone.py         # v1 Drone connection, takeoff, nav, land
     ├── test_v1_rover.py         # v1 Rover (requires Rover SITL)
@@ -44,8 +46,8 @@ tests/
 
 ## Prerequisites
 
-1. Unit tests: `pip install -e .`
-1. Integration tests: `pip install -e .` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
+1. Unit tests: `pip install -e ".[dev]"`
+1. Integration tests: `pip install -e ".[dev,sitl]"` then run `aerpawlib-setup-sitl` (or `./scripts/install_dev.sh`) to install the modified ArduPilot SITL. Pytest then starts ArduCopter SITL for drone tests and ArduRover SITL for rover tests (separate ports).
 
 ## Running Tests
 

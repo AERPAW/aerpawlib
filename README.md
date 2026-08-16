@@ -2,7 +2,7 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.4.5-blue)
+![Version](https://img.shields.io/badge/version-1.4.6-blue)
 [![Unit Tests](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml/badge.svg)](https://github.com/AERPAW/aerpawlib/actions/workflows/ci.yml)
 [![Ruff](https://github.com/AERPAW/aerpawlib/actions/workflows/ruff.yml/badge.svg)](https://github.com/AERPAW/aerpawlib/actions/workflows/ruff.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://aerpaw.github.io/aerpawlib)
@@ -54,7 +54,7 @@ The test suite consists of both unit tests and integration tests.
 
 ### Unit Tests (Fast, no SITL)
 
-To run only the unit tests:
+Install test extras first (`pip install -e ".[dev]"`), then:
 
 ```bash
 pytest tests/unit

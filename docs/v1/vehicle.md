@@ -32,7 +32,9 @@ class Mission(BasicRunner):
 | `set_heading(degrees, …)` | Turn to heading |
 | `land()` | Land at current position |
 | `return_to_launch()` | RTL and land |
-| `set_velocity(VectorNED, …)` | Offboard velocity |
+| `set_velocity(VectorNED, …)` | **[NOT SUPPORTED]** — velocity control is blocked by the vehicle filter |
+
+When a `SafetyCheckerClient` is attached (`vehicle.safety` or `--safety-checker-port`), `takeoff` / `goto_coordinates` / `land` / `set_groundspeed` validate first and fail closed.
 
 ### Telemetry
 

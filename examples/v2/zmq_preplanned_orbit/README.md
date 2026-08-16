@@ -23,7 +23,7 @@ aerpawlib --api-version v2 --vehicle drone --conn udpin://127.0.0.1:14580 \
 ## Ground Coordinator
 
 ```bash
-aerpawlib --api-version v2 --vehicle none --conn udpin://127.0.0.1:14550 --skip-init \
+aerpawlib --api-version v2 --vehicle none --skip-init \
     --zmq-identifier ground --zmq-proxy-server 127.0.0.1 \
     --script examples/v2/zmq_preplanned_orbit/ground_coordinator.py \
     --file examples/v2/zmq_preplanned_orbit/orbit.plan

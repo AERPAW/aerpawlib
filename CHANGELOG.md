@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.4.5] (2026-08-16)
+## [1.4.6] (2026-08-16)
 
 ### Summary
 
@@ -39,6 +39,10 @@ Production-hardening release for **v1 and v2**. Multi-vehicle ZMQ is no longer f
 - `ZmqStateMachine.wait_for_peers(identifiers, timeout=30)`.
 - Shared ZMQ transport in `aerpawlib._internal.zmq`.
 - Unit e2e tests for two runners through a live proxy (`tests/unit/test_zmq_e2e.py`).
+
+## [1.4.5] (2026-07-13)
+
+Bugfix release on the way to general availability: CLI adds the script parent directory to `sys.path`; drones and rovers switch to GUIDED via MAVLink before arming; `set_groundspeed` uses `set_current_speed`; connection-string scheme checks are left to MAVSDK. See the [1.4.5 GitHub release](https://github.com/AERPAW/aerpawlib/releases/tag/1.4.5).
 
 ## [1.4.3] (2026-06-12)
 
