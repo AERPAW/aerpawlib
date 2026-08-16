@@ -7,18 +7,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import time
 
 from mavsdk.action import ActionError
-from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, VelocityNedYaw
-from pymavlink import mavutil
 
 from aerpawlib.v2.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     GOTO_POLL_INTERVAL_S,
-    MAVLINK_MSG_COMMAND_LONG,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     ROVER_GUIDED_MODE,
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,

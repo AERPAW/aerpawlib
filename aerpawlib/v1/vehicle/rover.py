@@ -6,7 +6,6 @@ See ``aerpawlib.v1.vehicle`` module documentation for usage and commands.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 
 from aerpawlib.v1.log import LogComponent, get_logger
@@ -24,15 +23,11 @@ except ImportError:
 
 from typing import TYPE_CHECKING
 
-from mavsdk.mavlink_direct import MavlinkMessage
-from pymavlink import mavutil
-
 from aerpawlib.v1.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     DEFAULT_ROVER_POSITION_TOLERANCE_M,
     GUIDED_MODE_NAME,
     MAVLINK_COMMAND_TIMEOUT_S,
-    MAVLINK_MSG_COMMAND_LONG,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
     ROVER_GUIDED_MODE,

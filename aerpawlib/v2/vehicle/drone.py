@@ -7,14 +7,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
 import math
 import time
 
 from mavsdk.action import ActionError
-from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
-from pymavlink import mavutil
 
 from aerpawlib.v2.constants import (
     COPTER_GUIDED_MODE,
@@ -23,7 +20,6 @@ from aerpawlib.v2.constants import (
     DEFAULT_POSITION_TOLERANCE_M,
     DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE,
     HEADING_TOLERANCE_DEG,
-    MAVLINK_MSG_COMMAND_LONG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     POLLING_DELAY_S,
     POST_TAKEOFF_STABILIZATION_S,
@@ -167,8 +163,7 @@ class Drone(Vehicle):
             while not self.done_moving():
                 if time.monotonic() - climb_start > DEFAULT_GOTO_TIMEOUT_S:
                     raise TakeoffError(
-                        f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s "
-                        f"(alt={self.position.alt:.1f}m, target={altitude:.1f}m)",
+                        f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s (alt={self.position.alt:.1f}m, target={altitude:.1f}m)",
                     )
                 now = time.monotonic()
                 if now - last_log >= TAKEOFF_LOG_INTERVAL_S:

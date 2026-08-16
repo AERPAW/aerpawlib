@@ -26,7 +26,6 @@ State vis:
     └─────┘
 """
 
-import asyncio
 import csv
 import datetime
 import os
