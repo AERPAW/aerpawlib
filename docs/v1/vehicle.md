@@ -19,7 +19,7 @@ class Mission(BasicRunner):
         await vehicle.land()
 ```
 
-> **Note:** The CLI calls `close()` on shutdown. If you manage the vehicle lifecycle manually, call `close()` to stop background threads and release the connection.
+> **Note:** The CLI closes the vehicle when the script ends. If you construct a vehicle yourself, call `close()` when you are done.
 
 ## Key concepts
 
@@ -32,9 +32,9 @@ class Mission(BasicRunner):
 | `set_heading(degrees, …)` | Turn to heading |
 | `land()` | Land at current position |
 | `return_to_launch()` | RTL and land |
-| `set_velocity(VectorNED, …)` | **[NOT SUPPORTED]** — velocity control is blocked by the vehicle filter |
+| `set_velocity(VectorNED, …)` | Not supported on the AERPAW testbed (velocity commands are filtered) |
 
-When a `SafetyCheckerClient` is attached (`vehicle.safety` or `--safety-checker-port`), `takeoff` / `goto_coordinates` / `land` / `set_groundspeed` validate first and fail closed.
+With `--safety-checker-port` (or `vehicle.safety` set), `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` ask the safety server first. A rejected maneuver raises an error and does not run.
 
 ### Telemetry
 

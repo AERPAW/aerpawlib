@@ -36,9 +36,8 @@ Production-hardening release for **v1 and v2**. Multi-vehicle ZMQ is no longer f
 
 ### Added
 
-- `ZmqStateMachine.wait_for_peers(identifiers, timeout=30)`.
-- Shared ZMQ transport in `aerpawlib._internal.zmq`.
-- Unit e2e tests for two runners through a live proxy (`tests/unit/test_zmq_e2e.py`).
+- `ZmqStateMachine.wait_for_peers(identifiers, timeout=30)` — call this before the first remote command.
+- `aerpawlib-run-proxy` flags: `--in-port`, `--out-port`, `--bind`.
 
 ## [1.4.5] (2026-07-13)
 

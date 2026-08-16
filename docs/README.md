@@ -44,5 +44,5 @@ aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpi
 
 ## See also
 
-- [docs/DOC_STYLE.md](DOC_STYLE.md): documentation conventions for contributors
 - `examples/`: runnable mission scripts for v1 and v2
+- `aerpawlib.cli`: flags for `--script`, ZMQ, safety, and RTL

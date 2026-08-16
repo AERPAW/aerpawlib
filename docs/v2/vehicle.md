@@ -1,6 +1,6 @@
 ## Overview
 
-Vehicle classes connect to ArduPilot via MAVSDK and expose async commands and telemetry for experiment scripts. The CLI constructs and passes a `Drone` or `Rover` to your runner.
+Vehicle classes expose async commands and telemetry for experiment scripts. The CLI connects a `Drone` or `Rover` and passes it to your runner.
 
 ## When to use this
 
@@ -38,7 +38,7 @@ finally:
 | `Vehicle` | Shared base: telemetry, arm/disarm, `goto_coordinates`, `can_*` |
 | `Drone` | Multirotor: takeoff, land, RTL, heading, velocity |
 | `Rover` | Ground: 2D goto, velocity (no takeoff/land/RTL) |
-| `DummyVehicle` | No-op for pipeline tests |
+| `DummyVehicle` | Dry run without hardware (`--vehicle none`) |
 
 ### Telemetry
 
@@ -54,13 +54,13 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 | `goto_coordinates` | 3D tolerance (default 2 m) | 2D tolerance (default 2.1 m) |
 | `land` / `return_to_launch` | Yes | - |
 | `set_heading` | Yes | - |
-| `set_velocity` | **[NOT SUPPORTED]** (filter) | **[NOT SUPPORTED]** (filter) |
+| `set_velocity` | Not supported on the testbed | Not supported on the testbed |
 
 ### Validation and monitoring
 
-- `can_takeoff`, `can_goto`, `can_land`: preflight checks (see `aerpawlib.v2.safety`)
-- `takeoff` / `goto_coordinates` / `land` / `set_groundspeed` call `can_*` when a safety client is attached and fail closed
-- `watch_disconnect(timeout)`: future completes on heartbeat loss (CLI handles this automatically)
+- `can_takeoff`, `can_goto`, `can_land`: check whether a command is allowed (see `aerpawlib.v2.safety`)
+- With a safety client attached, `takeoff` / `goto_coordinates` / `land` / `set_groundspeed` run those checks and raise if the command is not allowed
+- If the vehicle link is lost, the CLI stops the mission (you do not need to call `watch_disconnect` yourself)
 
 ## Errors
 
