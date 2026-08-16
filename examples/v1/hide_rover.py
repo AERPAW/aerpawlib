@@ -228,7 +228,7 @@ class HideRover(StateMachine):
         return Coordinate(random_lat, random_lon)
 
     @state(name="init_state", first=True)
-    async def initialize(self):
+    async def initialize(self, _vehicle=None):
         # initialize parameters needed for running and read waypoints from plan
         default_speed = 1
         if self._default_leg_speed is not None:

@@ -56,6 +56,7 @@ The `ZmqStateMachine` class enables multi-vehicle coordination using ZMQ. It all
 - Decorate runner methods with `@expose_field_zmq(name)` to expose their return values.
 - Transition remote runners to a state using `await self.transition_runner(target_id, state_name)`.
 - Fetch values from remote runners using `await self.query_field(target_id, field_name, timeout)`.
+- Wait until peers have sent HELLO with `await self.wait_for_peers(["follower", "ground"])` before the first one-shot command.
 
 To use:
 

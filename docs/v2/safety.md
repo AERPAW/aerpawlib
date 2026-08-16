@@ -24,7 +24,7 @@ if not ok:
 await drone.takeoff(altitude=10)
 ```
 
-Or rely on the CLI: `--safety-checker-port` (and `--safety-checker-ip`) wire the client automatically.
+The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then call `can_*` and fail closed if the server rejects the maneuver.
 
 ## Key concepts
 

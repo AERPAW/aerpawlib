@@ -26,6 +26,8 @@ See the Github Pages documentation [here](https://aerpaw.github.io/aerpawlib)
 
 ```bash
 pip install .
+# development + SITL extras:
+pip install -e ".[dev,sitl]"
 ```
 
 ### Development (with ArduPilot SITL)

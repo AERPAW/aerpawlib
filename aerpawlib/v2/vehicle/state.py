@@ -215,9 +215,11 @@ class VehicleState:
             home_ok: True if home position is set.
             armable: True if the vehicle's own health check passes.
         """
-        # Armable when MAVSDK health reports OK. SYS_STATUS prearm check removed
-        # (was ArduPilot-specific); EKF readiness is checked separately for takeoff.
-        self._armable = global_ok and local_ok and home_ok and armable
+        # Position-estimate health is the gate. MAVSDK health.is_armable is the
+        # PX4/SYS_STATUS prearm bit and stays false on ArduPilot even when the
+        # FC will accept ARM. EKF readiness is checked separately for takeoff.
+        _ = armable
+        self._armable = global_ok and local_ok and home_ok
 
     def update_prearm_bits(self, ok: bool) -> None:
         """Update the MAV_SYS_STATUS_PREARM_CHECK bit status.

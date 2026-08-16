@@ -155,6 +155,7 @@ v2 uses `pathlib.Path` for plan paths (v1 often accepts `str`).
 | `aerpawlib.v2.external` | `ExternalProcess` for subprocess I/O |
 | `aerpawlib.v2.testing` | `MockVehicle`, `DummyVehicle` |
 | `aerpawlib.v2.exceptions` | `AerpawlibError` hierarchy |
+| `docs/v2/migration.md` | v1 → v2 porting notes |
 
 ## Error handling
 

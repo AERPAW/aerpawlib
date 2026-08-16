@@ -95,27 +95,10 @@ class Rover(Vehicle):
         logger.info(
             f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )
-        fields = {
-            "target_system": 1,
-            "target_component": 1,
-            "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-            "confirmation": 0,
-            "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-            "param2": float(ROVER_GUIDED_MODE),
-            "param3": 0.0,
-            "param4": 0.0,
-            "param5": 0.0,
-            "param6": 0.0,
-            "param7": 0.0,
-        }
-        msg = MavlinkMessage(
-            system_id=1,
-            component_id=1,
-            target_system_id=1,
-            target_component_id=1,
-            message_name=MAVLINK_MSG_COMMAND_LONG,
-            fields_json=json.dumps(fields),
-        )
+        from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
+
+        sysid = resolve_mav_sysid(self._system)
+        msg = make_set_mode_message(sysid, ROVER_GUIDED_MODE)
         try:
             await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
@@ -168,6 +151,10 @@ class Rover(Vehicle):
             NavigationError: If navigation command fails
         """
         validate_tolerance(tolerance, "tolerance")
+        if self.safety is not None:
+            ok, msg = self.safety.validate_waypoint_command(self.position, coordinates)
+            if not ok:
+                raise NavigationError(f"goto rejected by safety checks: {msg}")
 
         logger.debug(
             f"goto_coordinates(lat={coordinates.lat}, lon={coordinates.lon}, tolerance={tolerance}, target_heading={target_heading}) called",

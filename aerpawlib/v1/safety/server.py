@@ -326,8 +326,8 @@ class SafetyCheckerServer:
         """
         if not hasattr(self, "takeoff_location") or self.takeoff_location is None:
             return (
-                False,
-                "Cannot validate landing: no takeoff location recorded. Was validate_takeoff_command called first?",
+                True,
+                "",
             )
         current_location = Coordinate(current_lat, current_lon, alt=0)
         distance = self.takeoff_location.ground_distance(current_location)

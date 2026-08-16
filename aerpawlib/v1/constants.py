@@ -207,6 +207,8 @@ ZMQ_TYPE_HELLO = "hello"
 """Message type for client connection handshake over ZMQ."""
 ZMQ_TYPE_GOODBYE = "goodbye"
 """Message type for client disconnection over ZMQ."""
+ZMQ_TYPE_ACK = "ack"
+"""Message type for reliable-send acknowledgements over ZMQ."""
 
 
 ZMQ_QUERY_FIELD_TIMEOUT_S = 30.0
@@ -289,6 +291,18 @@ MAX_TELEMETRY_RETRIES = 3
 
 ZMQ_PROXY_CHECK_TIMEOUT_S = 2.0
 """Default timeout for ZMQ proxy reachability check (seconds)"""
+
+ZMQ_CONNECT_TIMEOUT_S = 2.0
+"""Timeout waiting for PUB/SUB EVENT_CONNECTED after connect()."""
+
+ZMQ_HELLO_INTERVAL_S = 0.2
+"""Interval between HELLO presence heartbeats."""
+
+ZMQ_ACK_RETRY_INTERVAL_S = 0.15
+"""Interval between reliable-send retries while waiting for ACK."""
+
+ZMQ_TRANSITION_TIMEOUT_S = 10.0
+"""Default timeout for reliable transition_runner delivery."""
 
 
 # GPS Constants

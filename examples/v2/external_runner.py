@@ -15,7 +15,7 @@ class MyScript(BasicRunner):
     """Demonstrate how to run and interact with external processes."""
 
     @entrypoint
-    async def do_stuff(self):
+    async def do_stuff(self, _vehicle):
         # spit out ls output
         print("[example] Listing files with 'ls':")
         ls = ExternalProcess("ls")

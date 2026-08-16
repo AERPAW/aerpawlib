@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
+    DEFAULT_SAFETY_CHECKER_PORT,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
@@ -22,6 +23,7 @@ from .disconnect import (
     run_runner_with_disconnect_guard,
     wait_for_v1_connection_loss,
 )
+from .rtl import return_home_if_armed
 from .discovery import discover_runner
 
 logger = logging.getLogger("aerpawlib")
@@ -94,14 +96,13 @@ def run_v1_experiment(
             event_log.log_event("mission_start")
             logger.info("Structured event logging -> %s", str(path))
 
-        def handle_shutdown(signum: Any, frame: Any) -> None:
-            """Handle SIGINT/SIGTERM by closing the vehicle then exiting."""
-            logger.warning("Initiating graceful shutdown...")
-            if vehicle:
-                vehicle.close()
-            sys.exit(0)
+        shutdown_event = asyncio.Event()
 
-        # Connect attempted exits to handle_shutdown
+        def handle_shutdown(signum: Any, frame: Any) -> None:
+            """Request graceful shutdown from SIGINT/SIGTERM."""
+            logger.warning("Initiating graceful shutdown...")
+            shutdown_event.set()
+
         signal.signal(signal.SIGINT, handle_shutdown)
         signal.signal(signal.SIGTERM, handle_shutdown)
 
@@ -126,32 +127,67 @@ def run_v1_experiment(
             except Exception as e:
                 logger.debug(f"Failed to log start to OEO: {e}")
 
-        runner_instance.initialize_args(unknown_args)
-        if args.initialize:
-            update_progress("Initializing vehicle...", completed=50)
-            if hasattr(vehicle, "initialize"):
-                vehicle.initialize(args.initialize)
-            elif hasattr(vehicle, "_preflight_wait"):
-                vehicle._preflight_wait(args.initialize)
+        is_aerpaw = bool(aerpaw_platform_cls and aerpaw_platform_cls._connected and not no_aerpaw_env)
+        port_set = getattr(args, "safety_checker_port", None) is not None
+        ip_set = getattr(args, "safety_checker_ip", None) is not None
+        if port_set or ip_set or is_aerpaw:
+            from aerpawlib.v1.safety import SafetyCheckerClient
 
-        if flag_zmq_runner:
-            if not args.zmq_identifier or not args.zmq_proxy_server:
+            effective_port = args.safety_checker_port if port_set else DEFAULT_SAFETY_CHECKER_PORT
+            safety_addr = args.safety_checker_ip if ip_set else "127.0.0.1"
+            try:
+                client = SafetyCheckerClient(safety_addr, effective_port)
+                ok, msg = client.check_server_status()
+                if not ok:
+                    raise RuntimeError(msg or "SafetyCheckerServer check failed")
+                vehicle.safety = client
+                logger.info("v1 SafetyCheckerClient attached at %s:%s", safety_addr, effective_port)
+            except Exception as e:
+                if is_aerpaw:
+                    logger.critical(
+                        "AERPAW environment requires SafetyCheckerServer. Connection to %s:%s failed: %s",
+                        safety_addr,
+                        effective_port,
+                        e,
+                    )
+                    sys.exit(1)
                 logger.error(
-                    "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
+                    "SafetyCheckerServer connection failed (%s:%s): %s. Commands will not be geofence-checked.",
+                    safety_addr,
+                    effective_port,
+                    e,
                 )
-                raise ValueError(
-                    "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
-                )
-            runner_instance._initialize_zmq_bindings(
-                args.zmq_identifier,
-                args.zmq_proxy_server,
-            )
+
+        runner_instance.initialize_args(unknown_args)
 
         success = False
         heartbeat_lost = False
         heartbeat_error_cls = api_module.HeartbeatLostError
         disconnect_task = None
+        shutdown_task = asyncio.create_task(shutdown_event.wait())
         try:
+            if args.initialize:
+                update_progress("Initializing vehicle...", completed=50)
+                if hasattr(vehicle, "initialize"):
+                    vehicle.initialize(args.initialize)
+                elif hasattr(vehicle, "_preflight_wait"):
+                    vehicle._preflight_wait(args.initialize)
+            if shutdown_event.is_set():
+                return success
+
+            if flag_zmq_runner:
+                if not args.zmq_identifier or not args.zmq_proxy_server:
+                    logger.error(
+                        "ZMQ runner requires --zmq-identifier and --zmq-proxy-server. Example: --zmq-identifier leader --zmq-proxy-server 127.0.0.1",
+                    )
+                    raise ValueError(
+                        "ZMQ runners require --zmq-identifier and --zmq-proxy-server",
+                    )
+                runner_instance._initialize_zmq_bindings(
+                    args.zmq_identifier,
+                    args.zmq_proxy_server,
+                )
+
             update_progress("Running experiment...", completed=60)
             disconnect_task = asyncio.create_task(
                 wait_for_v1_connection_loss(
@@ -160,12 +196,26 @@ def run_v1_experiment(
                     heartbeat_error_cls=heartbeat_error_cls,
                 ),
             )
-            await run_runner_with_disconnect_guard(
-                runner=runner_instance,
-                vehicle=vehicle,
-                disconnect_future=disconnect_task,
+            run_task = asyncio.create_task(
+                run_runner_with_disconnect_guard(
+                    runner=runner_instance,
+                    vehicle=vehicle,
+                    disconnect_future=disconnect_task,
+                ),
             )
-            success = True
+            _done, pending = await asyncio.wait(
+                [run_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+            if shutdown_event.is_set():
+                run_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await run_task
+            else:
+                await run_task
+                success = True
         except Exception as exc:
             heartbeat_lost = isinstance(exc, heartbeat_error_cls)
             if heartbeat_lost and aerpaw_platform_cls:
@@ -179,22 +229,17 @@ def run_v1_experiment(
             logger.error(f"Experiment failed: {exc}")
             traceback.print_exc()
         finally:
+            if not shutdown_task.done():
+                shutdown_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await shutdown_task
             if disconnect_task is not None and not disconnect_task.done():
                 disconnect_task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await disconnect_task
             if vehicle:
-                if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
-                    update_progress("Vehicle still armed! Returning home...", completed=90)
-                    logger.warning("Vehicle still armed! Returning home...")
-                    try:
-                        if args.vehicle == VEHICLE_TYPE_DRONE:
-                            await vehicle.return_to_launch()
-                        elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
-                            await vehicle.goto_coordinates(vehicle.home_coords)
-                    except Exception as e:
-                        logger.error(f"Return home failed: {e}")
-                        traceback.print_exc()
+                reason = "heartbeat lost" if heartbeat_lost else ("experiment failed" if not success else "experiment ending")
+                await return_home_if_armed(vehicle, args.vehicle, args.rtl_at_end, reason=reason)
                 vehicle.close()
             if event_log is not None:
                 with contextlib.suppress(Exception):

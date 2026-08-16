@@ -17,18 +17,19 @@ import types
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-import zmq
-import zmq.asyncio
-
-from aerpawlib.v1.constants import (
-    STATE_MACHINE_DELAY_S,
+from aerpawlib._internal.zmq import (
     ZMQ_PROXY_IN_PORT,
     ZMQ_PROXY_OUT_PORT,
+    ZmqTransport,
+    check_zmq_proxy_reachable,
+    decode_value,
+)
+from aerpawlib.v1.constants import (
+    STATE_MACHINE_DELAY_S,
     ZMQ_QUERY_FIELD_TIMEOUT_S,
+    ZMQ_TRANSITION_TIMEOUT_S,
     ZMQ_TYPE_FIELD_CALLBACK,
     ZMQ_TYPE_FIELD_REQUEST,
-    ZMQ_TYPE_GOODBYE,
-    ZMQ_TYPE_HELLO,
     ZMQ_TYPE_TRANSITION,
 )
 from aerpawlib.v1.exceptions import (
@@ -39,9 +40,8 @@ from aerpawlib.v1.exceptions import (
     StateMachineError,
 )
 from aerpawlib.v1.log import LogComponent, get_logger
-from aerpawlib.v1.zmqutil import check_zmq_proxy_reachable
 
-from .decorators import _State, background
+from .decorators import _State
 
 if TYPE_CHECKING:
     from aerpawlib.v1.vehicle import Vehicle
@@ -350,6 +350,7 @@ class ZmqStateMachine(StateMachine):
         super()._build()
         self._exported_states = {}
         self._exported_fields = {}
+        self._zmq_state_aliases: dict[str, str] = {}
         for _name, method, func in self._get_decorated_methods():
             if hasattr(func, "_is_exposed_zmq"):
                 if not hasattr(func, "_is_state"):
@@ -358,56 +359,57 @@ class ZmqStateMachine(StateMachine):
                     )
                 self._exported_states[func._zmq_name] = _State(
                     method,
-                    func._zmq_name,
+                    func._state_name,
                 )
+                self._zmq_state_aliases[func._zmq_name] = func._state_name
             elif hasattr(func, "_is_exposed_field_zmq"):
                 self._exported_fields[func._zmq_name] = method
 
     _zmq_identifier: str
     _zmq_proxy_server: str
 
-    _ZMQ_FIELD_PENDING = object()
-
     def _initialize_zmq_bindings(
         self,
         vehicle_identifier: str,
         proxy_server_addr: str,
+        in_port: int | str | None = None,
+        out_port: int | str | None = None,
     ) -> None:
-        if not check_zmq_proxy_reachable(proxy_server_addr):
-            raise ConnectionError(f"ZMQ proxy at {proxy_server_addr} is not reachable. Ensure the proxy is started before this runner (aerpawlib-run-proxy).")
-        logger.info("Successfully connected to ZMQ proxy at %s", proxy_server_addr)
+        in_port = int(in_port if in_port is not None else ZMQ_PROXY_IN_PORT)
+        out_port = int(out_port if out_port is not None else ZMQ_PROXY_OUT_PORT)
+        if not check_zmq_proxy_reachable(proxy_server_addr, in_port=in_port, out_port=out_port):
+            raise ConnectionError(
+                f"ZMQ proxy at {proxy_server_addr}:{in_port}/{out_port} is not reachable. "
+                "Ensure the proxy is started before this runner (aerpawlib-run-proxy) and both ports are open.",
+            )
+        logger.info("ZMQ proxy TCP ports open at %s (:%s/:%s)", proxy_server_addr, in_port, out_port)
         self._zmq_identifier = vehicle_identifier
         self._zmq_proxy_server = proxy_server_addr
-        self._zmq_context = zmq.asyncio.Context()
-        self._zmq_messages_sending = asyncio.Queue()
-        self._zmq_received_fields = {}
-
-    @background
-    async def _zmq_bg_sub(self, vehicle: Vehicle) -> None:
-        socket = zmq.asyncio.Socket(
-            context=self._zmq_context,
-            io_loop=asyncio.get_running_loop(),
-            socket_type=zmq.SUB,
+        self._zmq_transport = ZmqTransport(
+            vehicle_identifier,
+            proxy_server_addr,
+            in_port=in_port,
+            out_port=out_port,
         )
-        socket.setsockopt_string(zmq.SUBSCRIBE, "")
+        self._zmq_pending_queries: dict[str, dict[str, Any]] = {}
+        self._zmq_handle_vehicle: Vehicle | None = None
+        # Aliases kept for unit tests that inspect internal names.
+        self._zmq_context = None
+        self._zmq_received_fields: dict[str, dict[str, Any]] = {}
 
-        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_OUT_PORT}")
-
-        async def _handle(msg):
-            try:
-                await self._zmq_handle_request(vehicle, msg)
-            except Exception as e:
-                logger.error(f"Error handling ZMQ message: {e}", exc_info=True)
-
-        try:
-            while self._running:
-                message = await socket.recv_pyobj()
-                logger.debug(f"Received ZMQ message: {message}")
-                if message.get("identifier") != self._zmq_identifier:
-                    continue
-                asyncio.create_task(_handle(message))
-        finally:
-            socket.close()
+    def _resolve_transition_state(self, next_state: str) -> str | None:
+        if not self._states:
+            self._build()
+        aliases = getattr(self, "_zmq_state_aliases", {})
+        resolved = aliases.get(next_state, next_state)
+        if resolved not in self._states:
+            logger.warning(
+                "ZmqStateMachine: ignoring unknown transition %r (resolved %r)",
+                next_state,
+                resolved,
+            )
+            return None
+        return resolved
 
     async def _zmq_handle_request(
         self,
@@ -423,8 +425,11 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
                 return
-            self._next_state_overrides.append(next_state)
-            logger.info(f"ZmqStateMachine: queued state override -> '{next_state}'")
+            resolved = self._resolve_transition_state(str(next_state))
+            if resolved is None:
+                return
+            self._next_state_overrides.append(resolved)
+            logger.info(f"ZmqStateMachine: queued state override -> '{resolved}'")
         elif msg_type == ZMQ_TYPE_FIELD_REQUEST:
             field = message.get("field")
             sender = message.get("from")
@@ -433,10 +438,15 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
                 return
-            return_val = None
-            if field in self._exported_fields:
-                return_val = await self._exported_fields[field](vehicle)
-            await self._reply_queried_field(sender, field, return_val)
+            req_id = message.get("req_id")
+            try:
+                return_val = None
+                if field in self._exported_fields:
+                    return_val = await self._exported_fields[field](vehicle)
+                await self._reply_queried_field(sender, field, return_val, req_id=req_id)
+            except Exception as e:
+                logger.error("ZmqStateMachine: field handler %r failed: %s", field, e, exc_info=True)
+                await self._reply_queried_field(sender, field, None, req_id=req_id, error=str(e))
         elif msg_type == ZMQ_TYPE_FIELD_CALLBACK:
             field = message.get("field")
             msg_from = message.get("from")
@@ -445,42 +455,29 @@ class ZmqStateMachine(StateMachine):
                     "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
                 return
-            value = message.get("value")
+            from aerpawlib.v1.util import Coordinate, VectorNED
+
+            value = decode_value(
+                message.get("value"),
+                coordinate_cls=Coordinate,
+                vector_cls=VectorNED,
+            )
+            req_id = message.get("req_id")
+            if isinstance(req_id, str) and req_id in self._zmq_pending_queries:
+                pending = self._zmq_pending_queries[req_id]
+                pending["value"] = value
+                pending["error"] = message.get("error")
+                pending["event"].set()
+                return
             if msg_from not in self._zmq_received_fields:
                 self._zmq_received_fields[msg_from] = {}
             self._zmq_received_fields[msg_from][field] = value
 
-    @background
-    async def _zmq_bg_pub(self, _: Vehicle) -> None:
-        socket = zmq.asyncio.Socket(
-            context=self._zmq_context,
-            io_loop=asyncio.get_running_loop(),
-            socket_type=zmq.PUB,
-        )
-        socket.connect(f"tcp://{self._zmq_proxy_server}:{ZMQ_PROXY_IN_PORT}")
-        try:
-            hello_msg = {
-                "msg_type": ZMQ_TYPE_HELLO,
-                "from": self._zmq_identifier,
-            }
-            await socket.send_pyobj(hello_msg)
-        except Exception as e:
-            logger.warning("ZmqStateMachine: failed to send hello message: %s", e)
-
-        try:
-            while self._running:
-                msg_sending = await self._zmq_messages_sending.get()
-                await socket.send_pyobj(msg_sending)
-        finally:
-            try:
-                goodbye_msg = {
-                    "msg_type": ZMQ_TYPE_GOODBYE,
-                    "from": self._zmq_identifier,
-                }
-                await asyncio.wait_for(socket.send_pyobj(goodbye_msg), timeout=0.2)
-            except Exception:
-                pass
-            socket.close()
+    async def _on_zmq_message(self, message: dict[str, Any]) -> None:
+        vehicle = self._zmq_handle_vehicle
+        if vehicle is None:
+            return
+        await self._zmq_handle_request(vehicle, message)
 
     async def run(
         self,
@@ -494,16 +491,41 @@ class ZmqStateMachine(StateMachine):
                 "ZMQ bindings not initialized. Pass --zmq-identifier and --zmq-proxy-server when running (e.g. --zmq-identifier leader --zmq-proxy-server 127.0.0.1)",
             )
 
-        await super().run(vehicle, build_before_running=False)
+        self._zmq_handle_vehicle = vehicle
+        transport: ZmqTransport = self._zmq_transport
+        transport.set_handler(self._on_zmq_message)
+        await transport.start()
+        try:
+            await super().run(vehicle, build_before_running=False)
+        finally:
+            await transport.stop()
 
-    async def transition_runner(self, identifier: str, state: str) -> None:
-        transition_obj = {
-            "msg_type": ZMQ_TYPE_TRANSITION,
-            "from": self._zmq_identifier,
-            "identifier": identifier,
-            "next_state": state,
-        }
-        await self._zmq_messages_sending.put(transition_obj)
+    async def wait_for_peers(
+        self,
+        identifiers: list[str],
+        timeout: float = 30.0,
+    ) -> None:
+        """Block until each identifier has sent HELLO."""
+        await self._zmq_transport.wait_for_peers(identifiers, timeout=timeout)
+
+    async def transition_runner(
+        self,
+        identifier: str,
+        state: str,
+        timeout: float = ZMQ_TRANSITION_TIMEOUT_S,
+    ) -> None:
+        if not getattr(self, "_zmq_transport", None) or not self._zmq_transport.started:
+            raise RuntimeError("ZMQ not initialized; call _initialize_zmq_bindings first")
+        await self._zmq_transport.send(
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": self._zmq_identifier,
+                "identifier": identifier,
+                "next_state": state,
+            },
+            reliable=True,
+            timeout=timeout,
+        )
 
     async def query_field(
         self,
@@ -511,37 +533,43 @@ class ZmqStateMachine(StateMachine):
         field: str,
         timeout: float = ZMQ_QUERY_FIELD_TIMEOUT_S,
     ) -> Any:
-        if identifier not in self._zmq_received_fields:
-            self._zmq_received_fields[identifier] = {}
-        self._zmq_received_fields[identifier][field] = self._ZMQ_FIELD_PENDING
-        query_obj = {
-            "msg_type": ZMQ_TYPE_FIELD_REQUEST,
-            "from": self._zmq_identifier,
-            "identifier": identifier,
-            "field": field,
-        }
-        await self._zmq_messages_sending.put(query_obj)
+        if not getattr(self, "_zmq_transport", None) or not self._zmq_transport.started:
+            raise RuntimeError("ZMQ not initialized; call _initialize_zmq_bindings first")
+        import uuid
 
-        async def _wait_for_reply() -> None:
-            """Wait until the requested field value is received."""
-            while self._zmq_received_fields[identifier][field] is self._ZMQ_FIELD_PENDING:
-                await asyncio.sleep(0.01)
-
+        req_id = uuid.uuid4().hex
+        event = asyncio.Event()
+        self._zmq_pending_queries[req_id] = {"event": event, "value": None, "error": None}
         try:
-            await asyncio.wait_for(
-                _wait_for_reply(),
+            await self._zmq_transport.send(
+                {
+                    "msg_type": ZMQ_TYPE_FIELD_REQUEST,
+                    "from": self._zmq_identifier,
+                    "identifier": identifier,
+                    "field": field,
+                    "req_id": req_id,
+                },
+                reliable=True,
                 timeout=timeout,
             )
-        except asyncio.TimeoutError:
-            self._zmq_received_fields[identifier].pop(field, None)
+            await asyncio.wait_for(event.wait(), timeout=timeout)
+        except TimeoutError:
             raise
-        return self._zmq_received_fields[identifier][field]
+        finally:
+            pending = self._zmq_pending_queries.pop(req_id, None)
+        if pending is None:
+            raise TimeoutError(f"ZMQ query_field {identifier}.{field} lost pending state")
+        if pending.get("error"):
+            raise RuntimeError(f"Remote field {identifier}.{field} failed: {pending['error']}")
+        return pending["value"]
 
     async def _reply_queried_field(
         self,
         identifier: str,
         field: str,
         value: Any,
+        req_id: str | None = None,
+        error: str | None = None,
     ) -> None:
         reply_obj = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -550,4 +578,8 @@ class ZmqStateMachine(StateMachine):
             "field": field,
             "value": value,
         }
-        await self._zmq_messages_sending.put(reply_obj)
+        if req_id is not None:
+            reply_obj["req_id"] = req_id
+        if error is not None:
+            reply_obj["error"] = error
+        await self._zmq_transport.send(reply_obj, reliable=False)

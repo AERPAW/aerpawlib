@@ -97,8 +97,9 @@ class Vehicle:
                     None disables AERPAW platform notifications.
         """
         self._system = system
-        if connection_string.lower().startswith("udp://"):
-            connection_string = "udpin://" + connection_string[6:]
+        from aerpawlib._internal.connection_string import normalize_mavsdk_connection_string
+
+        connection_string = normalize_mavsdk_connection_string(connection_string)
         self._connection_string = connection_string
         self._mavsdk_server_port = mavsdk_server_port
         self._state = VehicleState()
@@ -320,6 +321,12 @@ class Vehicle:
         logger.debug("can_land: passed")
         return True, ""
 
+    async def _require_can(self, check: tuple[bool, str] | Any, action: str, error_cls: type[Exception]) -> None:
+        """Raise *error_cls* if a can_* check failed."""
+        ok, msg = check if isinstance(check, tuple) else await check
+        if not ok:
+            raise error_cls(f"{action} rejected by safety checks: {msg}")
+
     @classmethod
     async def connect(
         cls,
@@ -347,8 +354,9 @@ class Vehicle:
         Raises:
             ConnectionTimeoutError: If no heartbeat is received within timeout.
         """
-        if connection_string.lower().startswith("udp://"):
-            connection_string = "udpin://" + connection_string[6:]
+        from aerpawlib._internal.connection_string import normalize_mavsdk_connection_string
+
+        connection_string = normalize_mavsdk_connection_string(connection_string)
         logger.info(
             f"Connecting to vehicle at {connection_string} (port={mavsdk_server_port}, timeout={timeout}s)",
         )
@@ -589,7 +597,12 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        f"Telemetry: health stream active (armable={health.is_armable})",
+                        "Telemetry: health stream active "
+                        f"(mavsdk_armable={health.is_armable} "
+                        f"global={health.is_global_position_ok} "
+                        f"local={health.is_local_position_ok} "
+                        f"home={health.is_home_position_ok} "
+                        f"combined={self._state.armable})",
                     )
                     first[0] = False
 
@@ -719,6 +732,17 @@ class Vehicle:
         finally:
             update_progress(state="")
 
+    async def _await_preflight_for_takeoff(self) -> None:
+        """Wait for armable + 3D GPS without arming, so takeoff can be validated first."""
+        if self.armed:
+            return
+        await self._wait_for_armable()
+        await _wait_for_condition(
+            lambda: self.gps.fix_type >= GPS_3D_FIX_TYPE,
+            timeout=POSITION_READY_TIMEOUT_S,
+            timeout_message=f"{self._vehicle_type_label().capitalize()}: no GPS 3D fix",
+        )
+
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Wait for pre-arm conditions. Call before run."""
         self._will_arm = should_arm
@@ -754,6 +778,10 @@ class Vehicle:
                 update_progress(state="Waiting for EKF...")
                 while not self.ekf_ready:
                     await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
+            # GUIDED before arm: ArduCopter auto-disarms if armed in STABILIZE
+            # without RC. Mode switch also needs a position estimate.
+            update_progress(state="Switching to GUIDED...")
+            await self._pre_auto_arm()
             await self.set_armed(True)
             logger.info(f"{label.capitalize()} armed successfully")
         finally:
@@ -797,8 +825,8 @@ class Vehicle:
         if not self._will_arm:
             logger.debug("Vehicle: _arm_vehicle skipped (_will_arm=False)")
             return
-        await self._pre_auto_arm()
         if self._aerpaw_platform and self._aerpaw_platform.is_connected:
+            await self._pre_auto_arm()
             await self._await_aerpaw_safety_pilot_arm()
         else:
             await self._auto_arm_standalone()
@@ -812,7 +840,7 @@ class Vehicle:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
 
-        if hasattr(self, "_set_guided_mode"):
+        if hasattr(self, "_set_guided_mode") and self.mode not in {"OFFBOARD", "HOLD"}:
             await self._set_guided_mode()
             await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
@@ -897,6 +925,10 @@ class Vehicle:
         """
         if self._connection.closed or self._system is None:
             raise RuntimeError("Cannot set_groundspeed: vehicle is closed")
+        if self.safety is not None:
+            ok, msg = await self.safety.validate_change_speed(velocity)
+            if not ok:
+                raise RuntimeError(f"set_groundspeed rejected by safety checks: {msg}")
         try:
             await self._system.action.set_current_speed(velocity)
         except Exception as e:

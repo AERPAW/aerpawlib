@@ -60,6 +60,10 @@ class Drone(Vehicle):
     def _standalone_arm_wait_ekf(self) -> bool:
         return True
 
+    async def _pre_auto_arm(self) -> None:
+        """ArduCopter auto-disarms if armed in STABILIZE without RC. Enter GUIDED first."""
+        await self._set_guided_mode()
+
     async def set_heading(
         self,
         heading: float | None,
@@ -134,6 +138,11 @@ class Drone(Vehicle):
                 type="takeoff",
                 arguments={"altitude": altitude},
             )
+        try:
+            await self._await_preflight_for_takeoff()
+        except TimeoutError as e:
+            raise TakeoffError(str(e)) from e
+        await self._require_can(self.can_takeoff(altitude), "takeoff", TakeoffError)
         await self.await_ready_to_move()
         time_since_arm = time.monotonic() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
@@ -147,13 +156,20 @@ class Drone(Vehicle):
         try:
             update_progress(state="Taking off")
             logger.debug(
-                "Drone: takeoff sending set_takeoff_altitude({altitude}m) and takeoff()",
+                "Drone: takeoff sending set_takeoff_altitude(%.1fm) and takeoff()",
+                altitude,
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
             self._ready_to_move = lambda s: s.position.alt >= altitude * min_alt_tolerance
             last_log = 0.0
+            climb_start = time.monotonic()
             while not self.done_moving():
+                if time.monotonic() - climb_start > DEFAULT_GOTO_TIMEOUT_S:
+                    raise TakeoffError(
+                        f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s "
+                        f"(alt={self.position.alt:.1f}m, target={altitude:.1f}m)",
+                    )
                 now = time.monotonic()
                 if now - last_log >= TAKEOFF_LOG_INTERVAL_S:
                     logger.debug(
@@ -190,6 +206,7 @@ class Drone(Vehicle):
         """
         if self._event_log:
             self._event_log.log_event("command", type="land")
+        await self._require_can(self.can_land(), "land", LandingError)
         await self.await_ready_to_move()
         if self._event_log:
             self._event_log.log_event("land_start")
@@ -229,10 +246,14 @@ class Drone(Vehicle):
             self._event_log.log_event("command", type="return_to_launch")
         from aerpawlib.cli.progress_bar import update_progress
 
+        dest = Coordinate(home.lat, home.lon, self.position.alt)
         try:
             update_progress(state="Returning home")
             logger.debug("Drone: return_to_launch navigating home then landing")
-            await self.goto_coordinates(home)
+            try:
+                await self.goto_coordinates(dest)
+            except NavigationError as e:
+                logger.warning("Could not navigate home for RTL (%s); landing in place", e)
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
@@ -277,6 +298,7 @@ class Drone(Vehicle):
                 },
             )
         _validate_tolerance(tolerance, "tolerance")
+        await self._require_can(self.can_goto(coordinates, tolerance=tolerance), "goto", NavigationError)
         if target_heading is not None:
             await self.set_heading(target_heading, blocking=False)
         await self.await_ready_to_move()
@@ -486,49 +508,45 @@ class Drone(Vehicle):
         We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll/resend until the flight controller confirms the mode change.
         """
-        if self.mode == "OFFBOARD":
+        if self.mode in {"OFFBOARD", "HOLD"}:
             logger.debug(
-                "Drone: already in GUIDED (OFFBOARD) mode, skipping mode switch",
+                f"Drone: already in pre-arm mode {self.mode!r}, skipping mode switch",
             )
             return
         logger.info(
             f"Drone: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )
+        # action.hold() uses the Action plugin (reliable). mavlink_direct SET_MODE
+        # often fails to send on udpin SITL. LOITER/HOLD is armable and does not
+        # auto-disarm like STABILIZE; takeoff() then enters GUIDED/OFFBOARD.
         try:
-            fields = {
-                "target_system": 1,
-                "target_component": 1,
-                "command": mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                "confirmation": 0,
-                "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-                "param2": float(COPTER_GUIDED_MODE),
-                "param3": 0.0,
-                "param4": 0.0,
-                "param5": 0.0,
-                "param6": 0.0,
-                "param7": 0.0,
-            }
-            msg = MavlinkMessage(
-                system_id=1,
-                component_id=1,
-                target_system_id=1,
-                target_component_id=1,
-                message_name=MAVLINK_MSG_COMMAND_LONG,
-                fields_json=json.dumps(fields),
-            )
-            await self._system.mavlink_direct.send_message(msg)
+            await self._system.action.hold()
+            await asyncio.sleep(0.2)
         except Exception as e:
-            logger.warning(f"Drone: failed to send GUIDED (OFFBOARD) mode command: {e}")
+            logger.warning(f"Drone: action.hold() failed: {e}")
+        if self.mode in {"OFFBOARD", "HOLD"}:
+            logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
             return
 
-        try:
-            await _wait_for_condition(
-                lambda: self.mode == "OFFBOARD",
-                timeout=COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
-                timeout_message=(f"Drone did not enter GUIDED (OFFBOARD) mode within {COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S}s"),
-            )
-            logger.info("Drone: GUIDED (OFFBOARD) mode confirmed")
-        except TimeoutError:
-            logger.warning(
-                f"Drone: mode switch timeout (current mode={self.mode!r}); commands may fail if vehicle is not in GUIDED (OFFBOARD) mode",
-            )
+        from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
+
+        sysid = resolve_mav_sysid(self._system)
+        msg = make_set_mode_message(sysid, COPTER_GUIDED_MODE)
+        deadline = time.monotonic() + COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S
+        last_send = 0.0
+        while time.monotonic() < deadline:
+            if self.mode in {"OFFBOARD", "HOLD"}:
+                logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
+                return
+            if time.monotonic() - last_send >= 0.5:
+                try:
+                    await self._system.mavlink_direct.send_message(msg)
+                except Exception as e:
+                    logger.warning(
+                        f"Drone: failed to send GUIDED (OFFBOARD) mode command: {e}",
+                    )
+                last_send = time.monotonic()
+            await asyncio.sleep(0.05)
+        logger.warning(
+            f"Drone: mode switch timeout (current mode={self.mode!r}); commands may fail if vehicle is not in GUIDED (OFFBOARD) mode",
+        )

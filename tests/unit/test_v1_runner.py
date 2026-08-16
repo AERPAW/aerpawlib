@@ -551,11 +551,11 @@ class TestZmqStateMachine:
             "msg_type": ZMQ_TYPE_TRANSITION,
             "from": "other",
             "identifier": "me",
-            "next_state": "target_state",
+            "next_state": "start",
         }
         await z._zmq_handle_request(DummyVehicle(), msg)
         assert z._override_next_state_transition is True
-        assert z._next_state_overr == "target_state"
+        assert z._next_state_overr == "start"
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 
@@ -566,6 +566,14 @@ class TestZmqStateMachine:
         class Z(ZmqStateMachine):
             @state("start", first=True)
             async def start(self, vehicle):
+                return None
+
+            @state("state_one")
+            async def state_one(self, vehicle):
+                return None
+
+            @state("state_two")
+            async def state_two(self, vehicle):
                 return None
 
         z = Z()
@@ -602,3 +610,52 @@ class TestZmqStateMachine:
         assert z._next_state_overr == ""
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
+
+    @pytest.mark.asyncio
+    async def test_unknown_transition_is_ignored(self):
+        from aerpawlib.v1.constants import ZMQ_TYPE_TRANSITION
+
+        class Z(ZmqStateMachine):
+            @state("start", first=True)
+            async def start(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        await z._zmq_handle_request(
+            DummyVehicle(),
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": "other",
+                "identifier": "me",
+                "next_state": "does_not_exist",
+            },
+        )
+        assert z._next_state_overrides == []
+
+    @pytest.mark.asyncio
+    async def test_expose_zmq_alias_maps_to_internal_state(self):
+        from aerpawlib.v1.constants import ZMQ_TYPE_TRANSITION
+
+        class Z(ZmqStateMachine):
+            @state("idle", first=True)
+            async def idle(self, vehicle):
+                return None
+
+            @expose_zmq("remote_takeoff")
+            @state("takeoff")
+            async def takeoff(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        await z._zmq_handle_request(
+            DummyVehicle(),
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": "other",
+                "identifier": "me",
+                "next_state": "remote_takeoff",
+            },
+        )
+        assert z._next_state_overr == "takeoff"

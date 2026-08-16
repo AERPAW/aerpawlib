@@ -337,11 +337,11 @@ class TestDisconnectWatch:
             "msg_type": ZMQ_TYPE_TRANSITION,
             "from": "other",
             "identifier": "me",
-            "next_state": "target_state",
+            "next_state": "a",
         }
         await z._zmq_handle_message(MockVehicle(), msg)
         assert z._override_next_state_transition is True
-        assert z._next_state_overr == "target_state"
+        assert z._next_state_overr == "a"
         if z._zmq_context is not None:
             z._zmq_context.destroy(linger=0)
 
@@ -352,6 +352,14 @@ class TestDisconnectWatch:
         class Z(ZmqStateMachine):
             @state(name="a", first=True)
             async def a(self, vehicle):
+                return None
+
+            @state(name="state_one")
+            async def state_one(self, vehicle):
+                return None
+
+            @state(name="state_two")
+            async def state_two(self, vehicle):
                 return None
 
         z = Z()
@@ -394,9 +402,53 @@ class TestDisconnectWatch:
             z._zmq_context.destroy(linger=0)
 
     @pytest.mark.asyncio
+    async def test_unknown_transition_is_ignored(self):
+        class Z(ZmqStateMachine):
+            @state(name="a", first=True)
+            async def a(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        await z._zmq_handle_message(
+            MockVehicle(),
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": "other",
+                "identifier": "me",
+                "next_state": "does_not_exist",
+            },
+        )
+        assert z._next_state_overrides == []
+
+    @pytest.mark.asyncio
+    async def test_expose_zmq_alias_maps_to_internal_state(self):
+        class Z(ZmqStateMachine):
+            @state(name="idle", first=True)
+            async def idle(self, vehicle):
+                return None
+
+            @expose_zmq("remote_takeoff")
+            @state(name="takeoff")
+            async def takeoff(self, vehicle):
+                return None
+
+        z = Z()
+        z._initialize_zmq_bindings("me", "127.0.0.1")
+        await z._zmq_handle_message(
+            MockVehicle(),
+            {
+                "msg_type": ZMQ_TYPE_TRANSITION,
+                "from": "other",
+                "identifier": "me",
+                "next_state": "remote_takeoff",
+            },
+        )
+        assert z._next_state_overr == "takeoff"
+
+    @pytest.mark.asyncio
     async def test_handle_field_callback_sets_value_and_signals_event(self):
-        """FIELD_CALLBACK stores value and sets
-        the asyncio.Event for a pending query."""
+        """FIELD_CALLBACK with req_id completes a pending query."""
 
         class Z(ZmqStateMachine):
             @state(name="s", first=True)
@@ -406,7 +458,7 @@ class TestDisconnectWatch:
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
         event = asyncio.Event()
-        z._zmq_received_fields["sender"] = {"myfield": event}
+        z._zmq_pending_queries["req-1"] = {"event": event, "value": None, "error": None}
 
         msg = {
             "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
@@ -414,12 +466,11 @@ class TestDisconnectWatch:
             "identifier": "me",
             "field": "myfield",
             "value": 42,
+            "req_id": "req-1",
         }
         await z._zmq_handle_message(MockVehicle(), msg)
-        assert z._zmq_received_fields["sender"]["myfield"] == 42
+        assert z._zmq_pending_queries["req-1"]["value"] == 42
         assert event.is_set()
-        if z._zmq_context is not None:
-            z._zmq_context.destroy(linger=0)
 
     @pytest.mark.asyncio
     async def test_unsolicited_field_callback_stored_without_error(self):
@@ -483,9 +534,7 @@ class TestDisconnectWatch:
             z._zmq_context.destroy(linger=0)
 
     @pytest.mark.asyncio
-    async def test_transition_runner_enqueues_message(self):
-        """transition_runner() puts a TRANSITION message on the send queue."""
-
+    async def test_transition_runner_raises_if_not_started(self):
         class Z(ZmqStateMachine):
             @state(name="s", first=True)
             async def s(self, vehicle):
@@ -493,54 +542,8 @@ class TestDisconnectWatch:
 
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
-        z._zmq_send_queue = asyncio.Queue()
-        await z.transition_runner("other", "next_step")
-        msg = z._zmq_send_queue.get_nowait()
-        assert msg["msg_type"] == ZMQ_TYPE_TRANSITION
-        assert msg["identifier"] == "other"
-        assert msg["next_state"] == "next_step"
-        assert msg["from"] == "me"
-        if z._zmq_context is not None:
-            z._zmq_context.destroy(linger=0)
-
-    @pytest.mark.asyncio
-    async def test_query_field_returns_value_on_reply(self):
-        """query_field resolves immediately when
-        a FIELD_CALLBACK arrives concurrently."""
-
-        class Z(ZmqStateMachine):
-            @state(name="s", first=True)
-            async def s(self, vehicle):
-                return None
-
-        z = Z()
-        z._initialize_zmq_bindings("requester", "127.0.0.1")
-        z._zmq_send_queue = asyncio.Queue()
-        vehicle = MockVehicle()
-
-        async def _inject_reply():
-            # Wait until query_field has registered its Event
-            while "responder" not in z._zmq_received_fields or "altitude" not in z._zmq_received_fields.get("responder", {}):
-                await asyncio.sleep(0.005)
-            reply = {
-                "msg_type": ZMQ_TYPE_FIELD_CALLBACK,
-                "from": "responder",
-                "identifier": "requester",
-                "field": "altitude",
-                "value": 100.0,
-            }
-            await z._zmq_handle_message(vehicle, reply)
-
-        task = asyncio.create_task(_inject_reply())
-        result = await asyncio.wait_for(
-            z.query_field("responder", "altitude", timeout=1.0),
-            timeout=2.0,
-        )
-        assert result == 100.0
-        assert "altitude" not in z._zmq_received_fields["responder"]
-        await task
-        if z._zmq_context is not None:
-            z._zmq_context.destroy(linger=0)
+        with pytest.raises(RuntimeError, match="ZMQ not initialized"):
+            await z.transition_runner("other", "next_step")
 
     def test_expose_field_in_subclass_preserves_parent_initial_state(self):
         class Base(ZmqStateMachine):
@@ -581,9 +584,12 @@ class TestDisconnectWatch:
 
         z = Z()
         z._initialize_zmq_bindings("me", "127.0.0.1")
-        # Patch out the ZMQ background loops so we don't need a live proxy
-        z._zmq_recv_loop = lambda vehicle: asyncio.sleep(0)
-        z._zmq_send_loop = lambda vehicle: asyncio.sleep(0)
+
+        async def _noop() -> None:
+            return None
+
+        z._zmq_transport.start = _noop  # type: ignore[method-assign]
+        z._zmq_transport.stop = _noop  # type: ignore[method-assign]
         await z.run(MockVehicle())
         assert "end" in visited
         if z._zmq_context is not None:

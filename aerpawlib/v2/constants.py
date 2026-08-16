@@ -71,6 +71,8 @@ ZMQ_TYPE_HELLO = "hello"
 """Message type for client connection handshake over ZMQ."""
 ZMQ_TYPE_GOODBYE = "goodbye"
 """Message type for client disconnection over ZMQ."""
+ZMQ_TYPE_ACK = "ack"
+"""Message type for reliable-send acknowledgements over ZMQ."""
 
 
 # Safety checker
@@ -184,6 +186,18 @@ DEFAULT_HUMAN_READABLE_AGENT_ID = os.getenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_N
 
 ZMQ_REACHABILITY_TIMEOUT_S = 2.0
 """Default timeout for ZMQ reachability check (seconds)"""
+
+ZMQ_CONNECT_TIMEOUT_S = 2.0
+"""Timeout waiting for PUB/SUB EVENT_CONNECTED after connect()."""
+
+ZMQ_HELLO_INTERVAL_S = 0.2
+"""Interval between HELLO presence heartbeats."""
+
+ZMQ_ACK_RETRY_INTERVAL_S = 0.15
+"""Interval between reliable-send retries while waiting for ACK."""
+
+ZMQ_TRANSITION_TIMEOUT_S = 10.0
+"""Default timeout for reliable transition_runner delivery."""
 
 
 # GPS Constants

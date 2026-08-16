@@ -23,6 +23,7 @@ from .disconnect import (
     await_disconnect_future,
     run_runner_with_disconnect_guard,
 )
+from .rtl import return_home_if_armed
 from .discovery import discover_runner
 
 logger = logging.getLogger("aerpawlib")
@@ -155,12 +156,9 @@ def run_v2_experiment(
         shutdown_event = asyncio.Event()
 
         def handle_shutdown() -> None:
-            """Initiate graceful shutdown from signal handlers or disconnects."""
+            """Request graceful shutdown from SIGINT/SIGTERM."""
             logger.warning("Initiating graceful shutdown...")
             shutdown_event.set()
-            if vehicle and not vehicle.closed:
-                with contextlib.suppress(RuntimeError):
-                    asyncio.get_running_loop().create_task(vehicle.aclose())
 
         if event_log:
             assert structured_log_path is not None
@@ -279,17 +277,8 @@ def run_v2_experiment(
         finally:
             if vehicle:
                 heartbeat_lost = disconnect_future is not None and disconnect_future.done() and not disconnect_future.cancelled() and disconnect_future.exception() is not None
-                if success and not vehicle.closed and vehicle.armed and args.rtl_at_end and not heartbeat_lost:
-                    update_progress("Vehicle still armed! Returning home...", completed=90)
-                    logger.warning("Vehicle still armed! Returning home...")
-                    try:
-                        if args.vehicle == VEHICLE_TYPE_DRONE:
-                            await vehicle.return_to_launch()
-                        elif args.vehicle == VEHICLE_TYPE_ROVER and vehicle.home_coords:
-                            await vehicle.goto_coordinates(vehicle.home_coords)
-                    except Exception as e:
-                        logger.error(f"Return home failed: {e}")
-                        traceback.print_exc()
+                reason = "heartbeat lost" if heartbeat_lost else ("experiment failed" if not success else "experiment ending")
+                await return_home_if_armed(vehicle, args.vehicle, args.rtl_at_end, reason=reason)
                 await vehicle.aclose()
             if safety_client is not None and hasattr(safety_client, "close"):
                 try:
