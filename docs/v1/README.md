@@ -128,11 +128,12 @@ Coordinate multiple vehicles with `ZmqStateMachine`:
 
 Design pattern:
 
-- Vehicle scripts expose a idle `wait_loop` state and command states triggered remotely
+- Call `await self.wait_for_peers([...])` before the first `transition_runner` or `query_field`
+- Vehicle scripts expose an idle `wait_loop` state and command states triggered remotely
 - Ground script calls `transition_runner` and `query_field` on peer identifiers
 - Expose data with `@expose_field_zmq`; expose command states with `@expose_zmq`
 
-Full example: `examples/zmq_preplanned_orbit/` (tracer, orbiter, ground coordinator).
+Full example: `examples/v1/zmq_preplanned_orbit/` (tracer, orbiter, ground coordinator).
 
 ## Migration from DroneKit aerpawlib (morzack/aerpawlib-vehicle-control)
 

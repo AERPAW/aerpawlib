@@ -38,40 +38,40 @@
 ```bash
 # Basic examples
 aerpawlib --api-version v1 --script examples/v1/basic_example.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 aerpawlib --api-version v1 --script examples/v1/basic_runner.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 aerpawlib --api-version v1 --script examples/v1/figure_eight.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 # State machine examples
 aerpawlib --script examples/v1/circle.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 aerpawlib --script examples/v1/squareoff_logging.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 # Preplanned trajectory (requires .plan file)
 aerpawlib --script examples/v1/preplanned_trajectory.py \
-    --vehicle drone --conn udp://127.0.0.1:14550 --file mission.plan
+    --vehicle drone --conn udpin://127.0.0.1:14550 --file mission.plan
 
 # External process
 aerpawlib --script examples/v1/external_runner.py \
-    --vehicle drone --conn udp://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550
 
 # GPS Logger (periodically log telemetry to CSV)
 aerpawlib --script examples/v1/gps_logger.py \
-    --vehicle drone --conn udp://127.0.0.1:14550 --output logs.csv --samplerate 2
+    --vehicle drone --conn udpin://127.0.0.1:14550 --output logs.csv --samplerate 2
 
 # Guided mission with background traffic testing (ping/iperf)
 aerpawlib --script examples/v1/guided_mission_ping_iperf.py \
-    --vehicle drone --conn udp://127.0.0.1:14550 --file plans/default.plan --destination_ip 127.0.0.1
+    --vehicle drone --conn udpin://127.0.0.1:14550 --file plans/default.plan --destination_ip 127.0.0.1
 
 # Rover search (search for rover utilizing safety checker and RSSI values)
 aerpawlib --script examples/v1/rover_search.py \
-    --vehicle drone --conn udp://127.0.0.1:14550 --fake_radio True --search_time 10
+    --vehicle drone --conn udpin://127.0.0.1:14550 --fake_radio True --search_time 10
 ```
 
 ### v2 API
@@ -100,11 +100,11 @@ Requires `aerpawlib-run-proxy` in a separate terminal first.
 ```bash
 # Leader/follower
 aerpawlib --script examples/v1/zmq_runner/leader.py \
-    --conn udp://127.0.0.1:14550 --vehicle drone \
+    --conn udpin://127.0.0.1:14550 --vehicle drone \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 
 aerpawlib --script examples/v1/zmq_runner/follower.py \
-    --conn udp://127.0.0.1:14551 --vehicle drone \
+    --conn udpin://127.0.0.1:14551 --vehicle drone \
     --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
 

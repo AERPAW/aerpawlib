@@ -12,7 +12,7 @@ transitions using the v2 API.
    aerpawlib-run-proxy
    ```
 
-1. Run the leader (waits 10s, then triggers follower takeoff):
+1. Run the leader (waits for the follower HELLO, then triggers takeoff):
 
    ```bash
    aerpawlib --api-version v2 \
@@ -36,3 +36,4 @@ transitions using the v2 API.
 
 > **Note:** `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
 > scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).
+> Call `wait_for_peers` before the first remote command.

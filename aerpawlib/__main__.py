@@ -102,7 +102,7 @@ def run(
     skip_rtl: bool = typer.Option(
         False,
         "--skip-rtl",
-        help="Do not trigger an automatic Return-To-Launch (RTL) and land sequence at the end of the experiment.",
+        help="Do not auto RTL/RTH if the vehicle is still armed (success, exception, Ctrl-C, or heartbeat loss).",
         rich_help_panel="Execution Options",
     ),
     no_aerpaw_environment: bool = typer.Option(

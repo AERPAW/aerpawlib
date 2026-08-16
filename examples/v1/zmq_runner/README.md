@@ -12,12 +12,12 @@ transitions.
    aerpawlib-run-proxy
    ```
 
-1. Run the leader (waits 10s, then triggers follower takeoff):
+1. Run the leader (waits for the follower HELLO, then triggers takeoff):
 
    ```bash
     aerpawlib \
       --script examples/v1/zmq_runner/leader.py \
-      --conn udp://127.0.0.1:14550 \
+      --conn udpin://127.0.0.1:14550 \
       --vehicle drone \
       --zmq-identifier leader \
       --zmq-proxy-server 127.0.0.1
@@ -28,7 +28,7 @@ transitions.
    ```bash
     aerpawlib \
       --script examples/v1/zmq_runner/follower.py \
-      --conn udp://127.0.0.1:14551 \
+      --conn udpin://127.0.0.1:14551 \
       --vehicle drone \
       --zmq-identifier follower \
       --zmq-proxy-server 127.0.0.1
@@ -36,3 +36,4 @@ transitions.
 
 > **Note:** `--zmq-identifier` and `--zmq-proxy-server` are required for ZMQ-based
 > scripts. Each vehicle needs a unique identifier (e.g. `leader`, `follower`).
+> Call `wait_for_peers` before the first remote command.

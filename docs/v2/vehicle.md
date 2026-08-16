@@ -54,11 +54,12 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 | `goto_coordinates` | 3D tolerance (default 2 m) | 2D tolerance (default 2.1 m) |
 | `land` / `return_to_launch` | Yes | - |
 | `set_heading` | Yes | - |
-| `set_velocity` | Full NED | `down` ignored |
+| `set_velocity` | **[NOT SUPPORTED]** (filter) | **[NOT SUPPORTED]** (filter) |
 
 ### Validation and monitoring
 
 - `can_takeoff`, `can_goto`, `can_land`: preflight checks (see `aerpawlib.v2.safety`)
+- `takeoff` / `goto_coordinates` / `land` / `set_groundspeed` call `can_*` when a safety client is attached and fail closed
 - `watch_disconnect(timeout)`: future completes on heartbeat loss (CLI handles this automatically)
 
 ## Errors
