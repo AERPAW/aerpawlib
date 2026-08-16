@@ -5,7 +5,6 @@ import re
 from aerpawlib.v1.external import ExternalProcess
 from aerpawlib.v1.runner import (
     ZmqStateMachine,
-    sleep,
     state,
 )
 

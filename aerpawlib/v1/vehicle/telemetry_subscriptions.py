@@ -143,9 +143,7 @@ async def start_telemetry(vehicle: Vehicle) -> None:
             # Do not require health.is_armable / SYS_STATUS PREARM: MAVSDK maps
             # that PX4 bit and it stays false on ArduPilot even when ARM works.
             vehicle._ts_state.is_armable_state.set(
-                health.is_global_position_ok
-                and health.is_local_position_ok
-                and health.is_home_position_ok,
+                health.is_global_position_ok and health.is_local_position_ok and health.is_home_position_ok,
             )
 
     async def _mavlink_status_update() -> None:

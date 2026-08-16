@@ -12,7 +12,6 @@ Run with:
         --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 """
 
-import asyncio
 import re
 
 from aerpawlib.v2 import ExternalProcess, ZmqStateMachine, state

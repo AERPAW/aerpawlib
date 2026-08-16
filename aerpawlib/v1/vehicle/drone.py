@@ -6,15 +6,12 @@ See ``aerpawlib.v1.vehicle`` module documentation for usage and commands.
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import time
 from typing import TYPE_CHECKING
 
 from mavsdk.action import ActionError
-from mavsdk.mavlink_direct import MavlinkMessage
 from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
-from pymavlink import mavutil
 
 from aerpawlib.v1.constants import (
     ARMABLE_TIMEOUT_S,
@@ -26,7 +23,6 @@ from aerpawlib.v1.constants import (
     GPS_3D_FIX_TYPE,
     GUIDED_MODE_NAME,
     HEADING_TOLERANCE_DEG,
-    MAVLINK_MSG_COMMAND_LONG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
     OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,

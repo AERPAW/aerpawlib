@@ -482,8 +482,7 @@ class ZmqStateMachine(StateMachine):
         out_port = int(out_port if out_port is not None else ZMQ_PROXY_OUT_PORT)
         if not check_zmq_proxy_reachable(proxy_server_addr, in_port=in_port, out_port=out_port):
             raise ConnectionError(
-                f"ZMQ proxy at {proxy_server_addr}:{in_port}/{out_port} is not reachable. "
-                "Ensure the proxy is started before this runner (aerpawlib-run-proxy) and both ports are open.",
+                f"ZMQ proxy at {proxy_server_addr}:{in_port}/{out_port} is not reachable. Ensure the proxy is started before this runner (aerpawlib-run-proxy) and both ports are open.",
             )
         logger.info("ZMQ proxy TCP ports open at %s (:%s/:%s)", proxy_server_addr, in_port, out_port)
         self._zmq_identifier = vehicle_identifier

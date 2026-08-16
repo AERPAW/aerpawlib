@@ -23,8 +23,8 @@ from .disconnect import (
     await_disconnect_future,
     run_runner_with_disconnect_guard,
 )
-from .rtl import return_home_if_armed
 from .discovery import discover_runner
+from .rtl import return_home_if_armed
 
 logger = logging.getLogger("aerpawlib")
 

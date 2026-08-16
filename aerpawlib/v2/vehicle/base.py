@@ -597,12 +597,7 @@ class Vehicle:
                 )
                 if first[0]:
                     logger.info(
-                        "Telemetry: health stream active "
-                        f"(mavsdk_armable={health.is_armable} "
-                        f"global={health.is_global_position_ok} "
-                        f"local={health.is_local_position_ok} "
-                        f"home={health.is_home_position_ok} "
-                        f"combined={self._state.armable})",
+                        f"Telemetry: health stream active (mavsdk_armable={health.is_armable} global={health.is_global_position_ok} local={health.is_local_position_ok} home={health.is_home_position_ok} combined={self._state.armable})",
                     )
                     first[0] = False
 
