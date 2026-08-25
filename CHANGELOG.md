@@ -4,7 +4,11 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.4.7] (2026-08-25)
+
+### Summary
+
+Testbed compatibility fix for **v1 and v2**. The library-level safety checker now targets the C-VM in AERPAW, helper underscore flags still work, and auto RTL matches old aerpawlib (success only).
 
 ### Fixed
 
@@ -13,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Auto RTL/RTH runs only after a successful mission (unless `--skip-rtl`). Ctrl-C, script errors, and heartbeat loss no longer command RTL; the last GUIDED setpoint remains.
+- Auto RTL/RTH runs only after a successful mission (unless `--skip-rtl`). Ctrl-C, script errors, and heartbeat loss no longer command RTL; the last GUIDED setpoint remains. Examples use `--safety-checker-ip` / `--safety-checker-port` instead of extra-arg underscore forms.
 
 ## [1.4.6] (2026-08-16)
 
