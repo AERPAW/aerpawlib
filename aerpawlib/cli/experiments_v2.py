@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    DEFAULT_SAFETY_CHECKER_PORT,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
     VEHICLE_TYPE_ROVER,
 )
+from aerpawlib.cli.safety import resolve_safety_checker_target
 
 from .disconnect import (
     await_disconnect_future,
@@ -88,16 +88,19 @@ def run_v2_experiment(
 
         update_progress("Checking safety client...", completed=15)
         is_aerpaw = aerpaw_platform.is_connected if aerpaw_platform else False
-        port_set = getattr(args, "safety_checker_port", None) is not None
-        ip_set = getattr(args, "safety_checker_ip", None) is not None
+        safety_target = resolve_safety_checker_target(
+            ip=getattr(args, "safety_checker_ip", None),
+            port=getattr(args, "safety_checker_port", None),
+            extra_args=unknown_args,
+            is_aerpaw=is_aerpaw,
+        )
 
-        if not port_set and not ip_set and not is_aerpaw:
+        if safety_target is None:
             safety_client = NoOpSafetyChecker(
                 "Not in AERPAW environment and neither --safety-checker-port nor --safety-checker-ip was provided.",
             )
         else:
-            effective_port = args.safety_checker_port if port_set else DEFAULT_SAFETY_CHECKER_PORT
-            safety_addr = args.safety_checker_ip if ip_set else "127.0.0.1"
+            safety_addr, effective_port = safety_target
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = await client.check_server_status()
@@ -276,9 +279,13 @@ def run_v2_experiment(
             traceback.print_exc()
         finally:
             if vehicle:
-                heartbeat_lost = disconnect_future is not None and disconnect_future.done() and not disconnect_future.cancelled() and disconnect_future.exception() is not None
-                reason = "heartbeat lost" if heartbeat_lost else ("experiment failed" if not success else "experiment ending")
-                await return_home_if_armed(vehicle, args.vehicle, args.rtl_at_end, reason=reason)
+                if success:
+                    await return_home_if_armed(
+                        vehicle,
+                        args.vehicle,
+                        args.rtl_at_end,
+                        reason="experiment ending",
+                    )
                 await vehicle.aclose()
             if safety_client is not None and hasattr(safety_client, "close"):
                 try:

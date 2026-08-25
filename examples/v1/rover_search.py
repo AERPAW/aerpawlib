@@ -8,7 +8,6 @@ from struct import unpack
 from radio_power import RadioEmitter
 
 from aerpawlib.v1.runner import StateMachine, state, timed_state
-from aerpawlib.v1.safety import SafetyCheckerClient
 from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone, Vehicle
 
@@ -31,8 +30,6 @@ class RoverSearch(StateMachine):
         defaultFile = "ROVER_SEARCH_DATA_{}.csv".format(datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S"))
 
         parser = ArgumentParser()
-        parser.add_argument("--safety_checker_ip", help="ip of the safety checker server")
-        parser.add_argument("--safety_checker_port", help="port of the safety checker server")
         parser.add_argument(
             "--fake_radio",
             help="Launch the accompanying radio power script as a fake radio source",
@@ -61,7 +58,6 @@ class RoverSearch(StateMachine):
         args = parser.parse_args(args=extra_args)
 
         self.fake_radio = args.fake_radio
-        self.safety_checker = SafetyCheckerClient(args.safety_checker_ip, args.safety_checker_port)
         self.log_file = open(args.log, "w+")
         self.save_csv = args.save_csv
         self.search_time = datetime.timedelta(minutes=args.search_time)
@@ -103,16 +99,15 @@ class RoverSearch(StateMachine):
         heading_rad = heading * 2 * math.pi / 360
         move_vector = VectorNED(STEP_SIZE * math.cos(heading_rad), STEP_SIZE * math.sin(heading_rad), 0)
 
-        # ensure the next location is inside the geofence
+        # ensure the next location is inside the geofence (CLI --safety-checker-ip)
         cur_pos = vehicle.position
         next_pos = vehicle.position + move_vector
-        (valid_waypoint, msg) = self.safety_checker.validateWaypointCommand(cur_pos, next_pos)
-
-        # if the next location violates the geofence turn 90 degrees
-        if not valid_waypoint:
-            print("Can't go there:")
-            print(msg)
-            return "turn_right_90"
+        if vehicle.safety is not None:
+            valid_waypoint, msg = vehicle.safety.validateWaypointCommand(cur_pos, next_pos)
+            if not valid_waypoint:
+                print("Can't go there:")
+                print(msg)
+                return "turn_right_90"
 
         # otherwise move forward to the next location
         moving = asyncio.ensure_future(vehicle.goto_coordinates(vehicle.position + move_vector))

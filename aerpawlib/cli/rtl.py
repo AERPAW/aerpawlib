@@ -16,10 +16,10 @@ async def return_home_if_armed(
     rtl_at_end: bool,
     reason: str = "experiment ending",
 ) -> None:
-    """RTL/RTH when the vehicle is still armed, unless ``--skip-rtl``.
+    """RTL/RTH when the vehicle is still armed at successful end, unless ``--skip-rtl``.
 
-    Called on success, failure, Ctrl-C, and heartbeat loss. A lost link may
-    make the command fail; last GUIDED setpoint remains on the autopilot.
+    Callers must not invoke this on failure, Ctrl-C, or heartbeat loss. Old
+    aerpawlib only RTLd after ``runner.run()`` returned normally.
     """
     if not rtl_at_end or vehicle is None:
         return

@@ -20,7 +20,7 @@ DEFAULT_MAVSDK_PORT = 50051
 """Default gRPC port passed to embedded MAVSDK server processes."""
 
 DEFAULT_SAFETY_CHECKER_PORT = 14580
-"""Default safety-checker port used when connected to AERPAW. (v2 only)"""
+"""Default safety-checker port used when a host is implied (AERPAW or an explicit IP)."""
 
 # Vehicle type identifiers
 VEHICLE_TYPE_GENERIC = "generic"
