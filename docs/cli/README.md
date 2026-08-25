@@ -26,7 +26,7 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 1. Paths (`--script`, `--config`, `--log-file`, `--structured-log`) are resolved from your current working directory. Relative plan and KML paths also use that directory.
 1. Repeated `--config` files merge; later files override earlier ones. CLI flags override config files.
 1. Your script must define exactly one runner class (`BasicRunner`, `StateMachine`, or `ZmqStateMachine`).
-1. Extra arguments after the known flags are passed to `runner.initialize_args(...)`.
+1. Extra arguments after the known flags are passed unchanged to `runner.initialize_args(...)`. That includes helper-style underscore flags such as `--safety_checker_ip`.
 
 ### Required flags
 
@@ -48,7 +48,7 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 | Flag | Description |
 |------|-------------|
 | `--skip-init` | Skip vehicle initialize/armable checks |
-| `--skip-rtl` | Do not auto RTL/RTH if still armed (success, exception, Ctrl-C, heartbeat loss) |
+| `--skip-rtl` | Do not auto RTL/RTH at successful end if still armed |
 | `--conn-timeout` | Initial connection wait (seconds) |
 | `--heartbeat-timeout` | Heartbeat loss threshold |
 | `--mavsdk-port` | gRPC port per vehicle instance |
@@ -76,9 +76,9 @@ aerpawlib --zmq-identifier leader --zmq-proxy-server 127.0.0.1 ...  # terminal 2
 | Flag | Description |
 |------|-------------|
 | `--safety-checker-port` | SafetyCheckerServer port (default 14580 on AERPAW) |
-| `--safety-checker-ip` | Server host (default `127.0.0.1`) |
+| `--safety-checker-ip` | Server host. On AERPAW this defaults to the C-VM (`AP_EXPENV_OEOCVM_XM`, typically `192.168.32.25`). Outside AERPAW it defaults to `127.0.0.1` when a port or IP is given. |
 
-On AERPAW the process exits if the server is unreachable. When a client is attached, takeoff/goto/land/speed commands are validated before they are sent.
+On AERPAW the process exits if the server is unreachable. Unmatched args (including helper `--safety_checker_ip` / `--safety_checker_port`) are passed through to the script; the library also uses those extra args when attaching the client. When a client is attached, takeoff/goto/land/speed commands are validated before they are sent.
 
 ### Production (C-VM)
 
@@ -86,7 +86,7 @@ On AERPAW the process exits if the server is unreachable. When a client is attac
 2. Start `aerpawlib-safety-checker --port 14580 --vehicle_config <yaml>`.
 3. Give every vehicle a unique `--mavsdk-port` and `--zmq-identifier`.
 4. Point `--zmq-proxy-server` at the host running the proxy (use `127.0.0.1` only when every runner is on that same host).
-5. Without `--skip-rtl`, an armed vehicle returns home on success, Ctrl-C, a script error, or a lost link.
+5. Without `--skip-rtl`, an armed vehicle returns home only after a successful run. Ctrl-C, a script error, or a lost link leave the last GUIDED setpoint.
 
 ### Config files
 

@@ -102,7 +102,7 @@ def run(
     skip_rtl: bool = typer.Option(
         False,
         "--skip-rtl",
-        help="Do not auto RTL/RTH if the vehicle is still armed (success, exception, Ctrl-C, or heartbeat loss).",
+        help="Do not auto RTL/RTH at successful end if the vehicle is still armed.",
         rich_help_panel="Execution Options",
     ),
     no_aerpaw_environment: bool = typer.Option(
@@ -139,7 +139,7 @@ def run(
     safety_checker_ip: str | None = typer.Option(
         None,
         "--safety-checker-ip",
-        help="The IP/host address for the AERPAW SafetyCheckerServer.",
+        help="The IP/host address for the AERPAW SafetyCheckerServer. On AERPAW this defaults to the C-VM (AP_EXPENV_OEOCVM_XM).",
         rich_help_panel="Connection & Safety Options",
     ),
     zmq_identifier: str | None = typer.Option(

@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **AERPAW safety-checker default host.** The library-level client no longer defaults to `127.0.0.1:14580` on the E-VM. In AERPAW it uses the C-VM address from `AP_EXPENV_OEOCVM_XM` (typically `192.168.32.25`), the same source as OEO.
+- **Helper underscore safety flags.** Unmatched args such as `--safety_checker_ip` / `--safety_checker_port` still pass through to the script. The library-level client also reads those extra args, so helpers do not have to switch to dashed flags.
+
+### Changed
+
+- Auto RTL/RTH runs only after a successful mission (unless `--skip-rtl`). Ctrl-C, script errors, and heartbeat loss no longer command RTL; the last GUIDED setpoint remains.
+
 ## [1.4.6] (2026-08-16)
 
 ### Summary

@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
-    DEFAULT_SAFETY_CHECKER_PORT,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
     VEHICLE_TYPE_ROVER,
 )
+from aerpawlib.cli.safety import resolve_safety_checker_target
 
 from .disconnect import (
     run_runner_with_disconnect_guard,
@@ -128,13 +128,16 @@ def run_v1_experiment(
                 logger.debug(f"Failed to log start to OEO: {e}")
 
         is_aerpaw = bool(aerpaw_platform_cls and aerpaw_platform_cls._connected and not no_aerpaw_env)
-        port_set = getattr(args, "safety_checker_port", None) is not None
-        ip_set = getattr(args, "safety_checker_ip", None) is not None
-        if port_set or ip_set or is_aerpaw:
+        safety_target = resolve_safety_checker_target(
+            ip=getattr(args, "safety_checker_ip", None),
+            port=getattr(args, "safety_checker_port", None),
+            extra_args=unknown_args,
+            is_aerpaw=is_aerpaw,
+        )
+        if safety_target is not None:
             from aerpawlib.v1.safety import SafetyCheckerClient
 
-            effective_port = args.safety_checker_port if port_set else DEFAULT_SAFETY_CHECKER_PORT
-            safety_addr = args.safety_checker_ip if ip_set else "127.0.0.1"
+            safety_addr, effective_port = safety_target
             try:
                 client = SafetyCheckerClient(safety_addr, effective_port)
                 ok, msg = client.check_server_status()
@@ -238,8 +241,13 @@ def run_v1_experiment(
                 with contextlib.suppress(asyncio.CancelledError):
                     await disconnect_task
             if vehicle:
-                reason = "heartbeat lost" if heartbeat_lost else ("experiment failed" if not success else "experiment ending")
-                await return_home_if_armed(vehicle, args.vehicle, args.rtl_at_end, reason=reason)
+                if success:
+                    await return_home_if_armed(
+                        vehicle,
+                        args.vehicle,
+                        args.rtl_at_end,
+                        reason="experiment ending",
+                    )
                 vehicle.close()
             if event_log is not None:
                 with contextlib.suppress(Exception):

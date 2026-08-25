@@ -24,7 +24,7 @@ if not ok:
 await drone.takeoff(altitude=10)
 ```
 
-The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
+The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is the C-VM (`AP_EXPENV_OEOCVM_XM`, typically `192.168.32.25`), not E-VM localhost. `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
 
 ## Key concepts
 
@@ -40,8 +40,8 @@ The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip`
 
 | Environment | Port omitted | Port provided |
 |-------------|--------------|---------------|
-| Non-AERPAW | Passthrough (all checks pass, warning logged) | Connect or fall back to passthrough |
-| AERPAW | Default 14580; failure exits | Connect or exit |
+| Non-AERPAW | Passthrough (all checks pass, warning logged) | Connect to `127.0.0.1` unless `--safety-checker-ip` is set, or fall back to passthrough |
+| AERPAW | C-VM (`AP_EXPENV_OEOCVM_XM`) port 14580; failure exits | Connect or exit |
 
 ### SafetyCheckerClient
 
@@ -63,7 +63,7 @@ ok = await PreflightChecks.run_all(vehicle)  # GPS fix, battery
 
 ### Connection monitoring
 
-If the vehicle link is lost, the CLI stops the mission. Ctrl-C also stops the runner so RTL can run (unless you pass `--skip-rtl`).
+If the vehicle link is lost, the CLI stops the mission and does not RTL. Ctrl-C also stops the runner without RTL. Auto RTL/RTH runs only after a successful mission, unless you pass `--skip-rtl`.
 
 ## Errors
 
@@ -77,4 +77,4 @@ If the vehicle link is lost, the CLI stops the mission. Ctrl-C also stops the ru
 
 - `aerpawlib.v1.safety`: server YAML config and `SafetyCheckerServer`
 - `aerpawlib.v2.vehicle`: connect with `safety=`
-- `aerpawlib.cli`: `--safety-checker-port`, `--safety-checker-ip`
+- `aerpawlib.cli`: `--safety-checker-port`, `--safety-checker-ip` (helper extra args `--safety_checker_ip` / `--safety_checker_port` are also honored)

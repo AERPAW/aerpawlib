@@ -71,7 +71,9 @@ aerpawlib --script examples/v1/guided_mission_ping_iperf.py \
 
 # Rover search (search for rover utilizing safety checker and RSSI values)
 aerpawlib --script examples/v1/rover_search.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 --fake_radio True --search_time 10
+    --vehicle drone --conn udpin://127.0.0.1:14550 \
+    --safety-checker-ip 127.0.0.1 --safety-checker-port 14580 \
+    --fake_radio True --search_time 10
 ```
 
 ### v2 API
