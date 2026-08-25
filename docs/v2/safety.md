@@ -70,7 +70,7 @@ If the vehicle link is lost, the CLI stops the mission and does not RTL. Ctrl-C 
 | Situation | Result |
 |-----------|--------|
 | Validation fails | `can_*` returns `(False, message)`; takeoff/goto/land raise if you call them anyway |
-| AERPAW, no safety server | The process exits |
+| AERPAW, no safety server | The process exits (default host is the C-VM, not localhost) |
 | Local / SITL, no server | Checks pass (with a warning) |
 
 ## See also
