@@ -83,10 +83,7 @@ def test_parse_underscore_flags_ignores_invalid_port():
 def test_cli_passes_unmatched_args_to_the_script(monkeypatch, tmp_path):
     script = tmp_path / "mission.py"
     script.write_text(
-        "from aerpawlib.v1.runner import BasicRunner\n"
-        "class Mission(BasicRunner):\n"
-        "    async def run(self, vehicle):\n"
-        "        return None\n",
+        "from aerpawlib.v1.runner import BasicRunner\nclass Mission(BasicRunner):\n    async def run(self, vehicle):\n        return None\n",
         encoding="utf-8",
     )
     captured: dict[str, object] = {}
@@ -131,10 +128,7 @@ def test_cli_passes_unmatched_args_to_the_script(monkeypatch, tmp_path):
 def test_cli_consumes_dashed_safety_flags(monkeypatch, tmp_path):
     script = tmp_path / "mission.py"
     script.write_text(
-        "from aerpawlib.v1.runner import BasicRunner\n"
-        "class Mission(BasicRunner):\n"
-        "    async def run(self, vehicle):\n"
-        "        return None\n",
+        "from aerpawlib.v1.runner import BasicRunner\nclass Mission(BasicRunner):\n    async def run(self, vehicle):\n        return None\n",
         encoding="utf-8",
     )
     captured: dict[str, object] = {}
