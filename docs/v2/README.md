@@ -24,8 +24,8 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 class MyExperiment(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
-        # 1. Takeoff to 10 meters altitude
-        await drone.takeoff(altitude=10)
+        # 1. Takeoff to 25 meters
+        await drone.takeoff(altitude=25)
 
         # 2. Fly 20 meters North of the current position
         target_pos = drone.position + VectorNED(20, 0)
@@ -40,7 +40,7 @@ class MyExperiment(BasicRunner):
 Start your simulator, then run the script with the CLI:
 
 ```bash
-aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpin://127.0.0.1:14550
+aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 ```
 
 To enable structured logging, add `--structured-log FILE`. This outputs JSON Lines tracking `mission_start`, throttled `telemetry` updates, commands, and `arm`/`disarm` events.
@@ -99,7 +99,7 @@ drone = await Drone.connect(
 ### Drone commands
 
 ```python
-await drone.takeoff(altitude=10)
+await drone.takeoff(altitude=25)
 await drone.goto_coordinates(target, tolerance=2)
 await drone.set_heading(90)
 await drone.land()
@@ -115,6 +115,8 @@ handle = await drone.goto_coordinates(target, blocking=False)
 await handle.wait_done()  # or handle.cancel()
 ```
 
+Cancelling a drone goto handle RTLs. After `cancel()`, `wait_done()` completes; check `is_cancelled()`.
+
 ### Rover
 
 `Rover` shares the base interface with 2D ground tolerance (default 2.1 m). No `takeoff`, `land`, `return_to_launch`, or `set_heading`.
@@ -124,11 +126,11 @@ Details: `aerpawlib.v2.vehicle`.
 ## Validate before flight
 
 ```python
-ok, msg = await drone.can_takeoff(10)
+ok, msg = await drone.can_takeoff(25)
 if not ok:
     print(msg)
     return
-await drone.takeoff(altitude=10)
+await drone.takeoff(altitude=25)
 ```
 
 Checks include armable status, GPS fix, battery, and optional safety server rules. See `aerpawlib.v2.safety`.
@@ -161,6 +163,6 @@ v2 uses `pathlib.Path` for plan paths (v1 often accepts `str`).
 
 Catch `AerpawlibError` subclasses (`TakeoffError`, `NavigationError`, `UnexpectedDisarmError`, …). Each exposes `message`, `code`, `severity`, and optional `original_error`.
 
-`UnexpectedDisarmError` terminates the runner if the vehicle disarms mid-mission (e.g. failsafe).
+`UnexpectedDisarmError` terminates the runner if the vehicle disarms while airborne (e.g. failsafe). Ground auto-disarm does not raise it.
 
 Full hierarchy: `aerpawlib.v2.exceptions`.

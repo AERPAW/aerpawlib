@@ -40,14 +40,16 @@ from aerpawlib.v2 import Drone, VectorNED, BasicRunner, entrypoint
 class MyMission(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
-        await drone.takeoff(10)
+        await drone.takeoff(altitude=25)
         await drone.goto_coordinates(drone.position + VectorNED(20, 0))
         await drone.land()
 ```
 
 ```bash
-aerpawlib --api-version v2 --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone
+aerpawlib --api-version v2 --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone --no-aerpaw-environment
 ```
+
+`--no-aerpaw-environment` is required outside the AERPAW testbed. Copter takeoff on the testbed must be at least 20 m (examples use 25 m).
 
 ## Documentation
 
@@ -57,13 +59,30 @@ API reference for writing experiment scripts: https://aerpaw.github.io/aerpawlib
 
 ```bash
 # Basic square flight
-aerpawlib --script examples/v1/basic_example.py --conn udpin://127.0.0.1:14550 --vehicle drone
+aerpawlib --script examples/v1/basic_example.py --conn udpin://127.0.0.1:14550 --vehicle drone --no-aerpaw-environment
 
 # A more complex example using --config to specify multiple arguments at once
 aerpawlib --config configs/v1-drone.json --config configs/sitl-drone.json --script examples.v1.basic_runner
 ```
 
 See [examples/README.md](examples/README.md) for the full list, including multi-vehicle ZMQ missions (`aerpawlib-run-proxy` plus `--zmq-identifier` / `--zmq-proxy-server`).
+
+## Running tests
+
+```bash
+pip install -e ".[dev]"
+pytest tests/unit/ -v
+```
+
+Integration tests need SITL:
+
+```bash
+pip install -e ".[dev,sitl]"
+aerpawlib-setup-sitl
+pytest tests/integration/ -v
+```
+
+See [tests/README.md](tests/README.md) for details.
 
 ## License
 

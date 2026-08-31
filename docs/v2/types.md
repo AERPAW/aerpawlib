@@ -25,7 +25,6 @@ bearing = home.bearing(north_20m)
 | `Battery` | voltage, current, remaining % |
 | `GPSInfo` | fix type, satellite count |
 | `Attitude` | roll, pitch, yaw (radians) |
-| `Waypoint` | Plan tuple alias (see `aerpawlib.v2.plan`) |
 
 Horizontal positions are absolute WGS84; NED conventions match v1 for migration.
 

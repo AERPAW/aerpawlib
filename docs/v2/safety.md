@@ -17,11 +17,11 @@ from aerpawlib.v2.safety import SafetyCheckerClient
 client = SafetyCheckerClient("127.0.0.1", 14580)
 drone = await Drone.connect("udpin://127.0.0.1:14550", safety=client)
 
-ok, msg = await drone.can_takeoff(10)
+ok, msg = await drone.can_takeoff(25)
 if not ok:
     print(msg)
     return
-await drone.takeoff(altitude=10)
+await drone.takeoff(altitude=25)
 ```
 
 The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is this node's C-VM XV (`AP_EXPENV_CVM_<n>_XV`, typically `192.168.32.25`), not the OEO Console and not E-VM localhost. `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
@@ -34,13 +34,13 @@ The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip`
 |--------|--------------|-------------------|
 | `can_takeoff(altitude)` | Armable, GPS 3D fix, battery | + server takeoff validation |
 | `can_goto(target, …)` | Tolerance bounds | + waypoint validation |
-| `can_land()` | - | Server landing validation if configured |
+| `can_land()` | - | Server landing validation if configured (copter must land within 5 m of takeoff) |
 
 ### CLI safety behavior
 
 | Environment | Port omitted | Port provided |
 |-------------|--------------|---------------|
-| Non-AERPAW | Passthrough (all checks pass, warning logged) | Connect to `127.0.0.1` unless `--safety-checker-ip` is set, or fall back to passthrough |
+| Non-AERPAW | No client (checks pass, warning logged) | Connect to `127.0.0.1` unless `--safety-checker-ip` is set. If the server is unreachable, fall back to passthrough |
 | AERPAW | C-VM XV (`AP_EXPENV_CVM_<n>_XV`) port 14580; failure exits | Connect or exit |
 
 ### SafetyCheckerClient

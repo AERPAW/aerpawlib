@@ -14,7 +14,7 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         await drone.goto_coordinates(drone.position + VectorNED(20, 0))
         await drone.land()
 ```
@@ -24,7 +24,7 @@ Manual connection:
 ```python
 drone = await Drone.connect("udpin://127.0.0.1:14550")
 try:
-    await drone.takeoff(altitude=10)
+    await drone.takeoff(altitude=25)
 finally:
     await drone.aclose()
 ```
@@ -46,7 +46,7 @@ finally:
 
 ### Commands
 
-All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=False` for a `VehicleTask` handle (`progress`, `cancel()`, `wait_done()`).
+All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=False` for a `VehicleTask` handle (`progress`, `cancel()`, `wait_done()`). Cancelling a drone goto RTLs; `wait_done()` then completes.
 
 | Command | Drone | Rover |
 |---------|-------|-------|
@@ -70,7 +70,7 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 | `HeartbeatLostError` | Link lost mid-mission; runner may terminate |
 | `NotArmableError` / `NotConnectedError` | Wait for ready state before commands |
 | `TakeoffError` / `NavigationError` | Check GPS, battery, safety server response |
-| `UnexpectedDisarmError` | Failsafe or manual disarm during mission |
+| `UnexpectedDisarmError` | Failsafe or manual disarm while airborne |
 
 ## See also
 

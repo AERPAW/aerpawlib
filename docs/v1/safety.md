@@ -44,7 +44,9 @@ ZMQ REP server loading YAML limits:
 | `max_speed` / `min_speed` | All | Speed limits |
 | `include_geofences` | All | KML paths (allowed regions) |
 | `exclude_geofences` | All | KML paths (forbidden regions) |
-| `max_alt` / `min_alt` | Copter | Altitude limits |
+| `max_alt` / `min_alt` | Copter | Altitude limits (AERPAW copter `min_alt` is typically 20 m) |
+
+Copter landing must be within 5 m of the recorded takeoff location.
 
 KML paths resolve relative to the YAML file location.
 

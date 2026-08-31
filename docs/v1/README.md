@@ -4,7 +4,7 @@
 
 The v1 API provides a Python framework for AERPAW experiment scripts. It abstracts MAVSDK so you can express mission logic (takeoff, navigation, measurements, landing) without managing low-level flight control.
 
-v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control) (DroneKit-based) but uses MAVSDK internally. There are a few minor changes though, see the **Migration from DroneKit aerpawlib** section for more information.
+v1 matches the API of the [original aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control) (DroneKit-based) but uses MAVSDK internally. See **Migration from DroneKit aerpawlib** for the remaining differences.
 
 ## When to use this
 
@@ -30,8 +30,8 @@ from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 class SquareMission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
-        # 1. Takeoff to 5 meters altitude
-        await vehicle.takeoff(5)
+        # 1. Takeoff to 25 meters
+        await vehicle.takeoff(25)
 
         # 2. Fly a square pattern of 10m x 10m
         for north, east in [(10, 0), (0, -10), (-10, 0), (0, 10)]:
@@ -49,10 +49,11 @@ class SquareMission(BasicRunner):
 Start your ArduPilot simulation, then execute the script with the CLI:
 
 ```bash
-aerpawlib --api-version v1 --script square_mission.py --vehicle drone --conn udpin://127.0.0.1:14550
+aerpawlib --api-version v1 --script square_mission.py \
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 ```
 
-> **Note:** Prefer MAVSDK `udpin://host:port`. DroneKit-style `udp:host:port` and `udp://host:port` are rewritten automatically.
+> **Note:** Local/SITL runs require `--no-aerpaw-environment`. Prefer MAVSDK `udpin://host:port`. DroneKit-style `udp:host:port` and `udp://host:port` are rewritten automatically.
 
 ## Runners
 
@@ -72,7 +73,7 @@ from aerpawlib.v1 import StateMachine, Vehicle, state, timed_state
 class MeasureMission(StateMachine):
     @state(name="start", first=True)
     async def start(self, vehicle: Vehicle):
-        await vehicle.takeoff(5)
+        await vehicle.takeoff(25)
         return "patrol"
 
     @timed_state(name="patrol", duration=10)
@@ -102,7 +103,7 @@ Vehicle commands and telemetry: see `aerpawlib.v1.vehicle`.
 
 ## Async essentials
 
-Runner methods are `async`. Use `await` on vehicle commands to wait for completion, or `asyncio.ensure_future` to run movement concurrently with other work.
+Runner methods are `async`. Use `await` on vehicle commands to wait for completion, or `asyncio.create_task` / `in_background` to run movement concurrently with other work.
 
 ```python
 import asyncio
@@ -111,7 +112,7 @@ import asyncio
 await vehicle.goto_coordinates(target)
 
 # Start movement, do other work, then wait
-move = asyncio.ensure_future(vehicle.goto_coordinates(target))
+move = asyncio.create_task(vehicle.goto_coordinates(target))
 # ... collect samples ...
 await move
 ```
@@ -123,8 +124,8 @@ Use `asyncio.sleep`, not `time.sleep`, inside runner coroutines. Background tele
 Coordinate multiple vehicles with `ZmqStateMachine`:
 
 1. Start the proxy: `aerpawlib-run-proxy`
-1. Run one ground coordinator script with high-level experiment logic
-1. Run vehicle scripts with low-level commands (goto waypoint, orbit, return)
+2. Run one ground coordinator script with high-level experiment logic
+3. Run vehicle scripts with low-level commands (goto waypoint, orbit, return)
 
 Design pattern:
 
@@ -137,11 +138,16 @@ Full example: `examples/v1/zmq_preplanned_orbit/` (tracer, orbiter, ground coord
 
 ## Migration from DroneKit aerpawlib (morzack/aerpawlib-vehicle-control)
 
-When migrating legacy scripts written for the original DroneKit-based aerpawlib, please note the following breaking changes and updates:
+Scripts written for the original DroneKit-based aerpawlib need these updates:
 
-- The underlying `._vehicle` attribute (which exposed the raw `dronekit.Vehicle` object) is no longer available since the library backend was migrated to MAVSDK. Any script accessing `._vehicle` directly for customized telemetry or command logic must be updated to use the standard async methods provided by `aerpawlib.v1`.
-- All flight commands (`takeoff`, `goto_coordinates`, `land`, `set_heading`, etc.) are now asynchronous coroutines and must be `await`ed inside your `@entrypoint` or `@state` methods. All other arguments and behavior is identical.
-- MAVSDK connection syntax differs from DroneKit.
+- There is no `._vehicle` DroneKit object. Use the async methods on `aerpawlib.v1` vehicles.
+- Flight commands (`takeoff`, `goto_coordinates`, `land`, `set_heading`, …) are coroutines and must be `await`ed. `initialize()` is still synchronous.
+- Use MAVSDK connection strings (`udpin://host:port`). `udp:` / `udp://` are rewritten.
+- Attached safety checks fail closed. On the testbed, copter takeoff is typically ≥ 20 m, and landing must be within 5 m of takeoff.
+- Mode telemetry is often `"OFFBOARD"` for ArduPilot GUIDED. Compare with `vehicle.mode in ("OFFBOARD", "GUIDED")`.
+- Auto RTL runs only after a successful mission (unless `--skip-rtl`). Ctrl-C leaves the last GUIDED setpoint.
+
+For the v2 API, see `docs/v2/migration.md` and the [changelog](../../CHANGELOG.md).
 
 ## Key modules
 
