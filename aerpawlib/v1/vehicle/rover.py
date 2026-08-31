@@ -114,14 +114,15 @@ class Rover(Vehicle):
 
     def _preflight_wait(self, should_arm: bool) -> None:
         """Wait for pre-arm conditions, setting GUIDED mode first."""
-        try:
-            future = asyncio.run_coroutine_threadsafe(
-                self._set_guided_mode(),
-                self._mavsdk_loop,
-            )
-            future.result(timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S + MAVLINK_COMMAND_TIMEOUT_S + 2.0)
-        except Exception as e:
-            logger.warning(f"Rover: failed to run _set_guided_mode in preflight: {e}")
+        if not self._in_aerpaw():
+            try:
+                future = asyncio.run_coroutine_threadsafe(
+                    self._set_guided_mode(),
+                    self._mavsdk_loop,
+                )
+                future.result(timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S + MAVLINK_COMMAND_TIMEOUT_S + 2.0)
+            except Exception as e:
+                logger.warning(f"Rover: failed to run _set_guided_mode in preflight: {e}")
         super()._preflight_wait(should_arm)
 
     async def goto_coordinates(

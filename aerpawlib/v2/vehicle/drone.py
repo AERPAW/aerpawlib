@@ -11,7 +11,7 @@ import math
 import time
 
 from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+from mavsdk.offboard import OffboardError, VelocityNedYaw
 
 from aerpawlib.v2.constants import (
     COPTER_GUIDED_MODE,
@@ -88,30 +88,24 @@ class Drone(Vehicle):
             self._current_heading = heading
         if not blocking:
             return
-        self._offboard.mark_active()
-        home = self.home_coords
-        if home:
-            offset = self.position - home  # VectorNED
-            north_m, east_m = offset.north, offset.east
-        else:
-            north_m, east_m = 0.0, 0.0
         try:
-            await self._system.offboard.set_position_ned(
-                PositionNedYaw(north_m, east_m, -self.position.alt, heading),
+            from aerpawlib._internal.mavlink_ids import (
+                make_condition_yaw_message,
+                resolve_mav_sysid,
             )
-            with contextlib.suppress(OffboardError):
-                await self._system.offboard.start()
+
+            sysid = resolve_mav_sysid(self._system)
+            msg = make_condition_yaw_message(sysid, heading)
+            await self._system.mavlink_direct.send_message(msg)
             self._ready_to_move = lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
             await _wait_for_condition(
                 lambda: self.done_moving(),
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
             )
-        except (OffboardError, ActionError) as e:
+        except Exception as e:
             logger.warning(f"set_heading error: {e}")
         else:
             logger.debug(f"Drone: set_heading complete (heading={heading:.1f} deg)")
-        finally:
-            await self._stop_offboard()
 
     async def takeoff(
         self,
@@ -503,7 +497,7 @@ class Drone(Vehicle):
         We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll/resend until the flight controller confirms the mode change.
         """
-        if self.mode in {"OFFBOARD", "HOLD"}:
+        if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
             logger.debug(
                 f"Drone: already in pre-arm mode {self.mode!r}, skipping mode switch",
             )
@@ -511,17 +505,18 @@ class Drone(Vehicle):
         logger.info(
             f"Drone: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )
-        # action.hold() uses the Action plugin (reliable). mavlink_direct SET_MODE
-        # often fails to send on udpin SITL. LOITER/HOLD is armable and does not
-        # auto-disarm like STABILIZE; takeoff() then enters GUIDED/OFFBOARD.
-        try:
-            await self._system.action.hold()
-            await asyncio.sleep(0.2)
-        except Exception as e:
-            logger.warning(f"Drone: action.hold() failed: {e}")
-        if self.mode in {"OFFBOARD", "HOLD"}:
-            logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
-            return
+        # action.hold() is LOITER (mode 5). The AERPAW E-VM filter only allows
+        # GUIDED (4) and LAND (9) and severs the link on mode 5. Keep hold for
+        # local SITL only.
+        if not self._in_aerpaw():
+            try:
+                await self._system.action.hold()
+                await asyncio.sleep(0.2)
+            except Exception as e:
+                logger.warning(f"Drone: action.hold() failed: {e}")
+            if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
+                logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
+                return
 
         from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
 
@@ -530,7 +525,7 @@ class Drone(Vehicle):
         deadline = time.monotonic() + COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S
         last_send = 0.0
         while time.monotonic() < deadline:
-            if self.mode in {"OFFBOARD", "HOLD"}:
+            if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
                 logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
                 return
             if time.monotonic() - last_send >= 0.5:

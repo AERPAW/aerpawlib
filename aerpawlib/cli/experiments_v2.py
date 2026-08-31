@@ -178,7 +178,7 @@ def run_v2_experiment(
             if aerpaw_platform:
                 aerpaw_platform.log_to_oeo(
                     "[aerpawlib] Connection lost",
-                    severity="CRITICAL",
+                    severity=api_module.OeoSeverity.CRITICAL,
                 )
             if event_log:
                 event_log.log_event("connection_lost")

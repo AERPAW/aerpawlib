@@ -53,7 +53,8 @@ class Rover(Vehicle):
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Switch to GUIDED mode, then wait for armable state."""
         self._will_arm = should_arm
-        await self._set_guided_mode()
+        if not self._in_aerpaw():
+            await self._set_guided_mode()
         await self._wait_for_armable(log_prefix="Rover: ")
 
     async def _pre_auto_arm(self) -> None:
@@ -165,7 +166,11 @@ class Rover(Vehicle):
 
         async def _on_cancel() -> None:
             try:
-                if not self.closed and self._system is not None:
+                if (
+                    not self.closed
+                    and self._system is not None
+                    and not self._in_aerpaw()
+                ):
                     await self._system.action.hold()
             except Exception as exc:
                 logger.warning(f"Rover: _on_cancel hold failed: {exc}")

@@ -12,6 +12,7 @@ Run with:
         --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 """
 
+import asyncio
 import re
 
 from aerpawlib.v2 import ExternalProcess, ZmqStateMachine, state
@@ -61,6 +62,7 @@ class LeaderRunner(ZmqStateMachine):
 
     @state(name="wait_for_waypoint")
     async def state_wait_waypoint(self, _):
+        await asyncio.sleep(0.1)
         return "wait_for_waypoint"
 
     @state(name="waypoint_ping")
@@ -72,6 +74,7 @@ class LeaderRunner(ZmqStateMachine):
 
     @state(name="wait_for_rtl")
     async def state_wait_rtl(self, _):
+        await asyncio.sleep(0.1)
         return "wait_for_rtl"
 
     @state(name="last_ping")

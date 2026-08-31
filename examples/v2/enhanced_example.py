@@ -22,18 +22,21 @@ class EnhancedMission(BasicRunner):
             return
 
         # Command validation before takeoff
-        ok, msg = await drone.can_takeoff(10)
+        ok, msg = await drone.can_takeoff(25)
         if not ok:
             print(f"[example] can_takeoff failed: {msg}")
             return
 
-        target = drone.position + VectorNED(20, 0)
+        await drone.takeoff(altitude=25)
+        start = drone.position
+        target = start + VectorNED(20, 0)
         ok, msg = await drone.can_goto(target)
         if not ok:
             print(f"[example] can_goto failed: {msg}")
+            await drone.land()
             return
 
-        await drone.takeoff(altitude=10)
         await drone.goto_coordinates(target)
+        await drone.goto_coordinates(start)
         await drone.land()
         print("[example] Mission complete")

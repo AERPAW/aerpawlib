@@ -11,7 +11,7 @@ hide the rover at via arguments (see Usage).
 Run with:
     aerpawlib --api-version v2 --script examples/v2/hide_rover.py \
         --vehicle rover --conn udpin://127.0.0.1:14550 \
-        --file examples/v2/plan_example.py \
+        --file path/to/mission.plan \
         --hide-fence examples/v2/geofence.kml
 """
 

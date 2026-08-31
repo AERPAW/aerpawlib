@@ -13,6 +13,8 @@ from aerpawlib.v1.log import LogComponent, get_logger
 logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
 
+from aerpawlib._internal.aerpaw_ping import ping_forward_server
+
 from .constants import (
     AERPAW_CHECKPOINT_TIMEOUT_S,
     AERPAW_OEO_MSG_TIMEOUT_S,
@@ -75,16 +77,14 @@ class AERPAW:
         - Treats request failures as "not connected".
 
         Returns:
-            `True` when the ping request succeeds, otherwise `False`.
+            `True` when the ping request succeeds with HTTP 2xx/3xx,
+            otherwise `False`. HTTP 400 is not treated as connected.
         """
-        try:
-            requests.post(
-                f"http://{self._forw_addr}:{self._forw_port}/ping",
-                timeout=AERPAW_PING_TIMEOUT_S,
-            )
-        except requests.exceptions.RequestException:
-            return False
-        return True
+        return ping_forward_server(
+            self._forw_addr,
+            self._forw_port,
+            AERPAW_PING_TIMEOUT_S,
+        )
 
     def _display_connection_warning(self) -> None:
         """

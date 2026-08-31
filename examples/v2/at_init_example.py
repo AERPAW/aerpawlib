@@ -24,6 +24,7 @@ class AtInitMission(StateMachine):
     def __init__(self):
         super().__init__()
         self._ready = False
+        self._home = None
 
     @at_init
     async def wait_for_gps_and_prearm(self, drone: Drone):
@@ -37,7 +38,8 @@ class AtInitMission(StateMachine):
     @state(name="take_off", first=True)
     async def take_off(self, drone: Drone):
         assert self._ready
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
+        self._home = drone.position
         return "fly"
 
     @timed_state(name="fly", duration=2)
@@ -48,5 +50,7 @@ class AtInitMission(StateMachine):
 
     @state(name="land")
     async def land(self, drone: Drone):
+        if getattr(self, "_home", None) is not None:
+            await drone.goto_coordinates(self._home)
         await drone.land()
         return

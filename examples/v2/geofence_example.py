@@ -43,8 +43,9 @@ class GeofenceMission(BasicRunner):
             print("[example] Current position outside geofence, aborting")
             return
 
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         current = drone.position
+        start = current
         target = current + VectorNED(25, 15, 0)
 
         if not inside(target.lon, target.lat, geofence):
@@ -60,5 +61,6 @@ class GeofenceMission(BasicRunner):
         else:
             await drone.goto_coordinates(target, tolerance=3)
 
+        await drone.goto_coordinates(start)
         await drone.land()
         print("[example] Mission complete")

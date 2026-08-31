@@ -23,13 +23,14 @@ class FollowRunner(ZmqStateMachine):
 
     @state(name="launch_wait", first=True)
     async def state_start(self, _):
+        await asyncio.sleep(0.1)
         return "launch_wait"
 
     @state(name="takeoff")
     @expose_zmq("takeoff")
     async def state_takeoff(self, drone: Drone):
         print("[follower] taking off")
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         print("[follower] taken off")
         return "fly_to_waypoint"
 
@@ -42,6 +43,7 @@ class FollowRunner(ZmqStateMachine):
 
     @state(name="waypoint_wait")
     async def state_wait_waypoint(self, _):
+        await asyncio.sleep(0.1)
         return "waypoint_wait"
 
     @state(name="rtl")
@@ -60,6 +62,7 @@ class FollowRunner(ZmqStateMachine):
 
     @state("wait_last_ping")
     async def state_wait_last_ping(self, _):
+        await asyncio.sleep(0.1)
         return "wait_last_ping"
 
     @state("land")

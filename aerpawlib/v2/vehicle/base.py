@@ -27,6 +27,7 @@ from aerpawlib.v2.constants import (
     DEFAULT_MAVSDK_SERVER_PORT,
     DEFAULT_POSITION_TOLERANCE_M,
     GPS_3D_FIX_TYPE,
+    GROUND_DISARM_ALT_M,
     HOME_POSITION_TIMEOUT_S,
     MAV_SYS_STATUS_PREARM_CHECK,
     MAX_POSITION_TOLERANCE_M,
@@ -41,6 +42,7 @@ from aerpawlib.v2.exceptions import (
     ConnectionTimeoutError,
     DisarmError,
     NotArmableError,
+    PortInUseError,
 )
 from aerpawlib.v2.log import LogComponent, get_logger
 from aerpawlib.v2.safety.validation import PreflightChecks
@@ -115,6 +117,15 @@ class Vehicle:
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
         self._offboard = OffboardSession()
+
+    def _in_aerpaw(self) -> bool:
+        """True when an AERPAW platform client is attached and connected."""
+        platform = self._aerpaw_platform
+        return bool(platform is not None and getattr(platform, "is_connected", False))
+
+    def _is_airborne_for_disarm_guard(self) -> bool:
+        """True when relative altitude is high enough that a disarm is unexpected."""
+        return self._state.position.alt >= GROUND_DISARM_ALT_M
 
     @property
     def link_alive(self) -> bool:
@@ -354,12 +365,25 @@ class Vehicle:
         Raises:
             ConnectionTimeoutError: If no heartbeat is received within timeout.
         """
-        from aerpawlib._internal.connection_string import normalize_mavsdk_connection_string
+        from aerpawlib._internal.connection_string import (
+            normalize_mavsdk_connection_string,
+            parse_udp_connection_port,
+        )
+        from aerpawlib._internal.ports import is_udp_port_in_use
 
         connection_string = normalize_mavsdk_connection_string(connection_string)
         logger.info(
             f"Connecting to vehicle at {connection_string} (port={mavsdk_server_port}, timeout={timeout}s)",
         )
+
+        parsed = parse_udp_connection_port(connection_string)
+        if parsed is not None:
+            host, port = parsed
+            if is_udp_port_in_use(host, port):
+                raise PortInUseError(
+                    port,
+                    f"UDP port {port} is already in use. Stop the other process or use a different connection string.",
+                )
         system = System(port=mavsdk_server_port)
         await asyncio.wait_for(
             system.connect(system_address=connection_string),
@@ -577,10 +601,15 @@ class Vehicle:
                     if self._event_log:
                         self._event_log.log_event("arm" if armed else "disarm")
                     if prev_armed[0] is True and not armed and not self._expecting_disarm:
-                        logger.warning(
-                            "Vehicle disarmed unexpectedly! Signalling experiment termination.",
-                        )
-                        self._unexpected_disarm_event.set()
+                        if self._is_airborne_for_disarm_guard():
+                            logger.warning(
+                                "Vehicle disarmed unexpectedly! Signalling experiment termination.",
+                            )
+                            self._unexpected_disarm_event.set()
+                        else:
+                            logger.info(
+                                "Vehicle disarmed on the ground; ignoring auto-disarm.",
+                            )
                     prev_armed[0] = armed
 
         async def _health_update() -> None:
@@ -821,7 +850,6 @@ class Vehicle:
             logger.debug("Vehicle: _arm_vehicle skipped (_will_arm=False)")
             return
         if self._aerpaw_platform and self._aerpaw_platform.is_connected:
-            await self._pre_auto_arm()
             await self._await_aerpaw_safety_pilot_arm()
         else:
             await self._auto_arm_standalone()
@@ -835,7 +863,12 @@ class Vehicle:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
 
-        if hasattr(self, "_set_guided_mode") and self.mode not in {"OFFBOARD", "HOLD"}:
+        if hasattr(self, "_set_guided_mode") and self.mode not in {
+            "OFFBOARD",
+            "HOLD",
+            "GUIDED",
+            "LAND",
+        }:
             await self._set_guided_mode()
             await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 

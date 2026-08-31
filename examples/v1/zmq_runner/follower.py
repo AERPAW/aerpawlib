@@ -19,7 +19,7 @@ class FollowRunner(ZmqStateMachine):
     @state(name="takeoff")
     async def state_takeoff(self, drone):
         print("taking off")
-        await drone.takeoff(10)
+        await drone.takeoff(25)
         print("taken off")
         return "fly_to_waypoint"
 

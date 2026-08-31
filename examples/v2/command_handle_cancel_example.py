@@ -16,7 +16,7 @@ class CancelGotoDemo(BasicRunner):
 
     @entrypoint
     async def run(self, drone: Drone):
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         start = drone.position
         target = start + VectorNED(80, 0, 0)
 

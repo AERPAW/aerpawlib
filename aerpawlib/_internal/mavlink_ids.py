@@ -54,6 +54,46 @@ def make_set_mode_message(target_sysid: int, custom_mode: int):
     )
 
 
+def make_condition_yaw_message(
+    target_sysid: int,
+    heading_deg: float,
+    yaw_speed_deg_s: float = 0.0,
+):
+    """Build COMMAND_LONG MAV_CMD_CONDITION_YAW from the MAVSDK GCS identity.
+
+    Stays in GUIDED. Do not use offboard for heading on AERPAW.
+    param1 = absolute heading (deg), param2 = yaw speed (0 = default),
+    param3 = 0 (shortest direction), param4 = 0 (absolute).
+    """
+    import json
+
+    from mavsdk.mavlink_direct import MavlinkMessage
+    from pymavlink import mavutil
+
+    gcs_sys, gcs_comp = resolve_gcs_ids()
+    fields = {
+        "target_system": int(target_sysid),
+        "target_component": 1,
+        "command": int(mavutil.mavlink.MAV_CMD_CONDITION_YAW),
+        "confirmation": 0,
+        "param1": float(heading_deg),
+        "param2": float(yaw_speed_deg_s),
+        "param3": 0.0,
+        "param4": 0.0,
+        "param5": 0.0,
+        "param6": 0.0,
+        "param7": 0.0,
+    }
+    return MavlinkMessage(
+        message_name="COMMAND_LONG",
+        system_id=gcs_sys,
+        component_id=gcs_comp,
+        target_system_id=int(target_sysid),
+        target_component_id=1,
+        fields_json=json.dumps(fields),
+    )
+
+
 def resolve_mav_sysid(system: Any | None = None, default: int = 1) -> int:
     """Return the vehicle SYSID from env or the MAVSDK system, else *default*.
 

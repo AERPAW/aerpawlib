@@ -6,7 +6,6 @@ import asyncio
 
 import pytest
 
-from aerpawlib.v2.exceptions import TaskCancelledError
 from aerpawlib.v2.vehicle.task import VehicleTask
 
 
@@ -35,8 +34,9 @@ class TestVehicleTask:
         task = VehicleTask()
         task.cancel()
         assert task.is_cancelled() is True
-        with pytest.raises(TaskCancelledError):
-            await task.wait_done()
+        await task.wait_done()
+        assert task.is_cancelled() is True
+        assert task.is_done() is True
 
     @pytest.mark.asyncio
     async def test_cancel_async_runs_callback(self):

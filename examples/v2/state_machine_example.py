@@ -46,7 +46,7 @@ class SquareStateMachine(StateMachine):
 
     @state(name="take_off")
     async def take_off(self, drone: Drone):
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         print("[state] take_off -> at_position")
         return "at_position"
 

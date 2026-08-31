@@ -567,6 +567,10 @@ class Vehicle:
             return self._ready_to_move.__func__(self)
         return self._ready_to_move(self)
 
+    def _in_aerpaw(self) -> bool:
+        """True when the process is attached to the AERPAW forward server."""
+        return bool(AERPAW_Platform._connected)
+
     async def await_ready_to_move(self) -> None:
         """
         Block and wait until the vehicle is ready for the next command.

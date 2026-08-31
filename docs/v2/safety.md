@@ -24,7 +24,7 @@ if not ok:
 await drone.takeoff(altitude=10)
 ```
 
-The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is the C-VM (`AP_EXPENV_OEOCVM_XM`, typically `192.168.32.25`), not E-VM localhost. `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
+The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip` (required on AERPAW). Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is this node's C-VM XV (`AP_EXPENV_CVM_<n>_XV`, typically `192.168.32.25`), not the OEO Console and not E-VM localhost. `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` then check first and raise if the server rejects the maneuver.
 
 ## Key concepts
 
@@ -41,7 +41,7 @@ The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip`
 | Environment | Port omitted | Port provided |
 |-------------|--------------|---------------|
 | Non-AERPAW | Passthrough (all checks pass, warning logged) | Connect to `127.0.0.1` unless `--safety-checker-ip` is set, or fall back to passthrough |
-| AERPAW | C-VM (`AP_EXPENV_OEOCVM_XM`) port 14580; failure exits | Connect or exit |
+| AERPAW | C-VM XV (`AP_EXPENV_CVM_<n>_XV`) port 14580; failure exits | Connect or exit |
 
 ### SafetyCheckerClient
 

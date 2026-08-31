@@ -19,11 +19,13 @@ class LoggingMission(BasicRunner):
     async def run(self, drone: Drone):
         logger.info("Starting logging example mission")
         logger.debug("Position: %s", drone.position)
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         logger.info("Takeoff complete")
-        target = drone.position + VectorNED(15, 0, 0)
+        start = drone.position
+        target = start + VectorNED(15, 0, 0)
         logger.debug("Goto target: %s", target)
         await drone.goto_coordinates(target)
         logger.info("Goto complete")
+        await drone.goto_coordinates(start)
         await drone.land()
         logger.info("Mission complete")

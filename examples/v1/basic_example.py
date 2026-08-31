@@ -2,7 +2,7 @@
 Basic v1 API Example - Square Pattern Flight
 
 This script demonstrates the v1 API with a simple mission:
-1. Take off to 10 meters
+1. Take off to 25 meters
 2. Fly in a square pattern (10m x 10m)
 3. Return to start and land
 
@@ -22,7 +22,7 @@ class SquareFlight(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
         # Configuration
-        takeoff_altitude = 10  # meters
+        takeoff_altitude = 25  # meters (AERPAW copter min_alt is 20)
         square_size = 10  # meters
 
         print("[example] Starting square flight mission")

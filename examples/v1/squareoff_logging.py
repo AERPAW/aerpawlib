@@ -46,7 +46,7 @@ from aerpawlib.v1.runner import StateMachine, background, state, timed_state
 from aerpawlib.v1.util import VectorNED
 from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
-FLIGHT_ALT = 5  # m
+FLIGHT_ALT = 25  # m (AERPAW copter min_alt is 20)
 SQUARE_SIZE = 10  # m
 LOCATION_TOLERANCE = 2  # m -- ~2 is safe in general, use 3 for the rover in SITL
 WAIT_TIME = 5  # s

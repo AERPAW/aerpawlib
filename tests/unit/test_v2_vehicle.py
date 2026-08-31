@@ -41,6 +41,36 @@ class TestConnectionState:
         assert fut.cancelled() or not fut.done()
 
 
+class TestPortInUse:
+    @pytest.mark.asyncio
+    async def test_udp_port_in_use_raises(self):
+        import socket
+
+        from aerpawlib.v2.exceptions import PortInUseError
+        from aerpawlib.v2.vehicle.base import Vehicle
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.bind(("0.0.0.0", 0))
+        except (PermissionError, OSError):
+            pytest.skip("Cannot bind socket in this environment")
+        port = sock.getsockname()[1]
+        try:
+            with pytest.raises(PortInUseError, match="already in use"):
+                await Vehicle.connect(f"udpin://0.0.0.0:{port}", timeout=2)
+        finally:
+            sock.close()
+
+
+class TestDisarmGuard:
+    def test_ground_disarm_is_not_airborne(self):
+        v = DummyVehicle()
+        v._state.update_position(0.0, 0.0, 0.2, 0.2)
+        assert v._is_airborne_for_disarm_guard() is False
+        v._state.update_position(0.0, 0.0, 5.0, 5.0)
+        assert v._is_airborne_for_disarm_guard() is True
+
+
 class TestDummyVehicleContract:
     def test_connected_and_closed(self):
         v = DummyVehicle()

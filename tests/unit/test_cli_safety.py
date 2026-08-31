@@ -33,16 +33,29 @@ def test_resolve_uses_localhost_when_only_port_set_outside_aerpaw():
 
 def test_resolve_uses_cvm_when_in_aerpaw_without_flags(monkeypatch):
     monkeypatch.delenv("AP_EXPENV_OEOCVM_XM", raising=False)
+    monkeypatch.delenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM", raising=False)
+    monkeypatch.delenv("AP_EXPENV_CVM_1_XV", raising=False)
     assert resolve_safety_checker_target(ip=None, port=None, is_aerpaw=True) == (
         DEFAULT_CVM_SAFETY_CHECKER_IP,
         DEFAULT_SAFETY_CHECKER_PORT,
     )
 
 
-def test_resolve_uses_oeo_env_for_aerpaw_default_ip(monkeypatch):
-    monkeypatch.setenv("AP_EXPENV_OEOCVM_XM", "192.168.99.1")
+def test_resolve_uses_this_node_cvm_xv(monkeypatch):
+    monkeypatch.setenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM", "1")
+    monkeypatch.setenv("AP_EXPENV_CVM_1_XV", "10.0.0.9")
+    monkeypatch.setenv("AP_EXPENV_OEOCVM_XM", "192.168.135.62")
     assert resolve_safety_checker_target(ip=None, port=None, is_aerpaw=True) == (
-        "192.168.99.1",
+        "10.0.0.9",
+        DEFAULT_SAFETY_CHECKER_PORT,
+    )
+
+
+def test_resolve_cvm_none_falls_back(monkeypatch):
+    monkeypatch.setenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM", "2")
+    monkeypatch.setenv("AP_EXPENV_CVM_2_XV", "NONE")
+    assert resolve_safety_checker_target(ip=None, port=None, is_aerpaw=True) == (
+        DEFAULT_CVM_SAFETY_CHECKER_IP,
         DEFAULT_SAFETY_CHECKER_PORT,
     )
 

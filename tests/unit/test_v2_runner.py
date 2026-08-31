@@ -98,6 +98,26 @@ class TestStateMachine:
         assert order == ["a", "b"]
 
     @pytest.mark.asyncio
+    async def test_identity_transition_idles_instead_of_spinning(self):
+        import time
+
+        loops = []
+
+        class SM(StateMachine):
+            @state(name="wait", first=True)
+            async def wait(self, vehicle):
+                loops.append(1)
+                if len(loops) >= 3:
+                    return None
+                return "wait"
+
+        t0 = time.monotonic()
+        await SM().run(MockVehicle())
+        elapsed = time.monotonic() - t0
+        assert loops == [1, 1, 1]
+        assert elapsed >= 0.15
+
+    @pytest.mark.asyncio
     async def test_timed_state_duration(self):
         order = []
 

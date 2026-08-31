@@ -11,11 +11,8 @@ from aerpawlib.v1.vehicle import Drone
 class MyScript(BasicRunner):
     @entrypoint
     async def do_stuff(self, drone: Drone):
-        # take off to 10m
-        await drone.takeoff(10)
-
-        # fly north 10m
-        await drone.goto_coordinates(drone.position + VectorNED(10, 0))
-
-        # land
+        await drone.takeoff(25)
+        start = drone.position
+        await drone.goto_coordinates(start + VectorNED(10, 0))
+        await drone.goto_coordinates(start)
         await drone.land()
