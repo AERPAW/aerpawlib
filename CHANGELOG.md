@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.9] (2026-08-31)
+
+### Summary
+
+Documentation corrections for local SITL and AERPAW takeoff/landing policy. GUIDED mode is set with `MAV_CMD_DO_SET_MODE`.
+
+### Fixed
+
+- **Docs.** Local SITL examples include `--no-aerpaw-environment`. Tutorial takeoff is 25 m (`min_alt` 20). Tests README matches current SITL logs and `SIM_SPEEDUP` default. Safety docs note landing within 5 m of takeoff.
+- **GUIDED mode command.** Use `MAV_CMD_DO_SET_MODE` (COMMAND_LONG 176) instead of `SET_MODE`.
+
 ## [1.4.8] (2026-08-31)
 
 ### Summary
