@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING
 
 from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, PositionNedYaw, VelocityNedYaw
+from mavsdk.offboard import OffboardError, VelocityNedYaw
 
 from aerpawlib.v1.constants import (
     ARMABLE_TIMEOUT_S,
@@ -126,48 +126,24 @@ class Drone(Vehicle):
 
         logger.debug(f"Turning to {heading} (current: {self.heading})")
         try:
-            # Compute current NED offset from home so the drone holds its
-            # current position while rotating (rather than flying to home).
-            home = self.home_coords
-            if home is not None:
-                offset = self.position - home
-                north_m = offset.north
-                east_m = offset.east
-            else:
-                north_m = 0.0
-                east_m = 0.0
-
-            await self._run_on_mavsdk_loop(
-                self._system.offboard.set_position_ned(
-                    PositionNedYaw(
-                        north_m,
-                        east_m,
-                        -self.position.alt,
-                        heading,
-                    ),
-                ),
+            from aerpawlib._internal.mavlink_ids import (
+                make_condition_yaw_message,
+                resolve_mav_sysid,
             )
-            try:
-                await self._run_on_mavsdk_loop(self._system.offboard.start())
-                self._offboard_active = True
-            except OffboardError as e:
-                logger.warning("Failed to start offboard mode: %s", e)
 
+            sysid = resolve_mav_sysid(self._system)
+            msg = make_condition_yaw_message(sysid, heading)
+            await self._run_on_mavsdk_loop(
+                self._system.mavlink_direct.send_message(msg),
+            )
             self._ready_to_move = lambda s: heading_difference(heading, s.heading) <= HEADING_TOLERANCE_DEG
             await wait_for_condition(
                 lambda: self._ready_to_move(self),
                 poll_interval=POLLING_DELAY_S,
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
             )
-        except (OffboardError, ActionError) as e:
+        except Exception as e:
             logger.warning(f"set_heading error: {e}")
-        finally:
-            # Ensure offboard mode is stopped
-            try:
-                await self._run_on_mavsdk_loop(self._system.offboard.stop())
-                self._offboard_active = False
-            except (OffboardError, ActionError):
-                pass
 
     async def takeoff(
         self,
@@ -533,11 +509,15 @@ class Drone(Vehicle):
         logger.info(
             f"Drone: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )
-        try:
-            await self._run_on_mavsdk_loop(self._system.action.hold())
-            await asyncio.sleep(0.2)
-        except Exception as e:
-            logger.warning(f"Drone: action.hold() failed: {e}")
+        # action.hold() is LOITER (mode 5). The AERPAW E-VM filter only allows
+        # GUIDED (4) and LAND (9) and severs the link on mode 5. Keep hold for
+        # local SITL only.
+        if not self._in_aerpaw():
+            try:
+                await self._run_on_mavsdk_loop(self._system.action.hold())
+                await asyncio.sleep(0.2)
+            except Exception as e:
+                logger.warning(f"Drone: action.hold() failed: {e}")
         if self._ts_state.mode.get() in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
             logger.info(
                 f"Drone: pre-arm mode confirmed ({self._ts_state.mode.get()})",

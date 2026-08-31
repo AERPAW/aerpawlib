@@ -10,6 +10,8 @@ from enum import Enum
 import aiohttp
 import requests
 
+from aerpawlib._internal.aerpaw_ping import ping_forward_server
+
 from .constants import (
     AERPAW_CHECKPOINT_TIMEOUT_S,
     AERPAW_OEO_MSG_TIMEOUT_S,
@@ -29,6 +31,26 @@ class OeoSeverity(str, Enum):
     WARNING = "WARNING"
     ERROR = "ERROR"
     CRITICAL = "CRITICAL"
+
+
+_OEO_SEVERITY_ALIASES = {
+    "CRIT": OeoSeverity.CRITICAL,
+    "WARN": OeoSeverity.WARNING,
+    "ERR": OeoSeverity.ERROR,
+}
+
+
+def coerce_oeo_severity(severity: OeoSeverity | str) -> OeoSeverity:
+    """Normalize a string or enum to ``OeoSeverity`` (case-insensitive)."""
+    if isinstance(severity, OeoSeverity):
+        return severity
+    key = str(severity).strip().upper()
+    if key in _OEO_SEVERITY_ALIASES:
+        return _OEO_SEVERITY_ALIASES[key]
+    try:
+        return OeoSeverity(key)
+    except ValueError:
+        return OeoSeverity.INFO
 
 
 class AerpawPlatform:
@@ -53,26 +75,29 @@ class AerpawPlatform:
         self.is_connected = self._check_connection()
 
     def _check_connection(self) -> bool:
-        """Attempt to connect to the AERPAW forward server."""
-        try:
-            requests.post(
-                f"http://{self.forward_ip}:{self.forward_port}/ping",
-                timeout=AERPAW_PING_TIMEOUT_S,
-            )
+        """Attempt to connect to the AERPAW forward server.
+
+        HTTP 400 (``service not available``) is not treated as connected.
+        """
+        if ping_forward_server(
+            self.forward_ip,
+            self.forward_port,
+            AERPAW_PING_TIMEOUT_S,
+        ):
             logger.info(
                 f"AERPAW platform: connected to forward server {self.forward_ip}:{self.forward_port}",
             )
             return True
-        except requests.exceptions.RequestException as e:
-            logger.debug(
-                f"AERPAW platform: not in AERPAW environment ({self.forward_ip}:{self.forward_port} unreachable: {e})",
-            )
-            return False
+        logger.debug(
+            f"AERPAW platform: not in AERPAW environment ({self.forward_ip}:{self.forward_port} unreachable or ping not 2xx)",
+        )
+        return False
 
-    def _log_local(self, msg: str, severity: OeoSeverity) -> None:
+    def _log_local(self, msg: str, severity: OeoSeverity | str) -> None:
         """Emit message to the local logger."""
         if self.suppress_stdout:
             return
+        severity = coerce_oeo_severity(severity)
 
         # Dynamically map the Enum to the correct logging function
         log_methods = {
@@ -88,10 +113,11 @@ class AerpawPlatform:
     def _build_oeo_url(
         self,
         msg: str,
-        severity: OeoSeverity,
+        severity: OeoSeverity | str,
         agent_id: str | None,
     ) -> str:
         """Build the HTTP URL for publishing messages to the OEO forward server."""
+        severity = coerce_oeo_severity(severity)
         encoded = base64.urlsafe_b64encode(msg.encode("utf-8")).decode("utf-8")
         url = f"http://{self.forward_ip}:{self.forward_port}/oeo_msg/{severity.value}/{encoded}"
         if agent_id:
@@ -117,7 +143,7 @@ class AerpawPlatform:
     def log_to_oeo(
         self,
         msg: str,
-        severity: OeoSeverity = OeoSeverity.INFO,
+        severity: OeoSeverity | str = OeoSeverity.INFO,
         agent_id: str | None = None,
     ) -> None:
         """Send a message to the OEO console synchronously."""
@@ -142,7 +168,7 @@ class AerpawPlatform:
     async def log_to_oeo_async(
         self,
         msg: str,
-        severity: OeoSeverity = OeoSeverity.INFO,
+        severity: OeoSeverity | str = OeoSeverity.INFO,
         agent_id: str | None = None,
     ) -> None:
         """Send a message to the OEO console asynchronously."""

@@ -24,6 +24,30 @@ from aerpawlib.v1.util import Coordinate, Waypoint, read_from_plan
 from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
 WAYPOINT_WAIT_TIME = 3  # s
+_TRAFFIC_REL = (
+    "AHN/E-VM/Profile_software/ProfileScripts/Traffic/Samples"
+)
+
+
+def _traffic_script(name: str) -> str:
+    """Resolve ping/iperf launchers; E-VM tree is under /root, not /home/pi."""
+    roots = []
+    for key in ("AP_EXPENV_AERPAW_DEV", "AERPAW_DEV"):
+        val = os.environ.get(key)
+        if val:
+            roots.append(val)
+    roots.extend(
+        [
+            "/root/AERPAW-Dev",
+            os.path.join(os.path.expanduser("~"), "AERPAW-Dev"),
+            "/home/pi/AERPAW-Dev",
+        ]
+    )
+    for root in roots:
+        candidate = os.path.join(root, _TRAFFIC_REL, name)
+        if os.path.isfile(candidate):
+            return candidate
+    return os.path.join("/root/AERPAW-Dev", _TRAFFIC_REL, name)
 
 
 def _dump_to_csv(vehicle: Vehicle, line_num: int, writer):
@@ -102,7 +126,7 @@ class PreplannedTrajectoryLogging(StateMachine):
             print("Starting ping")
             self._ping = subprocess.Popen(
                 [
-                    "/home/pi/AERPAW-Dev/AHN/E-VM/Profile_software/ProfileScripts/Traffic/Samples/startPingCLArguments.sh",
+                    _traffic_script("startPingCLArguments.sh"),
                     self._destination_ip,
                 ]
             )
@@ -113,7 +137,7 @@ class PreplannedTrajectoryLogging(StateMachine):
             print("Starting iperf")
             self._iperf = subprocess.Popen(
                 [
-                    "/home/pi/AERPAW-Dev/AHN/E-VM/Profile_software/ProfileScripts/Traffic/Samples/startIperfClientCLArguments.sh",
+                    _traffic_script("startIperfClientCLArguments.sh"),
                     self._destination_ip,
                     "1000",
                 ]

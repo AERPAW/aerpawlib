@@ -84,7 +84,7 @@ def run(
     api_version: str = typer.Option(
         "v1",
         "--api-version",
-        help="The version of the vehicle control API to use ('v1' or 'v2'). v2 is recommended for new experiments.",
+        help="The version of the vehicle control API to use ('v1' or 'v2'). v2 is recommended for new experiments; the default remains v1.",
         rich_help_panel="Core Options",
     ),
     config: list[str] | None = typer.Option(
@@ -139,7 +139,7 @@ def run(
     safety_checker_ip: str | None = typer.Option(
         None,
         "--safety-checker-ip",
-        help="The IP/host address for the AERPAW SafetyCheckerServer. On AERPAW this defaults to the C-VM (AP_EXPENV_OEOCVM_XM).",
+        help="The IP/host address for the AERPAW SafetyCheckerServer. On AERPAW this defaults to this node's C-VM XV (AP_EXPENV_CVM_<n>_XV).",
         rich_help_panel="Connection & Safety Options",
     ),
     zmq_identifier: str | None = typer.Option(

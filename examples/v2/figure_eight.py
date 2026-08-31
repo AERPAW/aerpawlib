@@ -15,8 +15,8 @@ import math
 from aerpawlib.v2 import BasicRunner, Coordinate, Drone, VectorNED, entrypoint
 
 # Configuration
-FLIGHT_ALT = 15  # meters
-LOOP_RADIUS = 20  # meters (radius of each loop)
+FLIGHT_ALT = 25  # meters (AERPAW copter min_alt is 20)
+LOOP_RADIUS = 10  # meters (radius of each loop; 20 m spans ~40 m)
 NUM_WAYPOINTS = 16  # points per loop
 
 

@@ -27,6 +27,6 @@ class RemoteMission(ZmqStateMachine):
     @expose_zmq("fly")
     async def fly(self, drone: Drone):
         print("[example] Flying - takeoff and hover")
-        await drone.takeoff(altitude=5)
+        await drone.takeoff(altitude=25)
         await drone.land()
         return

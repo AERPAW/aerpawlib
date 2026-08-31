@@ -16,6 +16,7 @@ from aerpawlib._internal.zmq import (
 )
 from aerpawlib.v2.constants import (
     STATE_MACHINE_DELAY_S,
+    STATE_MACHINE_IDLE_DELAY_S,
     ZMQ_QUERY_FIELD_TIMEOUT_S,
     ZMQ_TRANSITION_TIMEOUT_S,
     ZMQ_TYPE_FIELD_CALLBACK,
@@ -424,6 +425,15 @@ class StateMachine(Runner):
                     )
                 else:
                     self._current_state = next_state
+                    if self._current_state is None:
+                        logger.info("StateMachine: completed (final state returned None)")
+                        break
+                    if self._current_state == spec.name:
+                        logger.debug(
+                            f"StateMachine: idle in state '{spec.name}'",
+                        )
+                        await asyncio.sleep(STATE_MACHINE_IDLE_DELAY_S)
+                        continue
                     logger.info(
                         f"StateMachine: state transition '{spec.name}' -> '{next_state}'",
                     )

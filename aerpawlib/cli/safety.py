@@ -11,18 +11,30 @@ DEFAULT_LOCAL_SAFETY_CHECKER_IP = "127.0.0.1"
 """Safety-checker host used outside AERPAW when only a port is given."""
 
 DEFAULT_CVM_SAFETY_CHECKER_IP = "192.168.32.25"
-"""Fallback C-VM address when ``AP_EXPENV_OEOCVM_XM`` is unset."""
+"""Fallback C-VM XV address when ``AP_EXPENV_CVM_<n>_XV`` is unset or NONE."""
 
-AERPAW_CVM_IP_ENV = "AP_EXPENV_OEOCVM_XM"
-"""Same environment variable OEO uses for the Controller VM address."""
+AERPAW_NODE_NUM_ENV = "AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM"
+"""This E-VM's 1-based node index; used to pick ``AP_EXPENV_CVM_<n>_XV``."""
+
+AERPAW_CVM_XV_ENV_TEMPLATE = "AP_EXPENV_CVM_{n}_XV"
+"""This node's C-VM address on the vehicle net (safety checker + MAVLink)."""
 
 UNDERSCORE_IP_FLAG = "--safety_checker_ip"
 UNDERSCORE_PORT_FLAG = "--safety_checker_port"
 
 
 def aerpaw_safety_checker_ip() -> str:
-    """C-VM address shared with OEO (``AP_EXPENV_OEOCVM_XM``)."""
-    return os.getenv(AERPAW_CVM_IP_ENV, DEFAULT_CVM_SAFETY_CHECKER_IP)
+    """This node's C-VM XV address (safety checker), not the OEO Console.
+
+    Reads ``AP_EXPENV_CVM_${AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM}_XV``.
+    ``AP_EXPENV_OEOCVM_XM`` is the console XM address and must not be used.
+    """
+    node = os.getenv(AERPAW_NODE_NUM_ENV, "").strip()
+    if node:
+        raw = os.getenv(AERPAW_CVM_XV_ENV_TEMPLATE.format(n=node), "").strip()
+        if raw and raw.upper() != "NONE":
+            return raw
+    return DEFAULT_CVM_SAFETY_CHECKER_IP
 
 
 def _flag_value(extra_args: Sequence[str], flag: str) -> str | None:

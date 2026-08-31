@@ -84,7 +84,7 @@
             },
             {
                 "AMSLAltAboveTerrain": null,
-                "Altitude": 18.288,
+                "Altitude": 25,
                 "AltitudeMode": 1,
                 "autoContinue": true,
                 "command": 16,
@@ -97,7 +97,7 @@
                     null,
                     35.72757601302475,
                     -78.69699610355306,
-                    18.288
+                    25
                 ],
                 "type": "SimpleItem"
             },

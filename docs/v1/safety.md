@@ -4,7 +4,7 @@ Validate mission commands against geofences, speed limits, and altitude bounds b
 
 ## When to use this
 
-Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed. The CLI attaches a client with `--safety-checker-port` / `--safety-checker-ip`. Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is the C-VM (`AP_EXPENV_OEOCVM_XM`). After that, `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` ask the server first and do not run if the maneuver is rejected.
+Use `SafetyCheckerClient` in v1 scripts that must respect AERPAW geofence rules. Run `SafetyCheckerServer` (or `aerpawlib-safety-checker`) with a YAML config on the testbed. The CLI attaches a client with `--safety-checker-port` / `--safety-checker-ip`. Helper extra args `--safety_checker_ip` / `--safety_checker_port` are passed through to the script and also used when attaching that client. On AERPAW the default host is this node's C-VM XV (`AP_EXPENV_CVM_<n>_XV`). After that, `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` ask the server first and do not run if the maneuver is rejected.
 
 ## Common workflow
 

@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.8] (2026-08-31)
+
+### Summary
+
+AERPAW testbed compatibility for **v1 and v2** after virtual experiment 1456. Safety-checker host, ping detection, copter mode/heading, v2 runner robustness, and examples now match E-VM policy (GUIDED/LAND only, `min_alt` 20, land within 5 m of takeoff). CLI `--api-version` still defaults to **v1**.
+
+### Fixed
+
+- **Safety-checker default host.** AERPAW default is this node's C-VM XV (`AP_EXPENV_CVM_${N}_XV`, typically `192.168.32.25`), not the OEO Console (`AP_EXPENV_OEOCVM_XM`). `--safety-checker-ip` still overrides.
+- **AERPAW `/ping` status.** v1 and v2 treat only HTTP 2xx/3xx as connected. Probe `/ping/` first so live consoles that 400 `/ping` still detect the environment.
+- **`action.hold()` on AERPAW.** Copter `action.hold()` is LOITER (mode 5) and severs the E-VM MAVLink link. Skip hold on AERPAW; send GUIDED (4) only. v2 no longer calls `_pre_auto_arm()` while waiting for the safety pilot.
+- **`set_heading` stays in GUIDED.** Heading uses `MAV_CMD_CONDITION_YAW` instead of `offboard.start()`, which the copter filter does not allow.
+- **v2 ground auto-disarm.** Copters that auto-disarm on the ground no longer raise `UnexpectedDisarmError` (fixes ZMQ leader/follower when the leader never takes off).
+- **`VehicleTask.wait_done()` after `cancel()`.** User-requested cancel completes the handle; the caller checks `is_cancelled()`.
+- **v2 disconnect OEO callback.** `log_to_oeo` accepts `str | OeoSeverity` so `severity="CRITICAL"` no longer raises `'str' object has no attribute 'value'`.
+- **v2 MAVSDK UDP bind.** Occupied `udpin://` listen ports raise `PortInUseError` instead of attaching to a stale `mavsdk_server`.
+- **Idle state-machine waits.** Identity transitions sleep 0.1 s and log at DEBUG instead of INFO at 100 Hz.
+- **Examples / plans.** Takeoff 25 m, land at home, `orbit.plan` waypoint ≥ 25 m, figure-eight radius 10 m, `plan_example.py` honors `--file`, docstrings cite `.plan` files, ping/iperf launchers resolve under `/root` or `$HOME`.
+
+### Changed
+
+- CLI help still recommends v2 for new experiments; **`--api-version` default remains v1**.
+
 ## [1.4.7] (2026-08-25)
 
 ### Summary

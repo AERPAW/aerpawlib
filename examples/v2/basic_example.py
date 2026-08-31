@@ -14,7 +14,7 @@ class SquareFlight(BasicRunner):
 
     @entrypoint
     async def run(self, drone: Drone):
-        takeoff_altitude = 10
+        takeoff_altitude = 25
         square_size = 10
 
         print("[example] Starting square flight mission")

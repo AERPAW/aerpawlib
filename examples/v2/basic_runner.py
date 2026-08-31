@@ -14,10 +14,13 @@ class MyScript(BasicRunner):
 
     @entrypoint
     async def do_stuff(self, drone: Drone):
-        print("[example] Taking off to 10m...")
-        await drone.takeoff(altitude=10)
+        print("[example] Taking off to 25m...")
+        await drone.takeoff(altitude=25)
+        start = drone.position
         print("[example] Flying north 10m...")
-        await drone.goto_coordinates(drone.position + VectorNED(10, 0, 0))
+        await drone.goto_coordinates(start + VectorNED(10, 0, 0))
+        print("[example] Returning to takeoff...")
+        await drone.goto_coordinates(start)
         print("[example] Landing...")
         await drone.land()
         print("[example] Done!")

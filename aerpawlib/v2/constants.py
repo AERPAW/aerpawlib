@@ -53,6 +53,12 @@ MAX_POSITION_TOLERANCE_M = 100.0
 # State machine
 STATE_MACHINE_DELAY_S = 0.01
 """Delay between state-machine loop iterations."""
+STATE_MACHINE_IDLE_DELAY_S = 0.1
+"""Sleep when a state returns itself (idle wait) so INFO logs do not flood."""
+
+# Unexpected-disarm guard
+GROUND_DISARM_ALT_M = 2.0
+"""Relative altitude above which a disarm is treated as unexpected (in-air)."""
 
 # ZMQ
 ZMQ_PROXY_IN_PORT = "5570"

@@ -109,7 +109,7 @@ class VehicleTask:
             await asyncio.gather(*self._cancel_tasks, return_exceptions=True)
             self._cancel_tasks.clear()
         await self._done.wait()
-        if self._cancelled and self._error is None:
-            raise TaskCancelledError()
+        if self._cancelled:
+            return
         if self._error is not None:
             raise self._error
