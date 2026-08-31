@@ -6,8 +6,8 @@ import os
 from typing import Any
 
 # mavsdk_server default GCS identity. mavlink_direct send fails if we
-# impersonate the vehicle (sysid 1); the autopilot accepts SET_MODE from this
-# GCS identity.
+# impersonate the vehicle (sysid 1); the autopilot accepts COMMAND_LONG from
+# this GCS identity.
 MAVSDK_GCS_SYSID = 245
 MAVSDK_GCS_COMPID = 190
 
@@ -32,7 +32,11 @@ def resolve_gcs_ids() -> tuple[int, int]:
 
 
 def make_set_mode_message(target_sysid: int, custom_mode: int):
-    """Build a SET_MODE mavlink_direct message from the MAVSDK GCS identity."""
+    """Build COMMAND_LONG MAV_CMD_DO_SET_MODE from the MAVSDK GCS identity.
+
+    C-VM filter allows COMMAND_LONG 176 (GUIDED/LAND) only; SET_MODE is not
+    on the allow-list. param2 is the ArduPilot custom mode (4 copter, 15 rover).
+    """
     import json
 
     from mavsdk.mavlink_direct import MavlinkMessage
@@ -41,11 +45,19 @@ def make_set_mode_message(target_sysid: int, custom_mode: int):
     gcs_sys, gcs_comp = resolve_gcs_ids()
     fields = {
         "target_system": int(target_sysid),
-        "base_mode": int(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
-        "custom_mode": int(custom_mode),
+        "target_component": 1,
+        "command": int(mavutil.mavlink.MAV_CMD_DO_SET_MODE),
+        "confirmation": 0,
+        "param1": float(mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED),
+        "param2": float(custom_mode),
+        "param3": 0.0,
+        "param4": 0.0,
+        "param5": 0.0,
+        "param6": 0.0,
+        "param7": 0.0,
     }
     return MavlinkMessage(
-        message_name="SET_MODE",
+        message_name="COMMAND_LONG",
         system_id=gcs_sys,
         component_id=gcs_comp,
         target_system_id=int(target_sysid),
