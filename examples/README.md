@@ -1,5 +1,7 @@
 # aerpawlib Examples
 
+Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.json`). Copter takeoff on the testbed must be at least 20 m; these examples use 25 m.
+
 ## Quick Reference
 
 | Example | Version | Description |
@@ -7,7 +9,7 @@
 | `basic_example` | v1, v2 | Square flight pattern (10m × 10m) |
 | `basic_runner` | v1, v2 | Minimal `BasicRunner`: takeoff, fly north, land |
 | `figure_eight` | v1, v2 | Figure-8 waypoint pattern |
-| `circle` | v1, v2 | Circular flight using velocity control |
+| `circle` | v1, v2 | Circular flight using velocity control (not supported on the AERPAW testbed) |
 | `squareoff_logging` | v1, v2 | Square flight with background position logging |
 | `preplanned_trajectory` | v1, v2 | Waypoints loaded from QGroundControl `.plan` file |
 | `hide_rover` | v1, v2 | Rover follows plan, then hides in geofence |
@@ -19,7 +21,7 @@
 | `rover_search` | v1 | Drone search algorithm using safety checker and RSSI |
 | `enhanced_example` | v2 | Preflight checks and pre-command validations |
 | `rover_example` | v2 | Ground vehicle waypoint navigation |
-| `velocity_example` | v2 | Guided mode velocity control pattern |
+| `velocity_example` | v2 | Guided mode velocity control (not supported on the AERPAW testbed) |
 | `command_handle_example` | v2 | Non-blocking command handle progress querying |
 | `command_handle_cancel_example` | v2 | Cancel non-blocking goto mid-flight (triggers RTL) |
 | `command_validation_example` | v2 | Pre-check capability validation |
@@ -38,40 +40,40 @@
 ```bash
 # Basic examples
 aerpawlib --api-version v1 --script examples/v1/basic_example.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 aerpawlib --api-version v1 --script examples/v1/basic_runner.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 aerpawlib --api-version v1 --script examples/v1/figure_eight.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 # State machine examples
 aerpawlib --script examples/v1/circle.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 aerpawlib --script examples/v1/squareoff_logging.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 # Preplanned trajectory (requires .plan file)
 aerpawlib --script examples/v1/preplanned_trajectory.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 --file mission.plan
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment --file mission.plan
 
 # External process
 aerpawlib --script examples/v1/external_runner.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 # GPS Logger (periodically log telemetry to CSV)
 aerpawlib --script examples/v1/gps_logger.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 --output logs.csv --samplerate 2
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment --output logs.csv --samplerate 2
 
 # Guided mission with background traffic testing (ping/iperf)
 aerpawlib --script examples/v1/guided_mission_ping_iperf.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 --file plans/default.plan --destination_ip 127.0.0.1
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment --file plans/default.plan --destination_ip 127.0.0.1
 
 # Rover search (search for rover utilizing safety checker and RSSI values)
 aerpawlib --script examples/v1/rover_search.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 \
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment \
     --safety-checker-ip 127.0.0.1 --safety-checker-port 14580 \
     --fake_radio True --search_time 10
 ```
@@ -81,18 +83,18 @@ aerpawlib --script examples/v1/rover_search.py \
 ```bash
 # Basic examples
 aerpawlib --api-version v2 --script examples/v2/basic_example.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 aerpawlib --api-version v2 --script examples/v2/basic_runner.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 # State machine examples
 aerpawlib --api-version v2 --script examples/v2/state_machine_example.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 
 # Dry run with DummyVehicle (no connection or hardware needed)
 aerpawlib --api-version v2 --script examples/v2/dummy_vehicle_example.py \
-    --vehicle none --conn ""
+    --vehicle none --no-aerpaw-environment
 ```
 
 ### ZMQ Multi-Vehicle (v1)
@@ -102,15 +104,15 @@ Requires `aerpawlib-run-proxy` in a separate terminal first.
 ```bash
 # Leader/follower
 aerpawlib --script examples/v1/zmq_runner/leader.py \
-    --conn udpin://127.0.0.1:14550 --vehicle drone \
+    --conn udpin://127.0.0.1:14550 --vehicle drone --no-aerpaw-environment \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1
 
 aerpawlib --script examples/v1/zmq_runner/follower.py \
-    --conn udpin://127.0.0.1:14551 --vehicle drone \
+    --conn udpin://127.0.0.1:14551 --vehicle drone --no-aerpaw-environment \
     --zmq-identifier follower --zmq-proxy-server 127.0.0.1
 ```
 
-See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_orbit/README.md](v1/zmq_preplanned_orbit/README.md) for ZMQ setup details.
+See [v1/zmq_runner/README.md](v1/zmq_runner/README.md), [v1/zmq_preplanned_orbit/README.md](v1/zmq_preplanned_orbit/README.md), [v2/zmq_runner/README.md](v2/zmq_runner/README.md), and [v2/zmq_preplanned_orbit/README.md](v2/zmq_preplanned_orbit/README.md) for ZMQ setup details.
 
 ### ZMQ Multi-Vehicle (v2)
 
@@ -118,7 +120,7 @@ See [v1/zmq_runner/README.md](v1/zmq_runner/README.md) and [v1/zmq_preplanned_or
 aerpawlib-run-proxy  # Terminal 1
 
 aerpawlib --api-version v2 --script examples/v2/zmq_state_machine_example.py \
-    --vehicle drone --conn udpin://127.0.0.1:14550 \
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment \
     --zmq-identifier leader --zmq-proxy-server 127.0.0.1  # Terminal 2
 ```
 

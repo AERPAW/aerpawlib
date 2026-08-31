@@ -13,7 +13,7 @@
 | **v1** | `aerpawlib.v1` | Existing experiment scripts written for the [original DroneKit-based aerpawlib](https://github.com/morzack/aerpawlib-vehicle-control); same runner, vehicle, ZMQ, and safety API with MAVSDK under the hood |
 | **v2** | `aerpawlib.v2` | New experiments: async connect, `can_takeoff` / `can_goto` / `can_land` (enforced on the command path when a safety client is attached), `VehicleTask` |
 
-> **Note:** Imports from `aerpawlib` (without `.v1`) still work but are deprecated in favor of `aerpawlib.v1`.
+> **Note:** Imports from `aerpawlib` (without `.v1`) still work but are deprecated in favor of `aerpawlib.v1`. The CLI `--api-version` default is `v1`.
 
 ## Documentation index
 
@@ -33,14 +33,16 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 class MyExperiment(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         await drone.goto_coordinates(drone.position + VectorNED(20, 0))
         await drone.land()
 ```
 
 ```bash
-aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpin://127.0.0.1:14550
+aerpawlib --api-version v2 --script my_experiment.py --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 ```
+
+`--no-aerpaw-environment` is required outside AERPAW. Copter takeoff on the testbed must be at least 20 m (examples use 25 m).
 
 ## See also
 

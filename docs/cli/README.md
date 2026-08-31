@@ -17,7 +17,7 @@ aerpawlib \
   --no-aerpaw-environment
 ```
 
-For SITL locally, start ArduPilot SITL first (see repository README).
+`--no-aerpaw-environment` is required for local SITL. Prefer MAVSDK `udpin://host:port`; `udp:host:port` and `udp://host:port` are rewritten automatically.
 
 ## Key concepts
 
@@ -41,19 +41,27 @@ For SITL locally, start ArduPilot SITL first (see repository README).
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--api-version` | `v1` | `v1` or `v2` |
-| `--no-aerpaw-environment` | off | Skip AERPAW platform connection (use for SITL) |
+| `--no-aerpaw-environment` | off | Skip AERPAW platform connection (required for SITL) |
 
 ### Execution control
 
-| Flag | Description |
-|------|-------------|
-| `--skip-init` | Skip vehicle initialize/armable checks |
-| `--skip-rtl` | Do not auto RTL/RTH at successful end if still armed |
-| `--conn-timeout` | Initial connection wait (seconds) |
-| `--heartbeat-timeout` | Heartbeat loss threshold |
-| `--mavsdk-port` | gRPC port per vehicle instance |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--skip-init` | off | Skip vehicle initialize/armable checks |
+| `--skip-rtl` | off | Do not auto RTL/RTH at successful end if still armed |
+| `--conn-timeout` / `--connection-timeout` | 30 s | Initial connection wait |
+| `--heartbeat-timeout` | 5 s | Heartbeat loss threshold |
+| `--mavsdk-port` | 50051 | gRPC port per vehicle instance |
+| `--config` | — | JSON preset(s); may be repeated |
+
+Without `--skip-rtl`, an armed drone RTLs after a successful run. An armed rover goes to `home_coords` if known. Ctrl-C, a script error, or a lost link leave the last GUIDED setpoint.
 
 ### ZMQ (multi-vehicle)
+
+| Flag | Description |
+|------|-------------|
+| `--zmq-identifier` | Unique runner id (for example `leader`) |
+| `--zmq-proxy-server` | Proxy host (for example `127.0.0.1`) |
 
 ```bash
 aerpawlib-run-proxy   # terminal 1
@@ -100,8 +108,9 @@ JSON object with keys matching CLI long options (hyphenated):
   "conn": "udpin://127.0.0.1:14550"
 }
 ```
+
 ```bash
-aerpawlib --config sitl-drone.json --script my_experiment.py
+aerpawlib --config configs/sitl-drone.json --script my_experiment.py
 ```
 
 CLI flags override config file values.

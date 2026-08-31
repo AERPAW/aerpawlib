@@ -14,7 +14,7 @@ from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
-        await vehicle.takeoff(10)
+        await vehicle.takeoff(25)
         await vehicle.goto_coordinates(vehicle.position + VectorNED(20, 0, 0))
         await vehicle.land()
 ```
@@ -27,7 +27,7 @@ class Mission(BasicRunner):
 
 | Command | Description |
 |---------|-------------|
-| `takeoff(altitude)` | Climb to relative altitude (m) |
+| `takeoff(target_alt)` | Climb to relative altitude (m) |
 | `goto_coordinates(coord, …)` | Fly to `Coordinate` |
 | `set_heading(degrees, …)` | Turn to heading |
 | `land()` | Land at current position |

@@ -7,7 +7,7 @@ Multi-drone example: two drones (tracer + orbiter) coordinated via ZMQ. The trac
 ## Tracer
 
 ```bash
-aerpawlib --vehicle drone --conn udpin://127.0.0.1:14570 \
+aerpawlib --vehicle drone --conn udpin://127.0.0.1:14570 --no-aerpaw-environment \
     --zmq-identifier tracer --zmq-proxy-server 127.0.0.1 \
     --script examples/v1/zmq_preplanned_orbit/drone_tracer.py
 ```
@@ -15,7 +15,7 @@ aerpawlib --vehicle drone --conn udpin://127.0.0.1:14570 \
 ## Orbiter
 
 ```bash
-aerpawlib --vehicle drone --conn udpin://127.0.0.1:14580 \
+aerpawlib --vehicle drone --conn udpin://127.0.0.1:14580 --no-aerpaw-environment \
     --zmq-identifier orbiter --zmq-proxy-server 127.0.0.1 \
     --script examples/v1/zmq_preplanned_orbit/drone_orbiter.py
 ```
@@ -23,7 +23,7 @@ aerpawlib --vehicle drone --conn udpin://127.0.0.1:14580 \
 ## Ground Coordinator
 
 ```bash
-aerpawlib --vehicle none --skip-init \
+aerpawlib --vehicle none --skip-init --no-aerpaw-environment \
     --zmq-identifier ground --zmq-proxy-server 127.0.0.1 \
     --script examples/v1/zmq_preplanned_orbit/ground_coordinator.py \
     --file examples/v1/zmq_preplanned_orbit/orbit.plan

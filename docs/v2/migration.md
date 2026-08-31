@@ -22,7 +22,7 @@ Prefer the CLI (`--api-version v2`); it calls `connect` and `initialize` for you
 
 | v1 | v2 |
 |----|----|
-| `await drone.takeoff(10)` | `await drone.takeoff(altitude=10)` (positional still works) |
+| `await drone.takeoff(25)` | `await drone.takeoff(altitude=25)` (positional still works) |
 | `await drone.goto_coordinates(c)` | same; add `blocking=False` for a `VehicleTask` |
 | `in_background(drone.goto_coordinates(c))` | `await drone.goto_coordinates(c, blocking=False)` or `in_background(...)` |
 | `initialize()` is **sync** | `await initialize()` |
@@ -41,3 +41,4 @@ Multi-vehicle: `await self.wait_for_peers(["follower"])` before the first `trans
 - Exceptions: v2 errors have `code` and `severity`.
 - Close: `await drone.aclose()`, not `drone.close()`.
 - Mode string is `"OFFBOARD"` (ArduPilot GUIDED via MAVSDK). Compare with `vehicle.mode in ("OFFBOARD", "GUIDED")`.
+- Copter takeoff on the testbed must be at least 20 m (examples use 25 m).

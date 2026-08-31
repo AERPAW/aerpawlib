@@ -18,7 +18,7 @@ transitions.
     aerpawlib \
       --script examples/v1/zmq_runner/leader.py \
       --conn udpin://127.0.0.1:14550 \
-      --vehicle drone \
+      --vehicle drone --no-aerpaw-environment \
       --zmq-identifier leader \
       --zmq-proxy-server 127.0.0.1
    ```
@@ -29,7 +29,7 @@ transitions.
     aerpawlib \
       --script examples/v1/zmq_runner/follower.py \
       --conn udpin://127.0.0.1:14551 \
-      --vehicle drone \
+      --vehicle drone --no-aerpaw-environment \
       --zmq-identifier follower \
       --zmq-proxy-server 127.0.0.1
    ```

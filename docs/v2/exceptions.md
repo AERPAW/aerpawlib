@@ -12,7 +12,7 @@ Import exception types when you handle failures in experiment scripts.
 from aerpawlib.v2 import TakeoffError, NavigationError, AerpawlibError
 
 try:
-    await drone.takeoff(altitude=10)
+    await drone.takeoff(altitude=25)
 except TakeoffError as e:
     print(e.code, e.message)
 except AerpawlibError as e:
@@ -30,7 +30,7 @@ AerpawlibError
 └── PlanError
 ```
 
-`UnexpectedDisarmError` terminates the runner when the vehicle disarms mid-mission.
+`UnexpectedDisarmError` terminates the runner when the vehicle disarms while airborne. Ground auto-disarm does not raise it.
 
 ## See also
 

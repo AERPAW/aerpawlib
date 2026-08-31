@@ -20,12 +20,13 @@ from aerpawlib.v1 import BasicRunner, Drone, entrypoint
 class Patrol(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
-        await vehicle.takeoff(5)
+        await vehicle.takeoff(25)
         await vehicle.land()
 ```
 
 ```bash
-aerpawlib --api-version v1 --script patrol.py --vehicle drone --conn udpin://127.0.0.1:14550
+aerpawlib --api-version v1 --script patrol.py \
+    --vehicle drone --conn udpin://127.0.0.1:14550 --no-aerpaw-environment
 ```
 
 ## Key concepts
@@ -79,7 +80,7 @@ from aerpawlib.v1 import StateMachine, Vehicle, state, timed_state
 class Patrol(StateMachine):
     @state(name="start", first=True)
     async def start(self, vehicle: Vehicle):
-        await vehicle.takeoff(5)
+        await vehicle.takeoff(25)
         return "hold"
 
     @timed_state(name="hold", duration=10)
@@ -104,7 +105,7 @@ class LeaderRunner(ZmqStateMachine):
         await self.wait_for_peers(["follower"])
         follower_alt = await self.query_field("follower", "altitude", timeout=5)
         print(f"Follower altitude: {follower_alt}")
-        
+
         # Command follower to takeoff
         await self.transition_runner("follower", "remote_takeoff")
         return None
@@ -117,7 +118,7 @@ class FollowerRunner(ZmqStateMachine):
     @expose_zmq("remote_takeoff")
     @state(name="takeoff")
     async def takeoff(self, vehicle: Vehicle):
-        await vehicle.takeoff(10)
+        await vehicle.takeoff(25)
         return "idle"
 
     @expose_field_zmq("altitude")
