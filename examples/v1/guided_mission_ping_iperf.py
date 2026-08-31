@@ -24,9 +24,7 @@ from aerpawlib.v1.util import Coordinate, Waypoint, read_from_plan
 from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
 WAYPOINT_WAIT_TIME = 3  # s
-_TRAFFIC_REL = (
-    "AHN/E-VM/Profile_software/ProfileScripts/Traffic/Samples"
-)
+_TRAFFIC_REL = "AHN/E-VM/Profile_software/ProfileScripts/Traffic/Samples"
 
 
 def _traffic_script(name: str) -> str:
