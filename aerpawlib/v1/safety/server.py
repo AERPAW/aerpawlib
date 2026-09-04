@@ -311,7 +311,7 @@ class SafetyCheckerServer:
                 False,
                 f"Invalid takeoff altitude of {takeoff_alt} m.",
             )
-        self.takeoff_location = Coordinate(current_lat, current_lon, alt=0)
+        # Pad is filter GPS at first forwarded armed NAV_TAKEOFF, not this ZMQ check.
         return True, ""
 
     def validate_landing_command(

@@ -40,8 +40,8 @@ aerpawlib \
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--api-version` | `v1` | `v1` or `v2` |
-| `--no-aerpaw-environment` | off | Skip AERPAW platform connection (required for SITL) |
+| `--api-version` | inferred from the script | `v1` or `v2`; omit to detect from the Runner class |
+| `--no-aerpaw-environment` | off | Skip AERPAW platform connection (required for SITL; refused on a live E-VM if the OEO forwarder is reachable) |
 
 ### Execution control
 

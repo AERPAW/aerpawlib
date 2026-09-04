@@ -91,3 +91,14 @@ def test_start_server_unknown_function_request_does_not_crash():
     response = deserialize_msg(fake_socket.sent[0])
     assert response["result"] is False
     assert "not_implemented" in response["message"]
+
+
+def test_validate_takeoff_does_not_record_pad():
+    server = SafetyCheckerServer.__new__(SafetyCheckerServer)
+    server.vehicle_type = "copter"
+    server.min_alt = 20
+    server.max_alt = 120
+    server.takeoff_location = None
+    ok, _msg = server.validate_takeoff_command(25.0, 35.729, -78.697)
+    assert ok is True
+    assert server.takeoff_location is None

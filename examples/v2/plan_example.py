@@ -5,7 +5,7 @@ Requires a .plan file (e.g., from QGroundControl). Pass the path with --file.
 Run with:
     aerpawlib --api-version v2 --script examples/v2/plan_example.py \
         --vehicle drone --conn udpin://127.0.0.1:14550 \
-        --file plans/default.plan
+        --file examples/v2/zmq_preplanned_orbit/orbit.plan
 """
 
 import argparse
@@ -48,8 +48,8 @@ class PlanMission(BasicRunner):
                 break
 
         if PLAN_CMD_RTL not in (w[0] for w in waypoints):
-            home = drone.home_coords
-            if home is not None:
-                await drone.goto_coordinates(home)
-            await drone.land()
+            # home_coords is stored at relative alt 0; goto that coordinate is
+            # rejected by the AERPAW checker (min_alt 20). RTL flies home at
+            # the current altitude, then lands at the takeoff pad.
+            await drone.return_to_launch()
         print("[example] Mission complete")

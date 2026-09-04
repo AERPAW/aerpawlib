@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+import os
+
 import requests
+
+_AERPAW_ENV_MARKERS = (
+    "AP_EXPENV_EXP_NUM",
+    "AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM",
+)
+
+
+def aerpaw_env_vars_present() -> bool:
+    """True when this process looks like an AERPAW experiment node."""
+    return any(os.environ.get(name) for name in _AERPAW_ENV_MARKERS)
 
 
 def ping_forward_server(host: str, port: int, timeout: float) -> bool:

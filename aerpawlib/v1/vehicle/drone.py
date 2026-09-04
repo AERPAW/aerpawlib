@@ -501,7 +501,7 @@ class Drone(Vehicle):
         We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll/resend until the flight controller confirms the mode change.
         """
-        if self._ts_state.mode.get() in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
+        if self._already_in_guided_mode():
             logger.debug(
                 f"Drone: already in pre-arm mode {self._ts_state.mode.get()!r}, skipping mode switch",
             )
@@ -511,14 +511,14 @@ class Drone(Vehicle):
         )
         # action.hold() is LOITER (mode 5). The AERPAW E-VM filter only allows
         # GUIDED (4) and LAND (9) and severs the link on mode 5. Keep hold for
-        # local SITL only.
+        # local SITL only. On AERPAW, HOLD is not already GUIDED.
         if not self._in_aerpaw():
             try:
                 await self._run_on_mavsdk_loop(self._system.action.hold())
                 await asyncio.sleep(0.2)
             except Exception as e:
                 logger.warning(f"Drone: action.hold() failed: {e}")
-        if self._ts_state.mode.get() in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
+        if self._already_in_guided_mode():
             logger.info(
                 f"Drone: pre-arm mode confirmed ({self._ts_state.mode.get()})",
             )
@@ -531,7 +531,7 @@ class Drone(Vehicle):
 
         start = time.time()
         last_send = 0.0
-        while self._ts_state.mode.get() not in {GUIDED_MODE_NAME, "HOLD", "OFFBOARD"}:
+        while not self._already_in_guided_mode():
             if time.time() - start > COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S:
                 logger.warning(
                     f"Drone: mode switch timeout (current mode={self._ts_state.mode.get()!r}); commands may fail if vehicle is not in GUIDED ({GUIDED_MODE_NAME}) mode",

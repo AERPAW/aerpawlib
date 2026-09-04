@@ -69,6 +69,28 @@ def run_v2_experiment(
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
 
         if no_aerpaw_env:
+            from aerpawlib._internal.aerpaw_ping import (
+                aerpaw_env_vars_present,
+                ping_forward_server,
+            )
+            from aerpawlib.v2.constants import (
+                AERPAW_PING_TIMEOUT_S,
+                DEFAULT_FORWARD_SERVER_IP,
+                DEFAULT_FORWARD_SERVER_PORT,
+            )
+
+            if aerpaw_env_vars_present() and ping_forward_server(
+                DEFAULT_FORWARD_SERVER_IP,
+                DEFAULT_FORWARD_SERVER_PORT,
+                AERPAW_PING_TIMEOUT_S,
+            ):
+                logger.critical(
+                    "--no-aerpaw-environment is SITL-only, but the AERPAW OEO forwarder "
+                    f"at {DEFAULT_FORWARD_SERVER_IP}:{DEFAULT_FORWARD_SERVER_PORT} answered ping. "
+                    "Refusing to start: this flag would skip AERPAW detection and can send "
+                    "action.hold() (LOITER), which severs the E-VM MAVLink link.",
+                )
+                sys.exit(1)
             aerpaw_platform = None
             logger.info(
                 "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode.",

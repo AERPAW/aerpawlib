@@ -123,3 +123,87 @@ class TestConnectionNormalization:
 
         v4 = Vehicle(mock_system, "tcp://127.0.0.1:5760")
         assert v4._connection_string == "tcp://127.0.0.1:5760"
+
+
+class TestGuidedModeAerpaw:
+    def _drone(self, *, mode: str, in_aerpaw: bool, forwarder: bool = False):
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+
+        from aerpawlib.v2.vehicle.drone import Drone
+
+        system = MagicMock()
+        system.action.hold = AsyncMock()
+        system.mavlink_direct.send_message = AsyncMock()
+        platform = SimpleNamespace(is_connected=True) if in_aerpaw else None
+        drone = Drone(system, "udpin://127.0.0.1:14550", aerpaw_platform=platform)
+        drone._state.update_mode(mode)
+        drone._aerpaw_forwarder_reachable_cache = forwarder
+        return drone
+
+    def test_hold_is_not_already_guided_on_aerpaw(self):
+        drone = self._drone(mode="HOLD", in_aerpaw=True)
+        assert drone._already_in_guided_mode() is False
+        assert drone._must_avoid_loiter() is True
+
+    def test_hold_is_already_guided_on_sitl(self):
+        drone = self._drone(mode="HOLD", in_aerpaw=False, forwarder=False)
+        assert drone._already_in_guided_mode() is True
+        assert drone._must_avoid_loiter() is False
+
+    def test_guided_is_already_good_on_aerpaw(self):
+        drone = self._drone(mode="GUIDED", in_aerpaw=True)
+        assert drone._already_in_guided_mode() is True
+
+    def test_forwarder_reachable_skips_hold_without_platform(self):
+        drone = self._drone(mode="HOLD", in_aerpaw=False, forwarder=True)
+        assert drone._must_avoid_loiter() is True
+        assert drone._already_in_guided_mode() is False
+
+    @pytest.mark.asyncio
+    async def test_set_guided_from_hold_sends_guided_on_aerpaw(self, monkeypatch):
+        drone = self._drone(mode="HOLD", in_aerpaw=True)
+
+        async def _send(_msg):
+            drone._state.update_mode("GUIDED")
+
+        drone._system.mavlink_direct.send_message.side_effect = _send
+        monkeypatch.setattr(
+            "aerpawlib._internal.mavlink_ids.resolve_mav_sysid",
+            lambda _s: 1,
+        )
+        monkeypatch.setattr(
+            "aerpawlib._internal.mavlink_ids.make_set_mode_message",
+            lambda *_a, **_k: object(),
+        )
+        await drone._set_guided_mode()
+        drone._system.action.hold.assert_not_awaited()
+        drone._system.mavlink_direct.send_message.assert_awaited()
+        assert drone.mode == "GUIDED"
+
+    @pytest.mark.asyncio
+    async def test_set_guided_calls_hold_on_sitl(self):
+        drone = self._drone(mode="STABILIZE", in_aerpaw=False, forwarder=False)
+
+        async def _hold():
+            drone._state.update_mode("HOLD")
+
+        drone._system.action.hold.side_effect = _hold
+        await drone._set_guided_mode()
+        drone._system.action.hold.assert_awaited()
+        drone._system.mavlink_direct.send_message.assert_not_awaited()
+
+    def test_forwarder_not_probed_without_aerpaw_env(self, monkeypatch):
+        from aerpawlib.v2.vehicle.base import DummyVehicle
+
+        monkeypatch.delenv("AP_EXPENV_EXP_NUM", raising=False)
+        monkeypatch.delenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM", raising=False)
+        called = []
+        monkeypatch.setattr(
+            "aerpawlib._internal.aerpaw_ping.ping_forward_server",
+            lambda *_a, **_k: called.append(True) or True,
+        )
+        v = DummyVehicle()
+        v._aerpaw_forwarder_reachable_cache = None
+        assert v._aerpaw_forwarder_reachable() is False
+        assert called == []

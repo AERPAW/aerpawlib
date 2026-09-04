@@ -117,11 +117,61 @@ class Vehicle:
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
         self._offboard = OffboardSession()
+        self._aerpaw_forwarder_reachable_cache: bool | None = None
 
     def _in_aerpaw(self) -> bool:
         """True when an AERPAW platform client is attached and connected."""
         platform = self._aerpaw_platform
         return bool(platform is not None and getattr(platform, "is_connected", False))
+
+    def _aerpaw_forwarder_reachable(self) -> bool:
+        """True when the OEO forwarder answers ping on this experiment node.
+
+        Used so ``--no-aerpaw-environment`` on a live E-VM cannot re-enable
+        ``action.hold()`` (LOITER). Laptop SITL has no ``AP_EXPENV_*`` vars and
+        does not probe the network.
+        """
+        if self._aerpaw_forwarder_reachable_cache is not None:
+            return self._aerpaw_forwarder_reachable_cache
+        from aerpawlib._internal.aerpaw_ping import (
+            aerpaw_env_vars_present,
+            ping_forward_server,
+        )
+        from aerpawlib.v2.constants import (
+            AERPAW_PING_TIMEOUT_S,
+            DEFAULT_FORWARD_SERVER_IP,
+            DEFAULT_FORWARD_SERVER_PORT,
+        )
+
+        if not aerpaw_env_vars_present():
+            self._aerpaw_forwarder_reachable_cache = False
+            return False
+        reachable = ping_forward_server(
+            DEFAULT_FORWARD_SERVER_IP,
+            DEFAULT_FORWARD_SERVER_PORT,
+            AERPAW_PING_TIMEOUT_S,
+        )
+        self._aerpaw_forwarder_reachable_cache = reachable
+        return reachable
+
+    def _must_avoid_loiter(self) -> bool:
+        """True when ``action.hold()`` / LOITER (mode 5) would sever the E-VM link."""
+        return self._in_aerpaw() or self._aerpaw_forwarder_reachable()
+
+    def _already_in_guided_mode(self) -> bool:
+        """True when the vehicle is already in a mode that accepts GUIDED commands.
+
+        On AERPAW, MAVSDK ``HOLD`` is ArduCopter LOITER (mode 5). The copter
+        filter only allows GUIDED (4) and LAND (9), so HOLD is not already-good
+        there. Local SITL uses HOLD after ``action.hold()`` as a valid pre-arm
+        mode.
+        """
+        mode = self.mode
+        if mode in {"OFFBOARD", "GUIDED", "LAND"}:
+            return True
+        if mode == "HOLD" and not self._must_avoid_loiter():
+            return True
+        return False
 
     def _is_airborne_for_disarm_guard(self) -> bool:
         """True when relative altitude is high enough that a disarm is unexpected."""
@@ -863,12 +913,7 @@ class Vehicle:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
 
-        if hasattr(self, "_set_guided_mode") and self.mode not in {
-            "OFFBOARD",
-            "HOLD",
-            "GUIDED",
-            "LAND",
-        }:
+        if hasattr(self, "_set_guided_mode") and not self._already_in_guided_mode():
             await self._set_guided_mode()
             await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
@@ -1165,6 +1210,7 @@ class DummyVehicle(Vehicle):
         self._connection.set_link_alive(True)
         self._connection.record_telemetry()
         self._will_arm = False
+        self._aerpaw_forwarder_reachable_cache = False
 
     async def _arm_vehicle(self) -> None:
         """Dry-run: no MAVSDK arming."""
