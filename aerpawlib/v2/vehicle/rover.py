@@ -166,7 +166,7 @@ class Rover(Vehicle):
 
         async def _on_cancel() -> None:
             try:
-                if not self.closed and self._system is not None and not self._in_aerpaw():
+                if not self.closed and self._system is not None and not self._must_avoid_loiter():
                     await self._system.action.hold()
             except Exception as exc:
                 logger.warning(f"Rover: _on_cancel hold failed: {exc}")

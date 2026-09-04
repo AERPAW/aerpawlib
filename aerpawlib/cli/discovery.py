@@ -1,5 +1,8 @@
 """Discover user Runner class in experimenter scripts."""
 
+from __future__ import annotations
+
+import importlib
 import inspect
 import logging
 
@@ -11,6 +14,8 @@ from aerpawlib.cli.constants import (
 )
 
 logger = logging.getLogger("aerpawlib")
+
+_API_VERSIONS = ("v1", "v2")
 
 
 def is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes):
@@ -29,15 +34,64 @@ def is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes)
     return any(base in framework_runner_classes for base in candidate.__bases__)
 
 
-def discover_runner(api_module, experimenter_script):
-    """Search for a Runner class in the experimenter script."""
+def _framework_runner_classes(api_module):
+    """Return the framework runner types exported by ``api_module``."""
     framework_runner = getattr(api_module, API_CLASS_RUNNER)
     state_machine = getattr(api_module, API_CLASS_STATE_MACHINE)
     basic_runner = getattr(api_module, API_CLASS_BASIC_RUNNER)
     zmq_state_machine = getattr(api_module, API_CLASS_ZMQ_STATE_MACHINE, None)
-    framework_runner_classes = [framework_runner, state_machine, basic_runner]
+    classes = [framework_runner, state_machine, basic_runner]
     if zmq_state_machine:
-        framework_runner_classes.append(zmq_state_machine)
+        classes.append(zmq_state_machine)
+    return framework_runner, classes
+
+
+def script_has_runner(api_module, experimenter_script) -> bool:
+    """True when the script defines exactly the kind of runner ``api_module`` expects."""
+    framework_runner, framework_runner_classes = _framework_runner_classes(api_module)
+    for _name, val in inspect.getmembers(experimenter_script):
+        if is_direct_user_runner_class(val, framework_runner, framework_runner_classes):
+            return True
+    return False
+
+
+def detect_script_api_versions(experimenter_script) -> list[str]:
+    """Return the API versions (``v1`` / ``v2``) for which the script defines a runner."""
+    found: list[str] = []
+    for ver in _API_VERSIONS:
+        api = importlib.import_module(f"aerpawlib.{ver}")
+        if script_has_runner(api, experimenter_script):
+            found.append(ver)
+    return found
+
+
+def resolve_api_version(requested: str | None, experimenter_script) -> str:
+    """Choose v1/v2 from an explicit flag or the script's Runner class.
+
+    Omitting ``--api-version`` infers the API from the script. Passing the
+    wrong version (for example a v2 ``BasicRunner`` under default v1) raises
+    ``ValueError`` instead of ``No Runner class found``.
+    """
+    detected = detect_script_api_versions(experimenter_script)
+    if requested is None:
+        if len(detected) == 1:
+            return detected[0]
+        if len(detected) > 1:
+            raise ValueError("Script defines runners for both v1 and v2; pass --api-version v1 or v2")
+        raise ValueError("No Runner class found in script")
+    if requested not in _API_VERSIONS:
+        raise ValueError(f"Invalid --api-version: {requested}")
+    if detected and requested not in detected:
+        raise ValueError(
+            f"Script defines a {detected[0]} runner but --api-version is {requested}. Pass --api-version {detected[0]}.",
+        )
+    return requested
+
+
+def discover_runner(api_module, experimenter_script):
+    """Search for a Runner class in the experimenter script."""
+    framework_runner, framework_runner_classes = _framework_runner_classes(api_module)
+    zmq_state_machine = getattr(api_module, API_CLASS_ZMQ_STATE_MACHINE, None)
 
     found_runner = None
     flag_zmq_runner = False

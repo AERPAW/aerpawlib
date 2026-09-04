@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
-from aerpawlib._internal.aerpaw_ping import ping_forward_server
+from aerpawlib._internal.aerpaw_ping import aerpaw_env_vars_present, ping_forward_server
 from aerpawlib.v2.aerpaw import AerpawPlatform, OeoSeverity, coerce_oeo_severity
 
 
 class _Resp:
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
+
+
+def test_aerpaw_env_vars_present(monkeypatch):
+    monkeypatch.delenv("AP_EXPENV_EXP_NUM", raising=False)
+    monkeypatch.delenv("AP_EXPENV_THIS_CONTAINER_EXP_NODE_NUM", raising=False)
+    assert aerpaw_env_vars_present() is False
+    monkeypatch.setenv("AP_EXPENV_EXP_NUM", "1456")
+    assert aerpaw_env_vars_present() is True
 
 
 def test_ping_slash_2xx_succeeds(monkeypatch):

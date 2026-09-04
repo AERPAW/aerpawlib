@@ -571,6 +571,20 @@ class Vehicle:
         """True when the process is attached to the AERPAW forward server."""
         return bool(AERPAW_Platform._connected)
 
+    def _already_in_guided_mode(self) -> bool:
+        """True when the vehicle is already in a mode that accepts GUIDED commands.
+
+        On AERPAW, MAVSDK HOLD is ArduCopter LOITER (mode 5) and is not
+        already-good. Local SITL uses HOLD after action.hold() as a valid
+        pre-arm mode.
+        """
+        mode = self._ts_state.mode.get()
+        if mode in {"OFFBOARD", "GUIDED", "LAND"}:
+            return True
+        if mode == "HOLD" and not self._in_aerpaw():
+            return True
+        return False
+
     async def await_ready_to_move(self) -> None:
         """
         Block and wait until the vehicle is ready for the next command.
@@ -580,11 +594,9 @@ class Vehicle:
         if not self.armed:
             await self._arm_vehicle()
 
-        if hasattr(self, "_set_guided_mode"):
-            mode = self._ts_state.mode.get()
-            if mode not in {"OFFBOARD", "HOLD", "GUIDED"}:
-                await self._set_guided_mode()
-                await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
+        if hasattr(self, "_set_guided_mode") and not self._already_in_guided_mode():
+            await self._set_guided_mode()
+            await asyncio.sleep(ARMING_SEQUENCE_DELAY_S)
 
         await wait_for_condition(
             self.done_moving,

@@ -7,7 +7,8 @@ this case by calling ping periodically (at every waypoint).
 
 Run with:
     aerpawlib --api-version v2 --script examples/v2/preplanned_trajectory.py \
-        --vehicle drone --conn udpin://127.0.0.1:14550 --file plans/default.plan
+        --vehicle drone --conn udpin://127.0.0.1:14550 \
+        --file examples/v2/zmq_preplanned_orbit/orbit.plan
 """
 
 import argparse

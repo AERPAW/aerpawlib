@@ -9,8 +9,10 @@ from typing import Any
 import pytest
 
 from aerpawlib import __main__ as cli_main
-from aerpawlib.cli.discovery import discover_runner
+from aerpawlib.cli.discovery import discover_runner, resolve_api_version
 from aerpawlib.v1.exceptions import HeartbeatLostError
+from aerpawlib.v1.runner import BasicRunner as V1BasicRunner
+from aerpawlib.v2.runner import BasicRunner as V2BasicRunner
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +39,47 @@ def _build_fake_api_module():
         StateMachine=StateMachine,
         ZmqStateMachine=ZmqStateMachine,
     )
+
+
+def test_resolve_api_version_infers_v2():
+    script = types.ModuleType("fake_v2_script")
+
+    class Mission(V2BasicRunner):
+        pass
+
+    script.Mission = Mission
+    assert resolve_api_version(None, script) == "v2"
+
+
+def test_resolve_api_version_infers_v1():
+    script = types.ModuleType("fake_v1_script")
+
+    class Mission(V1BasicRunner):
+        pass
+
+    script.Mission = Mission
+    assert resolve_api_version(None, script) == "v1"
+
+
+def test_resolve_api_version_refuses_mismatch():
+    script = types.ModuleType("fake_v2_script")
+
+    class Mission(V2BasicRunner):
+        pass
+
+    script.Mission = Mission
+    with pytest.raises(ValueError, match="Pass --api-version v2"):
+        resolve_api_version("v1", script)
+
+
+def test_resolve_api_version_accepts_matching_explicit():
+    script = types.ModuleType("fake_v2_script")
+
+    class Mission(V2BasicRunner):
+        pass
+
+    script.Mission = Mission
+    assert resolve_api_version("v2", script) == "v2"
 
 
 def test_discover_runner_accepts_direct_subclass_only():

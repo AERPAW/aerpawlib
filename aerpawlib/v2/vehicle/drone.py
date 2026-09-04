@@ -121,6 +121,11 @@ class Drone(Vehicle):
 
         Raises:
             TakeoffError: If the MAVSDK takeoff command fails.
+
+        Note:
+            Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_TAKEOFF (22) with
+            altitude in param7. The AERPAW copter filter still reads takeoff
+            altitude from param7, not COMMAND_INT ``z``.
         """
         if self._event_log:
             self._event_log.log_event(
@@ -192,6 +197,10 @@ class Drone(Vehicle):
 
         Raises:
             LandingError: If the land command fails or times out.
+
+        Note:
+            Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_LAND (21). This is
+            in-place land, not RTL mode; fly to the takeoff pad first.
         """
         if self._event_log:
             self._event_log.log_event("command", type="land")
@@ -275,6 +284,11 @@ class Drone(Vehicle):
             NavigationError: If the goto_location MAVSDK call fails.
             TimeoutError: If blocking=True and the drone does not arrive within
                 timeout.
+
+        Note:
+            Verified on MAVSDK 3.17.x as COMMAND_INT DO_REPOSITION (192) with
+            lat/lon/alt in x/y/z. Do not switch this to MISSION_ITEM_INT or
+            position SET_POSITION_TARGET; the 2026 copter filter rejects those.
         """
         if self._event_log:
             self._event_log.log_event(
@@ -497,7 +511,7 @@ class Drone(Vehicle):
         We send MAV_CMD_DO_SET_MODE directly using mavlink_direct,
         then poll/resend until the flight controller confirms the mode change.
         """
-        if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
+        if self._already_in_guided_mode():
             logger.debug(
                 f"Drone: already in pre-arm mode {self.mode!r}, skipping mode switch",
             )
@@ -507,14 +521,15 @@ class Drone(Vehicle):
         )
         # action.hold() is LOITER (mode 5). The AERPAW E-VM filter only allows
         # GUIDED (4) and LAND (9) and severs the link on mode 5. Keep hold for
-        # local SITL only.
-        if not self._in_aerpaw():
+        # local SITL only. Skip hold whenever the OEO forwarder is reachable,
+        # even if --no-aerpaw-environment left the platform unset.
+        if not self._must_avoid_loiter():
             try:
                 await self._system.action.hold()
                 await asyncio.sleep(0.2)
             except Exception as e:
                 logger.warning(f"Drone: action.hold() failed: {e}")
-            if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
+            if self._already_in_guided_mode():
                 logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
                 return
 
@@ -525,7 +540,7 @@ class Drone(Vehicle):
         deadline = time.monotonic() + COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S
         last_send = 0.0
         while time.monotonic() < deadline:
-            if self.mode in {"OFFBOARD", "HOLD", "GUIDED"}:
+            if self._already_in_guided_mode():
                 logger.info(f"Drone: pre-arm mode confirmed ({self.mode})")
                 return
             if time.monotonic() - last_send >= 0.5:

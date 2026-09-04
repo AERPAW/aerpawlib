@@ -40,6 +40,7 @@ from aerpawlib.cli.constants import (
     VEHICLE_TYPE_NONE,
     VEHICLE_TYPE_ROVER,
 )
+from aerpawlib.cli.discovery import resolve_api_version
 from aerpawlib.cli.experiments_v1 import run_v1_experiment
 from aerpawlib.cli.experiments_v2 import run_v2_experiment
 from aerpawlib.cli.logging_setup import setup_logging
@@ -81,10 +82,10 @@ def run(
         help=f"The type of vehicle being controlled ('{VEHICLE_TYPE_GENERIC}', '{VEHICLE_TYPE_DRONE}', '{VEHICLE_TYPE_ROVER}', or '{VEHICLE_TYPE_NONE}').",
         rich_help_panel="Core Options",
     ),
-    api_version: str = typer.Option(
-        "v1",
+    api_version: str | None = typer.Option(
+        None,
         "--api-version",
-        help="The version of the vehicle control API to use ('v1' or 'v2'). v2 is recommended for new experiments; the default remains v1.",
+        help="The version of the vehicle control API to use ('v1' or 'v2'). If omitted, inferred from the script's Runner class. v2 is recommended for new experiments.",
         rich_help_panel="Core Options",
     ),
     config: list[str] | None = typer.Option(
@@ -108,7 +109,7 @@ def run(
     no_aerpaw_environment: bool = typer.Option(
         False,
         "--no-aerpaw-environment",
-        help="Run in standalone/SITL simulation mode. Disables AERPAW platform connection requirements and permits automatic self-arming.",
+        help="Run in standalone/SITL simulation mode. Disables AERPAW platform connection requirements and permits automatic self-arming. Refused on a live E-VM if the OEO forwarder answers ping.",
         rich_help_panel="Connection & Safety Options",
     ),
     conn_timeout: float = typer.Option(
@@ -208,7 +209,7 @@ def run(
         typer.echo(f"Error: Invalid choice for --vehicle: {vehicle}")
         raise typer.Exit(code=1)
 
-    if api_version not in ["v1", "v2"]:
+    if api_version is not None and api_version not in ["v1", "v2"]:
         typer.echo(f"Error: Invalid choice for --api-version: {api_version}")
         raise typer.Exit(code=1)
 
@@ -316,6 +317,15 @@ def run(
         except Exception as e:
             logger.error(f"Failed to import script '{args.script}': {e}")
             raise typer.Exit(code=1) from e
+
+        try:
+            api_version = resolve_api_version(api_version, experimenter_script)
+        except ValueError as e:
+            logger.error(str(e))
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(code=1) from e
+        args.api_version = api_version
+        logger.info(f"Using API version: {api_version}")
 
         if api_version == "v1":
             run_v1_experiment(args, unknown_args, experimenter_script)

@@ -202,5 +202,5 @@ class SquareOff(StateMachine):
 
     @state(name="land")
     async def land(self, drone: Drone):
-        await drone.land()
+        await drone.return_to_launch()
         print("[example] done!")

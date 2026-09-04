@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.4.10] (2026-09-03)
+
+### Summary
+
+AERPAW Virtual UAV follow-ups after 1.4.9: example land/RTL, CLI API detection, HOLD vs GUIDED on the testbed, and a MAVSDK 3.17 pin.
+
+### Fixed
+
+- **`plan_example` home at alt 0.** After a plan with no RTL item the example called `goto_coordinates(drone.home_coords)` (relative alt 0). That is rejected by the C-VM checker (`min_alt` 20). It now uses `return_to_launch()` (goto home at current altitude, then land).
+- **Documented preplanned `--file`.** `preplanned_trajectory.py` / `plan_example.py` docstrings cited `plans/default.plan` (missing) or a KML. Both now point at `examples/v2/zmq_preplanned_orbit/orbit.plan`.
+- **CLI `--api-version`.** Omitting the flag infers v1 or v2 from the script's Runner class. Passing the other API refuses to start with a clear error instead of `No Runner class found`.
+- **HOLD is not GUIDED on AERPAW.** `_set_guided_mode` no longer treats MAVSDK `HOLD` (ArduCopter LOITER 5) as already-GUIDED when the copter filter is in play. From HOLD it still sends `COMMAND_LONG` 176 GUIDED.
+- **`--no-aerpaw-environment` on a live E-VM.** v2 refuses the flag when experiment env vars are set and the OEO forwarder answers ping. `action.hold()` is also skipped whenever the forwarder is reachable, even if the platform client was not attached.
+- **Closed-square examples.** `state_machine_example.py` and `squareoff_logging.py` call `return_to_launch()` before landing so a later extra leg cannot violate the 5 m land-at-takeoff rule.
+- **Safety-checker takeoff pad.** `validate_takeoff_command` is altitude-only. It no longer records a land pin (the C-VM filter pins land to the first forwarded armed `NAV_TAKEOFF`).
+
+### Changed
+
+- Runtime dependency is `mavsdk>=3.17.2,<3.18` (encodings verified against the 2026 copter allow-list: takeoff `COMMAND_LONG` 22 alt in `param7`, goto `COMMAND_INT` 192, land `COMMAND_LONG` 21, GUIDED `COMMAND_LONG` 176).
+
 ## [1.4.9] (2026-08-31)
 
 ### Summary

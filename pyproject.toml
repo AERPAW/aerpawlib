@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aerpawlib"
-version = "1.4.9"
+version = "1.4.10"
 description = "Tools and frameworks for writing AERPAW scripts"
 readme = "README.md"
 license = {text = "MIT"}
@@ -40,7 +40,7 @@ dependencies = [
     "rich>=13.0.0",
     "pymavlink>=2.4.0",
     "pyserial>=3.5",
-    "mavsdk>=2.0.0",
+    "mavsdk>=3.17.2,<3.18",
     "aiohttp>=3.12.14",
 ]
 
