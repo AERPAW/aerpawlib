@@ -85,10 +85,7 @@ def run_v2_experiment(
                 AERPAW_PING_TIMEOUT_S,
             ):
                 logger.critical(
-                    "--no-aerpaw-environment is SITL-only, but the AERPAW OEO forwarder "
-                    f"at {DEFAULT_FORWARD_SERVER_IP}:{DEFAULT_FORWARD_SERVER_PORT} answered ping. "
-                    "Refusing to start: this flag would skip AERPAW detection and can send "
-                    "action.hold() (LOITER), which severs the E-VM MAVLink link.",
+                    f"--no-aerpaw-environment is SITL-only, but the AERPAW OEO forwarder at {DEFAULT_FORWARD_SERVER_IP}:{DEFAULT_FORWARD_SERVER_PORT} answered ping. Refusing to start: this flag would skip AERPAW detection and can send action.hold() (LOITER), which severs the E-VM MAVLink link.",
                 )
                 sys.exit(1)
             aerpaw_platform = None
