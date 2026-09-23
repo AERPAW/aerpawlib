@@ -5,6 +5,7 @@
 import base64
 import threading
 from typing import Any
+from urllib.parse import quote
 
 import requests
 
@@ -172,7 +173,7 @@ class AERPAW:
         Returns:
             Full HTTP URL for the checkpoint request.
         """
-        return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{var_name}"
+        return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{quote(var_name, safe='')}"
 
     def checkpoint_reset_server(self) -> None:
         """
