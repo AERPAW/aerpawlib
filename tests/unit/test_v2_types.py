@@ -96,6 +96,16 @@ class TestCoordinate:
         bearing = a.bearing(b)
         assert 0 <= bearing < 360
 
+    @pytest.mark.parametrize(
+        ("north", "east", "expected"),
+        [(100, 100, 45), (-100, 100, 135), (-100, -100, 225), (100, -100, 315), (50, 200, 75.96)],
+    )
+    def test_bearing_matches_ned_offset_at_latitude(self, north, east, expected):
+        """Bearing must account for longitude shrinking with latitude."""
+        a = Coordinate(35.7274, -78.6960, 0)
+        b = a + VectorNED(north, east, 0)
+        assert a.bearing(b) == pytest.approx(expected, abs=0.1)
+
     def test_ground_distance_type_error(self):
         a = Coordinate(35.727, -78.696, 0)
         with pytest.raises(TypeError):

@@ -181,6 +181,8 @@ class Coordinate:
         d_lon = other.lon - self.lon
         if abs(d_lat) < 1e-10 and abs(d_lon) < 1e-10:
             return 0.0
+        # Degrees of longitude shrink with latitude; scale so both axes are equal-length.
+        d_lon *= math.cos(math.radians((self.lat + other.lat) / 2))
         bearing = 90 + math.atan2(-d_lat, d_lon) * RAD_TO_DEG_FACTOR
         if wrap_360:
             bearing %= 360
