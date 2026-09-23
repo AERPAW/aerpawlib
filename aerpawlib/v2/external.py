@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 
 
@@ -31,13 +32,16 @@ class ExternalProcess:
     async def start(self) -> None:
         """Start the process."""
         cmd = [self._executable, *self._params]
-        stdin = asyncio.subprocess.PIPE if self._stdin is None else None
-        stdout = asyncio.subprocess.PIPE if self._stdout is None else None
-        self.process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=stdin,
-            stdout=stdout,
-        )
+        # A file name redirects that stream to the file; otherwise it is piped.
+        # The child keeps its own copies of the descriptors, so close ours after spawn.
+        with contextlib.ExitStack() as files:
+            stdin = files.enter_context(open(self._stdin, "rb")) if self._stdin is not None else asyncio.subprocess.PIPE
+            stdout = files.enter_context(open(self._stdout, "wb")) if self._stdout is not None else asyncio.subprocess.PIPE
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=stdin,
+                stdout=stdout,
+            )
 
     async def read_line(self) -> str | None:
         """Read one line from stdout."""
