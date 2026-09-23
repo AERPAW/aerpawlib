@@ -16,10 +16,18 @@ class OffboardSession:
     def __init__(self) -> None:
         self.active: bool = False
         self.velocity_loop_active: bool = False
+        # Bumped whenever the current velocity loop is superseded, so a stale
+        # loop can tell that a newer command owns offboard now.
+        self.generation: int = 0
 
     def stop_velocity_loop(self) -> None:
         """Signal an active velocity loop to exit."""
         self.velocity_loop_active = False
+        self.generation += 1
+
+    def owns_velocity_loop(self, generation: int) -> bool:
+        """Return True if the loop started at ``generation`` is still current."""
+        return self.velocity_loop_active and self.generation == generation
 
     def mark_active(self) -> None:
         """Record that offboard mode is engaged."""
@@ -29,6 +37,7 @@ class OffboardSession:
         """Clear offboard session flags without MAVSDK I/O."""
         self.velocity_loop_active = False
         self.active = False
+        self.generation += 1
 
     async def stop(self, system, heading: float = 0.0, *, closed: bool = False) -> None:
         """Stop offboard mode and zero the velocity setpoint."""

@@ -446,6 +446,10 @@ class Drone(Vehicle):
                                 await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
                             except (OffboardError, ActionError):
                                 pass
+                            # A newer set_velocity may have started offboard
+                            # during the settle delay; leave it running.
+                            if self._velocity_generation != gen:
+                                return
                             try:
                                 await self._run_on_mavsdk_loop(
                                     self._system.offboard.stop(),
