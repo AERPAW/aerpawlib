@@ -239,6 +239,8 @@ class Coordinate:
 
         if abs(d_lat) < COORDINATE_EPSILON and abs(d_lon) < COORDINATE_EPSILON:
             return 0.0
+        # Degrees of longitude shrink with latitude; scale so both axes are equal-length.
+        d_lon *= math.cos(math.radians((self.lat + other.lat) / 2))
 
         bearing = 90 + math.atan2(-d_lat, d_lon) * RAD_TO_DEG_FACTOR
         if wrap_360:

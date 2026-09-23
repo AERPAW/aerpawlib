@@ -178,6 +178,16 @@ class TestCoordinate:
         b = c1.bearing(c2)
         assert abs(b) < 1 or abs(b - 360) < 1
 
+    @pytest.mark.parametrize(
+        ("north", "east", "expected"),
+        [(100, 100, 45), (-100, 100, 135), (-100, -100, 225), (100, -100, 315), (50, 200, 75.96)],
+    )
+    def test_bearing_matches_ned_offset_at_latitude(self, north, east, expected):
+        """Bearing must account for longitude shrinking with latitude."""
+        c1 = Coordinate(35.7274, -78.6960, 0)
+        c2 = c1 + VectorNED(north, east, 0)
+        assert c1.bearing(c2) == pytest.approx(expected, abs=0.1)
+
     def test_add_vector(self):
         c = Coordinate(35.7274, -78.6960, 0)
         v = VectorNED(100, 0, 0)
