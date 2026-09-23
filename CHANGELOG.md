@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Timed `set_velocity` stopping the next command.** When a `set_velocity(..., duration=...)` expired, its loop zeroed velocity, waited a settle delay, then called `offboard.stop()` without checking for a newer command. A `set_velocity` issued during that delay (e.g. `set_velocity(v, duration=5)`, `sleep(5)`, `set_velocity(v2)`) was cut off. Stale loops now leave offboard alone when a newer command owns it (v1 and v2, drone and rover).
+- **v2 `set_velocity(duration=0)` held forever.** `duration=0` was treated like `None`. It now stops right away.
+- **`Coordinate.bearing` ignored latitude.** Raw degree deltas were used, so at 35.7°N a true 45° bearing read about 51°. This is the default yaw for `Drone.goto_coordinates`. The longitude delta is now scaled by `cos(latitude)` (v1 and v2).
+- **Checkpoint names were not URL-encoded.** A name with `/`, `?`, `#` or `&` produced a malformed checkpoint URL (v1 and v2).
+- **v2 `ExternalProcess` ignored `stdin` / `stdout` files.** With a file name the child inherited the parent's streams instead of reading or writing the file. The files are now opened and passed to the child.
+
 ## [1.4.10] (2026-09-03)
 
 ### Summary
