@@ -210,6 +210,7 @@ class Rover(Vehicle):
         """
         await self.await_ready_to_move()
         self._offboard.stop_velocity_loop()
+        gen = self._offboard.generation
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + VELOCITY_LOOP_HANDOFF_DELAY_S)
 
         if not global_relative:
@@ -245,14 +246,19 @@ class Rover(Vehicle):
             async def _velocity_helper() -> None:
                 """Keep the active velocity command alive and stop on timeout."""
                 try:
-                    while self._offboard.velocity_loop_active:
-                        if target_end and time.monotonic() > target_end:
+                    while self._offboard.owns_velocity_loop(gen):
+                        if target_end is not None and time.monotonic() > target_end:
                             self._offboard.stop_velocity_loop()
+                            owned_gen = self._offboard.generation
                             try:
                                 await self._system.offboard.set_velocity_ned(
                                     VelocityNedYaw(0, 0, 0, 0),
                                 )
                                 await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
+                                # A newer set_velocity may have started offboard
+                                # during the settle delay; leave it running.
+                                if self._offboard.generation != owned_gen:
+                                    return
                                 await self._system.offboard.stop()
                             except Exception as e:
                                 logger.debug(

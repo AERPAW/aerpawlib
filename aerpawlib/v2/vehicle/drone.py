@@ -418,6 +418,7 @@ class Drone(Vehicle):
         )
         await self.await_ready_to_move()
         self._offboard.stop_velocity_loop()
+        gen = self._offboard.generation
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)  # Let previous loop exit
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
@@ -441,22 +442,27 @@ class Drone(Vehicle):
                 await self._system.offboard.start()
             self._offboard.mark_active()
             self._ready_to_move = lambda _: True
-            target_end = time.monotonic() + duration if duration else None
+            target_end = time.monotonic() + duration if duration is not None else None
 
             async def _velocity_loop() -> None:
                 """Maintain velocity command until duration or cancellation."""
+                owned_gen = gen
                 try:
-                    while self._offboard.velocity_loop_active:
-                        if target_end and time.monotonic() > target_end:
+                    while self._offboard.owns_velocity_loop(gen):
+                        if target_end is not None and time.monotonic() > target_end:
                             logger.debug(
                                 "Drone: set_velocity duration reached, stopping offboard",
                             )
                             self._offboard.stop_velocity_loop()
+                            owned_gen = self._offboard.generation
                             await self._system.offboard.set_velocity_ned(
                                 VelocityNedYaw(0, 0, 0, yaw),
                             )
                             await asyncio.sleep(0.05)
-                            await self._system.offboard.stop()
+                            # A newer set_velocity may have started offboard
+                            # during the settle delay; leave it running.
+                            if self._offboard.generation == owned_gen:
+                                await self._system.offboard.stop()
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                     logger.debug("Drone: set_velocity loop exited")
@@ -464,6 +470,8 @@ class Drone(Vehicle):
                     raise
                 except Exception as e:
                     logger.error(f"Velocity loop error: {e}")
+                    if self._offboard.generation != owned_gen:
+                        return
                     self._offboard.stop_velocity_loop()
                     try:
                         await self._system.offboard.set_velocity_ned(
