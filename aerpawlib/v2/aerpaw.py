@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 from enum import Enum
+from urllib.parse import quote
 
 import aiohttp
 import requests
@@ -126,7 +127,7 @@ class AerpawPlatform:
 
     def _checkpoint_build_request(self, var_type: str, var_name: str) -> str:
         """Build a checkpoint endpoint URL."""
-        return f"http://{self.forward_ip}:{self.forward_port}/checkpoint/{var_type}/{var_name}"
+        return f"http://{self.forward_ip}:{self.forward_port}/checkpoint/{var_type}/{quote(var_name, safe='')}"
 
     def _display_connection_warning(self) -> None:
         """Log a one-time warning when platform-only features are used offline."""
