@@ -133,3 +133,33 @@ async def test_v2_drone_zero_duration_stops_immediately():
     await asyncio.wait_for(zero_sent.wait(), timeout=1.0)
     await asyncio.sleep(0.2)
     assert calls[-1] == ("stop",), calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api", ["v1", "v2"])
+@pytest.mark.parametrize("kind", ["drone", "rover"])
+async def test_set_velocity_refused_on_testbed(api, kind, monkeypatch):
+    """offboard.stop() sends LOITER/HOLD, which the C-VM filter treats as fatal."""
+    zero_sent = asyncio.Event()
+    offboard, calls = _recording_offboard(zero_sent)
+    if api == "v1":
+        from aerpawlib.v1.exceptions import VelocityError
+        from aerpawlib.v1.vehicle.drone import Drone
+        from aerpawlib.v1.vehicle.rover import Rover
+
+        cls = Drone if kind == "drone" else Rover
+        vehicle = _v1_vehicle(cls, monkeypatch, offboard)
+        vector = V1VectorNED(*FIRST)
+    else:
+        from aerpawlib.v2.exceptions import VelocityError
+        from aerpawlib.v2.vehicle.drone import Drone
+        from aerpawlib.v2.vehicle.rover import Rover
+
+        cls = Drone if kind == "drone" else Rover
+        vehicle = _v2_vehicle(cls, offboard)
+        vector = V2VectorNED(*FIRST)
+    monkeypatch.setattr(cls, "_must_avoid_loiter", lambda _self: True)
+
+    with pytest.raises(VelocityError):
+        await vehicle.set_velocity(vector, duration=1)
+    assert calls == []

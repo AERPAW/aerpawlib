@@ -220,15 +220,13 @@ class Rover(Vehicle):
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """Set rover velocity using MAVSDK offboard mode.
+        """[NOT SUPPORTED] Not supported on the AERPAW testbed: leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. Works on local SITL.
+
+        Set rover velocity using MAVSDK offboard mode.
 
         ArduRover supports velocity control in GUIDED mode via offboard
         SET_POSITION_TARGET_LOCAL_NED. The vertical component is always zeroed
         since rovers are ground vehicles.
-
-        On the AERPAW testbed the E-VM MAVLink filter blocks velocity control.
-        aerpawlib does not refuse this call; the filter is what rejects it.
-        Local SITL is unaffected.
 
         Args:
             velocity_vector: Desired velocity as a NED vector (m/s). Down
@@ -240,8 +238,13 @@ class Rover(Vehicle):
                 the velocity loop runs until the next movement command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started.
+            VelocityError: If offboard mode cannot be started, or on the AERPAW
+                testbed, where velocity control is disabled.
         """
+        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
+        # C-VM filter treats that as fatal and drops the experiment.
+        if self._must_avoid_loiter():
+            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         await self.await_ready_to_move()
         self._offboard.stop_velocity_loop()
         gen = self._offboard.generation
