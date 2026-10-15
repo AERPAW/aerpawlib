@@ -27,6 +27,7 @@ import asyncio
 
 from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 
+
 class SquareMission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):
@@ -69,6 +70,7 @@ Decorator reference and error handling: see `aerpawlib.v1.runner`.
 
 ```python
 from aerpawlib.v1 import StateMachine, Vehicle, state, timed_state
+
 
 class MeasureMission(StateMachine):
     @state(name="start", first=True)

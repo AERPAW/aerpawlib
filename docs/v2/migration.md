@@ -7,11 +7,13 @@ Port an existing `aerpawlib.v1` experiment to `aerpawlib.v2`. Behavior is simila
 ```python
 # v1
 from aerpawlib.v1 import BasicRunner, Drone, entrypoint
+
 vehicle = Drone("udpin://127.0.0.1:14550")  # blocking
 vehicle.initialize(True)
 
 # v2
 from aerpawlib.v2 import BasicRunner, Drone, entrypoint
+
 drone = await Drone.connect("udpin://127.0.0.1:14550")
 await drone.initialize(True)
 ```

@@ -11,6 +11,7 @@ Import `Drone` or `Rover` from `aerpawlib.v1.vehicle` (or `aerpawlib.v1`). Use `
 ```python
 from aerpawlib.v1 import BasicRunner, Drone, VectorNED, entrypoint
 
+
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, vehicle: Drone):

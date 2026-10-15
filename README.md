@@ -37,6 +37,7 @@ aerpawlib-setup-sitl
 # my_mission.py
 from aerpawlib.v2 import Drone, VectorNED, BasicRunner, entrypoint
 
+
 class MyMission(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
