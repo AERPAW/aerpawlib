@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import os
 from typing import Any
 
@@ -103,6 +104,84 @@ def make_condition_yaw_message(
         target_system_id=int(target_sysid),
         target_component_id=1,
         fields_json=json.dumps(fields),
+    )
+
+
+# SET_POSITION_TARGET_LOCAL_NED type_mask bits (MAVLink POSITION_TARGET_TYPEMASK).
+_IGNORE_POSITION = 0b000000000111
+_IGNORE_VELOCITY = 0b000000111000
+_IGNORE_ACCEL = 0b000111000000
+_IGNORE_YAW = 0b010000000000
+_IGNORE_YAW_RATE = 0b100000000000
+
+
+def _make_local_ned_setpoint(
+    target_sysid: int,
+    type_mask: int,
+    vx: float = 0.0,
+    vy: float = 0.0,
+    yaw_rad: float = 0.0,
+):
+    """Build SET_POSITION_TARGET_LOCAL_NED from the MAVSDK GCS identity.
+
+    The C-VM filter requires position and acceleration to be ignored.
+    """
+    import json
+
+    from mavsdk.mavlink_direct import MavlinkMessage
+    from pymavlink import mavutil
+
+    gcs_sys, gcs_comp = resolve_gcs_ids()
+    fields = {
+        "time_boot_ms": 0,
+        "target_system": int(target_sysid),
+        "target_component": 1,
+        "coordinate_frame": int(mavutil.mavlink.MAV_FRAME_LOCAL_NED),
+        "type_mask": int(type_mask),
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0,
+        "vx": float(vx),
+        "vy": float(vy),
+        "vz": 0.0,
+        "afx": 0.0,
+        "afy": 0.0,
+        "afz": 0.0,
+        "yaw": float(yaw_rad),
+        "yaw_rate": 0.0,
+    }
+    return MavlinkMessage(
+        message_name="SET_POSITION_TARGET_LOCAL_NED",
+        system_id=gcs_sys,
+        component_id=gcs_comp,
+        target_system_id=int(target_sysid),
+        target_component_id=1,
+        fields_json=json.dumps(fields),
+    )
+
+
+def make_rover_velocity_message(target_sysid: int, north: float, east: float):
+    """Velocity-only setpoint; ArduRover steers to the vector's direction.
+
+    Valid only in GUIDED. ArduRover stops if setpoints stop for 3 s.
+    """
+    return _make_local_ned_setpoint(
+        target_sysid,
+        _IGNORE_POSITION | _IGNORE_ACCEL | _IGNORE_YAW | _IGNORE_YAW_RATE,
+        vx=north,
+        vy=east,
+    )
+
+
+def make_rover_stop_message(target_sysid: int, heading_deg: float):
+    """Yaw-only setpoint: speed 0 holding ``heading_deg``, staying in GUIDED.
+
+    A zero velocity vector would instead steer toward north (atan2(0, 0)).
+    """
+    return _make_local_ned_setpoint(
+        target_sysid,
+        _IGNORE_POSITION | _IGNORE_VELOCITY | _IGNORE_ACCEL | _IGNORE_YAW_RATE,
+        yaw_rad=math.radians(heading_deg),
     )
 
 

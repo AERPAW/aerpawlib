@@ -32,7 +32,7 @@ class Mission(BasicRunner):
 | `set_heading(degrees, …)` | Turn to heading |
 | `land()` | Land at current position |
 | `return_to_launch()` | RTL and land |
-| `set_velocity(VectorNED, …)` | Raises `VelocityError` on the AERPAW testbed (leaving velocity control switches to LOITER, which the C-VM filter rejects) |
+| `set_velocity(VectorNED, …)` | Raises `VelocityError` on the AERPAW testbed (leaving velocity control switches to LOITER, which the C-VM filter rejects). Supported on `Rover`; see below |
 
 With `--safety-checker-ip` / `--safety-checker-port` (or `vehicle.safety` set), `takeoff`, `goto_coordinates`, `land`, and `set_groundspeed` ask the safety server first. A rejected maneuver raises an error and does not run. On AERPAW the default host is this node's C-VM XV (`AP_EXPENV_CVM_<n>_XV`).
 
@@ -43,6 +43,8 @@ Read `position`, `battery`, `armed`, `heading`, and related properties during th
 ### Rover differences
 
 Rover omits copter-only commands (`takeoff`, `land`, `return_to_launch`, `set_heading`). Navigation uses 2D ground distance for arrival.
+
+`set_velocity` works on rovers, including on the AERPAW testbed. The rover steers toward the vector's direction (down is ignored) and stays in GUIDED the whole time: stopping, a timed `duration`, or the next movement command sends a speed-0 setpoint at the current heading.
 
 ## Errors
 

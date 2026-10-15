@@ -993,7 +993,7 @@ class Vehicle:
         duration: float | None = None,
     ) -> None:
         """
-        [NOT SUPPORTED] Not supported on the AERPAW testbed: leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. Works on local SITL.
+        Drone: not supported on the AERPAW testbed (leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER, and the C-VM filter ends the experiment on that mode change); works on local SITL. Rover: supported everywhere, stays in GUIDED.
 
         Set a drone's velocity that it will use for `duration` seconds.
 

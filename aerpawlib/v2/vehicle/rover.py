@@ -10,12 +10,10 @@ import contextlib
 import time
 
 from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, VelocityNedYaw
 
 from aerpawlib.v2.constants import (
     DEFAULT_GOTO_TIMEOUT_S,
     GOTO_POLL_INTERVAL_S,
-    OFFBOARD_STOP_SETTLE_DELAY_S,
     ROVER_GUIDED_MODE,
     ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     VELOCITY_LOOP_HANDOFF_DELAY_S,
@@ -49,10 +47,6 @@ class Rover(Vehicle):
 
     def _vehicle_type_label(self) -> str:
         return "rover"
-
-    def _offboard_stop_yaw(self) -> float:
-        # Rover velocity setpoints always carry yaw 0.
-        return 0.0
 
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Switch to GUIDED mode, then wait for armable state."""
@@ -131,8 +125,7 @@ class Rover(Vehicle):
         _validate_tolerance(tolerance, "tolerance")
         await self._require_can(self.can_goto(coordinates, tolerance=tolerance), "goto", NavigationError)
         await self.await_ready_to_move()
-        if self._offboard.active:
-            await self._stop_offboard()
+        await self._stop_velocity()
         # goto_location takes AMSL; rovers send the home AMSL altitude.
         self._require_movement_fix(NavigationError)
         gen = self._begin_move()
@@ -214,19 +207,44 @@ class Rover(Vehicle):
             generation=gen,
         )
 
+    async def _stop(self) -> None:
+        """Stop background movement, including rover velocity control."""
+        await super()._stop()
+        await self._stop_velocity()
+
+    async def _stop_velocity(self) -> None:
+        """End the velocity loop and stop in GUIDED (no-op if not running)."""
+        if not self._offboard.velocity_loop_active:
+            return
+        self._offboard.stop_velocity_loop()
+        if self.closed or self._system is None:
+            return
+        try:
+            await self._send_rover_stop(self._system)
+        except Exception as e:
+            logger.debug("Rover velocity stop failed: %s", e)
+
+    async def _send_rover_stop(self, system) -> None:
+        """Hold the current heading at speed 0 without leaving GUIDED."""
+        from aerpawlib._internal.mavlink_ids import make_rover_stop_message, resolve_mav_sysid
+
+        msg = make_rover_stop_message(resolve_mav_sysid(system), self.heading)
+        await system.mavlink_direct.send_message(msg)
+
     async def set_velocity(
         self,
         velocity_vector: VectorNED,
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """[NOT SUPPORTED] Not supported on the AERPAW testbed: leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. Works on local SITL.
+        """Set rover velocity in GUIDED mode.
 
-        Set rover velocity using MAVSDK offboard mode.
-
-        ArduRover supports velocity control in GUIDED mode via offboard
-        SET_POSITION_TARGET_LOCAL_NED. The vertical component is always zeroed
-        since rovers are ground vehicles.
+        Streams SET_POSITION_TARGET_LOCAL_NED velocity setpoints; ArduRover
+        steers toward the vector's direction. The vertical component is
+        ignored since rovers are ground vehicles. Stopping sends a speed-0
+        setpoint at the current heading, so the rover never leaves GUIDED
+        (MAVSDK offboard is not used: offboard.stop() switches to HOLD, which
+        the AERPAW C-VM filter rejects). Works on the AERPAW testbed.
 
         Args:
             velocity_vector: Desired velocity as a NED vector (m/s). Down
@@ -238,13 +256,10 @@ class Rover(Vehicle):
                 the velocity loop runs until the next movement command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started, or on the AERPAW
-                testbed, where velocity control is disabled.
+            VelocityError: If the velocity setpoint cannot be sent.
         """
-        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
-        # C-VM filter treats that as fatal and drops the experiment.
-        if self._must_avoid_loiter():
-            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
+        from aerpawlib._internal.mavlink_ids import make_rover_velocity_message, resolve_mav_sysid
+
         await self.await_ready_to_move()
         self._offboard.stop_velocity_loop()
         gen = self._offboard.generation
@@ -263,65 +278,46 @@ class Rover(Vehicle):
                 global_relative=global_relative,
                 duration_s=duration,
             )
+        system = self._system
+        msg = make_rover_velocity_message(
+            resolve_mav_sysid(system),
+            velocity_vector.north,
+            velocity_vector.east,
+        )
         try:
-            await self._system.offboard.set_velocity_ned(
-                VelocityNedYaw(
-                    velocity_vector.north,
-                    velocity_vector.east,
-                    0,  # Vertical command is always zero for ground vehicles.
-                    0,
-                ),
-            )
-            with contextlib.suppress(OffboardError):
-                await self._system.offboard.start()
-
-            self._offboard.mark_active()
-            self._ready_to_move = lambda _: True
-            self._offboard.velocity_loop_active = True
-            target_end = time.monotonic() + duration if duration is not None else None
-
-            async def _velocity_helper() -> None:
-                """Keep the active velocity command alive and stop on timeout."""
-                try:
-                    while self._offboard.owns_velocity_loop(gen):
-                        if target_end is not None and time.monotonic() > target_end:
-                            self._offboard.stop_velocity_loop()
-                            owned_gen = self._offboard.generation
-                            try:
-                                await self._system.offboard.set_velocity_ned(
-                                    VelocityNedYaw(0, 0, 0, 0),
-                                )
-                                await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
-                                # A newer set_velocity may have started offboard
-                                # during the settle delay; leave it running.
-                                if self._offboard.generation != owned_gen:
-                                    return
-                                await self._system.offboard.stop()
-                            except Exception as e:
-                                logger.debug(
-                                    "Rover velocity stop cleanup failed: %s",
-                                    e,
-                                )
-                            return
-                        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
-                except asyncio.CancelledError:
-                    # Cancelled while still commanding velocity: zero it and
-                    # leave offboard before the task ends.
-                    if self._offboard.owns_velocity_loop(gen) and self._system is not None:
-                        system = self._system
-                        self._offboard.stop_velocity_loop()
-                        with contextlib.suppress(Exception):
-                            await system.offboard.set_velocity_ned(VelocityNedYaw(0, 0, 0, 0))
-                            await system.offboard.stop()
-                        self._offboard.clear()
-                    raise
-                except Exception as e:
-                    logger.error("Rover velocity helper error: %s", e)
-                    with contextlib.suppress(Exception):
-                        await self._system.offboard.stop()
-
-            vel_task = asyncio.ensure_future(_velocity_helper())
-            self._command_tasks.append(vel_task)
-
-        except (OffboardError, ActionError) as e:
+            await system.mavlink_direct.send_message(msg)
+        except Exception as e:
             raise VelocityError(str(e), original_error=e) from e
+
+        self._ready_to_move = lambda _: True
+        self._offboard.velocity_loop_active = True
+        target_end = time.monotonic() + duration if duration is not None else None
+
+        async def _velocity_helper() -> None:
+            """Resend the setpoint until timeout or replacement."""
+            try:
+                while self._offboard.owns_velocity_loop(gen):
+                    if target_end is not None and time.monotonic() > target_end:
+                        self._offboard.stop_velocity_loop()
+                        await self._send_rover_stop(system)
+                        return
+                    await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                    if not self._offboard.owns_velocity_loop(gen):
+                        return
+                    await system.mavlink_direct.send_message(msg)
+            except asyncio.CancelledError:
+                # Cancelled while still commanding velocity: stop in GUIDED.
+                if self._offboard.owns_velocity_loop(gen):
+                    self._offboard.stop_velocity_loop()
+                    with contextlib.suppress(Exception):
+                        await self._send_rover_stop(system)
+                raise
+            except Exception as e:
+                logger.error("Rover velocity helper error: %s", e)
+                if self._offboard.owns_velocity_loop(gen):
+                    self._offboard.stop_velocity_loop()
+                    with contextlib.suppress(Exception):
+                        await self._send_rover_stop(system)
+
+        vel_task = asyncio.ensure_future(_velocity_helper())
+        self._command_tasks.append(vel_task)

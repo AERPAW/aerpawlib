@@ -92,29 +92,24 @@ def _v2_vehicle(cls, offboard):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["drone", "rover"])
-async def test_v1_expiring_velocity_does_not_stop_newer_command(kind, monkeypatch):
+async def test_v1_expiring_velocity_does_not_stop_newer_command(monkeypatch):
     from aerpawlib.v1.vehicle.drone import Drone
-    from aerpawlib.v1.vehicle.rover import Rover
 
     zero_sent = asyncio.Event()
     offboard, calls = _recording_offboard(zero_sent)
-    cls = Drone if kind == "drone" else Rover
-    vehicle = _v1_vehicle(cls, monkeypatch, offboard)
+    vehicle = _v1_vehicle(Drone, monkeypatch, offboard)
 
     await _run_handoff(vehicle, V1VectorNED, zero_sent)
     _assert_second_command_survives(calls)
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("kind", ["drone", "rover"])
-async def test_v2_expiring_velocity_does_not_stop_newer_command(kind):
+async def test_v2_expiring_velocity_does_not_stop_newer_command():
     from aerpawlib.v2.vehicle.drone import Drone
-    from aerpawlib.v2.vehicle.rover import Rover
 
     zero_sent = asyncio.Event()
     offboard, calls = _recording_offboard(zero_sent)
-    vehicle = _v2_vehicle(Drone if kind == "drone" else Rover, offboard)
+    vehicle = _v2_vehicle(Drone, offboard)
 
     await _run_handoff(vehicle, V2VectorNED, zero_sent)
     _assert_second_command_survives(calls)
@@ -137,28 +132,26 @@ async def test_v2_drone_zero_duration_stops_immediately():
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("api", ["v1", "v2"])
-@pytest.mark.parametrize("kind", ["drone", "rover"])
-async def test_set_velocity_refused_on_testbed(api, kind, monkeypatch):
-    """offboard.stop() sends LOITER/HOLD, which the C-VM filter treats as fatal."""
+async def test_drone_set_velocity_refused_on_testbed(api, monkeypatch):
+    """offboard.stop() sends LOITER, which the C-VM filter treats as fatal.
+
+    Rover velocity does not use offboard; see test_rover_velocity.py.
+    """
     zero_sent = asyncio.Event()
     offboard, calls = _recording_offboard(zero_sent)
     if api == "v1":
         from aerpawlib.v1.exceptions import VelocityError
         from aerpawlib.v1.vehicle.drone import Drone
-        from aerpawlib.v1.vehicle.rover import Rover
 
-        cls = Drone if kind == "drone" else Rover
-        vehicle = _v1_vehicle(cls, monkeypatch, offboard)
+        vehicle = _v1_vehicle(Drone, monkeypatch, offboard)
         vector = V1VectorNED(*FIRST)
     else:
         from aerpawlib.v2.exceptions import VelocityError
         from aerpawlib.v2.vehicle.drone import Drone
-        from aerpawlib.v2.vehicle.rover import Rover
 
-        cls = Drone if kind == "drone" else Rover
-        vehicle = _v2_vehicle(cls, offboard)
+        vehicle = _v2_vehicle(Drone, offboard)
         vector = V2VectorNED(*FIRST)
-    monkeypatch.setattr(cls, "_must_avoid_loiter", lambda _self: True)
+    monkeypatch.setattr(Drone, "_must_avoid_loiter", lambda _self: True)
 
     with pytest.raises(VelocityError):
         await vehicle.set_velocity(vector, duration=1)

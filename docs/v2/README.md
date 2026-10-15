@@ -119,7 +119,7 @@ Cancelling a drone goto handle RTLs. After `cancel()`, `wait_done()` completes; 
 
 ### Rover
 
-`Rover` shares the base interface with 2D ground tolerance (default 2.1 m). No `takeoff`, `land`, `return_to_launch`, or `set_heading`.
+`Rover` shares the base interface with 2D ground tolerance (default 2.1 m). No `takeoff`, `land`, `return_to_launch`, or `set_heading`. `set_velocity` works on rovers, including on the AERPAW testbed; the rover stays in GUIDED when velocity control ends.
 
 Details: `aerpawlib.v2.vehicle`.
 

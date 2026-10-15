@@ -54,7 +54,7 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 | `goto_coordinates` | 3D tolerance (default 2 m) | 2D tolerance (default 2.1 m) |
 | `land` / `return_to_launch` | Yes | - |
 | `set_heading` | Yes | - |
-| `set_velocity` | Not supported on the testbed | Not supported on the testbed |
+| `set_velocity` | Not supported on the testbed | Yes, stays in GUIDED (down ignored) |
 
 ### Validation and monitoring
 
