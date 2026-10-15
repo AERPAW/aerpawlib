@@ -17,6 +17,7 @@ Import from `aerpawlib.v2.runner` (or `aerpawlib.v2`) when you define experiment
 ```python
 from aerpawlib.v2 import BasicRunner, Drone, entrypoint
 
+
 class Patrol(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
@@ -71,6 +72,7 @@ alt = await self.query_field("other-vehicle", "altitude")
 ```python
 from aerpawlib.v2 import StateMachine, Drone, state, timed_state, at_init
 
+
 class Patrol(StateMachine):
     @at_init
     async def setup(self, drone: Drone):
@@ -97,6 +99,7 @@ Below is a v2 example demonstrating a simple leader-follower coordination workfl
 ```python
 from aerpawlib.v2 import ZmqStateMachine, Drone, state, expose_zmq, expose_field_zmq
 
+
 class LeaderRunner(ZmqStateMachine):
     @state(name="monitor", first=True)
     async def monitor(self, drone: Drone):
@@ -107,6 +110,7 @@ class LeaderRunner(ZmqStateMachine):
         # Command follower to takeoff
         await self.transition_runner("follower", "remote_takeoff")
         return None
+
 
 class FollowerRunner(ZmqStateMachine):
     @state(name="idle", first=True)

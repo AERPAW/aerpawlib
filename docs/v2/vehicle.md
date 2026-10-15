@@ -11,6 +11,7 @@ Import from `aerpawlib.v2.vehicle` (or `aerpawlib.v2`). Use `DummyVehicle` for d
 ```python
 from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 
+
 class Mission(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
