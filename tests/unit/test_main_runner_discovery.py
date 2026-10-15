@@ -96,7 +96,9 @@ def test_discover_runner_accepts_direct_subclass_only():
     assert is_zmq is False
 
 
-def test_discover_runner_rejects_indirect_subclass():
+def test_discover_runner_accepts_indirect_subclass():
+    # A user runner chain resolves to the most-derived class (the old CLI
+    # accepted any subclass; picking the base silently flew the wrong mission).
     api = _build_fake_api_module()
     script = types.ModuleType("fake_script")
 
@@ -108,8 +110,8 @@ def test_discover_runner_rejects_indirect_subclass():
 
     script.Mission = Mission
 
-    with pytest.raises(Exception, match="No Runner class found"):
-        discover_runner(api, script)
+    runner, _ = discover_runner(api, script)
+    assert type(runner) is Mission
 
 
 def test_discover_runner_raises_for_multiple_direct_subclasses():

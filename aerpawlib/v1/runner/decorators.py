@@ -10,6 +10,8 @@ runner construction logic inspects (for example, ``StateMachine._build()``).
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import math
 from collections.abc import Callable
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -82,9 +84,25 @@ class _State:
                 return last_state
 
             r = asyncio.ensure_future(_bg())
-            await asyncio.sleep(self._func._state_duration)
-            running = False
-            return await r
+            timer = asyncio.ensure_future(asyncio.sleep(self._func._state_duration))
+            try:
+                done, _ = await asyncio.wait({r, timer}, return_when=asyncio.FIRST_COMPLETED)
+                if r in done:
+                    # Surface a body exception now instead of after the timer;
+                    # otherwise hold the state for the rest of the duration.
+                    r.result()
+                    await timer
+                running = False
+                return await r
+            finally:
+                # Cancellation or an error must not leave the body running
+                # (and commanding the vehicle) after the state is gone.
+                running = False
+                timer.cancel()
+                if not r.done():
+                    r.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await r
         return None
 
 
@@ -154,9 +172,14 @@ def timed_state(
 
     Raises:
         InvalidStateNameError: If name is empty.
+        StateMachineError: If duration is not a finite number > 0.
     """
     if name == "":
         raise InvalidStateNameError()
+    if not (math.isfinite(duration) and duration > 0):
+        raise StateMachineError(
+            f"@timed_state '{name}' duration must be a finite number > 0, got {duration!r}",
+        )
 
     def decorator(func: _DecoratedFunc) -> _DecoratedFunc:
         """Mark a method as a timed state."""

@@ -36,13 +36,22 @@ from aerpawlib.v2.exceptions import (
 from aerpawlib.v2.log import LogComponent, get_logger
 from aerpawlib.v2.types import Coordinate, VectorNED
 
-from .base import Vehicle, _wait_for_condition
+from .base import Vehicle, _invalid_takeoff_altitude, _wait_for_condition
 from .connection_helpers import _validate_tolerance
 from .heading import _heading_diff, _normalize_heading
 from .navigation import start_nonblocking_goto, wait_for_blocking_goto
 from .task import VehicleTask
 
 logger = get_logger(LogComponent.DRONE)
+
+# Horizontal moves shorter than this have no meaningful bearing.
+_COINCIDENT_DISTANCE_M = 0.01
+# Arrival checks altitude separately from the horizontal tolerance, with at
+# least this much vertical slack.
+_ARRIVAL_MIN_ALT_TOLERANCE_M = 3.0
+# return_to_launch only lands in place after a failed home goto when this
+# close to home (the C-VM filter rejects a land > 5 m from the pad).
+_RTL_LAND_IN_PLACE_MAX_M = 5.0
 
 
 class Drone(Vehicle):
@@ -75,7 +84,14 @@ class Drone(Vehicle):
                 before returning.
             lock_in: If True (default), store the heading so subsequent
                 goto_coordinates commands maintain it.
+
+        Raises:
+            NavigationError: If the heading is not finite, the yaw command
+                cannot be sent, or the turn does not finish in time. The
+                previous heading lock is kept and the vehicle is marked idle.
         """
+        if heading is not None and not math.isfinite(heading):
+            raise NavigationError(f"set_heading: heading must be finite (got {heading!r})")
         if blocking:
             await self.await_ready_to_move()
         if heading is None:
@@ -84,10 +100,12 @@ class Drone(Vehicle):
             return
         heading = _normalize_heading(heading)
         logger.debug(f"Drone: set_heading({heading:.1f} deg) blocking={blocking}")
+        previous_lock = self._current_heading
         if lock_in:
             self._current_heading = heading
         if not blocking:
             return
+        gen = self._begin_move()
         try:
             from aerpawlib._internal.mavlink_ids import (
                 make_condition_yaw_message,
@@ -97,13 +115,18 @@ class Drone(Vehicle):
             sysid = resolve_mav_sysid(self._system)
             msg = make_condition_yaw_message(sysid, heading)
             await self._system.mavlink_direct.send_message(msg)
-            self._ready_to_move = lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG
+            self._set_move_gate(gen, lambda s: _heading_diff(heading, s.heading) <= HEADING_TOLERANCE_DEG)
             await _wait_for_condition(
                 lambda: self.done_moving(),
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
+                timeout_message=f"turn to {heading:.1f} deg timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s (heading={self.heading:.1f} deg)",
             )
         except Exception as e:
             logger.warning(f"set_heading error: {e}")
+            self._release_move_gate(gen)
+            if lock_in:
+                self._current_heading = previous_lock
+            raise NavigationError(f"set_heading({heading:.1f}) failed: {e}", original_error=e) from e
         else:
             logger.debug(f"Drone: set_heading complete (heading={heading:.1f} deg)")
 
@@ -120,7 +143,8 @@ class Drone(Vehicle):
                 reached before takeoff is considered complete (default 0.95).
 
         Raises:
-            TakeoffError: If the MAVSDK takeoff command fails.
+            TakeoffError: If the altitude is not a finite value > 0, or the
+                MAVSDK takeoff command fails or times out.
 
         Note:
             Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_TAKEOFF (22) with
@@ -133,12 +157,19 @@ class Drone(Vehicle):
                 type="takeoff",
                 arguments={"altitude": altitude},
             )
+        bad_alt = _invalid_takeoff_altitude(altitude)
+        if bad_alt:
+            raise TakeoffError(bad_alt)
+        if not (isinstance(min_alt_tolerance, (int, float)) and 0 < min_alt_tolerance <= 1):
+            raise TakeoffError(f"min_alt_tolerance must be in (0, 1] (got {min_alt_tolerance!r})")
         try:
             await self._await_preflight_for_takeoff()
         except TimeoutError as e:
             raise TakeoffError(str(e)) from e
         await self._require_can(self.can_takeoff(altitude), "takeoff", TakeoffError)
         await self.await_ready_to_move()
+        if self._offboard.active:
+            await self._stop_offboard()
         time_since_arm = time.monotonic() - self._state.last_arm_time
         if time_since_arm < MIN_ARM_TO_TAKEOFF_DELAY_S:
             delay = MIN_ARM_TO_TAKEOFF_DELAY_S - time_since_arm
@@ -148,6 +179,8 @@ class Drone(Vehicle):
             self._mission_start_time = time.time()
         from aerpawlib.cli.progress_bar import update_progress
 
+        gen = self._begin_move()
+        ok = False
         try:
             update_progress(state="Taking off")
             logger.debug(
@@ -156,7 +189,11 @@ class Drone(Vehicle):
             )
             await self._system.action.set_takeoff_altitude(altitude)
             await self._system.action.takeoff()
-            self._ready_to_move = lambda s: s.position.alt >= altitude * min_alt_tolerance
+            # Non-finite altitude samples never count as reached.
+            self._set_move_gate(
+                gen,
+                lambda s: math.isfinite(s.position.alt) and s.position.alt >= altitude * min_alt_tolerance,
+            )
             last_log = 0.0
             climb_start = time.monotonic()
             while not self.done_moving():
@@ -183,6 +220,7 @@ class Drone(Vehicle):
                     lat=self.position.lat,
                     lon=self.position.lon,
                 )
+            ok = True
         except ActionError as e:
             logger.error(f"Drone: takeoff failed: {e}")
             err_msg = f"Takeoff failed: {e}"
@@ -190,6 +228,8 @@ class Drone(Vehicle):
                 err_msg += " (drone is already armed)"
             raise TakeoffError(err_msg, original_error=e) from e
         finally:
+            if not ok:
+                self._release_move_gate(gen)
             update_progress(state="")
 
     async def land(self) -> None:
@@ -201,15 +241,24 @@ class Drone(Vehicle):
         Note:
             Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_LAND (21). This is
             in-place land, not RTL mode; fly to the takeoff pad first.
+
+            Land does not wait for a previous goto/takeoff/turn to finish; it
+            preempts it. The vehicle stays busy until it disarms.
         """
         if self._event_log:
             self._event_log.log_event("command", type="land")
         await self._require_can(self.can_land(), "land", LandingError)
-        await self.await_ready_to_move()
+        if self._connection.closed:
+            raise RuntimeError("Cannot land: vehicle is closed")
+        if self._will_arm and not self.armed:
+            await self._arm_vehicle()
+        if self._offboard.active:
+            await self._stop_offboard()
         if self._event_log:
             self._event_log.log_event("land_start")
         from aerpawlib.cli.progress_bar import update_progress
 
+        gen = self._begin_move()
         try:
             update_progress(state="Landing")
             logger.debug("Drone: land sending land() command")
@@ -227,6 +276,7 @@ class Drone(Vehicle):
             logger.error(f"Drone: land failed: {e}")
             raise LandingError(str(e), original_error=e) from e
         finally:
+            self._release_move_gate(gen)
             self._expecting_disarm = False
             update_progress(state="")
 
@@ -251,7 +301,14 @@ class Drone(Vehicle):
             try:
                 await self.goto_coordinates(dest)
             except NavigationError as e:
-                logger.warning("Could not navigate home for RTL (%s); landing in place", e)
+                away = self.position.ground_distance(home)
+                if away > _RTL_LAND_IN_PLACE_MAX_M:
+                    # Landing here would be off the pad; stay in GUIDED.
+                    raise RTLError(
+                        f"could not navigate home ({e}); {away:.1f} m from home, not landing away from the pad",
+                        original_error=e,
+                    ) from e
+                logger.warning("Could not navigate home for RTL (%s); %.1f m from home, landing", e, away)
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
@@ -281,9 +338,10 @@ class Drone(Vehicle):
             None when blocking=True; a VehicleTask handle when blocking=False.
 
         Raises:
-            NavigationError: If the goto_location MAVSDK call fails.
-            TimeoutError: If blocking=True and the drone does not arrive within
-                timeout.
+            NavigationError: If the target is not finite, there is no position
+                fix or known home AMSL yet, the goto_location MAVSDK call
+                fails, or (blocking=True) the drone does not arrive within
+                timeout or the link drops.
 
         Note:
             Verified on MAVSDK 3.17.x as COMMAND_INT DO_REPOSITION (192) with
@@ -307,15 +365,13 @@ class Drone(Vehicle):
         await self.await_ready_to_move()
         if self._offboard.active:
             await self._stop_offboard()
-        heading = self._current_heading if self._current_heading is not None else self.position.bearing(coordinates)
-        if math.isnan(heading):
-            heading = 0.0
-        target_alt = coordinates.alt + self.home_amsl
-        if self.home_amsl == 0.0 and self._state.home_coords is None:
-            logger.warning(
-                "Drone: home AMSL altitude is 0.0 and home position not yet received. goto_coordinates altitude may be incorrect (treating coordinates.alt as AMSL). Use --skip-init only when the vehicle is already armed and home is set.",
-            )
+        gen = None
         try:
+            # goto_location takes AMSL; never convert with an unknown home.
+            self._require_movement_fix(NavigationError)
+            heading = self._goto_yaw(coordinates)
+            target_alt = coordinates.alt + self.home_amsl
+            gen = self._begin_move()
             logger.debug(
                 "Drone: goto_coordinates sending goto_location(%.6f, %.6f, alt=%.1f, hdg=%.1f)",
                 coordinates.lat,
@@ -323,7 +379,6 @@ class Drone(Vehicle):
                 target_alt,
                 heading,
             )
-            self._ready_to_move = lambda _: False
             await self._system.action.goto_location(
                 coordinates.lat,
                 coordinates.lon,
@@ -332,11 +387,19 @@ class Drone(Vehicle):
             )
         except ActionError as e:
             logger.error(f"Drone: goto_location failed: {e}")
-            self._ready_to_move = lambda _: True  # reset so next command isn't blocked
+            self._release_move_gate(gen)  # reset so next command isn't blocked
             raise NavigationError(str(e), original_error=e) from e
+        except BaseException:
+            if gen is not None:
+                self._release_move_gate(gen)
+            raise
         finally:
             self._current_heading = None
-        self._ready_to_move = lambda s: coordinates.distance(s.position) <= tolerance
+        alt_tolerance = max(tolerance, _ARRIVAL_MIN_ALT_TOLERANCE_M)
+        self._set_move_gate(
+            gen,
+            lambda s: coordinates.ground_distance(s.position) <= tolerance and abs(coordinates.alt - s.position.alt) <= alt_tolerance,
+        )
 
         if blocking:
             from aerpawlib.cli.progress_bar import update_progress
@@ -350,6 +413,7 @@ class Drone(Vehicle):
                     tolerance=tolerance,
                     timeout=timeout,
                     log_prefix="Drone",
+                    generation=gen,
                 )
                 logger.debug("Drone: goto_coordinates complete (blocking)")
                 if self._event_log:
@@ -360,6 +424,9 @@ class Drone(Vehicle):
                         alt=self.position.alt,
                     )
                 return None
+            except BaseException:
+                self._release_move_gate(gen)
+                raise
             finally:
                 update_progress(state="")
 
@@ -373,8 +440,9 @@ class Drone(Vehicle):
                 )
 
         async def _on_cancel() -> None:
+            # Stop now; do not wait for the original target (no LOITER/hold).
             if not self.closed and self._system is not None:
-                await self.return_to_launch()
+                await self._hold_current_position()
             else:
                 logger.warning("Drone: _on_cancel skipped (vehicle closed)")
 
@@ -387,7 +455,44 @@ class Drone(Vehicle):
             on_cancel=_on_cancel,
             log_prefix="Drone",
             on_complete=_log_location,
+            generation=gen,
         )
+
+    def _goto_yaw(self, coordinates: Coordinate) -> float:
+        """Yaw for goto_location: locked heading, else bearing to target.
+
+        A ~zero horizontal move (e.g. a pure climb) keeps the current heading
+        instead of turning to the undefined bearing (0 = north).
+        """
+        if self._current_heading is not None:
+            return self._current_heading
+        pos = self.position
+        if pos.ground_distance(coordinates) < _COINCIDENT_DISTANCE_M:
+            return self.heading
+        heading = pos.bearing(coordinates)
+        if math.isnan(heading):
+            return self.heading
+        return heading
+
+    async def _hold_current_position(self) -> None:
+        """Stop in GUIDED by repositioning to the current fix.
+
+        ``action.hold()`` is LOITER (mode 5), which the AERPAW filter rejects,
+        so a DO_REPOSITION to where the drone is now is used everywhere.
+        """
+        gen = self._begin_move()
+        pos = self.position
+        try:
+            self._require_movement_fix(NavigationError)
+            logger.info("Drone: stopping at current position (%.6f, %.6f, alt=%.1fm)", pos.lat, pos.lon, pos.alt)
+            await self._system.action.goto_location(
+                pos.lat,
+                pos.lon,
+                self.home_amsl + pos.alt,
+                self.heading,
+            )
+        finally:
+            self._release_move_gate(gen)
 
     async def set_velocity(
         self,
@@ -411,8 +516,13 @@ class Drone(Vehicle):
                 stop. If None, the velocity runs until the next command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started.
+            VelocityError: If offboard mode cannot be started, or on the AERPAW
+                testbed, where velocity control is disabled.
         """
+        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
+        # E-VM filter treats that as fatal and drops the experiment.
+        if self._must_avoid_loiter():
+            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         logger.info(
             f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
         )
@@ -467,6 +577,15 @@ class Drone(Vehicle):
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
                     logger.debug("Drone: set_velocity loop exited")
                 except asyncio.CancelledError:
+                    # Cancelled while still commanding velocity: zero it and
+                    # leave offboard before the task ends.
+                    if self._offboard.owns_velocity_loop(owned_gen) and self._system is not None:
+                        system = self._system
+                        self._offboard.stop_velocity_loop()
+                        with contextlib.suppress(Exception):
+                            await system.offboard.set_velocity_ned(VelocityNedYaw(0, 0, 0, yaw))
+                            await system.offboard.stop()
+                        self._offboard.clear()
                     raise
                 except Exception as e:
                     logger.error(f"Velocity loop error: {e}")

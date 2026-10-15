@@ -4,6 +4,29 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Summary
+
+Fail closed on the AERPAW testbed. Velocity control is refused there, movement commands no longer stick after a timeout, and the safety checker, CLI, runner, and ZMQ paths reject inputs that used to fail open or hang the process.
+
+### Fixed
+
+- **`set_velocity` on AERPAW.** v1 and v2, drone and rover, raise `VelocityError` on the testbed before starting offboard. Leaving velocity control calls MAVSDK `offboard.stop()`, which sends LOITER (copter) or HOLD (rover). The C-VM filter allows only GUIDED, plus LAND on copters, so that mode change ends the experiment. Local SITL is unchanged.
+- **A failed goto, takeoff, or yaw blocked the next land.** The shared ready predicate stayed false after a timeout or action error, so `land()` waited out another full timeout and never sent LAND. The predicate is cleared on those failures.
+- **Goto with an unknown home altitude.** A missing, non-finite, or (0, 0) home is refused. AMSL 0 is accepted once a home message has arrived, which is what AERPAW SITL reports (`--home lat,lon,0`).
+- **Safety checker fail-open inputs.** Non-finite altitudes, speeds, and waypoints are rejected. Configured limits must be finite with min ≤ max or the server does not start. Takeoff outside an include fence or inside a no-go zone is rejected. `taking_off_or_landing` skips copter altitude limits only when the flag is exactly `True`.
+- **Geofence KML.** v1 and v2 reject a file that is not exactly one polygon, has a hole, or has a non-finite coordinate. All current AHN fence files are one polygon and still load.
+- **CLI runner discovery.** A subclass of a user runner is the mission that flies. Two unrelated runners in one script are rejected before anything is instantiated.
+- **Failed connect.** A blank `--conn` is rejected. `tcp:` and `udp:` strings are rewritten to MAVSDK form. `mavsdk_server` processes started by the CLI are killed on connect failure and on SIGTERM, instead of staying up on the gRPC port.
+- **External processes.** Commands are argv, not a shell, so a redirect path cannot run extra commands. Stdout is drained so a full pipe cannot wedge `wait()` after `kill()`.
+- **ZMQ coordination.** Control frames are JSON. A reliable send completes only after the recipient's handler accepts it, and a peer that stops sending HELLO expires.
+- **OEO checkpoint client.** A hung forwarder is retried once and then reported as a failed request. Transport errors are not raised into the state machine. Client sockets close with `linger=0`.
+
+### Added
+
+- **`get_limitations`.** The safety checker returns the configured vehicle type and speed and altitude limits. Responses without a data field are unchanged on the wire.
+
 ## [1.4.11] (2026-09-23)
 
 ### Summary

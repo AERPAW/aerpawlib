@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import threading
 import time
 from collections.abc import Callable
@@ -52,6 +53,7 @@ from aerpawlib.v1.exceptions import (
     ArmError,
     ConnectionTimeoutError,
     DisarmError,
+    NavigationError,
     NotArmableError,
     NotImplementedForVehicleError,
     PortInUseError,
@@ -237,21 +239,26 @@ class Vehicle:
         self._mavsdk_thread = threading.Thread(target=_run_connection, daemon=True)
         self._mavsdk_thread.start()
 
-        # Wait for connection with timeout
+        # Wait for connection with timeout. On failure stop the MAVSDK thread
+        # and mavsdk_server: the caller gets no instance to close().
         start = time.time()
-        while not self._lifecycle.has_heartbeat:
-            if self._connection_error is not None:
-                err = self._connection_error
-                self._connection_error = None
-                if isinstance(err, AerpawConnectionError):
-                    raise err
-                raise AerpawConnectionError(
-                    f"Connection failed: {err}",
-                    original_error=err,
-                )
-            if time.time() - start > CONNECTION_TIMEOUT_S:
-                raise ConnectionTimeoutError(CONNECTION_TIMEOUT_S)
-            time.sleep(POLLING_DELAY_S)
+        try:
+            while not self._lifecycle.has_heartbeat:
+                if self._connection_error is not None:
+                    err = self._connection_error
+                    self._connection_error = None
+                    if isinstance(err, AerpawConnectionError):
+                        raise err
+                    raise AerpawConnectionError(
+                        f"Connection failed: {err}",
+                        original_error=err,
+                    )
+                if time.time() - start > CONNECTION_TIMEOUT_S:
+                    raise ConnectionTimeoutError(CONNECTION_TIMEOUT_S)
+                time.sleep(POLLING_DELAY_S)
+        except BaseException:
+            self._abort_connect()
+            raise
 
         # Start internal update loop
         update_thread = threading.Thread(target=self._internal_update_loop, daemon=True)
@@ -571,19 +578,73 @@ class Vehicle:
         """True when the process is attached to the AERPAW forward server."""
         return bool(AERPAW_Platform._connected)
 
+    def _must_avoid_loiter(self) -> bool:
+        """True when ``action.hold()`` / LOITER (mode 5) would sever the E-VM link.
+
+        Also true on an AERPAW experiment node whose platform client is not
+        attached (e.g. ``--no-aerpaw-environment``), detected from the
+        ``AP_EXPENV_*`` variables, so LOITER is never sent there.
+        """
+        if self._in_aerpaw():
+            return True
+        from aerpawlib._internal.aerpaw_ping import aerpaw_env_vars_present
+
+        return aerpaw_env_vars_present()
+
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.
 
         On AERPAW, MAVSDK HOLD is ArduCopter LOITER (mode 5) and is not
         already-good. Local SITL uses HOLD after action.hold() as a valid
-        pre-arm mode.
+        pre-arm mode. LAND does not accept a reposition, so a goto issued
+        while landing must switch to GUIDED first.
         """
         mode = self._ts_state.mode.get()
-        if mode in {"OFFBOARD", "GUIDED", "LAND"}:
+        if mode in {"OFFBOARD", "GUIDED"}:
             return True
-        if mode == "HOLD" and not self._in_aerpaw():
+        if mode == "HOLD" and not self._must_avoid_loiter():
             return True
         return False
+
+    def _movement_fix_problem(self) -> str | None:
+        """Return why a position command cannot be sent yet, or None."""
+        lat = self._ts_state.position_lat.get()
+        lon = self._ts_state.position_lon.get()
+        if not (math.isfinite(lat) and math.isfinite(lon)) or (lat, lon) == (0.0, 0.0):
+            return f"no valid position fix received yet (position=({lat}, {lon}))"
+        home = self._ts_state.home_position.get()
+        amsl = self.home_amsl
+        # AMSL 0 is legitimate once a home message arrived (AERPAW SITL starts
+        # with --home lat,lon,0); only a missing, non-finite or (0, 0) home is unknown.
+        if home is None or not math.isfinite(amsl) or (home.lat, home.lon) == (0.0, 0.0):
+            return f"home AMSL altitude is unknown (home={home}, amsl={amsl}); relative altitude cannot be converted to AMSL"
+        return None
+
+    def _require_movement_fix(self, error_cls: type[Exception]) -> None:
+        """Raise ``error_cls`` unless a position fix and a real home AMSL exist."""
+        problem = self._movement_fix_problem()
+        if problem is not None:
+            logger.error(f"Refusing movement command: {problem}")
+            raise error_cls(problem)
+
+    async def _wait_for_arrival(self, timeout: float | None, timeout_message: str) -> None:
+        """Wait for the current ready predicate, failing fast on link loss/abort.
+
+        Raises:
+            NavigationError: If the vehicle disconnects or the mission aborts.
+            TimeoutError: If ``timeout`` elapses first.
+        """
+        start = time.time()
+        while True:
+            if not self.connected:
+                raise NavigationError("vehicle disconnected while waiting for arrival")
+            if self._aborted:
+                raise NavigationError("mission aborted while waiting for arrival")
+            if self._ready_to_move(self):
+                return
+            if timeout is not None and time.time() - start > timeout:
+                raise TimeoutError(timeout_message)
+            await asyncio.sleep(POLLING_DELAY_S)
 
     async def await_ready_to_move(self) -> None:
         """
@@ -661,11 +722,29 @@ class Vehicle:
                     MAVSDK_THREAD_SHUTDOWN_TIMEOUT_S,
                 )
 
-        # Clear system reference to help garbage collection release the gRPC server
-        self._system = None
+        self._stop_mavsdk_server()
         self._mavsdk_loop = None
 
         logger.info("Vehicle connection closed")
+
+    def _stop_mavsdk_server(self) -> None:
+        """Kill the mavsdk_server child process and drop the System reference."""
+        system = getattr(self, "_system", None)
+        self._system = None
+        stop = getattr(system, "_stop_mavsdk_server", None)
+        if stop is None:
+            return
+        try:
+            stop()
+        except Exception as e:
+            logger.debug("Stopping mavsdk_server failed: %s", e)
+
+    def _abort_connect(self) -> None:
+        """Tear down the MAVSDK thread/server after a failed connect or constructor."""
+        try:
+            self.close()
+        except Exception as e:
+            logger.debug("Cleanup after failed connect raised: %s", e)
 
     async def set_armed(self, value: bool) -> None:
         """
@@ -763,9 +842,11 @@ class Vehicle:
         if self._init_phase == InitPhase.IN_PROGRESS:
             logger.debug("_arm_vehicle: init already in progress, waiting...")
             await wait_for_condition(
-                lambda: self._init_phase == InitPhase.COMPLETE,
+                lambda: self._init_phase != InitPhase.IN_PROGRESS,
                 poll_interval=POLLING_DELAY_S,
             )
+            if self._init_phase != InitPhase.COMPLETE:
+                raise NotArmableError("Arm sequence failed in another task")
             return
 
         self._init_phase = InitPhase.IN_PROGRESS
@@ -840,8 +921,18 @@ class Vehicle:
                         raise NotArmableError(msg) from e
                     logger.debug("Waiting for EKF ready...")
                     update_progress(state="Waiting for EKF...")
-                    while not self._ts_state.ekf_ready.get():
-                        await asyncio.sleep(0.1)
+                    try:
+                        await wait_for_condition(
+                            lambda: self._ts_state.ekf_ready.get(),
+                            timeout=ARMABLE_TIMEOUT_S,
+                            poll_interval=0.1,
+                            timeout_message=f"EKF not ready for arming after {ARMABLE_TIMEOUT_S:.0f}s (no EKF_STATUS_REPORT with all required flags)",
+                        )
+                    except TimeoutError as e:
+                        health_summary = self._get_health_status_summary()
+                        msg = f"{e!s}. Status: {health_summary}"
+                        logger.error(msg)
+                        raise NotArmableError(msg) from e
                     # GUIDED before arm: ArduCopter auto-disarms if armed in
                     # STABILIZE without RC. Mode switch also needs position.
                     if hasattr(self, "_set_guided_mode"):

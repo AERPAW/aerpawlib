@@ -68,6 +68,20 @@ if TYPE_CHECKING:
 
 logger = get_logger(LogComponent.VEHICLE)
 
+# Upper bound on zeroing velocity / leaving offboard during aclose().
+_STOP_ON_CLOSE_TIMEOUT_S = 5.0
+
+
+def _invalid_takeoff_altitude(altitude: float) -> str:
+    """Return a rejection message for a non-finite or non-positive altitude."""
+    try:
+        ok = math.isfinite(altitude) and altitude > 0
+    except TypeError:
+        ok = False
+    if ok:
+        return ""
+    return f"Takeoff altitude must be a finite value > 0 m (got {altitude!r})"
+
 
 class Vehicle:
     """
@@ -109,6 +123,10 @@ class Vehicle:
         self._command_tasks: list[asyncio.Task] = []
         self._connection = ConnectionState()
         self._ready_to_move: Callable[[Vehicle], bool] = lambda _: True
+        # Bumped by every movement command; a command only touches the
+        # ready gate while it is still the newest one.
+        self._move_generation: int = 0
+        self._close_task: asyncio.Task | None = None
         self._mission_start_time: float | None = None
         self._will_arm: bool = True
         self._expecting_disarm: bool = False
@@ -164,10 +182,11 @@ class Vehicle:
         On AERPAW, MAVSDK ``HOLD`` is ArduCopter LOITER (mode 5). The copter
         filter only allows GUIDED (4) and LAND (9), so HOLD is not already-good
         there. Local SITL uses HOLD after ``action.hold()`` as a valid pre-arm
-        mode.
+        mode. ``LAND`` does not accept a reposition, so a goto issued while
+        landing must switch to GUIDED first.
         """
         mode = self.mode
-        if mode in {"OFFBOARD", "GUIDED", "LAND"}:
+        if mode in {"OFFBOARD", "GUIDED"}:
             return True
         if mode == "HOLD" and not self._must_avoid_loiter():
             return True
@@ -313,6 +332,9 @@ class Vehicle:
         logger.debug(
             f"can_takeoff: checking altitude={altitude}m battery>={min_battery_percent}%",
         )
+        bad_alt = _invalid_takeoff_altitude(altitude)
+        if bad_alt:
+            return False, bad_alt
         if not self._state.armable:
             logger.debug(
                 f"can_takeoff: rejected (not armable) {self._get_health_summary()}",
@@ -353,6 +375,8 @@ class Vehicle:
         )
         if not (MIN_POSITION_TOLERANCE_M <= tolerance <= MAX_POSITION_TOLERANCE_M):
             return False, (f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and {MAX_POSITION_TOLERANCE_M}m")
+        if not all(math.isfinite(v) for v in (target.lat, target.lon, target.alt)):
+            return False, f"Target is not finite ({target.lat}, {target.lon}, {target.alt})"
         if self.safety is not None:
             ok, msg = await self.safety.validate_waypoint(self.position, target)
             logger.debug(f"can_goto: safety check ok={ok} msg={msg!r}")
@@ -592,6 +616,10 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 current = getattr(bat, "current_battery_a", 0.0) or 0.0
+                remaining = bat.remaining_percent
+                if remaining is None or not math.isfinite(remaining):
+                    logger.debug(f"Telemetry: skipping non-finite battery sample ({remaining!r})")
+                    continue
                 self._state.update_battery(
                     bat.voltage_v,
                     current,
@@ -770,6 +798,40 @@ class Vehicle:
         """Return True if the vehicle is ready to accept the next command."""
         return self._ready_to_move(self)
 
+    def _begin_move(self) -> int:
+        """Start a movement command: mark the vehicle busy and return its generation."""
+        self._move_generation += 1
+        self._ready_to_move = lambda _: False
+        return self._move_generation
+
+    def _set_move_gate(self, generation: int, predicate: Callable[[Vehicle], bool]) -> None:
+        """Install ``predicate`` as the ready gate if ``generation`` is still current."""
+        if self._move_generation == generation:
+            self._ready_to_move = predicate
+
+    def _release_move_gate(self, generation: int) -> None:
+        """Mark the vehicle idle after a failed/finished command, if it is still current."""
+        if self._move_generation == generation:
+            self._ready_to_move = lambda _: True
+
+    def _movement_fix_problem(self) -> str | None:
+        """Return why a position command cannot be sent yet, or None."""
+        if not self._state.has_position_fix:
+            return "no valid position fix received yet"
+        amsl = self.home_amsl
+        # AMSL 0 is legitimate once a home message arrived (AERPAW SITL starts
+        # with --home lat,lon,0); only a missing or non-finite home is unknown.
+        if self._state.home_coords is None or not math.isfinite(amsl):
+            return f"home AMSL altitude is unknown (home={self._state.home_coords}, amsl={amsl}); relative altitude cannot be converted to AMSL"
+        return None
+
+    def _require_movement_fix(self, error_cls: type[Exception]) -> None:
+        """Raise ``error_cls`` unless a position fix and a real home AMSL exist."""
+        problem = self._movement_fix_problem()
+        if problem is not None:
+            logger.error(f"Refusing movement command: {problem}")
+            raise error_cls(problem)
+
     @property
     def _default_goto_tolerance(self) -> float:
         """Default arrival tolerance in metres for cardinal goto helpers."""
@@ -850,8 +912,17 @@ class Vehicle:
             )
             if self._standalone_arm_wait_ekf():
                 update_progress(state="Waiting for EKF...")
-                while not self.ekf_ready:
-                    await asyncio.sleep(POST_ARM_STABILIZE_DELAY_S)
+                try:
+                    await _wait_for_condition(
+                        lambda: self.ekf_ready,
+                        timeout=ARMABLE_TIMEOUT_S,
+                        poll_interval=POST_ARM_STABILIZE_DELAY_S,
+                        timeout_message=f"{label.capitalize()}: EKF not ready",
+                    )
+                except TimeoutError as e:
+                    raise NotArmableError(
+                        f"EKF not ready for arming after {ARMABLE_TIMEOUT_S:.0f}s (no EKF_STATUS_REPORT with all required flags)",
+                    ) from e
             # GUIDED before arm: ArduCopter auto-disarms if armed in STABILIZE
             # without RC. Mode switch also needs a position estimate.
             update_progress(state="Switching to GUIDED...")
@@ -986,9 +1057,24 @@ class Vehicle:
         """
         return f"GPS fix: {self._state.gps.fix_type}, sats: {self._state.gps.satellites_visible}, armable: {self._state.armable}"
 
+    def _offboard_stop_yaw(self) -> float:
+        """Yaw sent with the zero setpoint when offboard is stopped."""
+        return self.heading
+
+    async def _stop_offboard(self) -> None:
+        """Stop offboard mode and zero velocity setpoint (no-op if not engaged)."""
+        await self._offboard.stop(
+            self._system,
+            self._offboard_stop_yaw(),
+            closed=self.closed,
+        )
+
     async def _stop(self) -> None:
         """Stop background movement."""
+        self._move_generation += 1
         self._ready_to_move = lambda _: True
+        if self._offboard.active:
+            await self._stop_offboard()
 
     async def set_groundspeed(self, velocity: float) -> None:
         """Set the maximum ground speed of the vehicle.
@@ -1012,17 +1098,39 @@ class Vehicle:
         if self._connection.closed:
             return
         logger.info("Closing vehicle connection (async)")
+        # Zero any velocity setpoint and leave offboard while the link is
+        # still open; once closed, OffboardSession.stop sends nothing.
+        try:
+            await asyncio.wait_for(self._stop(), timeout=_STOP_ON_CLOSE_TIMEOUT_S)
+        except Exception as e:
+            logger.warning(f"aclose: stopping movement failed: {e}")
         self._connection.mark_closed()
         tasks = list(self._telemetry_tasks) + list(self._command_tasks)
         for task in tasks:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-        await self._stop()
         self._telemetry_tasks.clear()
         self._command_tasks.clear()
         self._system = None
         logger.info("Vehicle connection closed")
+
+    def _schedule_offboard_stop_on_close(self) -> None:
+        """From sync close(): zero velocity and stop offboard if it is engaged."""
+        system = self._system
+        offboard = getattr(self, "_offboard", None)
+        if offboard is None or not offboard.active or system is None:
+            return
+        offboard.stop_velocity_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning(
+                "close(): offboard velocity is active but no event loop is running; use 'await vehicle.aclose()' to stop it",
+            )
+            return
+        # Pass the captured system: close() clears self._system right away.
+        self._close_task = loop.create_task(offboard.stop(system, self._offboard_stop_yaw()))
 
     def close(self) -> None:
         """Sync cleanup. Prefer :meth:`aclose` in async code."""
@@ -1035,6 +1143,7 @@ class Vehicle:
             logger.debug("close() called but already closed")
             return
         logger.info("Closing vehicle connection")
+        self._schedule_offboard_stop_on_close()
         self._connection.mark_closed()
         for task in getattr(self, "_telemetry_tasks", []):
             task.cancel()

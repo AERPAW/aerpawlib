@@ -18,29 +18,29 @@ from pathlib import Path
 
 from pykml import parser
 
+from aerpawlib._internal.kml import polygon_from_kml
+
 
 def read_geofence(file_path: str) -> list[dict]:
     """
     Parse a KML file into a list of lat/lon points.
+
+    The file must hold exactly one Polygon with no holes; anything else would
+    be silently enforced as a different fence, so it is rejected.
 
     Args:
         file_path: Path to the KML file.
 
     Returns:
         List[dict]: Points as [{'lat': ..., 'lon': ...}, ...].
+
+    Raises:
+        ValueError: If the KML has no polygon, more than one, holes, or a
+            malformed or non-finite coordinate.
     """
     with Path(file_path).open("rb") as f:
         root = parser.fromstring(f.read())
-    coordinates_string = root.Document.Placemark.Polygon.outerBoundaryIs.LinearRing.coordinates.text
-    coordinates_list = coordinates_string.split()
-    polygon = []
-    for str_val in coordinates_list:
-        point = {
-            "lon": float(str_val.split(",")[0]),
-            "lat": float(str_val.split(",")[1]),
-        }
-        polygon.append(point)
-    return polygon
+    return polygon_from_kml(root, file_path)
 
 
 def inside(lon: float, lat: float, geofence: list[dict]) -> bool:

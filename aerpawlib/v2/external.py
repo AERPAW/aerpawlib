@@ -8,6 +8,12 @@ import asyncio
 import contextlib
 import re
 
+from aerpawlib._internal.subprocess_io import (
+    drain_stream,
+    pop_buffered_line,
+    reap_process,
+)
+
 
 class ExternalProcess:
     """
@@ -28,6 +34,20 @@ class ExternalProcess:
         self._stdin = stdin
         self._stdout = stdout
         self.process: asyncio.subprocess.Process | None = None
+        # stdout read while waiting for exit, served to later read_line calls.
+        self._stdout_buffer = bytearray()
+        self._stdout_lock: asyncio.Lock | None = None
+
+    def _get_stdout_lock(self) -> asyncio.Lock:
+        if self._stdout_lock is None:
+            self._stdout_lock = asyncio.Lock()
+        return self._stdout_lock
+
+    async def aclose(self) -> None:
+        """Terminate (then kill) the subprocess with bounded waits, draining stdout."""
+        if self.process is None:
+            return
+        await reap_process(self.process)
 
     async def start(self) -> None:
         """Start the process."""
@@ -47,10 +67,14 @@ class ExternalProcess:
         """Read one line from stdout."""
         if self.process is None or self.process.stdout is None:
             return None
-        line = await self.process.stdout.readline()
+        async with self._get_stdout_lock():
+            if self._stdout_buffer:
+                line = pop_buffered_line(self._stdout_buffer)
+            else:
+                line = await self.process.stdout.readline()
         if not line:
             return None
-        return line.decode("ascii", errors="replace").rstrip()
+        return line.decode("utf-8", errors="replace").rstrip()
 
     async def send_input(self, data: str) -> None:
         """Send a string to the process's stdin.
@@ -69,9 +93,17 @@ class ExternalProcess:
         await self.process.stdin.drain()
 
     async def wait_until_terminated(self) -> None:
-        """Wait until the process exits."""
+        """Wait until the process exits.
+
+        Piped stdout is read while waiting (and kept for later ``read_line``
+        calls, up to a limit) so a child that writes more than the pipe
+        buffer cannot block forever, and ``kill()`` unblocks this call.
+        """
         if self.process is None:
             return
+        if self.process.stdout is not None:
+            async with self._get_stdout_lock():
+                await drain_stream(self.process.stdout, self._stdout_buffer)
         await self.process.wait()
 
     async def wait_until_output(self, output_regex: str) -> list[str]:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import types
 from typing import Any, cast
 
@@ -71,9 +72,15 @@ class Runner:
             return
         if "run" in cls.__dict__:
             user_run_func = cls.__dict__["run"]
-            # If the user's run is a descriptor, retrieve the original function
-            if hasattr(user_run_func, "func"):
-                user_run_func = user_run_func.func
+            # If the user's run is a descriptor (possibly nested, e.g.
+            # @expose_zmq + @state), retrieve the original function
+            while not inspect.isfunction(user_run_func):
+                if getattr(user_run_func, "func", None) is not None:
+                    user_run_func = user_run_func.func
+                elif getattr(user_run_func, "wrapped", None) is not None:
+                    user_run_func = user_run_func.wrapped
+                else:
+                    break
             # Find the parent/base class's 'run' method
             base_run_method = None
             for base in cls.__mro__[1:]:
@@ -143,16 +150,21 @@ class Runner:
         disarm_task = asyncio.ensure_future(_watch_disarm())
 
         try:
-            done, pending = await asyncio.wait(
+            _, pending = await asyncio.wait(
                 [main_task, disarm_task],
                 return_when=asyncio.FIRST_COMPLETED,
             )
         except asyncio.CancelledError:
             main_task.cancel()
             disarm_task.cancel()
+            # Wait for the state to unwind so cleanup() runs after it stops.
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(main_task, disarm_task, return_exceptions=True)
             raise
 
-        disarm_triggered = disarm_task in done and main_task in pending
+        # The event can be set as the main task finishes (both done); that is
+        # still an unexpected disarm, not a successful run.
+        disarm_triggered = disarm_event.is_set()
 
         for task in pending:
             task.cancel()
@@ -160,7 +172,10 @@ class Runner:
                 await task
 
         if disarm_triggered:
-            raise UnexpectedDisarmError()
+            main_exc = None
+            if main_task.done() and not main_task.cancelled():
+                main_exc = main_task.exception()
+            raise UnexpectedDisarmError() from main_exc
 
         if main_task.done() and not main_task.cancelled():
             exc = main_task.exception()
@@ -325,12 +340,28 @@ class StateMachine(Runner):
             return last_state
 
         task = asyncio.create_task(_bg())
+        timer = asyncio.create_task(asyncio.sleep(spec.duration))
         logger.debug(
             f"StateMachine: timed_state '{spec.name}' (duration={spec.duration}s, loop={spec.loop})",
         )
-        await asyncio.sleep(spec.duration)
-        stop_event.set()
-        return await task
+        try:
+            done, _ = await asyncio.wait({task, timer}, return_when=asyncio.FIRST_COMPLETED)
+            if task in done:
+                # Surface a body exception now instead of after the timer;
+                # otherwise hold the state for the rest of the duration.
+                task.result()
+                await timer
+            stop_event.set()
+            return await task
+        finally:
+            # Cancellation (disarm guard, SIGINT) or an error must not leave
+            # the body running and commanding the vehicle after the state.
+            stop_event.set()
+            timer.cancel()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
 
     async def run(self, vehicle: Any) -> None:
         """Run the state machine from the initial state to completion.
@@ -353,54 +384,8 @@ class StateMachine(Runner):
             f"StateMachine: starting with initial state '{self._current_state}' (states: {list(states.keys())})",
         )
 
-        async def _main_loop() -> None:
-            """Execute init hooks, backgrounds, then state transitions."""
-            at_init_list = self._get_at_init()
-            if at_init_list:
-                logger.debug(
-                    f"StateMachine: running {len(at_init_list)} at_init task(s)",
-                )
-            for name in at_init_list:
-                logger.debug(f"StateMachine: at_init '{name}'")
-                method = self._get_runner_method(name)
-                await method(vehicle)
-
-            backgrounds = self._get_backgrounds()
-            if backgrounds:
-                logger.info(
-                    f"StateMachine: starting {len(backgrounds)} background task(s)",
-                )
-            max_background_retries = 10
-            for name in backgrounds:
-                method = self._get_runner_method(name)
-
-                async def _bg_task(task: Any, _name: str = name) -> None:
-                    """Run a background task with bounded retry/backoff on errors."""
-                    consecutive_failures = 0
-                    while self._running:
-                        try:
-                            await task(vehicle)
-                            consecutive_failures = 0
-                        except asyncio.CancelledError:
-                            return
-                        except Exception as e:
-                            consecutive_failures += 1
-                            if consecutive_failures >= max_background_retries:
-                                logger.error(
-                                    f"Background task '{_name}' exceeded max retries ({max_background_retries}), stopping.",
-                                    exc_info=True,
-                                )
-                                return
-                            backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
-                            logger.error(
-                                f"Background task '{_name}' failed (attempt {consecutive_failures}/{max_background_retries}), retrying in {backoff:.1f}s: {e}",
-                                exc_info=True,
-                            )
-                            await asyncio.sleep(backoff)
-
-                fut = asyncio.create_task(_bg_task(method))
-                self._background_futures.append(fut)
-
+        async def _state_loop() -> None:
+            """Iterate through states until one returns None or stop() is called."""
             while self._running:
                 current_state = self._current_state
                 assert current_state is not None
@@ -418,6 +403,13 @@ class StateMachine(Runner):
                     state=current_state,
                 )
                 next_state = await self._run_state(spec, vehicle)
+                if next_state is None and self._next_state_overrides:
+                    # A terminal state ends the machine; a stale queued
+                    # transition (e.g. takeoff) must not run after it.
+                    logger.warning(
+                        f"StateMachine: dropping queued overrides {self._next_state_overrides} after terminal state",
+                    )
+                    self._next_state_overrides.clear()
                 if self._next_state_overrides:
                     self._current_state = self._next_state_overrides.pop(0)
                     logger.info(
@@ -433,6 +425,13 @@ class StateMachine(Runner):
                             f"StateMachine: idle in state '{spec.name}'",
                         )
                         await asyncio.sleep(STATE_MACHINE_IDLE_DELAY_S)
+                        # Honor an override queued during the idle sleep
+                        # before running this state again.
+                        if self._next_state_overrides:
+                            self._current_state = self._next_state_overrides.pop(0)
+                            logger.info(
+                                f"StateMachine: state transition (override) -> '{self._current_state}'",
+                            )
                         continue
                     logger.info(
                         f"StateMachine: state transition '{spec.name}' -> '{next_state}'",
@@ -441,6 +440,81 @@ class StateMachine(Runner):
                     logger.info("StateMachine: completed (final state returned None)")
                     break
                 await asyncio.sleep(STATE_MACHINE_DELAY_S)
+
+        async def _main_loop() -> None:
+            """Execute init hooks, backgrounds, then state transitions."""
+            at_init_list = self._get_at_init()
+            if at_init_list:
+                logger.debug(
+                    f"StateMachine: running {len(at_init_list)} at_init task(s)",
+                )
+                # Run hooks concurrently (as v1 does); cancel the rest if one fails.
+                init_futures = [asyncio.ensure_future(self._get_runner_method(name)(vehicle)) for name in at_init_list]
+                try:
+                    await asyncio.gather(*init_futures)
+                except BaseException:
+                    for fut in init_futures:
+                        fut.cancel()
+                    await asyncio.gather(*init_futures, return_exceptions=True)
+                    raise
+
+            backgrounds = self._get_backgrounds()
+            if backgrounds:
+                logger.info(
+                    f"StateMachine: starting {len(backgrounds)} background task(s)",
+                )
+            max_background_retries = 10
+            # Resolved with the error when a background gives up, so the run fails.
+            background_failed: asyncio.Future = asyncio.get_running_loop().create_future()
+            for name in backgrounds:
+                method = self._get_runner_method(name)
+
+                async def _bg_task(task: Any, _name: str = name) -> None:
+                    """Run a background task with bounded retry/backoff on errors."""
+                    consecutive_failures = 0
+                    while self._running:
+                        try:
+                            await task(vehicle)
+                            consecutive_failures = 0
+                        except asyncio.CancelledError:
+                            return
+                        except Exception as e:
+                            consecutive_failures += 1
+                            if consecutive_failures >= max_background_retries:
+                                logger.error(
+                                    f"Background task '{_name}' exceeded max retries ({max_background_retries}), failing the run.",
+                                    exc_info=True,
+                                )
+                                if not background_failed.done():
+                                    err = RunnerError(
+                                        f"Background task '{_name}' exceeded max retries ({max_background_retries}): {e}",
+                                    )
+                                    err.__cause__ = e
+                                    background_failed.set_result(err)
+                                return
+                            backoff = min(0.5 * (2 ** (consecutive_failures - 1)), 30)
+                            logger.error(
+                                f"Background task '{_name}' failed (attempt {consecutive_failures}/{max_background_retries}), retrying in {backoff:.1f}s: {e}",
+                                exc_info=True,
+                            )
+                            await asyncio.sleep(backoff)
+
+                fut = asyncio.create_task(_bg_task(method))
+                self._background_futures.append(fut)
+            # Let background tasks start before the first state runs.
+            await asyncio.sleep(0)
+
+            state_task = asyncio.ensure_future(_state_loop())
+            try:
+                await asyncio.wait({state_task, background_failed}, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                if not state_task.done():
+                    state_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await state_task
+            if background_failed.done():
+                raise background_failed.result()
+            await state_task
 
         try:
             await self._run_with_disarm_guard(vehicle, _main_loop())
@@ -527,7 +601,7 @@ class ZmqStateMachine(StateMachine):
             return None
         return resolved
 
-    async def _zmq_handle_message(self, vehicle: Any, message: dict) -> None:
+    async def _zmq_handle_message(self, vehicle: Any, message: dict) -> bool:
         """Handle one incoming application ZMQ message."""
         msg_type = message.get("msg_type")
 
@@ -537,10 +611,16 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
-                return
-            resolved = self._resolve_transition_state(cast("str", next_state))
+                return False
+            if not isinstance(next_state, str):
+                logger.warning(
+                    "ZmqStateMachine: ignoring TRANSITION with non-string 'next_state' %r",
+                    next_state,
+                )
+                return False
+            resolved = self._resolve_transition_state(next_state)
             if resolved is None:
-                return
+                return False
             self._next_state_overrides.append(resolved)
             logger.info(f"ZmqStateMachine: queued state override -> '{resolved}'")
 
@@ -551,17 +631,25 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
-                return
+                return False
             field_name = cast("str", field)
             sender_name = cast("str", sender)
             req_id = message.get("req_id")
             cfg = self._get_zmq_config()
+            method_name = cfg.exposed_fields.get(field_name)
+            if method_name is None:
+                logger.warning("ZmqStateMachine: FIELD_REQUEST for unknown field %r", field_name)
+                await self._zmq_send_reply(
+                    sender_name,
+                    field_name,
+                    None,
+                    req_id=req_id,
+                    error=f"Unknown field {field_name!r}",
+                )
+                return True
             try:
-                return_val = None
-                method_name = cfg.exposed_fields.get(field_name)
-                if method_name is not None:
-                    method = self._get_runner_method(method_name)
-                    return_val = await method(vehicle)
+                method = self._get_runner_method(method_name)
+                return_val = await method(vehicle)
                 await self._zmq_send_reply(sender_name, field_name, return_val, req_id=req_id)
             except Exception as e:
                 logger.error("ZmqStateMachine: field handler %r failed: %s", field_name, e, exc_info=True)
@@ -574,7 +662,7 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
-                return
+                return False
             from aerpawlib.v2.types import Coordinate, VectorNED
 
             value = decode_value(
@@ -588,18 +676,23 @@ class ZmqStateMachine(StateMachine):
                 pending["value"] = value
                 pending["error"] = message.get("error")
                 pending["event"].set()
-                return
+                return True
             sender_name = cast("str", sender)
             field_name = cast("str", field)
             if sender_name not in self._zmq_received_fields:
                 self._zmq_received_fields[sender_name] = {}
             self._zmq_received_fields[sender_name][field_name] = value
+        else:
+            logger.warning("ZmqStateMachine: ignoring unknown message type %r", msg_type)
+            return False
+        return True
 
-    async def _on_zmq_message(self, message: dict[str, Any]) -> None:
+    async def _on_zmq_message(self, message: dict[str, Any]) -> bool:
+        """Transport handler. Returns False to reject (no ACK) the message."""
         vehicle = self._zmq_handle_vehicle
         if vehicle is None:
-            return
-        await self._zmq_handle_message(vehicle, message)
+            return False
+        return await self._zmq_handle_message(vehicle, message)
 
     async def run(self, vehicle: Any) -> None:
         """Run with ZMQ. Requires _initialize_zmq_bindings first."""

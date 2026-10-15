@@ -56,6 +56,7 @@ def serialize_response(
     *,
     result: bool,
     message: str = "",
+    data: dict | None = None,
 ) -> bytes:
     """
     Serialize a safety checker response into a compressed JSON format.
@@ -64,18 +65,20 @@ def serialize_response(
         request_function: The name of the function that was requested.
         result: Whether the request was successful/valid.
         message: Additional information or error reason. Defaults to "".
+        data: Optional payload for requests that return values. Omitted from
+            the wire when None.
 
     Returns:
         bytes: Compressed byte string of the serialized JSON.
     """
-    raw_msg = json.dumps(
-        {
-            "request_function": request_function,
-            "result": result,
-            "message": message,
-        },
-    )
-    return serialize_msg(raw_msg)
+    response = {
+        "request_function": request_function,
+        "result": result,
+        "message": message,
+    }
+    if data is not None:
+        response["data"] = data
+    return serialize_msg(json.dumps(response))
 
 
 def deserialize_msg(compressed_msg: bytes) -> dict:

@@ -40,7 +40,6 @@ from aerpawlib.v1.exceptions import (
 )
 from aerpawlib.v1.helpers import (
     validate_tolerance,
-    wait_for_condition,
 )
 from aerpawlib.v1.vehicle.core_vehicle import Vehicle
 
@@ -95,7 +94,8 @@ class Rover(Vehicle):
         sysid = resolve_mav_sysid(self._system)
         msg = make_set_mode_message(sysid, ROVER_GUIDED_MODE)
         try:
-            await self._system.mavlink_direct.send_message(msg)
+            # gRPC calls must run on the MAVSDK loop, not the caller's loop.
+            await self._run_on_mavsdk_loop(self._system.mavlink_direct.send_message(msg))
         except Exception as e:
             logger.warning(
                 f"Rover: failed to send GUIDED ({GUIDED_MODE_NAME}) mode command: {e}",
@@ -120,7 +120,11 @@ class Rover(Vehicle):
                     self._set_guided_mode(),
                     self._mavsdk_loop,
                 )
-                future.result(timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S + MAVLINK_COMMAND_TIMEOUT_S + 2.0)
+                try:
+                    future.result(timeout=ROVER_GUIDED_MODE_SWITCH_TIMEOUT_S + MAVLINK_COMMAND_TIMEOUT_S + 2.0)
+                except BaseException:
+                    future.cancel()  # do not leave the mode switch running
+                    raise
             except Exception as e:
                 logger.warning(f"Rover: failed to run _set_guided_mode in preflight: {e}")
         super()._preflight_wait(should_arm)
@@ -156,6 +160,9 @@ class Rover(Vehicle):
             f"goto_coordinates(lat={coordinates.lat}, lon={coordinates.lon}, tolerance={tolerance}, target_heading={target_heading}) called",
         )
         await self.await_ready_to_move()
+        await self._stop()
+        # goto_location takes AMSL; rovers send the home AMSL altitude.
+        self._require_movement_fix(NavigationError)
 
         self._ready_to_move = lambda _: False
 
@@ -179,23 +186,43 @@ class Rover(Vehicle):
             self._ready_to_move = lambda s: coordinates.ground_distance(s.position) <= tolerance
 
             logger.debug(f"Waiting to reach destination (tolerance={tolerance}m)...")
-            await wait_for_condition(
-                lambda: self._ready_to_move(self),
-                poll_interval=POLLING_DELAY_S,
-                timeout=timeout,
-                timeout_message=(f"Rover failed to reach destination {coordinates} within {timeout}s"),
+            await self._wait_for_arrival(
+                timeout,
+                f"Rover failed to reach destination {coordinates} within {timeout}s",
             )
             logger.debug(
                 f"Arrived at destination, distance: {coordinates.ground_distance(self.position)}m",
             )
         except ActionError as e:
             logger.error(f"Goto failed: {e}")
+            self._ready_to_move = lambda _: True
             raise NavigationError(str(e), original_error=e) from e
         except TimeoutError as e:
             logger.error(f"Goto timed out: {e}")
+            self._ready_to_move = lambda _: True
             raise NavigationError(str(e), original_error=e) from e
+        except BaseException:
+            self._ready_to_move = lambda _: True
+            raise
         finally:
             update_progress(state="")
+
+    async def _stop(self) -> None:
+        """Stop rover offboard velocity control if it is engaged."""
+        await super()._stop()
+        self._velocity_generation += 1
+        # offboard.stop() switches ArduPilot to HOLD; only send it when
+        # offboard is actually running.
+        if self._offboard_active:
+            try:
+                await self._run_on_mavsdk_loop(
+                    self._system.offboard.set_velocity_ned(VelocityNedYaw(0, 0, 0, 0)),
+                )
+                await self._run_on_mavsdk_loop(self._system.offboard.stop())
+            except Exception as e:
+                logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)
+            finally:
+                self._offboard_active = False
 
     async def set_velocity(
         self,
@@ -222,8 +249,13 @@ class Rover(Vehicle):
                 command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started.
+            VelocityError: If offboard mode cannot be started, or on the AERPAW
+                testbed, where velocity control is disabled.
         """
+        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
+        # E-VM filter treats that as fatal and drops the experiment.
+        if self._in_aerpaw():
+            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         await self.await_ready_to_move()
         self._velocity_generation += 1
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.05)

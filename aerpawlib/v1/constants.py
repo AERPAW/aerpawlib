@@ -232,6 +232,8 @@ VALIDATE_TAKEOFF_REQ = "validate_takeoff_req"
 """Request name for takeoff safety validation."""
 VALIDATE_LANDING_REQ = "validate_landing_req"
 """Request name for landing safety validation."""
+GET_LIMITATIONS_REQ = "get_limitations_req"
+"""Request name for reading the configured vehicle limits."""
 
 
 # Waypoint and Plan Constants

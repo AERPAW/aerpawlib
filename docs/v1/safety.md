@@ -30,7 +30,7 @@ with SafetyCheckerClient("127.0.0.1", 14580) as checker:
 
 ### SafetyCheckerClient
 
-Use this from your script to ask the safety server about a maneuver. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, and `validate_change_speed_command`.
+Use this from your script to ask the safety server about a maneuver. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, `validate_change_speed_command`, and `get_limitations` (the configured speed and altitude limits). `validate_waypoint_command` takes an optional `taking_off_or_landing=True` that skips only the copter altitude limits; the geofence checks still run.
 
 > **Note:** These calls wait for the server. If a request times out, the next call tries again.
 

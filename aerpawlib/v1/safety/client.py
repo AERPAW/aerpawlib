@@ -19,6 +19,7 @@ import contextlib
 import zmq
 
 from aerpawlib.v1.constants import (
+    GET_LIMITATIONS_REQ,
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
@@ -70,13 +71,14 @@ class SafetyCheckerClient:
 
     def close(self) -> None:
         """Close the ZMQ socket and context to free resources."""
-        self.socket.close()
+        # linger=0: queued requests to a wedged server must not block term().
+        self.socket.close(linger=0)
         self.context.term()
 
     def _reconnect(self):
         """Recreate the ZMQ REQ socket to restore a clean send state after an error."""
         with contextlib.suppress(Exception):
-            self.socket.close()
+            self.socket.close(linger=0)
         self.socket = self.context.socket(zmq.REQ)
         timeout_ms = int(self._timeout_s * 1000)
         self.socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
@@ -144,17 +146,20 @@ class SafetyCheckerClient:
         self,
         current_location: Coordinate,
         next_location: Coordinate,
+        taking_off_or_landing: bool = False,
     ) -> tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside
         geofence and avoids no-go zones. Returns a tuple (bool, str)
         (False, <error message>) if the waypoint violates geofence or no-go zone
         constraints, else (True, "").
+
+        taking_off_or_landing skips only the copter altitude limits.
         """
-        msg = serialize_request(
-            VALIDATE_WAYPOINT_REQ,
-            [current_location.to_json(), next_location.to_json()],
-        )
+        params = [current_location.to_json(), next_location.to_json()]
+        if taking_off_or_landing:
+            params.append(True)
+        msg = serialize_request(VALIDATE_WAYPOINT_REQ, params)
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
@@ -200,6 +205,23 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
+    def get_limitations(self) -> dict:
+        """
+        Read the server's configured vehicle limits.
+
+        Returns:
+            dict: vehicle_type, min_speed, max_speed, min_alt and max_alt
+            (altitudes are None for rovers).
+
+        Raises:
+            RuntimeError: If the server does not support the request.
+        """
+        resp = self.send_request(serialize_request(GET_LIMITATIONS_REQ, []))
+        result, message = self.parse_response(resp)
+        if not result or "data" not in resp:
+            raise RuntimeError(f"Safety checker did not return limitations: {message}")
+        return resp["data"]
+
 
 # Backward-compatible camelCase aliases.
 SafetyCheckerClient.sendRequest = SafetyCheckerClient.send_request
@@ -209,3 +231,4 @@ SafetyCheckerClient.validateWaypointCommand = SafetyCheckerClient.validate_waypo
 SafetyCheckerClient.validateChangeSpeedCommand = SafetyCheckerClient.validate_change_speed_command
 SafetyCheckerClient.validateTakeoffCommand = SafetyCheckerClient.validate_takeoff_command
 SafetyCheckerClient.validateLandingCommand = SafetyCheckerClient.validate_landing_command
+SafetyCheckerClient.getLimitations = SafetyCheckerClient.get_limitations

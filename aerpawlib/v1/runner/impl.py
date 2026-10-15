@@ -218,6 +218,7 @@ class StateMachine(Runner):
         Raises:
             MultipleInitialStatesError: If more than one state is marked 'first'.
             NoInitialStateError: If no initial state is found.
+            StateMachineError: If two methods register the same state name.
         """
         self._states = {}
         self._background_tasks = []
@@ -226,6 +227,10 @@ class StateMachine(Runner):
         _found_initial = False
         for _name, method, func in self._get_decorated_methods():
             if hasattr(func, "_is_state"):
+                if func._state_name in self._states:
+                    raise StateMachineError(
+                        f"Duplicate state name '{func._state_name}' (methods '{self._states[func._state_name]._func.__name__}' and '{method.__name__}')",
+                    )
                 self._states[func._state_name] = _State(method, func._state_name)
                 if func._state_first:
                     if _found_initial:
@@ -287,46 +292,60 @@ class StateMachine(Runner):
         self._next_state_overrides = []
         self._running = True
 
-        if len(self._initialization_tasks) != 0:
-            try:
-                await asyncio.gather(*[f(vehicle) for f in self._initialization_tasks])
-            except Exception as e:
-                logger.error(f"StateMachine: at_init task failed: {e}", exc_info=True)
-                for future in self._background_task_futures:
-                    future.cancel()
-                raise
+        try:
+            if len(self._initialization_tasks) != 0:
+                init_futures = [asyncio.ensure_future(f(vehicle)) for f in self._initialization_tasks]
+                try:
+                    await asyncio.gather(*init_futures)
+                except BaseException as e:
+                    if not isinstance(e, asyncio.CancelledError):
+                        logger.error(f"StateMachine: at_init task failed: {e}", exc_info=True)
+                    for future in init_futures:
+                        future.cancel()
+                    await asyncio.gather(*init_futures, return_exceptions=True)
+                    raise
 
-        await self._start_background_tasks(vehicle)
+            await self._start_background_tasks(vehicle)
+            # Let background tasks start before the first state runs.
+            await asyncio.sleep(0)
 
-        while self._running:
-            if self._current_state not in self._states:
-                raise InvalidStateError(self._current_state, list(self._states.keys()))
+            while self._running:
+                if self._current_state not in self._states:
+                    raise InvalidStateError(self._current_state, list(self._states.keys()))
 
-            from aerpawlib.cli.progress_bar import update_progress
+                from aerpawlib.cli.progress_bar import update_progress
 
-            update_progress(
-                f"Running state: {self._current_state}",
-                completed=70,
-                state=self._current_state,
-            )
+                update_progress(
+                    f"Running state: {self._current_state}",
+                    completed=70,
+                    state=self._current_state,
+                )
 
-            next_state = await self._states[self._current_state].run(self, vehicle)
-            if self._next_state_overrides:
-                self._current_state = self._next_state_overrides.pop(0)
-                logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
-            else:
-                self._current_state = next_state
+                next_state = await self._states[self._current_state].run(self, vehicle)
+                if next_state is None and self._next_state_overrides:
+                    # A terminal state ends the machine; a stale queued
+                    # transition (e.g. takeoff) must not run after it.
+                    logger.warning(
+                        f"StateMachine: dropping queued overrides {self._next_state_overrides} after terminal state",
+                    )
+                    self._next_state_overrides.clear()
+                if self._next_state_overrides:
+                    self._current_state = self._next_state_overrides.pop(0)
+                    logger.info(f"StateMachine: state transition (override) -> '{self._current_state}'")
+                else:
+                    self._current_state = next_state
 
-            if self._current_state is None:
-                self.stop()
-            await asyncio.sleep(STATE_MACHINE_DELAY_S)
-        self._running = False
-        for future in self._background_task_futures:
-            future.cancel()
-        if self._background_task_futures:
-            await asyncio.gather(*self._background_task_futures, return_exceptions=True)
+                if self._current_state is None:
+                    self.stop()
+                await asyncio.sleep(STATE_MACHINE_DELAY_S)
+        finally:
+            self._running = False
+            for future in self._background_task_futures:
+                future.cancel()
+            if self._background_task_futures:
+                await asyncio.gather(*self._background_task_futures, return_exceptions=True)
 
-        self.cleanup()
+            self.cleanup()
 
     def stop(self) -> None:
         """
@@ -414,7 +433,7 @@ class ZmqStateMachine(StateMachine):
         self,
         vehicle: Vehicle,
         message: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         msg_type = message.get("msg_type")
 
         if msg_type == ZMQ_TYPE_TRANSITION:
@@ -423,10 +442,10 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: TRANSITION message missing 'next_state'",
                 )
-                return
+                return False
             resolved = self._resolve_transition_state(str(next_state))
             if resolved is None:
-                return
+                return False
             self._next_state_overrides.append(resolved)
             logger.info(f"ZmqStateMachine: queued state override -> '{resolved}'")
         elif msg_type == ZMQ_TYPE_FIELD_REQUEST:
@@ -436,12 +455,20 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_REQUEST (missing 'field' or 'from')",
                 )
-                return
+                return False
             req_id = message.get("req_id")
+            if field not in self._exported_fields:
+                logger.warning("ZmqStateMachine: FIELD_REQUEST for unknown field %r", field)
+                await self._reply_queried_field(
+                    sender,
+                    field,
+                    None,
+                    req_id=req_id,
+                    error=f"Unknown field {field!r}",
+                )
+                return True
             try:
-                return_val = None
-                if field in self._exported_fields:
-                    return_val = await self._exported_fields[field](vehicle)
+                return_val = await self._exported_fields[field](vehicle)
                 await self._reply_queried_field(sender, field, return_val, req_id=req_id)
             except Exception as e:
                 logger.error("ZmqStateMachine: field handler %r failed: %s", field, e, exc_info=True)
@@ -453,7 +480,7 @@ class ZmqStateMachine(StateMachine):
                 logger.warning(
                     "ZmqStateMachine: malformed FIELD_CALLBACK (missing 'field' or 'from')",
                 )
-                return
+                return False
             from aerpawlib.v1.util import Coordinate, VectorNED
 
             value = decode_value(
@@ -467,16 +494,21 @@ class ZmqStateMachine(StateMachine):
                 pending["value"] = value
                 pending["error"] = message.get("error")
                 pending["event"].set()
-                return
+                return True
             if msg_from not in self._zmq_received_fields:
                 self._zmq_received_fields[msg_from] = {}
             self._zmq_received_fields[msg_from][field] = value
+        else:
+            logger.warning("ZmqStateMachine: ignoring unknown message type %r", msg_type)
+            return False
+        return True
 
-    async def _on_zmq_message(self, message: dict[str, Any]) -> None:
+    async def _on_zmq_message(self, message: dict[str, Any]) -> bool:
+        """Transport handler. Returns False to reject (no ACK) the message."""
         vehicle = self._zmq_handle_vehicle
         if vehicle is None:
-            return
-        await self._zmq_handle_request(vehicle, message)
+            return False
+        return await self._zmq_handle_request(vehicle, message)
 
     async def run(
         self,

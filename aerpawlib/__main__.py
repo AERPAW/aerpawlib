@@ -15,8 +15,10 @@ example:
 from __future__ import annotations
 
 import importlib
+import importlib.machinery
 import importlib.util
 import logging
+import math
 import sys
 import time
 from argparse import ArgumentParser
@@ -40,7 +42,7 @@ from aerpawlib.cli.constants import (
     VEHICLE_TYPE_NONE,
     VEHICLE_TYPE_ROVER,
 )
-from aerpawlib.cli.discovery import resolve_api_version
+from aerpawlib.cli.discovery import RunnerDiscoveryError, resolve_api_version
 from aerpawlib.cli.experiments_v1 import run_v1_experiment
 from aerpawlib.cli.experiments_v2 import run_v2_experiment
 from aerpawlib.cli.logging_setup import setup_logging
@@ -55,6 +57,66 @@ start_time: float
 unknown_args: list[str] = []
 
 app = typer.Typer()
+
+
+def _load_script_from_path(script_arg: str):
+    """Import an experimenter script given as a file path.
+
+    The resolved path is loaded as-is when it exists; ``.py`` is appended only
+    when the given path does not exist. The module is registered in
+    ``sys.modules`` before it runs, so a helper that does ``import <script>``
+    gets this same module object. A script inside a package (directories with
+    ``__init__.py``) is imported by its dotted name so relative imports work.
+    """
+    script_p = Path(script_arg)
+    if not script_p.is_file() and not script_arg.endswith(".py"):
+        script_p = Path(script_arg + ".py")
+    script_p = script_p.resolve()
+    script_dir = str(script_p.parent)
+    if script_dir not in sys.path:
+        sys.path.insert(0, script_dir)
+
+    parts = [script_p.stem]
+    pkg_dir = script_p.parent
+    while (pkg_dir / "__init__.py").is_file():
+        parts.insert(0, pkg_dir.name)
+        pkg_dir = pkg_dir.parent
+    if len(parts) > 1 and all(part.isidentifier() for part in parts):
+        top = sys.modules.get(parts[0])
+        top_dir = (pkg_dir / parts[0]).resolve()
+        top_ok = top is None or any(Path(p).resolve() == top_dir for p in getattr(top, "__path__", []))
+        if top_ok:
+            root = str(pkg_dir.resolve())
+            if root not in sys.path:
+                sys.path.insert(sys.path.index(script_dir) + 1, root)
+            module = importlib.import_module(".".join(parts))
+            module_file = getattr(module, "__file__", None)
+            if module_file and Path(module_file).resolve() == script_p:
+                return module
+            logging.getLogger("aerpawlib").debug(
+                f"Package import of {'.'.join(parts)} resolved to {module_file}; loading {script_p} directly",
+            )
+
+    module_name = script_p.stem
+    # An extensionless file has no suffix-based loader; load it as source.
+    loader = None if script_p.suffix == ".py" else importlib.machinery.SourceFileLoader(module_name, str(script_p))
+    spec = importlib.util.spec_from_file_location(module_name, str(script_p), loader=loader)
+    if spec is None:
+        raise ImportError(f"Cannot load experimenter module from '{script_p}'")
+    if spec.loader is None:
+        raise ImportError(f"Cannot load module from {script_p}: no loader available")
+    module = importlib.util.module_from_spec(spec)
+    # Do not shadow an unrelated, already-imported module of the same name.
+    register = module_name not in sys.modules
+    if register:
+        sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        if register and sys.modules.get(module_name) is module:
+            del sys.modules[module_name]
+        raise
+    return module
 
 
 @app.command(
@@ -213,8 +275,16 @@ def run(
         typer.echo(f"Error: Invalid choice for --api-version: {api_version}")
         raise typer.Exit(code=1)
 
-    if vehicle != VEHICLE_TYPE_NONE and not conn:
-        typer.echo("Error: --connection must be provided unless --vehicle is 'none'")
+    if vehicle != VEHICLE_TYPE_NONE and not (conn and conn.strip()):
+        # A blank/whitespace string would make MAVSDK fall back to its default
+        # udpin://0.0.0.0:14540 and attach to whatever is listening there.
+        typer.echo("Error: --connection must be provided (non-blank) unless --vehicle is 'none'")
+        raise typer.Exit(code=1)
+
+    if not math.isfinite(heartbeat_timeout) or heartbeat_timeout <= 0:
+        typer.echo(
+            f"Error: --heartbeat-timeout must be a finite number > 0 (got {heartbeat_timeout})",
+        )
         raise typer.Exit(code=1)
 
     if conn is None:
@@ -292,23 +362,7 @@ def run(
         try:
             script_arg = args.script
             if "/" in script_arg or script_arg.endswith(".py"):
-                script_path = script_arg if script_arg.endswith(".py") else script_arg + ".py"
-                script_p = Path(script_path)
-                module_name = script_p.stem
-                script_dir = str(script_p.parent.resolve())
-                if script_dir not in sys.path:
-                    sys.path.insert(0, script_dir)
-                spec = importlib.util.spec_from_file_location(module_name, str(script_path))
-                if spec is None:
-                    raise ImportError(
-                        f"Cannot load experimenter module from '{script_path}'",
-                    )
-                experimenter_script = importlib.util.module_from_spec(spec)
-                if spec.loader is None:
-                    raise ImportError(
-                        f"Cannot load module from {script_path}: no loader available",
-                    )
-                spec.loader.exec_module(experimenter_script)
+                experimenter_script = _load_script_from_path(script_arg)
             else:
                 experimenter_script = importlib.import_module(script_arg)
             logger.debug(
@@ -327,10 +381,15 @@ def run(
         args.api_version = api_version
         logger.info(f"Using API version: {api_version}")
 
-        if api_version == "v1":
-            run_v1_experiment(args, unknown_args, experimenter_script)
-        elif api_version == "v2":
-            run_v2_experiment(args, unknown_args, experimenter_script)
+        try:
+            if api_version == "v1":
+                run_v1_experiment(args, unknown_args, experimenter_script)
+            elif api_version == "v2":
+                run_v2_experiment(args, unknown_args, experimenter_script)
+        except RunnerDiscoveryError as e:
+            # Raised before any runner, vehicle, or server exists.
+            typer.echo(f"Error: {e}")
+            raise typer.Exit(code=1) from e
     finally:
         stop_progress()
 

@@ -21,6 +21,7 @@ Notes:
 from __future__ import annotations
 
 import json
+import math
 from argparse import ArgumentParser
 from collections.abc import Callable
 from pathlib import Path
@@ -31,6 +32,7 @@ import zmq
 
 from aerpawlib.v1.constants import (
     DEFAULT_SAFETY_SERVER_PORT,
+    GET_LIMITATIONS_REQ,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
     VALIDATE_LANDING_REQ,
@@ -44,6 +46,11 @@ from aerpawlib.v1.util import Coordinate, do_intersect, inside, read_geofence
 from .wire_format import deserialize_msg, serialize_response
 
 logger = get_logger(LogComponent.SAFETY)
+
+
+def _all_finite(*values: Any) -> bool:
+    """True when every value is a real, finite number (NaN compares false to every limit)."""
+    return all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in values)
 
 
 # noinspection PyUnusedLocal
@@ -92,6 +99,7 @@ class SafetyCheckerServer:
             VALIDATE_CHANGE_SPEED_REQ: self.validate_change_speed_handler,
             VALIDATE_TAKEOFF_REQ: self.validate_takeoff_handler,
             VALIDATE_LANDING_REQ: self.validate_landing_handler,
+            GET_LIMITATIONS_REQ: self.get_limitations_handler,
         }
 
         config_path = Path(vehicle_config_filename)
@@ -201,20 +209,37 @@ class SafetyCheckerServer:
                         f"Required copter parameter {param} not found in {vehicle_config_filename}!",
                     )
 
+        # NaN limits compare false against everything and would allow any value.
+        pairs = [("min_speed", "max_speed")]
+        if config["vehicle_type"] == VEHICLE_TYPE_COPTER:
+            pairs.append(("min_alt", "max_alt"))
+        for low, high in pairs:
+            if not _all_finite(config[low], config[high]) or config[low] > config[high]:
+                raise Exception(
+                    f"{low}/{high} in {vehicle_config_filename} must be finite numbers with {low} <= {high}!",
+                )
+
     def validate_waypoint_command(
         self,
         current_location: Coordinate,
         next_location: Coordinate,
+        taking_off_or_landing: bool = False,
     ) -> tuple[bool, str]:
         """
         Makes sure path from current location to next waypoint stays inside
         geofence and avoids no-go zones. Returns a tuple (bool, str)
         (False, <error message>) if the waypoint violates geofence or no-go zone
         constraints, else (True, "").
+
+        taking_off_or_landing skips only the altitude limits, for a copter
+        climbing to or descending from cruise; geofence checks still run.
         """
         logger.debug(f"Validating {next_location}")
 
-        if self.vehicle_type == VEHICLE_TYPE_COPTER and (next_location.alt < self.min_alt or next_location.alt > self.max_alt):
+        if not _all_finite(current_location.lat, current_location.lon, next_location.lat, next_location.lon, next_location.alt):
+            return False, "Invalid waypoint. Coordinates must be finite numbers. ABORTING!"
+
+        if self.vehicle_type == VEHICLE_TYPE_COPTER and not taking_off_or_landing and (next_location.alt < self.min_alt or next_location.alt > self.max_alt):
             return (
                 False,
                 (f"Invalid waypoint. Altitude of {next_location.alt} m is not within restrictions! ABORTING!"),
@@ -277,12 +302,20 @@ class SafetyCheckerServer:
 
         return True, ""
 
+    def _inside_fence(self, lon: float, lat: float) -> bool:
+        """True when the point is inside an include fence and outside every no-go zone."""
+        if not any(inside(lon, lat, gf) for gf in self.include_geofences):
+            return False
+        return not any(inside(lon, lat, zone) for zone in self.exclude_geofences)
+
     def validate_change_speed_command(self, new_speed: float) -> tuple[bool, str]:
         """
         Makes sure the provided newSpeed lies within the configured vehicle
         constraints. Returns (False, <error message>) if the speed violates
         constraints, else (True, "").
         """
+        if not _all_finite(new_speed):
+            return False, f"Invalid speed ({new_speed}); must be a finite number"
         if new_speed > self.max_speed:
             return (
                 False,
@@ -306,6 +339,10 @@ class SafetyCheckerServer:
         Returns (False, <error message>) if the altitude violates constraints,
         else (True, "").
         """
+        if not _all_finite(takeoff_alt):
+            return False, f"Invalid takeoff altitude of {takeoff_alt} m."
+        if not _all_finite(current_lat, current_lon) or not self._inside_fence(current_lon, current_lat):
+            return False, f"Invalid takeoff location ({current_lat},{current_lon}); must be inside the geofence."
         if self.vehicle_type == VEHICLE_TYPE_COPTER and (takeoff_alt < self.min_alt or takeoff_alt > self.max_alt):
             return (
                 False,
@@ -329,6 +366,8 @@ class SafetyCheckerServer:
                 True,
                 "",
             )
+        if not _all_finite(current_lat, current_lon):
+            return False, f"Invalid landing location ({current_lat},{current_lon})."
         current_location = Coordinate(current_lat, current_lon, alt=0)
         distance = self.takeoff_location.ground_distance(current_location)
 
@@ -338,6 +377,36 @@ class SafetyCheckerServer:
                 f"Invalid landing location. Must be within 5 meters of takeoff location. Attempted landing location ({current_lat},{current_lon}) is {distance:f} meters from takeoff location.",
             )
         return True, ""
+
+    def get_limitations(self) -> dict:
+        """
+        Return the configured vehicle limits.
+
+        Returns:
+            dict: vehicle_type, min_speed, max_speed, min_alt and max_alt
+            (altitudes are None for rovers).
+        """
+        is_copter = self.vehicle_type == VEHICLE_TYPE_COPTER
+        return {
+            "vehicle_type": self.vehicle_type,
+            "min_speed": self.min_speed,
+            "max_speed": self.max_speed,
+            "min_alt": self.min_alt if is_copter else None,
+            "max_alt": self.max_alt if is_copter else None,
+        }
+
+    def get_limitations_handler(self, *_params: Any) -> bytes:
+        """
+        Handler for vehicle limit requests.
+
+        Returns:
+            bytes: Serialized response with the limits in ``data``.
+        """
+        return serialize_response(
+            request_function=GET_LIMITATIONS_REQ,
+            result=True,
+            data=self.get_limitations(),
+        )
 
     def server_status_handler(self, *_params: Any) -> bytes:
         """
@@ -352,6 +421,7 @@ class SafetyCheckerServer:
         self,
         current_json_location: str,
         next_json_location: str,
+        taking_off_or_landing: bool = False,
         *_params: Any,
     ) -> bytes:
         """
@@ -360,6 +430,7 @@ class SafetyCheckerServer:
         Args:
             current_json_location: JSON string representing the current Coordinate.
             next_json_location: JSON string representing the target Coordinate.
+            taking_off_or_landing: Skip copter altitude limits (optional).
 
         Returns:
             bytes: Serialized validation response.
@@ -380,6 +451,7 @@ class SafetyCheckerServer:
         result, message = self.validate_waypoint_command(
             current_location,
             next_location,
+            taking_off_or_landing=taking_off_or_landing is True,
         )
         return serialize_response(
             request_function=VALIDATE_WAYPOINT_REQ,
@@ -481,8 +553,13 @@ SafetyCheckerServer.validateWaypointCommand = SafetyCheckerServer.validate_waypo
 SafetyCheckerServer.validateChangeSpeedCommand = SafetyCheckerServer.validate_change_speed_command
 SafetyCheckerServer.validateTakeoffCommand = SafetyCheckerServer.validate_takeoff_command
 SafetyCheckerServer.validateLandingCommand = SafetyCheckerServer.validate_landing_command
+SafetyCheckerServer.getLimitations = SafetyCheckerServer.get_limitations
 SafetyCheckerServer.serverStatusHandler = SafetyCheckerServer.server_status_handler
 SafetyCheckerServer.validateWaypointHandler = SafetyCheckerServer.validate_waypoint_handler
 SafetyCheckerServer.validateChangeSpeedHandler = SafetyCheckerServer.validate_change_speed_handler
 SafetyCheckerServer.validateTakeoffHandler = SafetyCheckerServer.validate_takeoff_handler
 SafetyCheckerServer.validateLandingHandler = SafetyCheckerServer.validate_landing_handler
+
+
+if __name__ == "__main__":
+    main_cli()

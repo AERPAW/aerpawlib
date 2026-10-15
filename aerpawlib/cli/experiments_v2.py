@@ -23,7 +23,13 @@ from .disconnect import (
     await_disconnect_future,
     run_runner_with_disconnect_guard,
 )
-from .discovery import discover_runner
+from .discovery import discover_runner, initialize_script_args
+from .process_guard import (
+    ShutdownSignalHandler,
+    install_mavsdk_server_tracking,
+    kill_mavsdk_servers,
+    mavsdk_server_mark,
+)
 from .rtl import return_home_if_armed
 
 logger = logging.getLogger("aerpawlib")
@@ -50,6 +56,9 @@ def run_v2_experiment(
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
     runner_instance = runner
+    # Parse script arguments before anything is connected: an argparse error
+    # or ``-- --help`` exits here without leaving a vehicle or server open.
+    initialize_script_args(runner_instance, unknown_args)
 
     vehicle_type = {
         VEHICLE_TYPE_GENERIC: api_module.Vehicle,
@@ -161,6 +170,8 @@ def run_v2_experiment(
 
         update_progress("Connecting to vehicle...", completed=30)
         logger.info("Connecting to vehicle...")
+        install_mavsdk_server_tracking()
+        server_mark = mavsdk_server_mark()
         try:
             vehicle = await asyncio.wait_for(
                 vehicle_type.connect(
@@ -172,15 +183,28 @@ def run_v2_experiment(
                 ),
                 timeout=args.conn_timeout,
             )
-        except Exception as e:
+        except BaseException as e:
+            # Connect owns the mavsdk_server it started; on failure nothing
+            # else will stop it (the traceback keeps the System alive).
+            kill_mavsdk_servers(server_mark, reject_new=True)
+            if safety_client is not None and hasattr(safety_client, "close"):
+                with contextlib.suppress(Exception):
+                    safety_client.close()
+            if event_log is not None:
+                with contextlib.suppress(Exception):
+                    event_log.close()
+            if not isinstance(e, Exception):
+                raise
             raise ConnectionError(f"Could not connect: {e}") from e
 
         shutdown_event = asyncio.Event()
 
         def handle_shutdown() -> None:
             """Request graceful shutdown from SIGINT/SIGTERM."""
-            logger.warning("Initiating graceful shutdown...")
+            logger.warning("Initiating graceful shutdown... (send the signal again to force exit)")
             shutdown_event.set()
+
+        signal_handler = ShutdownSignalHandler(handle_shutdown)
 
         if event_log:
             assert structured_log_path is not None
@@ -212,15 +236,13 @@ def run_v2_experiment(
             )
             setup_signal_handlers(
                 loop,
-                on_sigint=handle_shutdown,
-                on_sigterm=handle_shutdown,
+                on_sigint=signal_handler.for_signal(signal.SIGINT),
+                on_sigterm=signal_handler.for_signal(signal.SIGTERM),
             )
         except (ImportError, NotImplementedError):
             disconnect_future = None
-            signal.signal(signal.SIGINT, lambda s, f: handle_shutdown())
-            signal.signal(signal.SIGTERM, lambda s, f: handle_shutdown())
-
-        runner_instance.initialize_args(unknown_args)
+            signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGTERM, signal_handler)
 
         shutdown_task = asyncio.create_task(shutdown_event.wait())
 
@@ -252,6 +274,11 @@ def run_v2_experiment(
                         await preflight_task
                 if shutdown_event.is_set():
                     return success
+                if preflight_task in done and not preflight_task.cancelled():
+                    preflight_exc = preflight_task.exception()
+                    if preflight_exc is not None:
+                        # Never fly a mission whose preflight failed.
+                        raise preflight_exc
                 if disconnect_guard_task is not None and disconnect_guard_task in done:
                     exc = disconnect_guard_task.exception()
                     if exc is not None:
@@ -327,5 +354,9 @@ def run_v2_experiment(
     except Exception as e:
         logger.error(f"Fatal error during v2 execution: {e}")
         traceback.print_exc()
+    finally:
+        # The vehicle normally stops its own server; this catches any left over
+        # so the process can exit and the gRPC port is freed.
+        kill_mavsdk_servers(reject_new=True)
 
     sys.exit(0 if experiment_success else 1)

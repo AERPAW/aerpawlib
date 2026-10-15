@@ -7,13 +7,24 @@ from urllib.parse import urlparse
 
 
 def normalize_mavsdk_connection_string(connection_string: str) -> str:
-    """Rewrite DroneKit-style UDP strings to MAVSDK ``udpin://`` form.
+    """Rewrite DroneKit/pymavlink-style strings to MAVSDK URL form.
 
-    ``udp://host:port`` and ``udp:host:port`` both become ``udpin://host:port``.
-    Other schemes (serial, tcp, udpin, udpout) are returned unchanged.
+    - ``udp://host:port`` and ``udp:host:port`` become ``udpin://host:port``.
+    - ``:PORT`` and a bare ``PORT`` (listen shorthand) become
+      ``udpin://0.0.0.0:PORT``.
+    - ``udpin:host:port`` becomes ``udpin://host:port``.
+    - ``tcp:host:port`` becomes ``tcp://host:port``.
+
+    Other strings (serial, ``scheme://`` URLs) are returned unchanged.
     """
     raw = connection_string.strip()
     lower = raw.lower()
+    if re.fullmatch(r":?\d+", raw):
+        return "udpin://0.0.0.0:" + raw.lstrip(":")
+    if lower.startswith("udpin:") and not lower.startswith("udpin://"):
+        return "udpin://" + raw[6:]
+    if lower.startswith("tcp:") and not lower.startswith("tcp://"):
+        return "tcp://" + raw[4:]
     if lower.startswith("udp://"):
         return "udpin://" + raw[6:]
     if lower.startswith("udp:") and not lower.startswith("udp://"):

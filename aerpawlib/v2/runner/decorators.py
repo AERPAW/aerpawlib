@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import types
 from collections.abc import Callable
 from enum import Enum, auto
@@ -95,6 +96,20 @@ class _StateDescriptor:
 
     def __set_name__(self, owner: type, attr_name: str) -> None:
         cfg = _ensure_state_machine_config(owner)
+        # A subclass re-decorating an inherited method replaces that spec.
+        # Within one class body an attribute name is only bound once, so a
+        # matching method_name can only come from a parent.
+        for i, spec in enumerate(cfg.states):
+            if spec.method_name == attr_name:
+                del cfg.states[i]
+                if spec.first and cfg.initial_state == spec.name:
+                    cfg.initial_state = ""
+                break
+        for spec in cfg.states:
+            if spec.name == self.name:
+                raise RunnerError(
+                    f"Duplicate state name '{self.name}' (methods '{spec.method_name}' and '{attr_name}')",
+                )
         if self.first:
             if cfg.initial_state:
                 raise MultipleInitialStatesError()
@@ -170,7 +185,14 @@ def timed_state(
 
     Returns:
         Decorator that registers the method as the named timed state.
+
+    Raises:
+        RunnerError: If duration is not a finite number > 0.
     """
+    if not (math.isfinite(duration) and duration > 0):
+        raise RunnerError(
+            f"@timed_state '{name}' duration must be a finite number > 0, got {duration!r}",
+        )
 
     def decorator(func: Callable) -> _StateDescriptor:
         if isinstance(func, _StateDescriptor):
@@ -200,7 +222,9 @@ class _BackgroundDescriptor:
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
         cfg = _ensure_state_machine_config(owner)
-        cfg.backgrounds.append(name)
+        # An override of an inherited @background resolves to one method.
+        if name not in cfg.backgrounds:
+            cfg.backgrounds.append(name)
 
     def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
@@ -233,7 +257,9 @@ class _AtInitDescriptor:
     def __set_name__(self, owner: type, name: str) -> None:
         self.name = name
         cfg = _ensure_state_machine_config(owner)
-        cfg.at_init.append(name)
+        # An override of an inherited @at_init resolves to one method.
+        if name not in cfg.at_init:
+            cfg.at_init.append(name)
 
     def __get__(self, obj: Any, objtype: type | None = None) -> Any:
         if obj is None:
