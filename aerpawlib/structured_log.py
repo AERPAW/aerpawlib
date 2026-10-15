@@ -39,14 +39,20 @@ class StructuredEventLogger:
             "event": event_type,
             **kwargs,
         }
-        line = json.dumps(record) + "\n"
+        # default=str: a non-JSON value (e.g. a Coordinate) must never make
+        # logging raise into the mission.
+        try:
+            line = json.dumps(record, default=str) + "\n"
+        except (TypeError, ValueError) as e:
+            _logger.warning("Dropping structured event %r: %s", event_type, e)
+            return
         try:
             self._output.write(line)
             self._output.flush()
         except OSError:
             pass
         without_ts = {k: v for k, v in record.items() if k != "timestamp"}
-        _logger.log(logging.DEBUG, "event: %s", json.dumps(without_ts))
+        _logger.log(logging.DEBUG, "event: %s", json.dumps(without_ts, default=str))
 
     def close(self) -> None:
         """Close the logger and release resources."""

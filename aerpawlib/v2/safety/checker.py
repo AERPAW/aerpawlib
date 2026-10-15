@@ -210,14 +210,15 @@ class SafetyCheckerClient:
         error to recover from a stuck state."""
         logger.warning("SafetyCheckerClient: reconnecting socket after error")
         with contextlib.suppress(Exception):
-            self._socket.close()
+            self._socket.close(linger=0)
         self._socket = self._ctx.socket(zmq.REQ)
         self._socket.connect(f"tcp://{self._addr}:{self._port}")
 
     def close(self) -> None:
         """Close the ZMQ socket and terminate the context."""
         logger.debug("SafetyCheckerClient: closing connection")
-        self._socket.close()
+        # linger=0: queued requests to a wedged server must not block term().
+        self._socket.close(linger=0)
         self._ctx.term()
 
     async def _send_request(self, msg: bytes) -> tuple[bool, str]:

@@ -21,9 +21,8 @@ _API_VERSIONS = ("v1", "v2")
 def is_direct_user_runner_class(candidate, runner_cls, framework_runner_classes):
     """True when candidate is a user runner directly inheriting a framework runner.
 
-    We intentionally disallow user-defined runner inheritance chains (e.g.
-    ``MyRunnerBase(StateMachine)`` then ``Mission(MyRunnerBase)``) to keep
-    discovery unambiguous and consistent with the expected API usage.
+    Kept for backward compatibility. Discovery itself accepts user inheritance
+    chains and picks the most-derived class (see ``discover_runner``).
     """
     if not inspect.isclass(candidate):
         return False
@@ -46,13 +45,63 @@ def _framework_runner_classes(api_module):
     return framework_runner, classes
 
 
+class RunnerDiscoveryError(Exception):
+    """Raised when a script defines no runner, or more than one candidate runner."""
+
+
+def _is_user_runner_class(candidate, runner_cls, framework_runner_classes) -> bool:
+    """True for any non-framework subclass of ``runner_cls`` (direct or indirect)."""
+    if not inspect.isclass(candidate):
+        return False
+    if not issubclass(candidate, runner_cls):
+        return False
+    return candidate not in framework_runner_classes
+
+
+def _user_runner_classes(api_module, experimenter_script) -> list[tuple[str, type]]:
+    """Return ``(name, cls)`` for each distinct user runner class in the script.
+
+    Aliases (``Alias = Mission``) are collapsed by class identity. Classes
+    defined in the script module win; imported runners (e.g. a base class from
+    a helper module) are only considered when the script defines none itself.
+    Nothing is instantiated here.
+    """
+    framework_runner, framework_runner_classes = _framework_runner_classes(api_module)
+    found: list[tuple[str, type]] = []
+    seen: set[int] = set()
+    for name, val in inspect.getmembers(experimenter_script):
+        if not _is_user_runner_class(val, framework_runner, framework_runner_classes):
+            continue
+        if id(val) in seen:
+            continue
+        seen.add(id(val))
+        found.append((name, val))
+    module_name = getattr(experimenter_script, "__name__", None)
+    local = [(n, c) for n, c in found if c.__module__ == module_name]
+    if local:
+        return local
+    return [(n, c) for n, c in found if not (c.__module__ or "").startswith("aerpawlib.")]
+
+
+def _select_runner_class(candidates: list[tuple[str, type]]) -> tuple[str, type]:
+    """Pick the single most-derived runner; reject unrelated (ambiguous) runners.
+
+    A user base class and its subclass resolve to the subclass. Two runners
+    that are not on one inheritance chain are ambiguous and rejected.
+    """
+    leaves = [(n, c) for n, c in candidates if not any(o is not c and issubclass(o, c) for _, o in candidates)]
+    if len(leaves) != 1:
+        names = ", ".join(sorted(n for n, _ in leaves))
+        logger.error("Multiple Runner classes found in script: %s", names)
+        raise RunnerDiscoveryError(
+            f"You can only define one runner (found unrelated runner classes: {names})",
+        )
+    return leaves[0]
+
+
 def script_has_runner(api_module, experimenter_script) -> bool:
     """True when the script defines exactly the kind of runner ``api_module`` expects."""
-    framework_runner, framework_runner_classes = _framework_runner_classes(api_module)
-    for _name, val in inspect.getmembers(experimenter_script):
-        if is_direct_user_runner_class(val, framework_runner, framework_runner_classes):
-            return True
-    return False
+    return bool(_user_runner_classes(api_module, experimenter_script))
 
 
 def detect_script_api_versions(experimenter_script) -> list[str]:
@@ -89,36 +138,48 @@ def resolve_api_version(requested: str | None, experimenter_script) -> str:
 
 
 def discover_runner(api_module, experimenter_script):
-    """Search for a Runner class in the experimenter script."""
-    framework_runner, framework_runner_classes = _framework_runner_classes(api_module)
+    """Search for a Runner class in the experimenter script.
+
+    Only classes defined in the script are considered (imported runners are a
+    fallback when the script defines none). The most-derived class of a user
+    inheritance chain is chosen. Ambiguous sets are rejected before any runner
+    is instantiated.
+    """
     zmq_state_machine = getattr(api_module, API_CLASS_ZMQ_STATE_MACHINE, None)
 
-    found_runner = None
-    flag_zmq_runner = False
-
     logger.debug("Searching for Runner class in script...")
-    for name, val in inspect.getmembers(experimenter_script):
-        if not is_direct_user_runner_class(
-            val,
-            framework_runner,
-            framework_runner_classes,
-        ):
-            continue
-        if zmq_state_machine and issubclass(val, zmq_state_machine):
-            flag_zmq_runner = True
-            logger.debug(f"Found ZmqStateMachine: {name}")
-        if found_runner:
-            logger.error("Multiple Runner classes found in script")
-            raise Exception("You can only define one runner")
-        logger.info(f"Found runner class: {name}")
-        # Create the runner class because it would appear we found a valid one.
-        # We will check for multiple valid classes above,
-        # so we know this is the only one.
-        found_runner = val()
-
-    if found_runner is None:
+    candidates = _user_runner_classes(api_module, experimenter_script)
+    if not candidates:
         logger.error("No Runner class found in script")
-        raise Exception("No Runner class found in script")
-    assert found_runner is not None
+        raise RunnerDiscoveryError("No Runner class found in script")
+    name, runner_cls = _select_runner_class(candidates)
+    if len(candidates) > 1:
+        logger.info(
+            "Using most-derived runner class %s (also defined: %s)",
+            name,
+            ", ".join(sorted(n for n, c in candidates if c is not runner_cls)),
+        )
+    flag_zmq_runner = bool(zmq_state_machine and issubclass(runner_cls, zmq_state_machine))
+    if flag_zmq_runner:
+        logger.debug(f"Found ZmqStateMachine: {name}")
+    logger.info(f"Found runner class: {name}")
+    return runner_cls(), flag_zmq_runner
 
-    return found_runner, flag_zmq_runner
+
+def initialize_script_args(runner, extra_args) -> None:
+    """Run the script's ``initialize_args`` and turn its ``SystemExit`` into a failed run.
+
+    Call this before connecting anything. Scripts typically call
+    ``ArgumentParser.parse_args(extra_args)``; a bad flag exits 2 and
+    ``-- --help`` exits 0. Neither is a successful mission, so the CLI exits
+    nonzero in both cases.
+    """
+    try:
+        runner.initialize_args(extra_args)
+    except SystemExit as e:
+        code = e.code
+        if isinstance(code, int) and code != 0:
+            logger.error("Script argument parsing failed (exit code %d); not starting the experiment.", code)
+            raise SystemExit(code) from None
+        logger.error("Script argument parsing exited (%r, e.g. --help); not starting the experiment.", code)
+        raise SystemExit(1) from None

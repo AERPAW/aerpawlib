@@ -23,10 +23,74 @@ from .disconnect import (
     run_runner_with_disconnect_guard,
     wait_for_v1_connection_loss,
 )
-from .discovery import discover_runner
+from .discovery import discover_runner, initialize_script_args
+from .process_guard import (
+    ShutdownSignalHandler,
+    install_mavsdk_server_tracking,
+    kill_mavsdk_servers,
+    mavsdk_server_mark,
+)
 from .rtl import return_home_if_armed
 
 logger = logging.getLogger("aerpawlib")
+
+
+async def run_blocking_until_shutdown(
+    func: Any,
+    shutdown_event: asyncio.Event,
+    *args: Any,
+) -> bool:
+    """Run blocking ``func(*args)`` in a daemon thread, racing ``shutdown_event``.
+
+    v1 preflight (``Vehicle.initialize`` / ``_preflight_wait``) is a
+    ``time.sleep`` loop of up to ``ARMABLE_TIMEOUT_S``. Running it on the event
+    loop hides SIGINT/SIGTERM until it returns. A daemon thread does not keep
+    the process alive (or ``asyncio.run`` waiting) after shutdown.
+
+    Returns:
+        True if ``func`` finished, False if shutdown was requested first.
+
+    Raises:
+        Exception: Whatever ``func`` raised.
+    """
+    import threading
+
+    loop = asyncio.get_running_loop()
+    done: asyncio.Future = loop.create_future()
+
+    def _finish(exc: BaseException | None) -> None:
+        if done.done():
+            return
+        if exc is None:
+            done.set_result(None)
+        else:
+            done.set_exception(exc)
+
+    def _worker() -> None:
+        try:
+            func(*args)
+        except BaseException as e:
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(_finish, e)
+        else:
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(_finish, None)
+
+    threading.Thread(target=_worker, name="aerpawlib-v1-preflight", daemon=True).start()
+    shutdown_task = asyncio.ensure_future(shutdown_event.wait())
+    try:
+        await asyncio.wait({done, shutdown_task}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        if not shutdown_task.done():
+            shutdown_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await shutdown_task
+    if done.done():
+        done.result()
+        return True
+    # Retrieve a late exception so it is not reported as "never retrieved".
+    done.add_done_callback(lambda f: f.cancelled() or f.exception())
+    return False
 
 
 def run_v1_experiment(
@@ -50,6 +114,9 @@ def run_v1_experiment(
     runner, flag_zmq_runner = discover_runner(api_module, experimenter_script)
     assert runner is not None
     runner_instance = runner
+    # Parse script arguments before connecting: an argparse error or
+    # ``-- --help`` exits here without leaving a vehicle or server open.
+    initialize_script_args(runner_instance, unknown_args)
 
     vehicle_type = {
         VEHICLE_TYPE_GENERIC: api_module.Vehicle,
@@ -69,9 +136,10 @@ def run_v1_experiment(
         """Connect the vehicle, run the mission, and handle cleanup/RTL."""
         from aerpawlib.cli.progress_bar import update_progress
 
-        event_log = None
         update_progress("Connecting to vehicle...", completed=20)
         logger.info("Connecting to vehicle...")
+        install_mavsdk_server_tracking()
+        server_mark = mavsdk_server_mark()
         try:
             # v1 Vehicle.__init__ blocks until connected or raises on failure
             vehicle = await asyncio.wait_for(
@@ -79,9 +147,25 @@ def run_v1_experiment(
                 asyncio.to_thread(vehicle_type, args.conn, args.mavsdk_port),
                 timeout=args.conn_timeout,
             )
-        except Exception as e:
+        except BaseException as e:
+            # The connect thread cannot be cancelled; kill its server (and any
+            # it starts later) so neither the port nor the process is held.
+            kill_mavsdk_servers(server_mark, reject_new=True)
+            if not isinstance(e, Exception):
+                raise
             raise ConnectionError(f"Could not connect: {e}") from e
 
+        # Everything after connect (including sys.exit on AERPAW / safety
+        # checker failures) must close the vehicle.
+        try:
+            return await _run_connected(vehicle)
+        finally:
+            with contextlib.suppress(Exception):
+                vehicle.close()
+
+    async def _run_connected(vehicle: Any) -> bool:
+        """Set up logging/safety, run the mission, and handle cleanup/RTL."""
+        event_log = None
         if getattr(args, "structured_log", None):
             from aerpawlib.structured_log import StructuredEventLogger
 
@@ -98,20 +182,30 @@ def run_v1_experiment(
 
         shutdown_event = asyncio.Event()
 
-        def handle_shutdown(signum: Any, frame: Any) -> None:
-            """Request graceful shutdown from SIGINT/SIGTERM."""
-            logger.warning("Initiating graceful shutdown...")
-            shutdown_event.set()
+        loop = asyncio.get_running_loop()
 
-        signal.signal(signal.SIGINT, handle_shutdown)
-        signal.signal(signal.SIGTERM, handle_shutdown)
+        def request_shutdown() -> None:
+            """Set the shutdown event on the loop thread (signal-safe)."""
+            if not shutdown_event.is_set():
+                shutdown_event.set()
+
+        def handle_shutdown() -> None:
+            """Request graceful shutdown from SIGINT/SIGTERM."""
+            logger.warning("Initiating graceful shutdown... (send the signal again to force exit)")
+            loop.call_soon_threadsafe(request_shutdown)
+
+        signal_handler = ShutdownSignalHandler(handle_shutdown)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
         no_aerpaw_env = getattr(args, "no_aerpaw_environment", False)
         if no_aerpaw_env:
             logger.info(
                 "--no-aerpaw-environment set: skipping AERPAW platform connection, running in standalone mode.",
             )
-            if aerpaw_platform_cls:
+            # Writing to the lazy AERPAW_Platform proxy constructs it, which
+            # pings the OEO forwarder; only do that when muting was requested.
+            if aerpaw_platform_cls and args.no_stdout:
                 aerpaw_platform_cls._no_stdout = args.no_stdout
         elif aerpaw_platform_cls:
             aerpaw_platform_cls._no_stdout = args.no_stdout
@@ -127,7 +221,9 @@ def run_v1_experiment(
             except Exception as e:
                 logger.debug(f"Failed to log start to OEO: {e}")
 
-        is_aerpaw = bool(aerpaw_platform_cls and aerpaw_platform_cls._connected and not no_aerpaw_env)
+        # Check the flag first: reading ``_connected`` constructs the lazy
+        # AERPAW_Platform singleton, which pings the OEO forwarder.
+        is_aerpaw = bool(not no_aerpaw_env and aerpaw_platform_cls and aerpaw_platform_cls._connected)
         safety_target = resolve_safety_checker_target(
             ip=getattr(args, "safety_checker_ip", None),
             port=getattr(args, "safety_checker_port", None),
@@ -161,8 +257,6 @@ def run_v1_experiment(
                     e,
                 )
 
-        runner_instance.initialize_args(unknown_args)
-
         success = False
         heartbeat_lost = False
         heartbeat_error_cls = api_module.HeartbeatLostError
@@ -171,10 +265,9 @@ def run_v1_experiment(
         try:
             if args.initialize:
                 update_progress("Initializing vehicle...", completed=50)
-                if hasattr(vehicle, "initialize"):
-                    vehicle.initialize(args.initialize)
-                elif hasattr(vehicle, "_preflight_wait"):
-                    vehicle._preflight_wait(args.initialize)
+                preflight = getattr(vehicle, "initialize", None) or getattr(vehicle, "_preflight_wait", None)
+                if preflight is not None:
+                    await run_blocking_until_shutdown(preflight, shutdown_event, args.initialize)
             if shutdown_event.is_set():
                 return success
 
@@ -221,7 +314,7 @@ def run_v1_experiment(
                 success = True
         except Exception as exc:
             heartbeat_lost = isinstance(exc, heartbeat_error_cls)
-            if heartbeat_lost and aerpaw_platform_cls:
+            if heartbeat_lost and aerpaw_platform_cls and not no_aerpaw_env:
                 try:
                     aerpaw_platform_cls.log_to_oeo(
                         "[aerpawlib] Connection lost",
@@ -265,5 +358,9 @@ def run_v1_experiment(
     except Exception as e:
         logger.error(f"Fatal error during v1 execution: {e}")
         traceback.print_exc()
+    finally:
+        # The vehicle normally stops its own server; this catches any left over
+        # so the process can exit and the gRPC port is freed.
+        kill_mavsdk_servers(reject_new=True)
 
     sys.exit(0 if experiment_success else 1)

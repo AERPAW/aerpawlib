@@ -1,8 +1,10 @@
 """Shared ZMQ transport for v1/v2 multi-vehicle coordination.
 
 PUB/SUB through an XSUB/XPUB proxy. Control-plane frames are JSON (not pickle).
-Publishers wait for EVENT_CONNECTED before sending. HELLO is a presence heartbeat.
-Reliable sends retry until an ACK arrives.
+Publishers wait for EVENT_CONNECTED and then for their own HELLO to come back
+through the proxy before sending. HELLO is a presence heartbeat; peers that stop
+sending it expire. Reliable sends retry until the intended recipient ACKs, and a
+recipient ACKs only after its handler accepted the message.
 """
 
 from __future__ import annotations
@@ -35,6 +37,12 @@ ZMQ_RELIABLE_TIMEOUT_S = 10.0
 ZMQ_GOODBYE_TIMEOUT_S = 0.2
 ZMQ_SUB_SETTLE_S = 0.05
 ZMQ_SEEN_REQ_IDS_MAX = 2048
+ZMQ_PEER_TIMEOUT_S = 3.0
+"""A peer with no HELLO for this long is no longer considered present."""
+ZMQ_PROBE_INTERVAL_S = 0.02
+"""Resend interval for the reachability probe and the startup HELLO handshake."""
+ZMQ_PROXY_HWM = 10000
+"""Per-peer proxy queue limit (frames). 0 would mean unbounded."""
 
 ZMQ_TYPE_TRANSITION = "state_transition"
 ZMQ_TYPE_FIELD_REQUEST = "field_request"
@@ -42,6 +50,7 @@ ZMQ_TYPE_FIELD_CALLBACK = "field_callback"
 ZMQ_TYPE_HELLO = "hello"
 ZMQ_TYPE_GOODBYE = "goodbye"
 ZMQ_TYPE_ACK = "ack"
+ZMQ_TYPE_PROBE = "probe"
 
 _BROADCAST_TYPES = frozenset({ZMQ_TYPE_HELLO, ZMQ_TYPE_GOODBYE})
 _COORD_TYPE = "Coordinate"
@@ -125,9 +134,11 @@ def apply_proxy_sockopts(xsub: zmq.Socket, xpub: zmq.Socket) -> None:
     """Apply production sockopts to proxy sockets."""
     _set_sockopt(xsub, zmq.LINGER, 0)
     _set_sockopt(xpub, zmq.LINGER, 0)
-    _set_sockopt(xpub, zmq.XPUB_NODROP, 1)
-    _set_sockopt(xpub, zmq.SNDHWM, 0)
-    _set_sockopt(xsub, zmq.RCVHWM, 0)
+    # Finite queues and no XPUB_NODROP: a subscriber that stops reading loses
+    # its own frames instead of growing the proxy without bound (or, with
+    # NODROP, stalling forwarding for every other vehicle).
+    _set_sockopt(xpub, zmq.SNDHWM, ZMQ_PROXY_HWM)
+    _set_sockopt(xsub, zmq.RCVHWM, ZMQ_PROXY_HWM)
     _set_sockopt(xpub, zmq.XPUB_VERBOSE, 1)
 
 
@@ -160,14 +171,50 @@ def check_zmq_proxy_reachable(
     in_port: int | str = ZMQ_PROXY_IN_PORT,
     out_port: int | str = ZMQ_PROXY_OUT_PORT,
 ) -> bool:
-    """Return True only if both proxy TCP ports accept connections."""
+    """Return True only if a ZMQ XSUB/XPUB proxy forwards a probe frame.
+
+    Both TCP ports must accept connections (fast failure), and then a probe
+    published to ``in_port`` must come back on ``out_port`` within
+    ``timeout_s``. Any other TCP listener on those ports fails the check.
+    """
     for port in (in_port, out_port):
         try:
             with socket.create_connection((proxy_addr, int(port)), timeout=timeout_s):
                 pass
         except (OSError, ValueError):
             return False
-    return True
+    return _zmq_probe_round_trip(proxy_addr, int(in_port), int(out_port), timeout_s)
+
+
+def _zmq_probe_round_trip(proxy_addr: str, in_port: int, out_port: int, timeout_s: float) -> bool:
+    probe_id = uuid.uuid4().hex
+    frame = encode_message({"msg_type": ZMQ_TYPE_PROBE, "probe_id": probe_id})
+    # Subscribe to this probe only (frames are JSON with stable key order).
+    prefix = frame[: frame.index(probe_id.encode("ascii")) + len(probe_id)]
+    ctx = zmq.Context()
+    pub = ctx.socket(zmq.PUB)
+    sub = ctx.socket(zmq.SUB)
+    try:
+        for sock in (pub, sub):
+            _set_sockopt(sock, zmq.LINGER, 0)
+        sub.setsockopt(zmq.SUBSCRIBE, prefix)
+        sub.connect(f"tcp://{proxy_addr}:{out_port}")
+        pub.connect(f"tcp://{proxy_addr}:{in_port}")
+        deadline = time.monotonic() + timeout_s
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return False
+            pub.send(frame)
+            wait_ms = max(1, int(min(remaining, ZMQ_PROBE_INTERVAL_S) * 1000))
+            if sub.poll(timeout=wait_ms) and sub.recv() == frame:
+                return True
+    except zmq.ZMQError:
+        return False
+    finally:
+        pub.close(linger=0)
+        sub.close(linger=0)
+        ctx.term()
 
 
 def _format_runner_message(msg: dict[str, Any]) -> str:
@@ -186,6 +233,8 @@ def _format_runner_message(msg: dict[str, Any]) -> str:
         return f"field_callback {sender} -> {recipient}: field={msg.get('field')!r}, value={msg.get('value')!r}"
     if msg_type == ZMQ_TYPE_ACK:
         return f"ack {sender} -> {recipient}: req_id={msg.get('req_id')!r}"
+    if msg_type == ZMQ_TYPE_PROBE:
+        return f"reachability probe {msg.get('probe_id')!r}"
     return f"unrecognized runner message from={sender!r} to={recipient!r}: {msg}"
 
 
@@ -302,6 +351,7 @@ def proxy_cli(argv: list[str] | None = None) -> int:
 class _PendingAck:
     event: asyncio.Event
     req_id: str
+    expected_from: str | None = None
 
 
 class ZmqTransport:
@@ -317,6 +367,7 @@ class ZmqTransport:
         connect_timeout_s: float = ZMQ_CONNECT_TIMEOUT_S,
         hello_interval_s: float = ZMQ_HELLO_INTERVAL_S,
         ack_retry_interval_s: float = ZMQ_ACK_RETRY_INTERVAL_S,
+        peer_timeout_s: float | None = None,
     ) -> None:
         self.identifier = identifier
         self.proxy_addr = proxy_addr
@@ -325,6 +376,7 @@ class ZmqTransport:
         self.connect_timeout_s = connect_timeout_s
         self.hello_interval_s = hello_interval_s
         self.ack_retry_interval_s = ack_retry_interval_s
+        self.peer_timeout_s = peer_timeout_s if peer_timeout_s is not None else max(ZMQ_PEER_TIMEOUT_S, 5 * hello_interval_s)
         self.instance_id = uuid.uuid4().hex
         self.peers: dict[str, float] = {}
         self.duplicate_identifier = False
@@ -338,9 +390,15 @@ class ZmqTransport:
         self._pending_acks: dict[str, _PendingAck] = {}
         self._handler_tasks: set[asyncio.Task] = set()
         self._seen_req_ids: OrderedDict[str, None] = OrderedDict()
+        self._inflight_req_ids: set[str] = set()
 
     def set_handler(self, handler: MessageHandler) -> None:
-        """Set the async callback invoked for application messages."""
+        """Set the async callback invoked for application messages.
+
+        A handler that returns ``False`` rejects the message: a reliable
+        sender is not ACKed (its send times out) and a retry is handled again.
+        Any other return value (including ``None``) accepts it.
+        """
         self._handler = handler
 
     @property
@@ -387,6 +445,17 @@ class ZmqTransport:
         await asyncio.sleep(ZMQ_SUB_SETTLE_S)
         self._pub = pub
         self._sub = sub
+        try:
+            await self._await_self_echo()
+        except BaseException:
+            self._pub = None
+            self._sub = None
+            pub.close(linger=0)
+            sub.close(linger=0)
+            if self._ctx is not None:
+                self._ctx.destroy(linger=0)
+                self._ctx = None
+            raise
         self._running = True
         logger.info(
             "ZMQ sockets connected to proxy %s (pub :%s, sub :%s, id=%s)",
@@ -399,6 +468,36 @@ class ZmqTransport:
             asyncio.create_task(self._recv_loop(), name="zmq-recv"),
             asyncio.create_task(self._hello_loop(), name="zmq-hello"),
         ]
+
+    async def _await_self_echo(self) -> None:
+        """Publish HELLO until it comes back through the proxy.
+
+        EVENT_CONNECTED is only the TCP handshake; a non-ZMQ listener passes
+        it. Our own HELLO arriving on SUB proves the proxy forwards, and that
+        our subscription is live. Other frames seen meanwhile are dispatched.
+        """
+        assert self._pub is not None and self._sub is not None
+        hello = encode_message(self._presence_msg(ZMQ_TYPE_HELLO))
+        deadline = time.monotonic() + self.connect_timeout_s
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"ZMQ proxy {self.proxy_addr}:{self.in_port}/{self.out_port} did not forward our HELLO within {self.connect_timeout_s:.1f}s (is it a ZMQ proxy?)",
+                )
+            await self._pub.send(hello)
+            wait_ms = max(1, int(min(remaining, ZMQ_PROBE_INTERVAL_S) * 1000))
+            while await self._sub.poll(timeout=wait_ms):
+                msg = decode_message(await self._sub.recv())
+                wait_ms = 0
+                if msg is None:
+                    continue
+                if msg.get("msg_type") == ZMQ_TYPE_HELLO and msg.get("from") == self.identifier and msg.get("instance_id") == self.instance_id:
+                    return
+                try:
+                    await self._dispatch(msg)
+                except Exception:
+                    logger.exception("ZMQ dispatch error")
 
     async def stop(self) -> None:
         """Send goodbye, cancel loops, and destroy the context."""
@@ -462,7 +561,12 @@ class ZmqTransport:
         req_id = msg.get("req_id") or uuid.uuid4().hex
         msg["req_id"] = req_id
         msg["need_ack"] = True
-        pending = _PendingAck(event=asyncio.Event(), req_id=req_id)
+        recipient = msg.get("identifier")
+        pending = _PendingAck(
+            event=asyncio.Event(),
+            req_id=req_id,
+            expected_from=recipient if isinstance(recipient, str) else None,
+        )
         self._pending_acks[req_id] = pending
         deadline = time.monotonic() + timeout
         try:
@@ -487,19 +591,29 @@ class ZmqTransport:
         identifiers: list[str],
         timeout: float = 30.0,
     ) -> None:
-        """Block until every identifier has sent HELLO, or raise TimeoutError."""
+        """Block until every identifier has sent a recent HELLO, or raise TimeoutError."""
         wanted = set(identifiers)
         deadline = time.monotonic() + timeout
         while True:
-            missing = wanted - set(self.peers)
+            live = self.live_peers()
+            missing = wanted - live
             if not missing:
                 return
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError(
-                    f"Timed out waiting for ZMQ peers {sorted(missing)} (have {sorted(self.peers)})",
+                    f"Timed out waiting for ZMQ peers {sorted(missing)} (have {sorted(live)})",
                 )
             await asyncio.sleep(min(self.hello_interval_s, remaining))
+
+    def live_peers(self) -> set[str]:
+        """Peers whose last HELLO is within ``peer_timeout_s``; stale ones are dropped."""
+        cutoff = time.monotonic() - self.peer_timeout_s
+        for name, seen_at in list(self.peers.items()):
+            if seen_at < cutoff:
+                logger.warning("ZMQ peer %r expired (no HELLO for %.1fs)", name, time.monotonic() - seen_at)
+                self.peers.pop(name, None)
+        return set(self.peers)
 
     async def _hello_loop(self) -> None:
         try:
@@ -545,39 +659,96 @@ class ZmqTransport:
             if isinstance(sender, str) and sender != self.identifier:
                 self.peers.pop(sender, None)
             return
+        if msg_type == ZMQ_TYPE_PROBE:
+            return
         if msg_type == ZMQ_TYPE_ACK:
             req_id = msg.get("req_id")
-            if isinstance(req_id, str) and req_id in self._pending_acks:
-                self._pending_acks[req_id].event.set()
+            pending = self._pending_acks.get(req_id) if isinstance(req_id, str) else None
+            if pending is None:
+                return
+            # Every runner sees every frame; only the intended recipient's ACK
+            # (addressed back to us) counts.
+            if msg.get("identifier") != self.identifier or (pending.expected_from is not None and sender != pending.expected_from):
+                logger.warning(
+                    "ZMQ ignoring ACK for req_id=%r from %r (expected %r)",
+                    req_id,
+                    sender,
+                    pending.expected_from,
+                )
+                return
+            pending.event.set()
             return
 
         recipient = msg.get("identifier")
         if recipient != self.identifier:
             return
 
-        req_id = msg.get("req_id")
-        if msg.get("need_ack") and isinstance(req_id, str) and self._pub is not None:
-            ack = {
-                "msg_type": ZMQ_TYPE_ACK,
-                "from": self.identifier,
-                "identifier": sender,
-                "req_id": req_id,
-            }
-            try:
-                await self.send_raw(ack)
-            except Exception as e:
-                logger.warning("ZMQ failed to send ack: %s", e)
+        if self.duplicate_identifier:
+            logger.error(
+                "ZMQ identifier %r is used by more than one runner; DROPPING inbound %s. Give every runner a unique --zmq-identifier.",
+                self.identifier,
+                _format_runner_message(msg),
+            )
+            return
+
+        req_id = msg.get("req_id") if isinstance(msg.get("req_id"), str) else None
+        need_ack = bool(msg.get("need_ack")) and req_id is not None
+        if need_ack:
+            assert req_id is not None
             if req_id in self._seen_req_ids:
+                # Already handled and accepted: the sender missed our ACK.
+                await self._send_ack(sender, req_id)
                 return
-            self._seen_req_ids[req_id] = None
-            while len(self._seen_req_ids) > ZMQ_SEEN_REQ_IDS_MAX:
-                self._seen_req_ids.popitem(last=False)
+            if req_id in self._inflight_req_ids:
+                # Retry of a message still being handled; ACK follows when done.
+                return
 
         if self._handler is None:
+            logger.warning("ZMQ no handler set; not accepting %s", _format_runner_message(msg))
             return
-        task = asyncio.create_task(self._handler(msg))
+        if need_ack:
+            assert req_id is not None
+            self._inflight_req_ids.add(req_id)
+        task = asyncio.create_task(self._run_handler(msg, sender, req_id if need_ack else None))
         self._handler_tasks.add(task)
         task.add_done_callback(self._handler_tasks.discard)
+
+    async def _run_handler(self, msg: dict[str, Any], sender: Any, ack_req_id: str | None) -> None:
+        """Run the handler; ACK (and remember ``ack_req_id``) only if it accepted."""
+        assert self._handler is not None
+        accepted = False
+        try:
+            accepted = (await self._handler(msg)) is not False
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("ZMQ handler failed for %s", _format_runner_message(msg))
+        finally:
+            if ack_req_id is not None:
+                self._inflight_req_ids.discard(ack_req_id)
+        if ack_req_id is None:
+            return
+        if not accepted:
+            logger.warning("ZMQ rejected %s; not acknowledging", _format_runner_message(msg))
+            return
+        self._seen_req_ids[ack_req_id] = None
+        while len(self._seen_req_ids) > ZMQ_SEEN_REQ_IDS_MAX:
+            self._seen_req_ids.popitem(last=False)
+        await self._send_ack(sender, ack_req_id)
+
+    async def _send_ack(self, recipient: Any, req_id: str) -> None:
+        if self._pub is None:
+            return
+        ack = {
+            "msg_type": ZMQ_TYPE_ACK,
+            "from": self.identifier,
+            "identifier": recipient,
+            "req_id": req_id,
+        }
+        try:
+            await self.send_raw(ack)
+        except Exception as e:
+            logger.warning("ZMQ failed to send ack: %s", e)
 
     def _on_hello(self, sender: object, instance_id: object) -> None:
         if not isinstance(sender, str) or not sender:
@@ -585,8 +756,8 @@ class ZmqTransport:
         if sender == self.identifier:
             if isinstance(instance_id, str) and instance_id != self.instance_id:
                 if not self.duplicate_identifier:
-                    logger.error(
-                        "Duplicate ZMQ identifier %r (local instance %s, other %s)",
+                    logger.critical(
+                        "Duplicate ZMQ identifier %r (local instance %s, other %s); inbound commands to this runner are now dropped",
                         sender,
                         self.instance_id,
                         instance_id,

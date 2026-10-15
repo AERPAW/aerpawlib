@@ -50,6 +50,10 @@ class Rover(Vehicle):
     def _vehicle_type_label(self) -> str:
         return "rover"
 
+    def _offboard_stop_yaw(self) -> float:
+        # Rover velocity setpoints always carry yaw 0.
+        return 0.0
+
     async def _preflight_wait(self, should_arm: bool = True) -> None:
         """Switch to GUIDED mode, then wait for armable state."""
         self._will_arm = should_arm
@@ -120,12 +124,18 @@ class Rover(Vehicle):
             None when blocking=True; VehicleTask when blocking=False.
 
         Raises:
-            NavigationError: If command dispatch fails or arrival times out.
+            NavigationError: If the target is not finite, there is no position
+                fix or known home AMSL yet, command dispatch fails, or arrival
+                times out / the link drops.
         """
         _validate_tolerance(tolerance, "tolerance")
         await self._require_can(self.can_goto(coordinates, tolerance=tolerance), "goto", NavigationError)
         await self.await_ready_to_move()
-        self._ready_to_move = lambda _: False
+        if self._offboard.active:
+            await self._stop_offboard()
+        # goto_location takes AMSL; rovers send the home AMSL altitude.
+        self._require_movement_fix(NavigationError)
+        gen = self._begin_move()
         logger.debug(
             "Rover: sending goto_location(%.6f, %.6f) command",
             coordinates.lat,
@@ -140,9 +150,13 @@ class Rover(Vehicle):
             )
         except ActionError as e:
             logger.error(f"Rover: goto_coordinates failed (ActionError): {e}")
+            self._release_move_gate(gen)
             raise NavigationError(str(e), original_error=e) from e
+        except BaseException:
+            self._release_move_gate(gen)
+            raise
 
-        self._ready_to_move = lambda s: coordinates.ground_distance(s.position) <= tolerance
+        self._set_move_gate(gen, lambda s: coordinates.ground_distance(s.position) <= tolerance)
 
         if blocking:
             from aerpawlib.cli.progress_bar import update_progress
@@ -156,20 +170,37 @@ class Rover(Vehicle):
                     tolerance=tolerance,
                     timeout=timeout,
                     log_prefix="Rover",
+                    generation=gen,
                 )
                 return None
-            except TimeoutError as e:
-                logger.error(f"Rover: goto_coordinates failed (timeout): {e}")
-                raise NavigationError(str(e), original_error=e) from e
+            except NavigationError as e:
+                logger.error(f"Rover: goto_coordinates failed: {e}")
+                self._release_move_gate(gen)
+                raise
+            except BaseException:
+                self._release_move_gate(gen)
+                raise
             finally:
                 update_progress(state="")
 
         async def _on_cancel() -> None:
+            if self.closed or self._system is None:
+                logger.warning("Rover: _on_cancel skipped (vehicle closed)")
+                return
+            cancel_gen = self._begin_move()
             try:
-                if not self.closed and self._system is not None and not self._must_avoid_loiter():
+                if self._must_avoid_loiter():
+                    # hold() is LOITER/HOLD, fatal on AERPAW: stop in GUIDED by
+                    # repositioning to the current fix instead.
+                    pos = self.position
+                    self._require_movement_fix(NavigationError)
+                    await self._system.action.goto_location(pos.lat, pos.lon, self.home_amsl, 0)
+                else:
                     await self._system.action.hold()
             except Exception as exc:
-                logger.warning(f"Rover: _on_cancel hold failed: {exc}")
+                logger.warning(f"Rover: _on_cancel stop failed: {exc}")
+            finally:
+                self._release_move_gate(cancel_gen)
 
         return start_nonblocking_goto(
             self,
@@ -180,6 +211,7 @@ class Rover(Vehicle):
             on_cancel=_on_cancel,
             log_prefix="Rover",
             progress_poll_interval=GOTO_POLL_INTERVAL_S,
+            generation=gen,
         )
 
     async def set_velocity(
@@ -206,8 +238,13 @@ class Rover(Vehicle):
                 the velocity loop runs until the next movement command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started.
+            VelocityError: If offboard mode cannot be started, or on the AERPAW
+                testbed, where velocity control is disabled.
         """
+        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
+        # E-VM filter treats that as fatal and drops the experiment.
+        if self._must_avoid_loiter():
+            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         await self.await_ready_to_move()
         self._offboard.stop_velocity_loop()
         gen = self._offboard.generation
@@ -267,6 +304,17 @@ class Rover(Vehicle):
                                 )
                             return
                         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+                except asyncio.CancelledError:
+                    # Cancelled while still commanding velocity: zero it and
+                    # leave offboard before the task ends.
+                    if self._offboard.owns_velocity_loop(gen) and self._system is not None:
+                        system = self._system
+                        self._offboard.stop_velocity_loop()
+                        with contextlib.suppress(Exception):
+                            await system.offboard.set_velocity_ned(VelocityNedYaw(0, 0, 0, 0))
+                            await system.offboard.stop()
+                        self._offboard.clear()
+                    raise
                 except Exception as e:
                     logger.error("Rover velocity helper error: %s", e)
                     with contextlib.suppress(Exception):

@@ -240,6 +240,12 @@ async def test_duplicate_req_id_does_not_rerun_handler():
         await asyncio.gather(*transport._handler_tasks)
     assert len(calls) == 1
     assert all(frame.get("msg_type") == ZMQ_TYPE_ACK for frame in sent)
+    # The retry arrived while the handler was still in flight, so it is
+    # dropped; the single ACK is sent after the handler accepted.
+    assert len(sent) == 1
+    # A retry after acceptance is re-ACKed without re-running the handler.
+    await transport._dispatch(msg)
+    assert len(calls) == 1
     assert len(sent) == 2
 
 

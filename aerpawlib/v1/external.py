@@ -9,6 +9,13 @@ import contextlib
 import re
 from re import Pattern
 
+from aerpawlib._internal.subprocess_io import (
+    build_command,
+    drain_stream,
+    pop_buffered_line,
+    reap_process,
+)
+
 
 class ExternalProcess:
     """
@@ -48,80 +55,64 @@ class ExternalProcess:
         self._stdin = stdin
         self._stdout = stdout
         self.process: asyncio.subprocess.Process | None = None
+        # stdout read while waiting for exit, served to later read_line calls.
+        self._stdout_buffer = bytearray()
+        self._stdout_lock: asyncio.Lock | None = None
+
+    def _get_stdout_lock(self) -> asyncio.Lock:
+        if self._stdout_lock is None:
+            self._stdout_lock = asyncio.Lock()
+        return self._stdout_lock
 
     async def aclose(self) -> None:
-        """Reap the subprocess and close streams.
+        """Terminate (then kill) the subprocess and close its streams.
 
-        Avoids PytestUnraisableExceptionWarning from deferred
-        ``BaseSubprocessTransport`` cleanup after the asyncio loop is closed.
+        Waits are bounded, and stdout is drained meanwhile so a child blocked
+        on a full pipe can exit. Avoids PytestUnraisableExceptionWarning from
+        deferred ``BaseSubprocessTransport`` cleanup after the loop is closed.
         """
         proc = self.process
         if proc is None:
             return
-        try:
-            if proc.returncode is None:
-                proc.terminate()
-                try:
-                    await asyncio.wait_for(proc.wait(), timeout=5.0)
-                except asyncio.TimeoutError:
-                    proc.kill()
-                    await proc.wait()
-        except ProcessLookupError:
-            pass
-        for name in ("stdout", "stderr"):
-            stream = getattr(proc, name, None)
-            if stream is not None:
-                with contextlib.suppress(
-                    BrokenPipeError,
-                    ConnectionResetError,
-                    ValueError,
-                    OSError,
-                ):
-                    await stream.read()
-        if proc.stdin is not None:
-            try:
-                proc.stdin.close()
-                await proc.stdin.wait_closed()
-            except (
-                BrokenPipeError,
-                ConnectionResetError,
-                ValueError,
-                OSError,
-                AttributeError,
-            ):
-                pass
+        await reap_process(proc)
 
     async def start(self) -> None:
         """
         Start the executable in an asynchronous process.
-        """
-        executable = self._executable
-        executable += " " + " ".join(self._params)
-        if self._stdin is not None:
-            executable += f" < {self._stdin}"
-        if self._stdout is not None:
-            executable += f" > {self._stdout}"
 
-        self.process = await asyncio.create_subprocess_shell(
-            executable,
-            stdout=(None if self._stdout is not None else asyncio.subprocess.PIPE),
-            stdin=None if self._stdin is not None else asyncio.subprocess.PIPE,
-        )
+        The program is run directly (no shell). ``params`` are passed as argv
+        entries, and ``stdin`` / ``stdout`` file names are opened as files,
+        so none of them are interpreted by a shell.
+        """
+        cmd = build_command(self._executable, self._params)
+        # The child keeps its own copies of the descriptors, so close ours after spawn.
+        with contextlib.ExitStack() as files:
+            stdin = files.enter_context(open(self._stdin, "rb")) if self._stdin is not None else asyncio.subprocess.PIPE
+            stdout = files.enter_context(open(self._stdout, "wb")) if self._stdout is not None else asyncio.subprocess.PIPE
+            self.process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdin=stdin,
+                stdout=stdout,
+            )
 
     async def read_line(self) -> str | None:
         """
         Read one line from the stdout buffer.
 
         Returns:
-            str: The read line decoded to ASCII, or None if the process has stopped
-                or stdout is redirected to a file.
+            str: The read line decoded as UTF-8 (invalid bytes replaced), or
+                None if the process has stopped or stdout is redirected to a file.
         """
-        if not self.process.stdout:
+        if self.process is None or not self.process.stdout:
             return None
-        out = await self.process.stdout.readline()
+        async with self._get_stdout_lock():
+            if self._stdout_buffer:
+                out = pop_buffered_line(self._stdout_buffer)
+            else:
+                out = await self.process.stdout.readline()
         if not out:
             return None
-        return out.decode("ascii").rstrip()
+        return out.decode("utf-8", errors="replace").rstrip()
 
     async def send_input(self, data: str) -> None:
         """
@@ -143,8 +134,18 @@ class ExternalProcess:
     async def wait_until_terminated(self) -> None:
         """
         Wait until the process is complete.
+
+        Piped stdout is read while waiting (and kept for later ``read_line``
+        calls, up to a limit) so a child that writes more than the pipe
+        buffer cannot block forever, and ``kill()`` unblocks this call.
         """
-        await self.process.wait()
+        proc = self.process
+        if proc is None:
+            return
+        if proc.stdout is not None:
+            async with self._get_stdout_lock():
+                await drain_stream(proc.stdout, self._stdout_buffer)
+        await proc.wait()
 
     async def wait_until_output(
         self,

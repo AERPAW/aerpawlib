@@ -15,6 +15,7 @@ logger = get_logger(LogComponent.AERPAW)
 oeo_logger = get_logger(LogComponent.OEO)
 
 from aerpawlib._internal.aerpaw_ping import ping_forward_server
+from aerpawlib._internal.oeo_http import request_with_retry
 
 from .constants import (
     AERPAW_CHECKPOINT_TIMEOUT_S,
@@ -162,6 +163,13 @@ class AERPAW:
             if not self._no_stdout:
                 logger.error("unable to send previous message to OEO.")
 
+    def _reping_forward_server(self) -> bool:
+        """Ping the forwarder again after a failed request (does not change `_connected`)."""
+        ok = self.attach_to_aerpaw_platform()
+        if not ok:
+            logger.error(f"AERPAW forward server {self._forw_addr}:{self._forw_port} did not answer a re-ping")
+        return ok
+
     def _checkpoint_build_request(self, var_type: str, var_name: str) -> str:
         """
         Build a checkpoint endpoint URL.
@@ -175,13 +183,17 @@ class AERPAW:
         """
         return f"http://{self._forw_addr}:{self._forw_port}/checkpoint/{var_type}/{quote(var_name, safe='')}"
 
-    def checkpoint_reset_server(self) -> None:
+    def checkpoint_reset_server(self) -> bool:
         """
         Reset the AERPAW checkpoint server.
 
         Behavior:
         - Clears checkpoint state from prior experiment runs.
         - Requires an active AERPAW platform connection.
+
+        Returns:
+            `True` on success, `False` if the forwarder could not be reached
+            (transport errors are retried and logged, not raised).
 
         Raises:
             Exception: If not connected or if the reset request fails.
@@ -191,14 +203,21 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.post(
+        response = request_with_retry(
+            "post",
             f"http://{self._forw_addr}:{self._forw_port}/checkpoint/reset",
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return False
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
+        return True
 
-    def checkpoint_set(self, checkpoint_name: str) -> None:
+    def checkpoint_set(self, checkpoint_name: str) -> bool:
         """
         Set a boolean checkpoint to `True`.
 
@@ -209,6 +228,10 @@ class AERPAW:
         Args:
             checkpoint_name: Name of the checkpoint.
 
+        Returns:
+            `True` on success, `False` if the forwarder could not be reached
+            (transport errors are retried and logged, not raised).
+
         Raises:
             Exception: If not connected or if the update request fails.
         """
@@ -217,12 +240,19 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.post(
+        response = request_with_retry(
+            "post",
             self._checkpoint_build_request("bool", checkpoint_name),
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
+        return True
 
     def checkpoint_check(self, checkpoint_name: str) -> bool:
         """
@@ -234,6 +264,9 @@ class AERPAW:
         Returns:
             `True` when the checkpoint is set, otherwise `False`.
 
+        On a transport failure (retried and logged, not raised) this returns
+        `False` (the "not set" value).
+
         Raises:
             Exception: If not connected, if the request fails, or if the
                 response content is malformed.
@@ -243,10 +276,16 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.get(
+        response = request_with_retry(
+            "get",
             self._checkpoint_build_request("bool", checkpoint_name),
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return False
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
         response_content = response.content.decode()
@@ -258,7 +297,7 @@ class AERPAW:
             f"malformed content in response from server: {response_content}",
         )
 
-    def checkpoint_increment_counter(self, counter_name: str) -> None:
+    def checkpoint_increment_counter(self, counter_name: str) -> bool:
         """
         Increment an integer counter.
 
@@ -270,6 +309,10 @@ class AERPAW:
         Args:
             counter_name: Name of the counter.
 
+        Returns:
+            `True` on success, `False` if the forwarder could not be reached
+            (transport errors are retried and logged, not raised).
+
         Raises:
             Exception: If not connected or if the update request fails.
         """
@@ -278,12 +321,19 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.post(
+        response = request_with_retry(
+            "post",
             self._checkpoint_build_request("int", counter_name),
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
+        return True
 
     def checkpoint_check_counter(self, counter_name: str) -> int:
         """
@@ -295,6 +345,9 @@ class AERPAW:
         Returns:
             Current value of the counter.
 
+        On a transport failure (retried and logged, not raised) this returns
+        `0` (the "not set" value).
+
         Raises:
             Exception: If not connected, if the request fails, or if the
                 response content is not an integer.
@@ -304,10 +357,16 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.get(
+        response = request_with_retry(
+            "get",
             self._checkpoint_build_request("int", counter_name),
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return 0
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
         response_content = response.content.decode()
@@ -318,7 +377,7 @@ class AERPAW:
                 f"malformed content in response from server: {response_content}",
             ) from e
 
-    def checkpoint_set_string(self, string_name: str, value: str) -> None:
+    def checkpoint_set_string(self, string_name: str, value: str) -> bool:
         """
         Store a string value in the checkpoint system.
 
@@ -330,6 +389,10 @@ class AERPAW:
             string_name: Key/name for the stored string.
             value: String value to store.
 
+        Returns:
+            `True` on success, `False` if the forwarder could not be reached
+            (transport errors are retried and logged, not raised).
+
         Raises:
             Exception: If not connected or if the update request fails.
         """
@@ -338,13 +401,20 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.post(
+        response = request_with_retry(
+            "post",
             self._checkpoint_build_request("string", string_name),
             params={"val": value},
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
+        return True
 
     def checkpoint_check_string(self, string_name: str) -> str:
         """
@@ -356,6 +426,9 @@ class AERPAW:
         Returns:
             Stored string value for `string_name`.
 
+        On a transport failure (retried and logged, not raised) this returns
+        `''` (the "not set" value).
+
         Raises:
             Exception: If not connected or if the request fails.
         """
@@ -364,10 +437,16 @@ class AERPAW:
             raise Exception(
                 "AERPAW checkpoint functionality only works in AERPAW environment",
             )
-        response = requests.get(
+        response = request_with_retry(
+            "get",
             self._checkpoint_build_request("string", string_name),
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
+            reping=self._reping_forward_server,
+            log=logger,
         )
+        if response is None:
+            # Transport failure (already retried and logged): do not raise into the state machine.
+            return ""
         if response.status_code != 200:
             raise Exception("error when getting from checkpoint server")
         return response.content.decode()
@@ -409,17 +488,20 @@ class AERPAW:
 
         try:
             if not agent_id:
-                requests.post(
+                response = requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
             else:
-                requests.post(
+                response = requests.post(
                     f"http://{self._forw_addr}:{self._forw_port}/oeo_pub/{topic_b64}/{value_b64}/{agent_b64}",
                     timeout=AERPAW_OEO_MSG_TIMEOUT_S,
                 )
         except requests.exceptions.RequestException as e:
             logger.error(f"unable to publish value to OEO system. exception: {e}")
+            return False
+        if not 200 <= response.status_code < 300:
+            logger.error(f"unable to publish value to OEO system. HTTP {response.status_code}")
             return False
         return True
 
@@ -474,15 +556,16 @@ class _AERPAWLazyProxy:
         return getattr(self._get_instance(), name)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        """Forward attribute writes to the underlying singleton when it exists."""
+        """Forward attribute writes to the underlying singleton.
+
+        The instance is created on demand so a write made before first use
+        (e.g. the CLI's ``_no_stdout``) reaches the real client instead of
+        being stored on, and shadowed by, the proxy.
+        """
         if name in ("_instance", "_lock"):
             self.__dict__[name] = value
             return
-        instance = self.__dict__.get("_instance")
-        if instance is not None:
-            setattr(instance, name, value)
-        else:
-            self.__dict__[name] = value
+        setattr(self._get_instance(), name, value)
 
 
 AERPAW_Platform = _AERPAWLazyProxy()

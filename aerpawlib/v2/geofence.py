@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from pykml import parser
 
+from aerpawlib._internal.kml import polygon_from_kml
+
 from .log import LogComponent, get_logger
 
 if TYPE_CHECKING:
@@ -21,51 +23,20 @@ def read_geofence(file_path: str) -> list[dict]:
     """
     Parse a KML file into a list of lat/lon points.
 
-    Handles KML files with any nesting depth (Folder, multiple Placemarks, etc.).
-    Uses the first Polygon with an outerBoundaryIs/LinearRing found in the document.
+    Handles any nesting depth (Folder, Placemark, namespaces). The file must
+    hold exactly one Polygon with no holes; anything else would be silently
+    enforced as a different fence, so it is rejected.
 
     Returns:
         List of {'lat': ..., 'lon': ...} dicts.
 
     Raises:
-        ValueError: If no Polygon with a LinearRing is found in the KML.
+        ValueError: If the KML has no polygon, more than one, holes, or a
+            malformed or non-finite coordinate.
     """
     with Path(file_path).open("rb") as f:
         root = parser.fromstring(f.read())
-
-    # Search the entire element tree for the first LinearRing coordinates
-    coords_el = None
-
-    # Try with the standard KML namespace first
-    for xpath in [
-        ".//{http://www.opengis.net/kml/2.2}outerBoundaryIs/{http://www.opengis.net/kml/2.2}LinearRing/{http://www.opengis.net/kml/2.2}coordinates",
-        ".//outerBoundaryIs/LinearRing/coordinates",
-    ]:
-        results = root.findall(xpath)
-        if results:
-            coords_el = results[0]
-            break
-
-    if coords_el is None or not coords_el.text:
-        raise ValueError(
-            f"No Polygon/outerBoundaryIs/LinearRing/coordinates found in KML: {file_path}",
-        )
-
-    coords_str = coords_el.text.strip()
-    polygon = []
-    for s in coords_str.split():
-        parts = s.split(",")
-        if len(parts) < 2:
-            logger.warning(f"Skipping malformed KML coordinate entry: {s!r}")
-            continue
-        try:
-            lon = float(parts[0])
-            lat = float(parts[1])
-        except ValueError:
-            logger.warning(f"Skipping KML coordinate with non-numeric value: {s!r}")
-            continue
-        polygon.append({"lon": lon, "lat": lat})
-    return polygon
+    return polygon_from_kml(root, file_path)
 
 
 def inside(lon: float, lat: float, geofence: list[dict]) -> bool:

@@ -4,9 +4,29 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import time
 
 from aerpawlib.cli.constants import RUNNER_DISCONNECT_POLL_INTERVAL_S
+
+
+class VehicleClosedDuringMissionError(RuntimeError):
+    """The disconnect watcher ended (vehicle closed / watcher cancelled) mid-mission."""
+
+
+def validate_heartbeat_timeout(heartbeat_timeout: float) -> float:
+    """Return ``heartbeat_timeout`` if it is finite and > 0, else raise ``ValueError``.
+
+    ``0`` / negative values declare a healthy link dead; ``nan`` / ``inf``
+    silently disable disconnect detection.
+    """
+    try:
+        value = float(heartbeat_timeout)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"heartbeat timeout must be a number, got {heartbeat_timeout!r}") from e
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"heartbeat timeout must be finite and > 0, got {heartbeat_timeout!r}")
+    return value
 
 
 def build_connection_loss_error(
@@ -57,7 +77,7 @@ async def wait_for_v1_connection_loss(
         Exception: A heartbeat/connection loss exception.
     """
     disconnected_since = None
-    timeout_s = max(heartbeat_timeout, 0.0)
+    timeout_s = validate_heartbeat_timeout(heartbeat_timeout)
     while not getattr(vehicle, "closed", getattr(vehicle, "_closed", False)):
         connection_error = getattr(vehicle, "_connection_error", None)
         if connection_error is not None:
@@ -96,27 +116,44 @@ async def run_runner_with_disconnect_guard(
         disconnect_future: Optional future that raises on connection loss.
     """
     run_task = asyncio.create_task(runner.run(vehicle))
-    if disconnect_future is None:
-        await run_task
-        return
-
-    done, pending = await asyncio.wait(
-        [run_task, disconnect_future],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    if disconnect_future in done:
-        run_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
+    try:
+        if disconnect_future is None:
             await run_task
-        exc = None if disconnect_future.cancelled() else disconnect_future.exception()
-        if exc is not None:
-            raise exc
-        return
+            return
 
-    for task in pending:
-        if hasattr(task, "cancel"):
-            task.cancel()
-    await run_task
+        done, pending = await asyncio.wait(
+            [run_task, disconnect_future],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if disconnect_future in done:
+            run_finished_ok = run_task in done and not run_task.cancelled() and run_task.exception() is None
+            run_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await run_task
+            exc = None if disconnect_future.cancelled() else disconnect_future.exception()
+            if exc is not None:
+                raise exc
+            if run_finished_ok:
+                return
+            # The watcher only returns normally when the vehicle was closed (or
+            # it was cancelled). The mission did not finish: that is a failure,
+            # not a success that would make end-of-mission RTL eligible.
+            raise VehicleClosedDuringMissionError(
+                "Vehicle connection closed while the mission was still running",
+            )
+
+        for task in pending:
+            if hasattr(task, "cancel"):
+                task.cancel()
+        await run_task
+    finally:
+        # Cancelling this wrapper (SIGINT/SIGTERM) does not cancel run_task by
+        # itself; stop the runner (and let its cleanup run) before the caller
+        # closes the vehicle or decides on RTL.
+        if not run_task.done():
+            run_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await run_task
 
 
 async def await_disconnect_future(disconnect_future) -> None:

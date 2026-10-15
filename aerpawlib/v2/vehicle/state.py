@@ -32,6 +32,10 @@ class VehicleState:
         self._position_lon: float = 0.0
         self._position_alt: float = 0.0
         self._position_abs_alt: float = 0.0
+        # True once a finite, non-(0, 0) lat/lon sample has arrived.
+        self._position_fix: bool = False
+        # Incremented on every position sample (arrival needs fresh samples).
+        self._position_seq: int = 0
         # Velocity
         self._velocity_ned: VectorNED = VectorNED(0, 0, 0)
         # Attitude / heading
@@ -62,6 +66,21 @@ class VehicleState:
     def position(self) -> Coordinate:
         """Return the current position as a Coordinate (relative altitude)."""
         return Coordinate(self._position_lat, self._position_lon, self._position_alt)
+
+    @property
+    def position_amsl(self) -> float:
+        """Return the current absolute (AMSL) altitude in metres."""
+        return self._position_abs_alt
+
+    @property
+    def has_position_fix(self) -> bool:
+        """Return True once a finite, non-(0, 0) position sample has arrived."""
+        return self._position_fix
+
+    @property
+    def position_seq(self) -> int:
+        """Return the number of position samples received so far."""
+        return self._position_seq
 
     @property
     def home_coords(self) -> Coordinate | None:
@@ -137,6 +156,9 @@ class VehicleState:
         self._position_lon = lon
         self._position_alt = rel_alt
         self._position_abs_alt = abs_alt
+        self._position_seq += 1
+        if math.isfinite(lat) and math.isfinite(lon) and (lat, lon) != (0.0, 0.0):
+            self._position_fix = True
 
     def update_attitude(self, roll: float, pitch: float, yaw: float) -> None:
         """Update attitude and derive heading from yaw.

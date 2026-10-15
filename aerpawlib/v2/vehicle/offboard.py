@@ -40,10 +40,19 @@ class OffboardSession:
         self.generation += 1
 
     async def stop(self, system, heading: float = 0.0, *, closed: bool = False) -> None:
-        """Stop offboard mode and zero the velocity setpoint."""
+        """Stop offboard mode and zero the velocity setpoint.
+
+        No MAVLink is sent unless offboard was engaged: MAVSDK
+        ``offboard.stop()`` switches ArduPilot to LOITER/HOLD, which the
+        AERPAW C-VM filter treats as fatal.
+        """
+        was_active = self.active
         self.clear()
         if closed or system is None:
             logger.debug("OffboardSession.stop: skipped (vehicle closed)")
+            return
+        if not was_active:
+            logger.debug("OffboardSession.stop: skipped (offboard not active)")
             return
         try:
             await system.offboard.set_velocity_ned(VelocityNedYaw(0, 0, 0, heading))
