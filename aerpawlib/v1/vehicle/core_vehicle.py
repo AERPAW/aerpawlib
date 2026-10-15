@@ -993,11 +993,9 @@ class Vehicle:
         duration: float | None = None,
     ) -> None:
         """
-        Set a drone's velocity that it will use for `duration` seconds.
+        [NOT SUPPORTED] Not supported on the AERPAW testbed: leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. Works on local SITL.
 
-        On the AERPAW testbed the E-VM MAVLink filter blocks velocity control.
-        aerpawlib does not refuse this call; Drone and Rover still send it,
-        and the filter is what rejects it. Local SITL is unaffected.
+        Set a drone's velocity that it will use for `duration` seconds.
 
         Args:
             velocity_vector: Velocity in NED frame
