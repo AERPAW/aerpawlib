@@ -218,11 +218,12 @@ class AerpawPlatform:
         - Requires an active AERPAW platform connection.
 
         Returns:
-            `True` on success, `False` if the forwarder could not be reached
-            (transport errors are retried and logged, not raised).
+            `True` on success.
 
         Raises:
             Exception: If not connected or if the reset request fails.
+            requests.RequestException: If the forwarder could not be reached
+                (retried once first).
         """
         if not self.is_connected:
             self._display_connection_warning()
@@ -235,10 +236,8 @@ class AerpawPlatform:
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
             reping=self._reping_forward_server,
             log=logger,
+            raise_on_failure=True,
         )
-        if response is None:
-            # Transport failure (already retried and logged): do not raise into the state machine.
-            return False
         if response.status_code != 200:
             raise Exception("error when resetting checkpoint server")
         return True
@@ -255,11 +254,12 @@ class AerpawPlatform:
             checkpoint_name: Name of the checkpoint.
 
         Returns:
-            `True` on success, `False` if the forwarder could not be reached
-            (transport errors are retried and logged, not raised).
+            `True` on success.
 
         Raises:
             Exception: If not connected or if the update request fails.
+            requests.RequestException: If the forwarder could not be reached
+                (retried once first).
         """
         if not self.is_connected:
             self._display_connection_warning()
@@ -272,10 +272,8 @@ class AerpawPlatform:
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
             reping=self._reping_forward_server,
             log=logger,
+            raise_on_failure=True,
         )
-        if response is None:
-            # Transport failure (already retried and logged): do not raise into the state machine.
-            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
         return True
@@ -336,11 +334,12 @@ class AerpawPlatform:
             counter_name: Name of the counter.
 
         Returns:
-            `True` on success, `False` if the forwarder could not be reached
-            (transport errors are retried and logged, not raised).
+            `True` on success.
 
         Raises:
             Exception: If not connected or if the update request fails.
+            requests.RequestException: If the forwarder could not be reached
+                (retried once first).
         """
         if not self.is_connected:
             self._display_connection_warning()
@@ -353,10 +352,8 @@ class AerpawPlatform:
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
             reping=self._reping_forward_server,
             log=logger,
+            raise_on_failure=True,
         )
-        if response is None:
-            # Transport failure (already retried and logged): do not raise into the state machine.
-            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
         return True
@@ -416,11 +413,12 @@ class AerpawPlatform:
             value: String value to store.
 
         Returns:
-            `True` on success, `False` if the forwarder could not be reached
-            (transport errors are retried and logged, not raised).
+            `True` on success.
 
         Raises:
             Exception: If not connected or if the update request fails.
+            requests.RequestException: If the forwarder could not be reached
+                (retried once first).
         """
         if not self.is_connected:
             self._display_connection_warning()
@@ -434,10 +432,8 @@ class AerpawPlatform:
             timeout=AERPAW_CHECKPOINT_TIMEOUT_S,
             reping=self._reping_forward_server,
             log=logger,
+            raise_on_failure=True,
         )
-        if response is None:
-            # Transport failure (already retried and logged): do not raise into the state machine.
-            return False
         if response.status_code != 200:
             raise Exception("error when posting to checkpoint server")
         return True

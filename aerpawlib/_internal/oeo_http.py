@@ -1,8 +1,9 @@
 """Bounded-retry HTTP to the AERPAW OEO forwarder (checkpoints).
 
-A hung or restarting forwarder must not raise ``requests`` transport errors
-into a running state machine. Transport failures are retried once the
-forwarder answers a fresh ping, then reported by returning ``None``.
+Transport failures are retried once the forwarder answers a fresh ping. Reads
+then report the failure by returning ``None`` (the caller returns its "not
+set" value). Writes pass ``raise_on_failure`` so a lost checkpoint update is
+raised instead of silently leaving peers waiting.
 """
 
 from __future__ import annotations
@@ -32,9 +33,10 @@ def request_with_retry(
     attempts: int = CHECKPOINT_ATTEMPTS,
     retry_delay_s: float = CHECKPOINT_RETRY_DELAY_S,
     log: logging.Logger | None = None,
+    raise_on_failure: bool = False,
     **kwargs: Any,
 ) -> requests.Response | None:
-    """Send ``requests.<method>(url)``; retry transport errors, never raise them.
+    """Send ``requests.<method>(url)``, retrying transport errors.
 
     After a failed attempt, ``reping`` (if given) checks the forwarder again;
     when it does not answer, the remaining attempts are skipped.
@@ -42,6 +44,10 @@ def request_with_retry(
     Returns:
         The response (any status code), or ``None`` if every attempt hit a
         transport error (timeout, refused, reset).
+
+    Raises:
+        requests.RequestException: The last transport error, when every
+            attempt failed and ``raise_on_failure`` is set.
     """
     log = log or logger
     send = getattr(requests, method)
@@ -59,4 +65,6 @@ def request_with_retry(
             break
         time.sleep(retry_delay_s)
     log.error("OEO request %s %s failed: %s", method.upper(), url, last_error)
+    if raise_on_failure and last_error is not None:
+        raise last_error
     return None

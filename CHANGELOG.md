@@ -21,7 +21,7 @@ Fail closed on the AERPAW testbed. Velocity control is refused there, movement c
 - **Failed connect.** A blank `--conn` is rejected. `tcp:` and `udp:` strings are rewritten to MAVSDK form. `mavsdk_server` processes started by the CLI are killed on connect failure and on SIGTERM, instead of staying up on the gRPC port.
 - **External processes.** Commands are argv, not a shell, so a redirect path cannot run extra commands. Stdout is drained so a full pipe cannot wedge `wait()` after `kill()`.
 - **ZMQ coordination.** Control frames are JSON. A reliable send completes only after the recipient's handler accepts it, and a peer that stops sending HELLO expires.
-- **OEO checkpoint client.** A hung forwarder is retried once and then reported as a failed request. Transport errors are not raised into the state machine. Client sockets close with `linger=0`.
+- **OEO checkpoint client.** A hung forwarder is retried once. A write that still fails raises the `requests` error, as before, so a lost checkpoint is never silent. A read that still fails returns the "not set" value (`False`, `0`, or `""`). Client sockets close with `linger=0`.
 
 ### Added
 
