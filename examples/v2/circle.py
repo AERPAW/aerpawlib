@@ -1,8 +1,10 @@
 """
-[NOT SUPPORTED] (uses velocity control)
 circle will make a vehicle (drone) fly in a 10m radius circle centered
 on where it started. This is a good example of how to use velocity control
 and dynamic heading adjustment.
+
+On the AERPAW testbed the E-VM MAVLink filter blocks set_velocity. aerpawlib
+still sends the command; run this example on local SITL.
 
 Run with:
     aerpawlib --api-version v2 --script examples/v2/circle.py \
@@ -22,7 +24,11 @@ N_LAPS = 1
 
 
 class Circle(StateMachine):
-    """[NOT SUPPORTED] (uses velocity control) Make a vehicle fly in a circular trajectory using velocity control."""
+    """Make a vehicle fly in a circular trajectory using velocity control.
+
+    On the AERPAW testbed the E-VM MAVLink filter blocks set_velocity.
+    aerpawlib still sends the command.
+    """
 
     _target_center: Coordinate
     _point_to_center: bool = False

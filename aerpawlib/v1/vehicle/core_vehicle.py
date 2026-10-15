@@ -993,9 +993,11 @@ class Vehicle:
         duration: float | None = None,
     ) -> None:
         """
-        [NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
-
         Set a drone's velocity that it will use for `duration` seconds.
+
+        On the AERPAW testbed the E-VM MAVLink filter blocks velocity control.
+        aerpawlib does not refuse this call; Drone and Rover still send it,
+        and the filter is what rejects it. Local SITL is unaffected.
 
         Args:
             velocity_vector: Velocity in NED frame

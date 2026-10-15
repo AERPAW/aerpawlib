@@ -1,6 +1,8 @@
 """
-[NOT SUPPORTED] (uses velocity control)
 Velocity control v2 Example - Drone using set_velocity for manual flight.
+
+On the AERPAW testbed the E-VM MAVLink filter blocks set_velocity. aerpawlib
+still sends the command; run this example on local SITL.
 
 Run with:
     aerpawlib --api-version v2 --script examples/v2/velocity_example.py \
@@ -13,7 +15,11 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 
 
 class VelocityControlDemo(BasicRunner):
-    """[NOT SUPPORTED] (uses velocity control) Demonstrate velocity control: hover, move north, stop."""
+    """Demonstrate velocity control: hover, move north, stop.
+
+    On the AERPAW testbed the E-VM MAVLink filter blocks set_velocity.
+    aerpawlib still sends the command.
+    """
 
     @entrypoint
     async def run(self, drone: Drone):

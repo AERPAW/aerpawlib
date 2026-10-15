@@ -500,12 +500,14 @@ class Drone(Vehicle):
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """[NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
-
-        Set the drone's velocity in the NED frame.
+        """Set the drone's velocity in the NED frame.
 
         Enters offboard mode and sends the velocity setpoint. The velocity loop
         runs until the next movement command or until duration expires.
+
+        On the AERPAW testbed the E-VM MAVLink filter blocks velocity control.
+        aerpawlib does not refuse this call; the filter is what rejects it.
+        Local SITL is unaffected.
 
         Args:
             velocity: Desired velocity as a NED vector (m/s).
@@ -516,13 +518,8 @@ class Drone(Vehicle):
                 stop. If None, the velocity runs until the next command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started, or on the AERPAW
-                testbed, where velocity control is disabled.
+            VelocityError: If offboard mode cannot be started.
         """
-        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
-        # E-VM filter treats that as fatal and drops the experiment.
-        if self._must_avoid_loiter():
-            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         logger.info(
             f"Drone: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
         )
