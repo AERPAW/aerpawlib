@@ -8,11 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Summary
 
-Fail closed on the AERPAW testbed. Velocity control is refused there, movement commands no longer stick after a timeout, and the safety checker, CLI, runner, and ZMQ paths reject inputs that used to fail open or hang the process.
+Fail closed on the AERPAW testbed. Drone velocity control is refused there, rover velocity control works there without leaving GUIDED, movement commands no longer stick after a timeout, and the safety checker, CLI, runner, and ZMQ paths reject inputs that used to fail open or hang the process.
 
 ### Fixed
 
-- **`set_velocity` on AERPAW.** v1 and v2, drone and rover, raise `VelocityError` on the testbed before starting offboard. Leaving velocity control calls MAVSDK `offboard.stop()`, which sends LOITER (copter) or HOLD (rover). The C-VM filter allows only GUIDED, plus LAND on copters, so that mode change ends the experiment. Local SITL is unchanged.
+- **Drone `set_velocity` on AERPAW.** v1 and v2 `Drone` raise `VelocityError` on the testbed before starting offboard. Leaving velocity control calls MAVSDK `offboard.stop()`, which sends LOITER. The C-VM filter allows only GUIDED and LAND on copters, so that mode change ends the experiment. Local SITL is unchanged.
+- **Rover `set_velocity` on AERPAW.** v1 and v2 `Rover` no longer use MAVSDK offboard, whose `offboard.stop()` sends HOLD (the rover filter allows only GUIDED). They stream `SET_POSITION_TARGET_LOCAL_NED` velocity setpoints through `mavlink_direct` and stop with a speed-0 setpoint at the current heading, so the rover never leaves GUIDED. This works on the testbed and in SITL.
 - **A failed goto, takeoff, or yaw blocked the next land.** The shared ready predicate stayed false after a timeout or action error, so `land()` waited out another full timeout and never sent LAND. The predicate is cleared on those failures.
 - **Goto with an unknown home altitude.** A missing, non-finite, or (0, 0) home is refused. AMSL 0 is accepted once a home message has arrived, which is what AERPAW SITL reports (`--home lat,lon,0`).
 - **Safety checker fail-open inputs.** Non-finite altitudes, speeds, and waypoints are rejected. Configured limits must be finite with min ≤ max or the server does not start. Takeoff outside an include fence or inside a no-go zone is rejected. `taking_off_or_landing` skips copter altitude limits only when the flag is exactly `True`.
