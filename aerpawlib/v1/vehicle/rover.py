@@ -230,13 +230,15 @@ class Rover(Vehicle):
         global_relative: bool = True,
         duration: float | None = None,
     ) -> None:
-        """[NOT SUPPORTED] This API function is not supported because velocity control is currently blocked by the filter. This may (and will) change in the future.
-
-        Set rover velocity using MAVSDK offboard mode.
+        """Set rover velocity using MAVSDK offboard mode.
 
         ArduRover supports velocity control in GUIDED mode via offboard
         SET_POSITION_TARGET_LOCAL_NED. The vertical component is always zeroed
         since rovers are ground vehicles.
+
+        On the AERPAW testbed the E-VM MAVLink filter blocks velocity control.
+        aerpawlib does not refuse this call; the filter is what rejects it.
+        Local SITL is unaffected.
 
         Args:
             velocity_vector: Desired velocity as a NED vector (m/s). Down
@@ -249,13 +251,8 @@ class Rover(Vehicle):
                 command.
 
         Raises:
-            VelocityError: If offboard mode cannot be started, or on the AERPAW
-                testbed, where velocity control is disabled.
+            VelocityError: If offboard mode cannot be started.
         """
-        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
-        # E-VM filter treats that as fatal and drops the experiment.
-        if self._in_aerpaw():
-            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
         await self.await_ready_to_move()
         self._velocity_generation += 1
         await asyncio.sleep(VELOCITY_UPDATE_DELAY_S + 0.05)

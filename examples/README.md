@@ -9,7 +9,7 @@ Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.j
 | `basic_example` | v1, v2 | Square flight pattern (10m × 10m) |
 | `basic_runner` | v1, v2 | Minimal `BasicRunner`: takeoff, fly north, land |
 | `figure_eight` | v1, v2 | Figure-8 waypoint pattern |
-| `circle` | v1, v2 | Circular flight using velocity control (not supported on the AERPAW testbed) |
+| `circle` | v1, v2 | Circular flight using velocity control (E-VM filter blocks this on the testbed) |
 | `squareoff_logging` | v1, v2 | Square flight with background position logging |
 | `preplanned_trajectory` | v1, v2 | Waypoints loaded from QGroundControl `.plan` file |
 | `hide_rover` | v1, v2 | Rover follows plan, then hides in geofence |
@@ -21,7 +21,7 @@ Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.j
 | `rover_search` | v1 | Drone search algorithm using safety checker and RSSI |
 | `enhanced_example` | v2 | Preflight checks and pre-command validations |
 | `rover_example` | v2 | Ground vehicle waypoint navigation |
-| `velocity_example` | v2 | Guided mode velocity control (not supported on the AERPAW testbed) |
+| `velocity_example` | v2 | Guided mode velocity control (E-VM filter blocks this on the testbed) |
 | `command_handle_example` | v2 | Non-blocking command handle progress querying |
 | `command_handle_cancel_example` | v2 | Cancel non-blocking goto mid-flight (triggers RTL) |
 | `command_validation_example` | v2 | Pre-check capability validation |

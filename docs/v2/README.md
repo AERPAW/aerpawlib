@@ -104,8 +104,8 @@ await drone.goto_coordinates(target, tolerance=2)
 await drone.set_heading(90)
 await drone.land()
 await drone.return_to_launch()
-# set_velocity is not supported on the AERPAW testbed
-# await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
+# aerpawlib sends this. On the AERPAW testbed the E-VM MAVLink filter blocks it.
+await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
 ```
 
 Non-blocking goto:
