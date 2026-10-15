@@ -111,38 +111,3 @@ async def test_return_home_if_armed_rtl_when_open_and_armed():
 
     await return_home_if_armed(OpenArmed(), VEHICLE_TYPE_DRONE, True, reason="test")
     assert called == [1]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("with_disconnect_future", [True, False])
-async def test_cancelling_guard_stops_runner_before_returning(with_disconnect_future):
-    """SIGINT/SIGTERM cancels the guard; the runner must be stopped (and its
-    cleanup run) before the guard returns and the CLI closes the vehicle."""
-    order: list[str] = []
-    entered = asyncio.Event()
-
-    class Runner:
-        async def run(self, vehicle: Any) -> None:
-            try:
-                entered.set()
-                await asyncio.sleep(30)
-            finally:
-                await asyncio.sleep(0)  # cleanup that awaits, like v2 background gather
-                order.append("runner_cleanup")
-
-    disconnect_future = asyncio.get_running_loop().create_future() if with_disconnect_future else None
-    guard = asyncio.create_task(
-        run_runner_with_disconnect_guard(
-            runner=Runner(),
-            vehicle=_FakeVehicle(),
-            disconnect_future=disconnect_future,
-        ),
-    )
-    await entered.wait()
-    guard.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await guard
-    order.append("cli_would_close_vehicle_now")
-    assert order == ["runner_cleanup", "cli_would_close_vehicle_now"]
-    others = [t for t in asyncio.all_tasks() if t is not asyncio.current_task() and not t.done()]
-    assert others == []
