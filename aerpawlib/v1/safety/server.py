@@ -31,6 +31,7 @@ import yaml
 import zmq
 
 from aerpawlib.v1.constants import (
+    DEFAULT_MAX_VERTICAL_SPEED_M_S,
     DEFAULT_SAFETY_SERVER_PORT,
     GET_LIMITATIONS_REQ,
     SERVER_STATUS_REQ,
@@ -67,6 +68,8 @@ class SafetyCheckerServer:
         min_speed: Minimum allowed speed (m/s).
         max_alt: Maximum allowed altitude for copters.
         min_alt: Minimum allowed altitude for copters.
+        max_vertical_speed: Maximum climb/descent velocity for copters (m/s);
+            optional in the config, DEFAULT_MAX_VERTICAL_SPEED_M_S if unset.
         takeoff_location: The location where takeoff was performed.
     """
 
@@ -121,6 +124,7 @@ class SafetyCheckerServer:
         if self.vehicle_type == VEHICLE_TYPE_COPTER:
             self.max_alt = config["max_alt"]
             self.min_alt = config["min_alt"]
+            self.max_vertical_speed = config.get("max_vertical_speed", DEFAULT_MAX_VERTICAL_SPEED_M_S)
 
         self.start_server(server_port)
 
@@ -218,6 +222,10 @@ class SafetyCheckerServer:
                 raise Exception(
                     f"{low}/{high} in {vehicle_config_filename} must be finite numbers with {low} <= {high}!",
                 )
+        if "max_vertical_speed" in config and not (_all_finite(config["max_vertical_speed"]) and config["max_vertical_speed"] > 0):
+            raise Exception(
+                f"max_vertical_speed in {vehicle_config_filename} must be a finite number > 0!",
+            )
 
     def validate_waypoint_command(
         self,
@@ -383,14 +391,15 @@ class SafetyCheckerServer:
         Return the configured vehicle limits.
 
         Returns:
-            dict: vehicle_type, min_speed, max_speed, min_alt and max_alt
-            (altitudes are None for rovers).
+            dict: vehicle_type, min_speed, max_speed, max_vertical_speed,
+            min_alt and max_alt (the last three are None for rovers).
         """
         is_copter = self.vehicle_type == VEHICLE_TYPE_COPTER
         return {
             "vehicle_type": self.vehicle_type,
             "min_speed": self.min_speed,
             "max_speed": self.max_speed,
+            "max_vertical_speed": self.max_vertical_speed if is_copter else None,
             "min_alt": self.min_alt if is_copter else None,
             "max_alt": self.max_alt if is_copter else None,
         }

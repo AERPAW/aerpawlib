@@ -30,6 +30,7 @@ from grpc.aio import AioRpcError
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.v1 import util
 from aerpawlib.v1.aerpaw import AERPAW_Platform
 from aerpawlib.v1.constants import (
@@ -45,6 +46,8 @@ from aerpawlib.v1.constants import (
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
     STRUCTURED_TELEMETRY_INTERVAL_S,
+    VELOCITY_STOP_ON_CLOSE_TIMEOUT_S,
+    VELOCITY_UPDATE_DELAY_S,
     VERBOSE_LOG_DELAY_S,
     VERBOSE_LOG_FILE_PREFIX,
 )
@@ -57,6 +60,7 @@ from aerpawlib.v1.exceptions import (
     NotArmableError,
     NotImplementedForVehicleError,
     PortInUseError,
+    VelocityError,
 )
 from aerpawlib.v1.helpers import (
     wait_for_condition,
@@ -167,6 +171,7 @@ class Vehicle:
         # Telemetry and command tasks
         self._telemetry_tasks: list[asyncio.Task] = []
         self._command_tasks: list[asyncio.Task] = []
+        self._velocity = VelocityStream(VELOCITY_UPDATE_DELAY_S)
 
         # Event loop for MAVSDK operations (runs in background thread)
         self._mavsdk_loop: asyncio.AbstractEventLoop | None = None
@@ -688,6 +693,7 @@ class Vehicle:
         if self._lifecycle.closed:
             return
         logger.debug("Closing vehicle connection...")
+        self._stop_velocity_on_close()
         self._lifecycle.mark_closed()
 
         # Cancel pending MAVSDK operations
@@ -726,6 +732,28 @@ class Vehicle:
         self._mavsdk_loop = None
 
         logger.info("Vehicle connection closed")
+
+    def _stop_velocity_on_close(self) -> None:
+        """From close(): send the stop setpoint of a running set_velocity.
+
+        close() stops the MAVSDK loop right after cancelling tasks, so the
+        stream's own cancel handler can't reach the vehicle in time.
+        """
+        system = getattr(self, "_system", None)
+        loop = getattr(self, "_mavsdk_loop", None)
+        velocity = getattr(self, "_velocity", None)
+        if velocity is None or not velocity.active or system is None or loop is None or not loop.is_running():
+            return
+        velocity.forget()
+        if threading.current_thread() is getattr(self, "_mavsdk_thread", None):
+            logger.warning("close() called on the MAVSDK thread; velocity command not stopped (ArduPilot stops after 3 s)")
+            return
+        try:
+            stop = self._velocity_stop_setpoint()
+            future = asyncio.run_coroutine_threadsafe(system.mavlink_direct.send_message(stop), loop)
+            future.result(timeout=VELOCITY_STOP_ON_CLOSE_TIMEOUT_S)
+        except Exception as e:
+            logger.warning("close(): could not stop the velocity command: %s", e)
 
     def _stop_mavsdk_server(self) -> None:
         """Kill the mavsdk_server child process and drop the System reference."""
@@ -993,9 +1021,8 @@ class Vehicle:
         duration: float | None = None,
     ) -> None:
         """
-        Drone: not supported on the AERPAW testbed (leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER, and the C-VM filter ends the experiment on that mode change); works on local SITL. Rover: supported everywhere, stays in GUIDED.
-
-        Set a drone's velocity that it will use for `duration` seconds.
+        Set the vehicle's velocity, held for `duration` seconds or until the
+        next movement command. Drones and rovers stay in GUIDED throughout.
 
         Args:
             velocity_vector: Velocity in NED frame
@@ -1031,11 +1058,71 @@ class Vehicle:
             logger.debug("set_current_speed not supported by autopilot")
             pass  # Not all autopilots support this
 
+    def _velocity_setpoint(self, velocity_vector: util.VectorNED) -> Any:
+        """Build this vehicle type's GUIDED velocity setpoint."""
+        raise NotImplementedForVehicleError("set_velocity", "generic Vehicle")
+
+    def _velocity_stop_setpoint(self) -> Any:
+        """Build the setpoint that stops this vehicle in GUIDED."""
+        raise NotImplementedForVehicleError("set_velocity", "generic Vehicle")
+
+    def _mavlink_sender(self, system: Any) -> Callable[[Any], Any]:
+        """Return a coroutine function sending a mavlink_direct message via ``system``."""
+
+        async def send(msg: Any) -> None:
+            await self._run_on_mavsdk_loop(system.mavlink_direct.send_message(msg))
+
+        return send
+
+    async def _start_velocity(
+        self,
+        velocity_vector: util.VectorNED,
+        global_relative: bool,
+        duration: float | None,
+    ) -> None:
+        """Shared set_velocity: validate, then stream GUIDED setpoints."""
+        problem = velocity_problem(velocity_vector.north, velocity_vector.east, velocity_vector.down, duration)
+        if problem:
+            raise VelocityError(f"set_velocity: {problem}")
+        await self.await_ready_to_move()
+        if not global_relative:
+            velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
+        setpoint = self._velocity_setpoint(velocity_vector)
+        logger.debug(f"Set velocity: {velocity_vector}, duration={duration}")
+        if self._event_log:
+            self._event_log.log_event(
+                "command",
+                type="set_velocity",
+                north_m_s=velocity_vector.north,
+                east_m_s=velocity_vector.east,
+                down_m_s=velocity_vector.down,
+                global_relative=global_relative,
+                duration_s=duration,
+            )
+        try:
+            task = await self._velocity.start(
+                self._mavlink_sender(self._system),
+                setpoint,
+                self._velocity_stop_setpoint,
+                duration,
+            )
+        except Exception as e:
+            raise VelocityError(str(e), original_error=e) from e
+        self._command_tasks.append(task)
+        self._ready_to_move = lambda _: True
+
+    async def _stop_velocity(self) -> None:
+        """End a set_velocity stream and stop in GUIDED (no-op if none is running)."""
+        system = self._system
+        send = None if self.closed or system is None else self._mavlink_sender(system)
+        await self._velocity.stop(send, self._velocity_stop_setpoint)
+
     async def _stop(self) -> None:
         """
-        Stop any background movement tasks.
+        Stop any background movement tasks, including a set_velocity stream.
         """
         self._ready_to_move = lambda _: True
+        await self._stop_velocity()
 
     def _get_health_status_summary(self) -> str:
         """

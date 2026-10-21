@@ -210,8 +210,9 @@ class SafetyCheckerClient:
         Read the server's configured vehicle limits.
 
         Returns:
-            dict: vehicle_type, min_speed, max_speed, min_alt and max_alt
-            (altitudes are None for rovers).
+            dict: vehicle_type, min_speed, max_speed, max_vertical_speed,
+            min_alt and max_alt (the last three are None for rovers; older
+            servers omit max_vertical_speed).
 
         Raises:
             RuntimeError: If the server does not support the request.

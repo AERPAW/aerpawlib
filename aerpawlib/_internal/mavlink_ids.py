@@ -120,6 +120,7 @@ def _make_local_ned_setpoint(
     type_mask: int,
     vx: float = 0.0,
     vy: float = 0.0,
+    vz: float = 0.0,
     yaw_rad: float = 0.0,
 ):
     """Build SET_POSITION_TARGET_LOCAL_NED from the MAVSDK GCS identity.
@@ -143,7 +144,7 @@ def _make_local_ned_setpoint(
         "z": 0.0,
         "vx": float(vx),
         "vy": float(vy),
-        "vz": 0.0,
+        "vz": float(vz),
         "afx": 0.0,
         "afy": 0.0,
         "afz": 0.0,
@@ -157,6 +158,21 @@ def _make_local_ned_setpoint(
         target_system_id=int(target_sysid),
         target_component_id=1,
         fields_json=json.dumps(fields),
+    )
+
+
+def make_copter_velocity_message(target_sysid: int, north: float, east: float, down: float, heading_deg: float):
+    """Velocity setpoint facing ``heading_deg``; all zeros hovers in place.
+
+    Valid only in GUIDED. ArduCopter stops if setpoints stop for 3 s.
+    """
+    return _make_local_ned_setpoint(
+        target_sysid,
+        _IGNORE_POSITION | _IGNORE_ACCEL | _IGNORE_YAW_RATE,
+        vx=north,
+        vy=east,
+        vz=down,
+        yaw_rad=math.radians(heading_deg),
     )
 
 

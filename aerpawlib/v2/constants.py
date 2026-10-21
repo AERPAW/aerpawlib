@@ -28,7 +28,7 @@ MIN_ARM_TO_TAKEOFF_DELAY_S = 2.0
 POST_TAKEOFF_STABILIZATION_S = 1.0
 """Stabilization pause after takeoff before issuing follow-up commands."""
 ARMING_SEQUENCE_DELAY_S = 2.0
-"""Delay between steps in the arm -> guided/offboard -> takeoff sequence."""
+"""Delay between steps in the arm -> guided -> takeoff sequence."""
 POSITION_READY_TIMEOUT_S = 60.0
 """Max wait for valid position estimate before movement commands."""
 ARMABLE_TIMEOUT_S = 60.0
@@ -38,11 +38,7 @@ ARMABLE_STATUS_LOG_INTERVAL_S = 5.0
 POLLING_DELAY_S = 0.05
 """Generic polling delay used in readiness/movement waits."""
 VELOCITY_UPDATE_DELAY_S = 0.05
-"""Delay between velocity setpoint updates in velocity control loops."""
-VELOCITY_LOOP_HANDOFF_DELAY_S = 0.05
-"""Delay before re-entering velocity loop after stopping prior loop iteration."""
-OFFBOARD_STOP_SETTLE_DELAY_S = 0.1
-"""Delay after sending zero velocity before disabling offboard mode."""
+"""Interval between resent set_velocity setpoints (ArduPilot drops one after 3 s)."""
 
 # Validation
 MIN_POSITION_TOLERANCE_M = 0.1

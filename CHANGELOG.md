@@ -8,12 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Summary
 
-Fail closed on the AERPAW testbed. Drone velocity control is refused there, rover velocity control works there without leaving GUIDED, movement commands no longer stick after a timeout, and the safety checker, CLI, runner, and ZMQ paths reject inputs that used to fail open or hang the process.
+Fail closed on the AERPAW testbed. Drone and rover velocity control work there without leaving GUIDED, movement commands no longer stick after a timeout, and the safety checker, CLI, runner, and ZMQ paths reject inputs that used to fail open or hang the process.
 
 ### Fixed
 
-- **Drone `set_velocity` on AERPAW.** v1 and v2 `Drone` raise `VelocityError` on the testbed before starting offboard. Leaving velocity control calls MAVSDK `offboard.stop()`, which sends LOITER. The C-VM filter allows only GUIDED and LAND on copters, so that mode change ends the experiment. Local SITL is unchanged.
-- **Rover `set_velocity` on AERPAW.** v1 and v2 `Rover` no longer use MAVSDK offboard, whose `offboard.stop()` sends HOLD (the rover filter allows only GUIDED). They stream `SET_POSITION_TARGET_LOCAL_NED` velocity setpoints through `mavlink_direct` and stop with a speed-0 setpoint at the current heading, so the rover never leaves GUIDED. This works on the testbed and in SITL.
+- **`set_velocity` on AERPAW.** MAVSDK offboard is gone: its `offboard.stop()` switched to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. v1 and v2 `Drone` and `Rover` now stream `SET_POSITION_TARGET_LOCAL_NED` velocity setpoints through `mavlink_direct` in GUIDED. A drone faces its locked or current heading and stops by hovering (zero velocity); a rover stops with a speed-0 setpoint at its current heading, and a zero vector does the same instead of steering north. The vehicle never leaves GUIDED, in SITL or on the testbed.
+- **Velocity kept running after a script ended.** Cancelling the velocity task (runner shutdown, v1 `close()`, v2 `close()`/`aclose()`) or a send error now sends the stop setpoint. Replacing or stopping a velocity command waits for the old stream to exit, so a stale setpoint can no longer follow the next command.
+- **`set_velocity` input checks.** A non-finite velocity or a negative or non-finite duration raises `VelocityError` before anything is sent.
 - **A failed goto, takeoff, or yaw blocked the next land.** The shared ready predicate stayed false after a timeout or action error, so `land()` waited out another full timeout and never sent LAND. The predicate is cleared on those failures.
 - **Goto with an unknown home altitude.** A missing, non-finite, or (0, 0) home is refused. AMSL 0 is accepted once a home message has arrived, which is what AERPAW SITL reports (`--home lat,lon,0`).
 - **Safety checker fail-open inputs.** Non-finite altitudes, speeds, and waypoints are rejected. Configured limits must be finite with min ≤ max or the server does not start. Takeoff outside an include fence or inside a no-go zone is rejected. `taking_off_or_landing` skips copter altitude limits only when the flag is exactly `True`.
@@ -27,6 +28,12 @@ Fail closed on the AERPAW testbed. Drone velocity control is refused there, rove
 ### Added
 
 - **`get_limitations`.** The safety checker returns the configured vehicle type and speed and altitude limits. Responses without a data field are unchanged on the wire.
+- **`max_vertical_speed`.** Optional copter safety config key (default 5 m/s), returned by `get_limitations`. The C-VM filter refuses velocity setpoints climbing or descending faster.
+- **v2 `Rover.stop_velocity`.** `stop_velocity` moved to the v2 base `Vehicle`, so rovers have it too.
+
+### Removed
+
+- **`OFFBOARD_STOP_SETTLE_DELAY_S` (v1, v2) and `VELOCITY_LOOP_HANDOFF_DELAY_S` (v2).** Nothing waits on offboard any more.
 
 ## [1.10.1] (2026-09-23)
 

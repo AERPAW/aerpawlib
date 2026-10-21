@@ -122,13 +122,10 @@ STATE_MACHINE_DELAY_S = 0.01
 """State machine delay between state transitions (seconds)"""
 
 VELOCITY_UPDATE_DELAY_S = 0.05
-"""Delay for velocity command update loop (seconds)"""
+"""Interval between resent set_velocity setpoints (ArduPilot drops one after 3 s)"""
 
-OFFBOARD_STOP_SETTLE_DELAY_S = 0.1
-"""
-Delay after sending zero-velocity before stopping offboard mode (seconds).
-Gives the autopilot one control cycle to consume the stop command.
-"""
+VELOCITY_STOP_ON_CLOSE_TIMEOUT_S = 1.0
+"""How long close() waits for the stop setpoint of a running set_velocity (seconds)"""
 
 ARMABLE_STATUS_LOG_INTERVAL_S = 5.0
 """Logging interval when waiting for armable state (seconds)"""
@@ -317,6 +314,9 @@ GPS_3D_FIX_TYPE = 3
 
 DEFAULT_SAFETY_SERVER_PORT = 14580
 """Default port for safety checker server"""
+
+DEFAULT_MAX_VERTICAL_SPEED_M_S = 5.0
+"""Copter vertical velocity limit when the safety config sets no max_vertical_speed"""
 
 
 # Geographic Constants

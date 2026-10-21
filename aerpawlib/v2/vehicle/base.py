@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v2.constants import (
     ARMABLE_STATUS_LOG_INTERVAL_S,
@@ -36,6 +37,7 @@ from aerpawlib.v2.constants import (
     POSITION_READY_TIMEOUT_S,
     POST_ARM_STABILIZE_DELAY_S,
     READY_MOVE_LOG_INTERVAL_S,
+    VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v2.exceptions import (
     ArmError,
@@ -43,6 +45,7 @@ from aerpawlib.v2.exceptions import (
     DisarmError,
     NotArmableError,
     PortInUseError,
+    VelocityError,
 )
 from aerpawlib.v2.log import LogComponent, get_logger
 from aerpawlib.v2.safety.validation import PreflightChecks
@@ -53,7 +56,6 @@ from .connection_helpers import (
 from .connection_state import ConnectionState
 from .mock_state import default_mock_state
 from .navigation import goto_bearing_distance, goto_cardinal, goto_offset
-from .offboard import OffboardSession
 from .state import VehicleState
 from .task import VehicleTask
 
@@ -68,7 +70,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(LogComponent.VEHICLE)
 
-# Upper bound on zeroing velocity / leaving offboard during aclose().
+# Upper bound on stopping movement (velocity streams included) during aclose().
 _STOP_ON_CLOSE_TIMEOUT_S = 5.0
 
 
@@ -134,7 +136,7 @@ class Vehicle:
         self.safety: Any | None = safety
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
-        self._offboard = OffboardSession()
+        self._velocity = VelocityStream(VELOCITY_UPDATE_DELAY_S)
         self._aerpaw_forwarder_reachable_cache: bool | None = None
 
     def _in_aerpaw(self) -> bool:
@@ -1057,24 +1059,89 @@ class Vehicle:
         """
         return f"GPS fix: {self._state.gps.fix_type}, sats: {self._state.gps.satellites_visible}, armable: {self._state.armable}"
 
-    def _offboard_stop_yaw(self) -> float:
-        """Yaw sent with the zero setpoint when offboard is stopped."""
-        return self.heading
+    def _velocity_setpoint(self, velocity: VectorNED) -> Any:
+        """Build this vehicle type's GUIDED velocity setpoint."""
+        raise NotImplementedError(f"{type(self).__name__} does not support set_velocity")
 
-    async def _stop_offboard(self) -> None:
-        """Stop offboard mode and zero velocity setpoint (no-op if not engaged)."""
-        await self._offboard.stop(
-            self._system,
-            self._offboard_stop_yaw(),
-            closed=self.closed,
+    def _velocity_stop_setpoint(self) -> Any:
+        """Build the setpoint that stops this vehicle in GUIDED."""
+        raise NotImplementedError(f"{type(self).__name__} does not support set_velocity")
+
+    @staticmethod
+    def _mavlink_sender(system: Any) -> Callable[[Any], Any]:
+        """Return a coroutine function sending a mavlink_direct message via ``system``.
+
+        Bound to ``system`` so a stream can still send its stop setpoint after
+        close() clears ``self._system``.
+        """
+
+        async def send(msg: Any) -> None:
+            await system.mavlink_direct.send_message(msg)
+
+        return send
+
+    async def _start_velocity(
+        self,
+        velocity: VectorNED,
+        global_relative: bool,
+        duration: float | None,
+    ) -> None:
+        """Shared set_velocity: validate, then stream GUIDED setpoints."""
+        problem = velocity_problem(velocity.north, velocity.east, velocity.down, duration)
+        if problem:
+            raise VelocityError(f"set_velocity: {problem}")
+        await self.await_ready_to_move()
+        if not global_relative:
+            velocity = velocity.rotate_by_angle(-self.heading)
+        setpoint = self._velocity_setpoint(velocity)
+        logger.info(
+            f"{self._vehicle_type_label().capitalize()}: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
         )
+        if self._event_log:
+            self._event_log.log_event(
+                "command",
+                type="set_velocity",
+                north_m_s=velocity.north,
+                east_m_s=velocity.east,
+                down_m_s=velocity.down,
+                global_relative=global_relative,
+                duration_s=duration,
+            )
+        try:
+            task = await self._velocity.start(
+                self._mavlink_sender(self._system),
+                setpoint,
+                self._velocity_stop_setpoint,
+                duration,
+            )
+        except Exception as e:
+            raise VelocityError(str(e), original_error=e) from e
+        self._command_tasks.append(task)
+        # set_velocity returns at once; the vehicle is free for the next command.
+        self._release_move_gate(self._begin_move())
+
+    async def stop_velocity(self) -> None:
+        """Stop a :meth:`set_velocity` command early, staying in GUIDED.
+
+        Needed after ``set_velocity`` without a ``duration``; any other
+        movement command also ends it. No-op if no velocity command is running.
+        """
+        if self._event_log:
+            self._event_log.log_event("command", type="stop_velocity")
+        logger.info(f"{self._vehicle_type_label().capitalize()}: stop_velocity")
+        await self._stop_velocity()
+
+    async def _stop_velocity(self) -> None:
+        """End the velocity stream and stop in GUIDED (no-op if none is running)."""
+        system = self._system
+        send = None if self.closed or system is None else self._mavlink_sender(system)
+        await self._velocity.stop(send, self._velocity_stop_setpoint)
 
     async def _stop(self) -> None:
-        """Stop background movement."""
+        """Stop background movement, including a set_velocity stream."""
         self._move_generation += 1
         self._ready_to_move = lambda _: True
-        if self._offboard.active:
-            await self._stop_offboard()
+        await self._stop_velocity()
 
     async def set_groundspeed(self, velocity: float) -> None:
         """Set the maximum ground speed of the vehicle.
@@ -1098,8 +1165,7 @@ class Vehicle:
         if self._connection.closed:
             return
         logger.info("Closing vehicle connection (async)")
-        # Zero any velocity setpoint and leave offboard while the link is
-        # still open; once closed, OffboardSession.stop sends nothing.
+        # Stop any velocity stream while the link is still open.
         try:
             await asyncio.wait_for(self._stop(), timeout=_STOP_ON_CLOSE_TIMEOUT_S)
         except Exception as e:
@@ -1115,22 +1181,26 @@ class Vehicle:
         self._system = None
         logger.info("Vehicle connection closed")
 
-    def _schedule_offboard_stop_on_close(self) -> None:
-        """From sync close(): zero velocity and stop offboard if it is engaged."""
-        system = self._system
-        offboard = getattr(self, "_offboard", None)
-        if offboard is None or not offboard.active or system is None:
+    def _stop_velocity_on_close(self) -> None:
+        """From sync close(): send the stop setpoint of a running set_velocity.
+
+        A stream task cancelled before it first runs never reaches its own
+        stop, so close() sends it.
+        """
+        system = getattr(self, "_system", None)
+        velocity = getattr(self, "_velocity", None)
+        if velocity is None or not velocity.active or system is None:
             return
-        offboard.stop_velocity_loop()
+        velocity.forget()
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             logger.warning(
-                "close(): offboard velocity is active but no event loop is running; use 'await vehicle.aclose()' to stop it",
+                "close(): set_velocity is running but no event loop is; use 'await vehicle.aclose()' to stop it (ArduPilot stops after 3 s)",
             )
             return
-        # Pass the captured system: close() clears self._system right away.
-        self._close_task = loop.create_task(offboard.stop(system, self._offboard_stop_yaw()))
+        # Bound to the captured system: close() clears self._system right away.
+        self._close_task = loop.create_task(self._mavlink_sender(system)(self._velocity_stop_setpoint()))
 
     def close(self) -> None:
         """Sync cleanup. Prefer :meth:`aclose` in async code."""
@@ -1143,7 +1213,7 @@ class Vehicle:
             logger.debug("close() called but already closed")
             return
         logger.info("Closing vehicle connection")
-        self._schedule_offboard_stop_on_close()
+        self._stop_velocity_on_close()
         self._connection.mark_closed()
         for task in getattr(self, "_telemetry_tasks", []):
             task.cancel()

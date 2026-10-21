@@ -1,5 +1,4 @@
 """
-[NOT SUPPORTED] (uses velocity control)
 Velocity control v2 Example - Drone using set_velocity for manual flight.
 
 Run with:
@@ -13,18 +12,20 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 
 
 class VelocityControlDemo(BasicRunner):
-    """[NOT SUPPORTED] (uses velocity control) Demonstrate velocity control: hover, move north, stop."""
+    """Demonstrate velocity control: hover, move north, stop."""
 
     @entrypoint
     async def run(self, drone: Drone):
         await drone.takeoff(altitude=10)
+        # set_velocity returns at once; sleep while the velocity holds.
         print("[example] Hovering...")
-        await drone.set_velocity(VectorNED(0, 0, 0), duration=2.0)
+        await drone.set_velocity(VectorNED(0, 0, 0))
+        await asyncio.sleep(2.0)
         print("[example] Moving north at 2 m/s...")
-        await drone.set_velocity(VectorNED(2, 0, 0), duration=3.0)
+        await drone.set_velocity(VectorNED(2, 0, 0))
+        await asyncio.sleep(3.0)
         print("[example] Stopping...")
-        await drone.set_velocity(VectorNED(0, 0, 0), duration=1.0)
-        await asyncio.sleep(0.5)
+        await drone.stop_velocity()
         print("[example] Landing...")
         await drone.land()
         print("[example] Done")

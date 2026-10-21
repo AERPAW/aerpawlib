@@ -105,9 +105,11 @@ await drone.goto_coordinates(target, tolerance=2)
 await drone.set_heading(90)
 await drone.land()
 await drone.return_to_launch()
-# set_velocity is not supported on the AERPAW testbed
-# await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
+await drone.set_velocity(VectorNED(5, 0, 0), duration=10)
+await drone.stop_velocity()  # end early, or after set_velocity without duration
 ```
+
+`set_velocity` stays in GUIDED, so it works on the AERPAW testbed. On the AERPAW testbed the C-VM filter ends the experiment on a velocity over the configured `max_speed` (horizontal) or `max_vertical_speed` (default 5 m/s), on a velocity that would leave the geofence within 4 s, and on a copter velocity command before it first reaches the minimum altitude.
 
 Non-blocking goto:
 
@@ -120,7 +122,7 @@ Cancelling a drone goto handle RTLs. After `cancel()`, `wait_done()` completes; 
 
 ### Rover
 
-`Rover` shares the base interface with 2D ground tolerance (default 2.1 m). No `takeoff`, `land`, `return_to_launch`, or `set_heading`. `set_velocity` works on rovers, including on the AERPAW testbed; the rover stays in GUIDED when velocity control ends.
+`Rover` shares the base interface with 2D ground tolerance (default 2.1 m). No `takeoff`, `land`, `return_to_launch`, or `set_heading`. `set_velocity` steers toward the vector's direction (down ignored); stopping holds the current heading at speed 0.
 
 Details: `aerpawlib.v2.vehicle`.
 

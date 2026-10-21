@@ -55,7 +55,9 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 | `goto_coordinates` | 3D tolerance (default 2 m) | 2D tolerance (default 2.1 m) |
 | `land` / `return_to_launch` | Yes | - |
 | `set_heading` | Yes | - |
-| `set_velocity` | Not supported on the testbed | Yes, stays in GUIDED (down ignored) |
+| `set_velocity` / `stop_velocity` | Yes, stays in GUIDED; stopping hovers | Yes, stays in GUIDED (down ignored); stopping holds heading |
+
+On the AERPAW testbed the C-VM filter ends the experiment on a velocity over the configured `max_speed` (horizontal) or `max_vertical_speed` (default 5 m/s), on a velocity that would leave the geofence within 4 s, and on a copter velocity command before it first reaches the minimum altitude.
 
 ### Validation and monitoring
 

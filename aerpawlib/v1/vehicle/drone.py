@@ -8,10 +8,9 @@ from __future__ import annotations
 import asyncio
 import math
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from mavsdk.action import ActionError
-from mavsdk.offboard import OffboardError, VelocityNedYaw
 
 from aerpawlib.v1.constants import (
     ARMABLE_TIMEOUT_S,
@@ -24,12 +23,10 @@ from aerpawlib.v1.constants import (
     GUIDED_MODE_NAME,
     HEADING_TOLERANCE_DEG,
     MIN_ARM_TO_TAKEOFF_DELAY_S,
-    OFFBOARD_STOP_SETTLE_DELAY_S,
     POLLING_DELAY_S,
     POSITION_READY_TIMEOUT_S,
     POST_TAKEOFF_STABILIZATION_S,
     TELEMETRY_SUBSCRIPTION_TIMEOUT_S,
-    VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v1.exceptions import (
     HeadingError,
@@ -38,7 +35,6 @@ from aerpawlib.v1.exceptions import (
     NotArmableError,
     RTLError,
     TakeoffError,
-    VelocityError,
 )
 from aerpawlib.v1.helpers import (
     heading_difference,
@@ -77,9 +73,6 @@ class Drone(Vehicle):
 
     Provides core flight functionality including takeoff, landing,
     navigation, and velocity control.
-
-    Attributes:
-        _velocity_generation: Generation counter to detect stale velocity loops.
     """
 
     def __init__(self, connection_string: str, mavsdk_server_port: int = 50051):
@@ -96,8 +89,6 @@ class Drone(Vehicle):
             NotArmableError: If the vehicle is already armed (safety check).
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
-        self._velocity_generation: int = 0
-        self._offboard_active: bool = False
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._ts_state.armed_telemetry_received.get():
@@ -125,7 +116,8 @@ class Drone(Vehicle):
         Args:
             heading: Target heading in degrees (0-360).
                 If None, clears any locked heading.
-            blocking: Whether to wait for the drone to finish turning.
+            blocking: Whether to wait for the drone to finish turning. A
+                blocking turn ends a running set_velocity.
                 Defaults to True.
             lock_in: If True, internal state will track this heading
                 for future combined commands. Defaults to True.
@@ -150,7 +142,10 @@ class Drone(Vehicle):
         if lock_in:
             self._current_heading = heading
         if not blocking:
+            # A running set_velocity keeps its yaw; the lock applies to the next one.
             return
+        # The velocity stream would keep overriding the yaw: stop and turn.
+        await self._stop_velocity()
 
         logger.debug(f"Turning to {heading} (current: {self.heading})")
         try:
@@ -233,8 +228,7 @@ class Drone(Vehicle):
             if not ok:
                 raise TakeoffError(f"takeoff rejected by safety checks: {msg}")
         await self.await_ready_to_move()
-        if self._offboard_active:
-            await self._stop()
+        await self._stop_velocity()
 
         # Enforce minimum delay between arming and takeoff
         time_since_arm = time.time() - self._ts_state.last_arm_time.get()
@@ -305,8 +299,7 @@ class Drone(Vehicle):
             if not ok:
                 raise exc_cls(f"land rejected by safety checks: {msg}")
         self._abortable = False
-        if self._offboard_active:
-            await self._stop()
+        await self._stop_velocity()
         from aerpawlib.cli.progress_bar import update_progress
 
         self._ready_to_move = lambda _: False
@@ -459,136 +452,44 @@ class Drone(Vehicle):
         duration: float | None = None,
     ) -> None:
         """
-        [NOT SUPPORTED] Not supported on the AERPAW testbed: leaving velocity control calls MAVSDK offboard.stop(), which switches to LOITER/HOLD, and the C-VM filter ends the experiment on that mode change. Works on local SITL.
-
         Set the drone's velocity in NED frame.
 
+        Streams GUIDED velocity setpoints facing the locked heading (see
+        `set_heading`), else the current heading. Returns at once; the velocity
+        holds until `duration` expires or the next movement command. Stopping
+        hovers in place. The drone stays in GUIDED throughout, so this works on
+        the AERPAW testbed, where the C-VM filter limits the speed and refuses
+        a velocity that would leave the geofence within a few seconds.
+
         Args:
-            velocity_vector: Target velocity.
+            velocity_vector: Target velocity; positive down descends.
             global_relative: If True, north/east are world-aligned.
                 If False, they are relative to current heading. Defaults to True.
             duration: How long to maintain this velocity.
                 If None, maintains it until stopped or changed.
 
         Raises:
-            VelocityError: If offboard mode cannot be started, or on the AERPAW
-                testbed, where velocity control is disabled.
+            VelocityError: If the velocity or duration is not finite, or the
+                setpoint cannot be sent.
         """
-        # MAVSDK offboard.stop() sends DO_SET_MODE LOITER on ArduPilot; the
-        # C-VM filter treats that as fatal and drops the experiment.
-        if self._must_avoid_loiter():
-            raise VelocityError("set_velocity is not supported on the AERPAW testbed: leaving velocity control switches the vehicle to LOITER, which the C-VM filter rejects.")
-        await self.await_ready_to_move()
-        self._velocity_generation += 1
-        # Brief wait for previous velocity loop to observe change and exit
-        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
+        await self._start_velocity(velocity_vector, global_relative, duration)
 
-        if not global_relative:
-            velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
+    def _velocity_setpoint(self, velocity_vector: util.VectorNED) -> Any:
+        from aerpawlib._internal.mavlink_ids import make_copter_velocity_message, resolve_mav_sysid
 
         yaw = self._current_heading if self._current_heading is not None else self.heading
-        logger.debug(f"Set velocity: {velocity_vector}, yaw={yaw}")
-        if self._event_log:
-            self._event_log.log_event(
-                "command",
-                type="set_velocity",
-                north_m_s=velocity_vector.north,
-                east_m_s=velocity_vector.east,
-                down_m_s=velocity_vector.down,
-                global_relative=global_relative,
-                duration_s=duration,
-                yaw_deg=yaw,
-            )
+        return make_copter_velocity_message(
+            resolve_mav_sysid(self._system),
+            velocity_vector.north,
+            velocity_vector.east,
+            velocity_vector.down,
+            yaw,
+        )
 
-        try:
-            await self._run_on_mavsdk_loop(
-                self._system.offboard.set_velocity_ned(
-                    VelocityNedYaw(
-                        velocity_vector.north,
-                        velocity_vector.east,
-                        velocity_vector.down,
-                        yaw,
-                    ),
-                ),
-            )
-            try:
-                await self._run_on_mavsdk_loop(self._system.offboard.start())
-                self._offboard_active = True
-            except OffboardError as e:
-                logger.warning("Failed to start offboard mode: %s", e)
+    def _velocity_stop_setpoint(self) -> Any:
+        from aerpawlib._internal.mavlink_ids import make_copter_velocity_message, resolve_mav_sysid
 
-            self._ready_to_move = lambda _: True
-            target_end = time.monotonic() + duration if duration is not None else None
-            gen = self._velocity_generation
-
-            async def _velocity_helper():
-                """Maintain velocity command until cancelled or duration expires."""
-                try:
-                    while self._velocity_generation == gen:
-                        if target_end and time.monotonic() > target_end:
-                            # Zero velocity before stopping offboard to prevent
-                            # the flight controller from holding the last
-                            # commanded velocity vector
-                            try:
-                                await self._run_on_mavsdk_loop(
-                                    self._system.offboard.set_velocity_ned(
-                                        VelocityNedYaw(0, 0, 0, yaw),
-                                    ),
-                                )
-                                await asyncio.sleep(OFFBOARD_STOP_SETTLE_DELAY_S)
-                            except (OffboardError, ActionError):
-                                pass
-                            # A newer set_velocity may have started offboard
-                            # during the settle delay; leave it running.
-                            if self._velocity_generation != gen:
-                                return
-                            try:
-                                await self._run_on_mavsdk_loop(
-                                    self._system.offboard.stop(),
-                                )
-                                self._offboard_active = False
-                            except (OffboardError, ActionError):
-                                logger.warning("Failed to stop offboard mode cleanly")
-                            return
-                        await asyncio.sleep(VELOCITY_UPDATE_DELAY_S)
-                except Exception as e:
-                    logger.error(f"Velocity helper error: {e}")
-                    try:
-                        await self._run_on_mavsdk_loop(
-                            self._system.offboard.set_velocity_ned(
-                                VelocityNedYaw(0, 0, 0, 0),
-                            ),
-                        )
-                        await self._run_on_mavsdk_loop(self._system.offboard.stop())
-                        self._offboard_active = False
-                    except Exception as e:
-                        logger.debug("Velocity helper cleanup failed: %s", e)
-
-            task = asyncio.create_task(_velocity_helper())
-            self._command_tasks.append(task)
-        except (OffboardError, ActionError) as e:
-            raise VelocityError(str(e), original_error=e) from e
-
-    async def _stop(self) -> None:
-        """Stop drone-specific offboard control during shutdown."""
-        await super()._stop()
-        self._velocity_generation += 1
-        # Only exit offboard mode if we were actually running it.
-        # Calling offboard.stop() when not in offboard mode causes ArduPilot
-        # to switch to LOITER, which creates unnecessary GUIDED→LOITER→GUIDED
-        # churn on every waypoint transition.
-        if self._offboard_active:
-            try:
-                await self._run_on_mavsdk_loop(
-                    self._system.offboard.set_velocity_ned(
-                        VelocityNedYaw(0, 0, 0, self.heading),
-                    ),
-                )
-                await self._run_on_mavsdk_loop(self._system.offboard.stop())
-            except Exception as e:
-                logger.debug("Stop offboard cleanup (may not be in offboard): %s", e)
-            finally:
-                self._offboard_active = False
+        return make_copter_velocity_message(resolve_mav_sysid(self._system), 0.0, 0.0, 0.0, self.heading)
 
     async def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode.
