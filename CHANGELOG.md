@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`min_takeoff_alt`.** Optional copter safety config key (default `min_alt`), returned by `get_limitations`. Takeoffs below it are rejected. A takeoff floor above `min_alt` means `takeoff()`, which returns at 95% of the target, only returns once the copter is above `min_alt`, so the C-VM filter accepts velocity commands right away.
+
 ## [1.11.0] (2026-10-21)
 
 ### Summary

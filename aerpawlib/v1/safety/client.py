@@ -211,8 +211,9 @@ class SafetyCheckerClient:
 
         Returns:
             dict: vehicle_type, min_speed, max_speed, max_vertical_speed,
-            min_alt and max_alt (the last three are None for rovers; older
-            servers omit max_vertical_speed).
+            min_alt, min_takeoff_alt and max_alt (the last four are None for
+            rovers; older servers omit max_vertical_speed and
+            min_takeoff_alt).
 
         Raises:
             RuntimeError: If the server does not support the request.

@@ -93,10 +93,11 @@ def test_start_server_unknown_function_request_does_not_crash():
     assert "not_implemented" in response["message"]
 
 
-def test_validate_takeoff_does_not_record_pad():
+def _copter_server(min_takeoff_alt=20):
     server = SafetyCheckerServer.__new__(SafetyCheckerServer)
     server.vehicle_type = "copter"
     server.min_alt = 20
+    server.min_takeoff_alt = min_takeoff_alt
     server.max_alt = 120
     server.include_geofences = [
         [
@@ -108,6 +109,56 @@ def test_validate_takeoff_does_not_record_pad():
     ]
     server.exclude_geofences = []
     server.takeoff_location = None
+    return server
+
+
+def _copter_config(**overrides):
+    config = {
+        "vehicle_type": "copter",
+        "max_speed": 20,
+        "min_speed": 1,
+        "include_geofences": [],
+        "exclude_geofences": [],
+        "max_alt": 120,
+        "min_alt": 20,
+    }
+    config.update(overrides)
+    return config
+
+
+def test_validate_takeoff_does_not_record_pad():
+    server = _copter_server()
     ok, _msg = server.validate_takeoff_command(25.0, 35.729, -78.697)
     assert ok is True
     assert server.takeoff_location is None
+
+
+def test_takeoff_below_min_takeoff_alt_is_rejected():
+    # 22 m is above min_alt but below the takeoff floor.
+    server = _copter_server(min_takeoff_alt=25)
+    ok, msg = server.validate_takeoff_command(22.0, 35.729, -78.697)
+    assert ok is False
+    assert "25" in msg
+    ok, _msg = server.validate_takeoff_command(25.0, 35.729, -78.697)
+    assert ok is True
+
+
+def test_get_limitations_reports_min_takeoff_alt():
+    server = _copter_server(min_takeoff_alt=25)
+    server.min_speed = 1
+    server.max_speed = 20
+    server.max_vertical_speed = 5
+    assert server.get_limitations()["min_takeoff_alt"] == 25
+
+
+def test_config_accepts_min_takeoff_alt_within_limits():
+    server = SafetyCheckerServer.__new__(SafetyCheckerServer)
+    server.validate_config(_copter_config(min_takeoff_alt=25), "copter.yaml")
+    server.validate_config(_copter_config(), "copter.yaml")
+
+
+@pytest.mark.parametrize("value", [10, 130, float("nan")])
+def test_config_rejects_min_takeoff_alt_outside_limits(value):
+    server = SafetyCheckerServer.__new__(SafetyCheckerServer)
+    with pytest.raises(Exception, match="min_takeoff_alt"):
+        server.validate_config(_copter_config(min_takeoff_alt=value), "copter.yaml")
