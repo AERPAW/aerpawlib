@@ -249,9 +249,11 @@ class Drone(Vehicle):
         await self._require_can(self.can_land(), "land", LandingError)
         if self._connection.closed:
             raise RuntimeError("Cannot land: vehicle is closed")
+        self._check_not_taken_over("land")
         if self._will_arm and not self.armed:
             await self._arm_vehicle()
         await self._stop_velocity()
+        self._takeover.note_land()
         if self._event_log:
             self._event_log.log_event("land_start")
         from aerpawlib.cli.progress_bar import update_progress

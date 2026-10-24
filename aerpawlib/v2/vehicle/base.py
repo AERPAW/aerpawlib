@@ -18,6 +18,7 @@ from mavsdk import System
 from mavsdk.action import ActionError
 
 from aerpawlib._internal.mavlink_ids import autopilot_sysid
+from aerpawlib._internal.takeover import TakeoverTracker
 from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v2.constants import (
@@ -46,6 +47,7 @@ from aerpawlib.v2.exceptions import (
     DisarmError,
     NotArmableError,
     PortInUseError,
+    VehicleTakenOverError,
     VelocityError,
 )
 from aerpawlib.v2.log import LogComponent, get_logger
@@ -138,6 +140,7 @@ class Vehicle:
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
         self._velocity = VelocityStream(VELOCITY_UPDATE_DELAY_S)
+        self._takeover = TakeoverTracker()
         self._aerpaw_forwarder_reachable_cache: bool | None = None
 
     def _in_aerpaw(self) -> bool:
@@ -178,6 +181,15 @@ class Vehicle:
     def _must_avoid_loiter(self) -> bool:
         """True when ``action.hold()`` / LOITER (mode 5) would sever the E-VM link."""
         return self._in_aerpaw() or self._aerpaw_forwarder_reachable()
+
+    def _check_not_taken_over(self, action: str) -> None:
+        """Refuse to command a vehicle someone else took out of GUIDED (AERPAW only).
+
+        The C-VM filter ends the experiment on any E-VM command after a
+        takeover; raising here gives the script a clear error instead.
+        """
+        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
+            raise VehicleTakenOverError(self._takeover.message(action))
 
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.
@@ -651,6 +663,7 @@ class Vehicle:
                     return
                 mode_name = mode.name
                 self._state.update_mode(mode_name)
+                self._takeover.update(mode=mode_name)
                 update_telemetry(mode=mode_name)
                 if first[0]:
                     logger.info(
@@ -672,6 +685,7 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_armed(armed)
+                self._takeover.update(armed=armed)
                 update_telemetry(armed=armed)
                 if first[0]:
                     logger.info(f"Telemetry: armed stream active (armed={armed})")
@@ -986,6 +1000,7 @@ class Vehicle:
         """Wait until vehicle is ready for next command."""
         if self._connection.closed:
             raise RuntimeError("Cannot await_ready_to_move: vehicle is closed")
+        self._check_not_taken_over("move")
         if self._will_arm and not self.armed:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
@@ -1071,8 +1086,7 @@ class Vehicle:
         """Build the setpoint that stops this vehicle in GUIDED."""
         raise NotImplementedError(f"{type(self).__name__} does not support set_velocity")
 
-    @staticmethod
-    def _mavlink_sender(system: Any) -> Callable[[Any], Any]:
+    def _mavlink_sender(self, system: Any) -> Callable[[Any], Any]:
         """Return a coroutine function sending a mavlink_direct message via ``system``.
 
         Bound to ``system`` so a stream can still send its stop setpoint after
@@ -1080,6 +1094,7 @@ class Vehicle:
         """
 
         async def send(msg: Any) -> None:
+            self._check_not_taken_over("send a GUIDED command")
             await system.mavlink_direct.send_message(msg)
 
         return send
@@ -1094,6 +1109,7 @@ class Vehicle:
         problem = velocity_problem(velocity.north, velocity.east, velocity.down, duration)
         if problem:
             raise VelocityError(f"set_velocity: {problem}")
+        self._check_not_taken_over("set_velocity")
         await self.await_ready_to_move()
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
@@ -1155,6 +1171,7 @@ class Vehicle:
         """
         if self._connection.closed or self._system is None:
             raise RuntimeError("Cannot set_groundspeed: vehicle is closed")
+        self._check_not_taken_over("set_groundspeed")
         if self.safety is not None:
             ok, msg = await self.safety.validate_change_speed(velocity)
             if not ok:
@@ -1196,6 +1213,9 @@ class Vehicle:
         if velocity is None or not velocity.active or system is None:
             return
         velocity.forget()
+        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
+            # The vehicle isn't in GUIDED; a stop setpoint would only end the experiment.
+            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

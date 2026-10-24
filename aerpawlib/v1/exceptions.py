@@ -233,6 +233,14 @@ class AbortedError(StateError):
         super().__init__(message)
 
 
+class VehicleTakenOverError(StateError):
+    """Raised when commanding a vehicle that a safety pilot, a failsafe, or the
+    C-VM collision hold has taken out of GUIDED (AERPAW testbed only)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 # =============================================================================
 # Validation Errors
 # =============================================================================

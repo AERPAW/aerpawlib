@@ -271,6 +271,15 @@ class InvalidStateNameError(RunnerError):
         super().__init__("State name cannot be empty", **kwargs)
 
 
+class VehicleTakenOverError(StateError):
+    """Raised when commanding a vehicle that a safety pilot, a failsafe, or the
+    C-VM collision hold has taken out of GUIDED (AERPAW testbed only)."""
+
+    def __init__(self, message: str, **kwargs: Any) -> None:
+        kwargs.setdefault("code", "VEHICLE_TAKEN_OVER")
+        super().__init__(message, **kwargs)
+
+
 class UnexpectedDisarmError(StateError):
     """Raised when the vehicle disarms unexpectedly during execution."""
 

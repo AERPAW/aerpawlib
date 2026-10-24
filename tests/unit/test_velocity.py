@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pymavlink import mavutil
 
+from aerpawlib._internal.takeover import TakeoverTracker
 from aerpawlib._internal.velocity import VelocityStream
 from aerpawlib.v1.util import VectorNED as V1VectorNED
 from aerpawlib.v1.vehicle.state import ThreadSafeVehicleState
@@ -54,6 +55,7 @@ def _vehicle(api: str, kind: str, monkeypatch, system):
         cls = Drone if kind == "drone" else Rover
         vehicle = cls.__new__(cls)
         vehicle._velocity = VelocityStream(0.05)
+        vehicle._takeover = TakeoverTracker()
         vehicle._lifecycle = ConnectionLifecycle()
         vehicle._current_heading = None
         vehicle._event_log = None

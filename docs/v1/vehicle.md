@@ -53,6 +53,8 @@ Rover omits copter-only commands (`takeoff`, `land`, `return_to_launch`, `set_he
 
 On the AERPAW testbed the C-VM filter ends the experiment on a velocity over the configured `max_speed` (horizontal) or `max_vertical_speed` (default 5 m/s), on a velocity that would leave the geofence within 4 s, and on a copter velocity command before it first reaches the minimum altitude.
 
+If the safety pilot, a failsafe, or the C-VM collision hold takes an armed vehicle out of GUIDED, aerpawlib stops commanding it until it disarms: a running velocity stream goes quiet, and the next movement command raises `VehicleTakenOverError`. Any command sent after a takeover would make the C-VM filter end the experiment.
+
 ## Errors
 
 | Exception | Action |

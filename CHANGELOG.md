@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **`VehicleTakenOverError` (v1, v2).** On the AERPAW testbed, once an armed vehicle that was in GUIDED reports another mode (safety pilot, failsafe, or the C-VM collision hold), aerpawlib stops commanding it until it disarms: a running `set_velocity` stream goes quiet without a stop setpoint, and `goto`, `takeoff`, `land`, `set_heading`, `set_velocity` and `set_groundspeed` raise `VehicleTakenOverError`. Before, the next command switched back to GUIDED, which the C-VM filter treats as fatal, so the script was cut off with no error. A LAND that aerpawlib commanded is not a takeover. Outside AERPAW nothing changes.
+
 ## [1.12.0] (2026-10-24)
 
 ### Summary

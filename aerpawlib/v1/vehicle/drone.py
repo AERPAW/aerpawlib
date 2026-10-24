@@ -323,6 +323,8 @@ class Drone(Vehicle):
 
     async def land(self) -> None:
         """Land the drone and wait for it to be disarmed."""
+        self._check_not_taken_over("land")
+        self._takeover.note_land()
         await self._action_wait_disarm(self._system.action.land(), "land", LandingError)
 
     async def return_to_launch(self) -> None:

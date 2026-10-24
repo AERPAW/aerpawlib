@@ -171,12 +171,14 @@ async def start_telemetry(vehicle: Vehicle) -> None:
     async def _flight_mode_update() -> None:
         async for mode in vehicle._system.telemetry.flight_mode():
             vehicle._ts_state.mode.set(mode.name)
+            vehicle._takeover.update(mode=mode.name)
             update_telemetry(mode=mode.name)
 
     async def _armed_update() -> None:
         async for armed in vehicle._system.telemetry.armed():
             old_armed = vehicle._ts_state.armed_state.get()
             vehicle._ts_state.armed_state.set(armed)
+            vehicle._takeover.update(armed=armed)
             vehicle._ts_state.armed_telemetry_received.set(True)
             update_telemetry(armed=armed)
             _mark_stream_alive(vehicle, "armed")

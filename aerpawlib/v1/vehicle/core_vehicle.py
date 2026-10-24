@@ -30,6 +30,7 @@ from grpc.aio import AioRpcError
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from aerpawlib._internal.takeover import TakeoverTracker
 from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.v1 import util
 from aerpawlib.v1.aerpaw import AERPAW_Platform
@@ -60,6 +61,7 @@ from aerpawlib.v1.exceptions import (
     NotArmableError,
     NotImplementedForVehicleError,
     PortInUseError,
+    VehicleTakenOverError,
     VelocityError,
 )
 from aerpawlib.v1.helpers import (
@@ -172,6 +174,7 @@ class Vehicle:
         self._telemetry_tasks: list[asyncio.Task] = []
         self._command_tasks: list[asyncio.Task] = []
         self._velocity = VelocityStream(VELOCITY_UPDATE_DELAY_S)
+        self._takeover = TakeoverTracker()
 
         # Event loop for MAVSDK operations (runs in background thread)
         self._mavsdk_loop: asyncio.AbstractEventLoop | None = None
@@ -596,6 +599,15 @@ class Vehicle:
 
         return aerpaw_env_vars_present()
 
+    def _check_not_taken_over(self, action: str) -> None:
+        """Refuse to command a vehicle someone else took out of GUIDED (AERPAW only).
+
+        The C-VM filter ends the experiment on any E-VM command after a
+        takeover; raising here gives the script a clear error instead.
+        """
+        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
+            raise VehicleTakenOverError(self._takeover.message(action))
+
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.
 
@@ -657,6 +669,7 @@ class Vehicle:
 
         Ensures the vehicle is armed and the previous movement has finished.
         """
+        self._check_not_taken_over("move")
         if not self.armed:
             await self._arm_vehicle()
 
@@ -745,6 +758,9 @@ class Vehicle:
         if velocity is None or not velocity.active or system is None or loop is None or not loop.is_running():
             return
         velocity.forget()
+        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
+            # The vehicle isn't in GUIDED; a stop setpoint would only end the experiment.
+            return
         if threading.current_thread() is getattr(self, "_mavsdk_thread", None):
             logger.warning("close() called on the MAVSDK thread; velocity command not stopped (ArduPilot stops after 3 s)")
             return
@@ -1045,6 +1061,7 @@ class Vehicle:
             ValueError: If velocity is out of acceptable range
         """
         logger.debug(f"set_groundspeed({velocity}) called")
+        self._check_not_taken_over("set_groundspeed")
         if self.safety is not None:
             ok, msg = self.safety.validate_change_speed_command(velocity)
             if not ok:
@@ -1070,6 +1087,7 @@ class Vehicle:
         """Return a coroutine function sending a mavlink_direct message via ``system``."""
 
         async def send(msg: Any) -> None:
+            self._check_not_taken_over("send a GUIDED command")
             await self._run_on_mavsdk_loop(system.mavlink_direct.send_message(msg))
 
         return send
@@ -1084,6 +1102,7 @@ class Vehicle:
         problem = velocity_problem(velocity_vector.north, velocity_vector.east, velocity_vector.down, duration)
         if problem:
             raise VelocityError(f"set_velocity: {problem}")
+        self._check_not_taken_over("set_velocity")
         await self.await_ready_to_move()
         if not global_relative:
             velocity_vector = velocity_vector.rotate_by_angle(-self.heading)
