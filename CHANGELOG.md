@@ -4,7 +4,11 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.13.0] (2026-10-24)
+
+### Summary
+
+After a safety pilot, failsafe, or the C-VM collision hold takes a vehicle out of GUIDED on the AERPAW testbed, scripts get `VehicleTakenOverError` instead of being cut off by the C-VM filter.
 
 ### Added
 
