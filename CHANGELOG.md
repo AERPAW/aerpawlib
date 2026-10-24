@@ -4,7 +4,15 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.12.0] (2026-10-24)
+
+### Summary
+
+GUIDED commands sent through `mavlink_direct` reach the vehicle again, and copters on AERPAW take off high enough for velocity control to start right away.
+
+### Fixed
+
+- **Velocity, GUIDED, and yaw commands never reached the vehicle.** `resolve_mav_sysid` fell back to `System._sysid`, which is MAVSDK's own GCS id (245), and MAVSDK drops a message for a system it has no link to. Unless `AP_EXPENV_MAV_SYSID` or `MAV_SYSID` was set, `set_velocity` setpoints, the switch to GUIDED, and condition-yaw were dropped ("Sending message failed"). v1 and v2 now take the system id from the autopilot's SYS_STATUS. Rover velocity integration tests cover it against SITL.
 
 ### Added
 
