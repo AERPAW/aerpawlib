@@ -17,6 +17,7 @@ from pymavlink import mavutil
 
 from aerpawlib._internal.velocity import VelocityStream
 from aerpawlib.v1.util import VectorNED as V1VectorNED
+from aerpawlib.v1.vehicle.state import ThreadSafeVehicleState
 from aerpawlib.v2.types import VectorNED as V2VectorNED
 
 IGNORE_VELOCITY = 0b111000
@@ -24,6 +25,8 @@ IGNORE_YAW = 0b010000000000
 # C-VM filter POSITION_TYPEMASK_CHECK: position and acceleration must be ignored.
 FILTER_MASK = 0b000111000111
 HEADING_DEG = 90.0
+# Seen on the autopilot's SYS_STATUS; deliberately not 1.
+AUTOPILOT_SYSID = 7
 FIRST = (1.0, 2.0, 3.0)
 SECOND = (0.0, -2.0, 0.0)
 CASES = [(api, kind) for api in ("v1", "v2") for kind in ("drone", "rover")]
@@ -32,7 +35,8 @@ CASES = [(api, kind) for api in ("v1", "v2") for kind in ("drone", "rover")]
 def _recording_system() -> tuple[MagicMock, list]:
     sent: list = []
     system = MagicMock()
-    system.sysid = 1
+    # MAVSDK's own GCS id, as on a real System; never the vehicle's.
+    system._sysid = 245
 
     async def send_message(msg):
         sent.append((msg.message_name, json.loads(msg.fields_json)))
@@ -55,6 +59,8 @@ def _vehicle(api: str, kind: str, monkeypatch, system):
         vehicle._event_log = None
         vehicle._command_tasks = []
         vehicle._system = system
+        vehicle._ts_state = ThreadSafeVehicleState()
+        vehicle._ts_state.autopilot_sysid.set(AUTOPILOT_SYSID)
 
         async def _direct(coro):
             return await coro
@@ -67,6 +73,7 @@ def _vehicle(api: str, kind: str, monkeypatch, system):
 
         cls = Drone if kind == "drone" else Rover
         vehicle = cls(system, "udpin://127.0.0.1:14550")
+        vehicle._state.update_autopilot_sysid(AUTOPILOT_SYSID)
         vector_cls = V2VectorNED
 
     async def _ready():
@@ -135,6 +142,23 @@ async def test_velocity_streams_then_stops_in_guided(api, kind, monkeypatch):
     assert stops[0]["type_mask"] & IGNORE_YAW == 0
     assert stops[0]["yaw"] == pytest.approx(math.radians(HEADING_DEG))
     _cancel(vehicle)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("api", "kind"), CASES)
+async def test_setpoints_target_the_autopilot_not_mavsdk(api, kind, monkeypatch):
+    """MAVSDK drops messages for a system it has no link to, so a setpoint
+    addressed to its own GCS id (245) never reaches the vehicle."""
+    monkeypatch.delenv("AP_EXPENV_MAV_SYSID", raising=False)
+    monkeypatch.delenv("MAV_SYSID", raising=False)
+    system, sent = _recording_system()
+    vehicle, vector_cls = _vehicle(api, kind, monkeypatch, system)
+
+    await vehicle.set_velocity(vector_cls(*FIRST), duration=0.2)
+    await _wait_for_stop(kind, sent)
+
+    assert sent
+    assert {fields["target_system"] for _, fields in sent} == {AUTOPILOT_SYSID}
 
 
 @pytest.mark.asyncio

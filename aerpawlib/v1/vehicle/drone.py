@@ -154,7 +154,7 @@ class Drone(Vehicle):
                 resolve_mav_sysid,
             )
 
-            sysid = resolve_mav_sysid(self._system)
+            sysid = resolve_mav_sysid(self._ts_state.autopilot_sysid.get())
             msg = make_condition_yaw_message(sysid, heading)
             await self._run_on_mavsdk_loop(
                 self._system.mavlink_direct.send_message(msg),
@@ -479,7 +479,7 @@ class Drone(Vehicle):
 
         yaw = self._current_heading if self._current_heading is not None else self.heading
         return make_copter_velocity_message(
-            resolve_mav_sysid(self._system),
+            resolve_mav_sysid(self._ts_state.autopilot_sysid.get()),
             velocity_vector.north,
             velocity_vector.east,
             velocity_vector.down,
@@ -489,7 +489,7 @@ class Drone(Vehicle):
     def _velocity_stop_setpoint(self) -> Any:
         from aerpawlib._internal.mavlink_ids import make_copter_velocity_message, resolve_mav_sysid
 
-        return make_copter_velocity_message(resolve_mav_sysid(self._system), 0.0, 0.0, 0.0, self.heading)
+        return make_copter_velocity_message(resolve_mav_sysid(self._ts_state.autopilot_sysid.get()), 0.0, 0.0, 0.0, self.heading)
 
     async def _set_guided_mode(self) -> None:
         """Switch to GUIDED mode.
@@ -524,7 +524,7 @@ class Drone(Vehicle):
 
         from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
 
-        sysid = resolve_mav_sysid(self._system)
+        sysid = resolve_mav_sysid(self._ts_state.autopilot_sysid.get())
         msg = make_set_mode_message(sysid, COPTER_GUIDED_MODE)
 
         start = time.time()

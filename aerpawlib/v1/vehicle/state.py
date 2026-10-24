@@ -39,6 +39,8 @@ class ThreadSafeVehicleState:
         self.home_abs_alt = ThreadSafeValue(0.0)
         self.captured_home = ThreadSafeValue(None)
         self.prearm_checks_ok = ThreadSafeValue(initial_value=False)
+        # Vehicle SYSID, from the autopilot's SYS_STATUS; None until one arrives.
+        self.autopilot_sysid = ThreadSafeValue(None)
         self.ekf_ready = ThreadSafeValue(initial_value=False)
         self.battery_val = ThreadSafeValue(_BatteryCompat())
         self.gps_val = ThreadSafeValue(_GPSInfoCompat())

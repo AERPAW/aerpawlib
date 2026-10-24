@@ -11,6 +11,7 @@ from typing import Any
 # this GCS identity.
 MAVSDK_GCS_SYSID = 245
 MAVSDK_GCS_COMPID = 190
+MAV_COMP_ID_AUTOPILOT1 = 1
 
 
 def resolve_gcs_ids() -> tuple[int, int]:
@@ -201,10 +202,13 @@ def make_rover_stop_message(target_sysid: int, heading_deg: float):
     )
 
 
-def resolve_mav_sysid(system: Any | None = None, default: int = 1) -> int:
-    """Return the vehicle SYSID from env or the MAVSDK system, else *default*.
+def resolve_mav_sysid(vehicle_sysid: int | None = None, default: int = 1) -> int:
+    """Return the vehicle SYSID from env or the autopilot's own messages, else *default*.
 
     Environment (first match wins): ``AP_EXPENV_MAV_SYSID``, ``MAV_SYSID``.
+    ``vehicle_sysid`` is the system id seen on the autopilot's SYS_STATUS. Not
+    ``System._sysid``: that is MAVSDK's own GCS id (245), and MAVSDK drops
+    messages addressed to a system it has no link to.
     """
     for key in ("AP_EXPENV_MAV_SYSID", "MAV_SYSID"):
         raw = os.getenv(key)
@@ -213,12 +217,13 @@ def resolve_mav_sysid(system: Any | None = None, default: int = 1) -> int:
                 return int(raw)
             except ValueError:
                 pass
-    if system is not None:
-        for attr in ("sysid", "_sysid"):
-            val = getattr(system, attr, None)
-            if val:
-                try:
-                    return int(val)
-                except (TypeError, ValueError):
-                    pass
+    if vehicle_sysid:
+        return int(vehicle_sysid)
     return default
+
+
+def autopilot_sysid(message: Any) -> int | None:
+    """System id of a mavlink_direct message if the autopilot sent it, else None."""
+    if getattr(message, "component_id", None) == MAV_COMP_ID_AUTOPILOT1:
+        return message.system_id
+    return None

@@ -84,7 +84,7 @@ class Rover(Vehicle):
         )
         from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
 
-        sysid = resolve_mav_sysid(self._system)
+        sysid = resolve_mav_sysid(self._ts_state.autopilot_sysid.get())
         msg = make_set_mode_message(sysid, ROVER_GUIDED_MODE)
         try:
             # gRPC calls must run on the MAVSDK loop, not the caller's loop.
@@ -237,9 +237,9 @@ class Rover(Vehicle):
 
         if math.hypot(velocity_vector.north, velocity_vector.east) < _STOPPED_SPEED_M_S:
             return self._velocity_stop_setpoint()
-        return make_rover_velocity_message(resolve_mav_sysid(self._system), velocity_vector.north, velocity_vector.east)
+        return make_rover_velocity_message(resolve_mav_sysid(self._ts_state.autopilot_sysid.get()), velocity_vector.north, velocity_vector.east)
 
     def _velocity_stop_setpoint(self) -> Any:
         from aerpawlib._internal.mavlink_ids import make_rover_stop_message, resolve_mav_sysid
 
-        return make_rover_stop_message(resolve_mav_sysid(self._system), self.heading)
+        return make_rover_stop_message(resolve_mav_sysid(self._ts_state.autopilot_sysid.get()), self.heading)

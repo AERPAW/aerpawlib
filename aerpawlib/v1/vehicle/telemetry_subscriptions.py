@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from aerpawlib._internal.mavlink_ids import autopilot_sysid
 from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v1 import util
 from aerpawlib.v1.constants import EKF_READY_FLAGS, MAV_SYS_STATUS_PREARM_CHECK, MAX_TELEMETRY_RETRIES
@@ -195,6 +196,9 @@ async def start_telemetry(vehicle: Vehicle) -> None:
 
     async def _mavlink_status_update() -> None:
         async for msg in vehicle._system.mavlink_direct.message("SYS_STATUS"):
+            sysid = autopilot_sysid(msg)
+            if sysid:
+                vehicle._ts_state.autopilot_sysid.set(sysid)
             try:
                 fields = json.loads(msg.fields_json)
                 health = fields.get("onboard_control_sensors_health", 0)

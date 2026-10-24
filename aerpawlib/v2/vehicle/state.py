@@ -56,6 +56,17 @@ class VehicleState:
         self._armed_telemetry_received: bool = False
         self._prearm_checks_ok: bool = False
         self._ekf_ready: bool = False
+        # Vehicle SYSID, from the autopilot's SYS_STATUS; None until one arrives.
+        self._autopilot_sysid: int | None = None
+
+    @property
+    def autopilot_sysid(self) -> int | None:
+        """Return the vehicle's MAVLink system id, or None before SYS_STATUS arrives."""
+        return self._autopilot_sysid
+
+    def update_autopilot_sysid(self, sysid: int) -> None:
+        """Record the system id seen on the autopilot's SYS_STATUS."""
+        self._autopilot_sysid = sysid
 
     @property
     def ekf_ready(self) -> bool:

@@ -78,7 +78,7 @@ class Rover(Vehicle):
         try:
             from aerpawlib._internal.mavlink_ids import make_set_mode_message, resolve_mav_sysid
 
-            sysid = resolve_mav_sysid(self._system)
+            sysid = resolve_mav_sysid(self._state.autopilot_sysid)
             msg = make_set_mode_message(sysid, ROVER_GUIDED_MODE)
             await self._system.mavlink_direct.send_message(msg)
         except Exception as e:
@@ -244,9 +244,9 @@ class Rover(Vehicle):
 
         if math.hypot(velocity.north, velocity.east) < _STOPPED_SPEED_M_S:
             return self._velocity_stop_setpoint()
-        return make_rover_velocity_message(resolve_mav_sysid(self._system), velocity.north, velocity.east)
+        return make_rover_velocity_message(resolve_mav_sysid(self._state.autopilot_sysid), velocity.north, velocity.east)
 
     def _velocity_stop_setpoint(self) -> Any:
         from aerpawlib._internal.mavlink_ids import make_rover_stop_message, resolve_mav_sysid
 
-        return make_rover_stop_message(resolve_mav_sysid(self._system), self.heading)
+        return make_rover_stop_message(resolve_mav_sysid(self._state.autopilot_sysid), self.heading)

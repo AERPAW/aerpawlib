@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from mavsdk import System
 from mavsdk.action import ActionError
 
+from aerpawlib._internal.mavlink_ids import autopilot_sysid
 from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v2.constants import (
@@ -733,6 +734,9 @@ class Vehicle:
             async for msg in self._system.mavlink_direct.message("SYS_STATUS"):
                 if self._connection.closed:
                     return
+                sysid = autopilot_sysid(msg)
+                if sysid:
+                    self._state.update_autopilot_sysid(sysid)
                 try:
                     fields = json.loads(msg.fields_json)
                     health = fields.get("onboard_control_sensors_health", 0)
