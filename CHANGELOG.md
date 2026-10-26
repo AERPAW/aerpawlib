@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - **Off-pad land ended the session (v1, v2).** `land()` now raises `LandingError` without sending LAND when the drone is more than 4.5 m from where it took off, so the script can fly back while the drone keeps hovering in GUIDED. Before, the safety checker's 5 m landing check never ran: since 1.10.0 nothing recorded a takeoff location, so every land was sent, and the C-VM filter aborted any land more than 5 m from its pad. The drone records its pad at the first takeoff after arming and clears it once a land completes. `return_to_launch` now lands in place after a failed home goto only within the same 4.5 m.
+- **v1 `--no-aerpaw-environment` on a live E-VM.** v1 now refuses to start, as v2 already did, when the `AP_EXPENV_*` variables are set and the OEO forwarder answers ping. Before, it ran in standalone mode with no AERPAW platform and, unless a safety-checker port or IP was passed, no E-VM safety checker.
 
 ## [1.13.0] (2026-10-24)
 

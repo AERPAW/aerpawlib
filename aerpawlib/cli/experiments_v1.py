@@ -130,6 +130,27 @@ def run_v1_experiment(
         logger.error(f"Invalid vehicle type: {args.vehicle}")
         raise Exception("Please specify a valid vehicle type")
 
+    if getattr(args, "no_aerpaw_environment", False):
+        from aerpawlib._internal.aerpaw_ping import (
+            aerpaw_env_vars_present,
+            ping_forward_server,
+        )
+        from aerpawlib.v1.constants import (
+            AERPAW_PING_TIMEOUT_S,
+            DEFAULT_FORWARD_SERVER_IP,
+            DEFAULT_FORWARD_SERVER_PORT,
+        )
+
+        if aerpaw_env_vars_present() and ping_forward_server(
+            DEFAULT_FORWARD_SERVER_IP,
+            DEFAULT_FORWARD_SERVER_PORT,
+            AERPAW_PING_TIMEOUT_S,
+        ):
+            logger.critical(
+                f"--no-aerpaw-environment is SITL-only, but the AERPAW OEO forwarder at {DEFAULT_FORWARD_SERVER_IP}:{DEFAULT_FORWARD_SERVER_PORT} answered ping. Refusing to start: this flag would skip the AERPAW platform and the E-VM safety checker.",
+            )
+            sys.exit(1)
+
     logger.info("Starting experiment execution (v1)")
 
     async def run_experiment_async() -> bool:
