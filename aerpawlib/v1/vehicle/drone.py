@@ -55,9 +55,13 @@ _COINCIDENT_DISTANCE_M = 0.01
 # Arrival checks altitude separately from the horizontal tolerance, with at
 # least this much vertical slack.
 _ARRIVAL_MIN_ALT_TOLERANCE_M = 3.0
+# The C-VM filter aborts a land more than 5 m from the pad it recorded at
+# takeoff. land() refuses before sending past this, leaving slack for the
+# drone drifting while telemetry catches up.
+_LAND_MAX_FROM_PAD_M = 4.5
 # return_to_launch only lands in place after a failed home goto when this
-# close to home (the C-VM filter rejects a land > 5 m from the pad).
-_RTL_LAND_IN_PLACE_MAX_M = 5.0
+# close to home.
+_RTL_LAND_IN_PLACE_MAX_M = _LAND_MAX_FROM_PAD_M
 
 
 def _is_valid_takeoff_altitude(altitude: float) -> bool:
@@ -89,6 +93,9 @@ class Drone(Vehicle):
             NotArmableError: If the vehicle is already armed (safety check).
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
+        # Ground position at the first takeoff since the last land; mirrors
+        # the pad the C-VM filter pins landing to.
+        self._takeoff_pad: util.Coordinate | None = None
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._ts_state.armed_telemetry_received.get():
@@ -201,6 +208,7 @@ class Drone(Vehicle):
             )
         if not _is_valid_takeoff_altitude(target_alt):
             raise TakeoffError(f"Takeoff altitude must be a finite value > 0 m (got {target_alt!r})")
+        was_armed = self.armed
         if not (isinstance(min_alt_tolerance, (int, float)) and 0 < min_alt_tolerance <= 1):
             raise TakeoffError(f"min_alt_tolerance must be in (0, 1] (got {min_alt_tolerance!r})")
         if not self.armed:
@@ -251,7 +259,12 @@ class Drone(Vehicle):
             await self._run_on_mavsdk_loop(
                 self._system.action.set_takeoff_altitude(target_alt),
             )
+            ground = self.position
             await self._run_on_mavsdk_loop(self._system.action.takeoff())
+            # The filter keeps its pad until disarm, so a takeoff while
+            # already airborne does not move it.
+            if self._takeoff_pad is None or not was_armed:
+                self._takeoff_pad = ground
 
             # Non-finite altitude samples never count as reached.
             self._ready_to_move = lambda s: math.isfinite(s.position.alt) and s.position.alt >= target_alt * min_alt_tolerance
@@ -322,10 +335,22 @@ class Drone(Vehicle):
             update_progress(state="")
 
     async def land(self) -> None:
-        """Land the drone and wait for it to be disarmed."""
+        """Land the drone and wait for it to be disarmed.
+
+        Raises:
+            LandingError: If the drone is more than 4.5 m from where it took
+                off (the C-VM filter would abort the land), or the land fails.
+        """
         self._check_not_taken_over("land")
+        if self._takeoff_pad is not None:
+            away = self.position.ground_distance(self._takeoff_pad)
+            if not away <= _LAND_MAX_FROM_PAD_M:
+                raise LandingError(
+                    f"{away:.1f} m from the takeoff pad (limit {_LAND_MAX_FROM_PAD_M} m); fly back to the pad before landing",
+                )
         self._takeover.note_land()
         await self._action_wait_disarm(self._system.action.land(), "land", LandingError)
+        self._takeoff_pad = None
 
     async def return_to_launch(self) -> None:
         """Fly to home coordinates and land (RTL mode is not used)."""

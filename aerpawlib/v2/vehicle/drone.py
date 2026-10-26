@@ -46,9 +46,13 @@ _COINCIDENT_DISTANCE_M = 0.01
 # Arrival checks altitude separately from the horizontal tolerance, with at
 # least this much vertical slack.
 _ARRIVAL_MIN_ALT_TOLERANCE_M = 3.0
+# The C-VM filter aborts a land more than 5 m from the pad it recorded at
+# takeoff. land() refuses before sending past this, leaving slack for the
+# drone drifting while telemetry catches up.
+_LAND_MAX_FROM_PAD_M = 4.5
 # return_to_launch only lands in place after a failed home goto when this
-# close to home (the C-VM filter rejects a land > 5 m from the pad).
-_RTL_LAND_IN_PLACE_MAX_M = 5.0
+# close to home.
+_RTL_LAND_IN_PLACE_MAX_M = _LAND_MAX_FROM_PAD_M
 
 
 class Drone(Vehicle):
@@ -58,6 +62,9 @@ class Drone(Vehicle):
         """Initialise the Drone, forwarding all arguments to Vehicle."""
         super().__init__(*args, **kwargs)
         self._current_heading: float | None = None
+        # Ground position at the first takeoff since the last land; mirrors
+        # the pad the C-VM filter pins landing to.
+        self._takeoff_pad: Coordinate | None = None
 
     def _standalone_arm_wait_ekf(self) -> bool:
         return True
@@ -162,6 +169,7 @@ class Drone(Vehicle):
             raise TakeoffError(bad_alt)
         if not (isinstance(min_alt_tolerance, (int, float)) and 0 < min_alt_tolerance <= 1):
             raise TakeoffError(f"min_alt_tolerance must be in (0, 1] (got {min_alt_tolerance!r})")
+        was_armed = self.armed
         try:
             await self._await_preflight_for_takeoff()
         except TimeoutError as e:
@@ -187,7 +195,12 @@ class Drone(Vehicle):
                 altitude,
             )
             await self._system.action.set_takeoff_altitude(altitude)
+            ground = self.position
             await self._system.action.takeoff()
+            # The filter keeps its pad until disarm, so a takeoff while
+            # already airborne does not move it.
+            if self._takeoff_pad is None or not was_armed:
+                self._takeoff_pad = ground
             # Non-finite altitude samples never count as reached.
             self._set_move_gate(
                 gen,
@@ -235,7 +248,9 @@ class Drone(Vehicle):
         """Command the drone to land and wait for disarm.
 
         Raises:
-            LandingError: If the land command fails or times out.
+            LandingError: If the drone is more than 4.5 m from where it took
+                off (the C-VM filter would abort the land), or the land
+                command fails or times out.
 
         Note:
             Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_LAND (21). This is
@@ -250,6 +265,12 @@ class Drone(Vehicle):
         if self._connection.closed:
             raise RuntimeError("Cannot land: vehicle is closed")
         self._check_not_taken_over("land")
+        if self._takeoff_pad is not None:
+            away = self.position.ground_distance(self._takeoff_pad)
+            if not away <= _LAND_MAX_FROM_PAD_M:
+                raise LandingError(
+                    f"{away:.1f} m from the takeoff pad (limit {_LAND_MAX_FROM_PAD_M} m); fly back to the pad before landing",
+                )
         if self._will_arm and not self.armed:
             await self._arm_vehicle()
         await self._stop_velocity()
@@ -270,6 +291,7 @@ class Drone(Vehicle):
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message="Drone: land timed out waiting for disarm",
             )
+            self._takeoff_pad = None
             if self._event_log:
                 self._event_log.log_event("land_complete")
         except (ActionError, TimeoutError) as e:

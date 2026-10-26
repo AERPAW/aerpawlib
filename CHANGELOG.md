@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Off-pad land ended the session (v1, v2).** `land()` now raises `LandingError` without sending LAND when the drone is more than 4.5 m from where it took off, so the script can fly back while the drone keeps hovering in GUIDED. Before, the safety checker's 5 m landing check never ran: since 1.10.0 nothing recorded a takeoff location, so every land was sent, and the C-VM filter aborted any land more than 5 m from its pad. The drone records its pad at the first takeoff after arming and clears it once a land completes. `return_to_launch` now lands in place after a failed home goto only within the same 4.5 m.
+
 ## [1.13.0] (2026-10-24)
 
 ### Summary
