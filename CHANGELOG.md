@@ -4,11 +4,11 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.14.0] (2026-10-27)
 
 ### Summary
 
-The C-VM filter is the authority on what a vehicle may do. aerpawlib no longer keeps its own copies of the filter's landing-pad and takeover rules; the safety checker holds the filter's view (the filter reports its pad and any takeover), and aerpawlib asks it before each command. Needs the matching C-VM filter and safety checker from AERPAW-Dev.
+The C-VM filter is the authority on what a vehicle may do. aerpawlib no longer keeps its own copies of the filter's landing-pad and takeover rules; the safety checker holds the filter's view (the filter reports its pad and any takeover, on a port only the C-VM can reach), and aerpawlib asks it before each command. Needs the matching C-VM filter and safety checker from AERPAW-Dev.
 
 ### Added
 
