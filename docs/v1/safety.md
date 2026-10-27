@@ -54,12 +54,14 @@ The C-VM filter is the authority on what the vehicle may do; the server answers 
 
 - Just before it exits, the filter reports why (`report_filter_abort`, cleared when it starts). `get_filter_status` returns `aborted`, `reason` and `age_s`, so an E-VM whose link was cut can find out why.
 
+The `report_*` requests are accepted only on the server's filter port (`--filter_port`, default 14581), which listens on loopback only, so only a process on the C-VM can report. The E-VM's port (`--port`, every interface) refuses them.
+
 KML paths resolve relative to the YAML file location.
 
 ### Server CLI
 
 ```bash
-aerpawlib-safety-checker --port 14580 --vehicle_config config.yaml
+aerpawlib-safety-checker --port 14580 --vehicle_config config.yaml  # filter port: 127.0.0.1:14581
 ```
 
 ## Errors

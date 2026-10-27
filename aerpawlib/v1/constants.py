@@ -337,7 +337,10 @@ GPS_3D_FIX_TYPE = 3
 # Safety Server Constants
 
 DEFAULT_SAFETY_SERVER_PORT = 14580
-"""Default port for safety checker server"""
+"""Default port for safety checker server (the E-VM's; refuses the C-VM filter's report requests)"""
+
+DEFAULT_SAFETY_FILTER_PORT = 14581
+"""Default loopback-only port for the C-VM filter, the only one that accepts its report requests"""
 
 DEFAULT_MAX_VERTICAL_SPEED_M_S = 5.0
 """Copter vertical velocity limit when the safety config sets no max_vertical_speed"""

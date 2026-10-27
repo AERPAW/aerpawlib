@@ -7,7 +7,8 @@ safety validation requests to the checker server.
 Capabilities:
 - Submit waypoint, speed, takeoff, landing, velocity, and GUIDED-command
   validation requests.
-- Report the C-VM filter's landing pad and takeovers (used by the filter).
+- Report the C-VM filter's landing pad and takeovers (used by the filter; the
+  server accepts reports only on its loopback filter port).
 - Serialize requests using the safety wire format helpers.
 - Use bounded send/receive timeouts to avoid indefinite blocking.
 
@@ -246,7 +247,8 @@ class SafetyCheckerClient:
     def report_takeoff_location(self, lat: float | None, lon: float | None) -> tuple[bool, str]:
         """
         Set the landing pad validate_landing_command checks against, or clear
-        it with None. For the C-VM filter, the authority on the pad.
+        it with None. For the C-VM filter, the authority on the pad; refused
+        except on the server's filter port.
         """
         resp = self.send_request(serialize_request(REPORT_TAKEOFF_LOCATION_REQ, [lat, lon]))
         return self.parse_response(resp)
@@ -254,7 +256,8 @@ class SafetyCheckerClient:
     def report_takeover(self, reason: str | None) -> tuple[bool, str]:
         """
         Record why the vehicle is taken over, or clear it with None. For the
-        C-VM filter, the authority on takeovers.
+        C-VM filter, the authority on takeovers; refused except on the
+        server's filter port.
         """
         resp = self.send_request(serialize_request(REPORT_TAKEOVER_REQ, [reason]))
         return self.parse_response(resp)
@@ -262,7 +265,8 @@ class SafetyCheckerClient:
     def report_filter_abort(self, reason: str | None) -> tuple[bool, str]:
         """
         Record why the C-VM filter is exiting, or clear it with None. For the
-        filter, so the E-VM can learn why its MAVLink link was cut.
+        filter, so the E-VM can learn why its MAVLink link was cut; refused
+        except on the server's filter port.
         """
         resp = self.send_request(serialize_request(REPORT_FILTER_ABORT_REQ, [reason]))
         return self.parse_response(resp)

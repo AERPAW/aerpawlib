@@ -8,19 +8,18 @@ from aerpawlib.v1.safety import (
 
 
 class _FakeSocket:
-    def __init__(self):
-        self._recv_count = 0
+    """A REP socket that has the given requests waiting."""
+
+    def __init__(self, *requests):
+        self._requests = list(requests)
+        self.bound = []
         self.sent = []
 
-    def bind(self, _addr):
-        return None
+    def bind(self, addr):
+        self.bound.append(addr)
 
     def recv(self):
-        self._recv_count += 1
-        if self._recv_count == 1:
-            # Not valid compressed payload; deserialize_msg should fail.
-            return b"not-a-zlib-payload"
-        raise KeyboardInterrupt()
+        return self._requests.pop(0)
 
     def send(self, msg):
         self.sent.append(msg)
@@ -30,67 +29,112 @@ class _FakeSocket:
 
 
 class _FakeContext:
-    def __init__(self, socket_obj):
-        self._socket_obj = socket_obj
+    def __init__(self, *sockets):
+        self._sockets = list(sockets)
 
     def socket(self, _socket_type):
-        return self._socket_obj
+        return self._sockets.pop(0)
 
     def term(self):
         return None
 
 
-def test_start_server_handles_malformed_request_without_crashing():
-    fake_socket = _FakeSocket()
-    fake_context = _FakeContext(fake_socket)
+class _FakePoller:
+    """Reports every registered socket ready once, then stops the loop."""
 
+    def __init__(self):
+        self.registered = []
+        self._polled = False
+
+    def register(self, socket, _flags):
+        self.registered.append(socket)
+
+    def poll(self):
+        if self._polled:
+            raise KeyboardInterrupt()
+        self._polled = True
+        return [(socket, 1) for socket in self.registered]
+
+
+def _reporting_server():
+    server = SafetyCheckerServer.__new__(SafetyCheckerServer)
+    server.takeoff_location = None
+    server.taken_over_reason = None
+    server.REQUEST_FUNCTIONS = {"report_takeover_req": server.report_takeover_handler}
+    return server
+
+
+def _reply(socket):
+    assert len(socket.sent) == 1
+    return deserialize_msg(socket.sent[0])
+
+
+def test_handle_request_answers_a_malformed_request():
+    socket = _FakeSocket(b"not-a-zlib-payload")
     server = SafetyCheckerServer.__new__(SafetyCheckerServer)
     server.REQUEST_FUNCTIONS = {}
 
-    with pytest.raises(KeyboardInterrupt):
-        server.start_server(14580, context_factory=lambda: fake_context)
+    server.handle_request(socket, from_filter=False)
 
-    assert len(fake_socket.sent) == 1
-    response = deserialize_msg(fake_socket.sent[0])
+    response = _reply(socket)
     assert response["result"] is False
     assert "Server error" in response["message"]
 
 
-class _UnknownFunctionSocket:
-    def __init__(self):
-        self._recv_count = 0
-        self.sent = []
-
-    def bind(self, _addr):
-        return None
-
-    def recv(self):
-        self._recv_count += 1
-        if self._recv_count == 1:
-            return serialize_request("not_implemented", [])
-        raise KeyboardInterrupt()
-
-    def send(self, msg):
-        self.sent.append(msg)
-
-    def close(self):
-        return None
-
-
-def test_start_server_unknown_function_request_does_not_crash():
-    fake_socket = _UnknownFunctionSocket()
-    fake_context = _FakeContext(fake_socket)
-
+def test_handle_request_answers_an_unknown_request():
+    socket = _FakeSocket(serialize_request("not_implemented", []))
     server = SafetyCheckerServer.__new__(SafetyCheckerServer)
     server.REQUEST_FUNCTIONS = {}
 
-    with pytest.raises(KeyboardInterrupt):
-        server.start_server(14581, context_factory=lambda: fake_context)
+    server.handle_request(socket, from_filter=False)
 
-    assert len(fake_socket.sent) == 1
-    response = deserialize_msg(fake_socket.sent[0])
+    response = _reply(socket)
     assert response["result"] is False
     assert "not_implemented" in response["message"]
+
+
+@pytest.mark.parametrize("request_function", sorted(SafetyCheckerServer.FILTER_ONLY_REQUESTS))
+def test_evm_port_refuses_filter_reports(request_function):
+    socket = _FakeSocket(serialize_request(request_function, [None, None]))
+    server = _reporting_server()
+    server.report_takeover("mode LOITER (operator)")
+
+    server.handle_request(socket, from_filter=False)
+
+    response = _reply(socket)
+    assert response["result"] is False
+    assert "only from the C-VM filter" in response["message"]
+    assert server.taken_over_reason == "mode LOITER (operator)"
+
+
+def test_filter_port_accepts_filter_reports():
+    socket = _FakeSocket(serialize_request("report_takeover_req", ["mode LOITER (operator)"]))
+    server = _reporting_server()
+
+    server.handle_request(socket, from_filter=True)
+
+    assert _reply(socket)["result"] is True
+    assert server.taken_over_reason == "mode LOITER (operator)"
+
+
+def test_start_server_binds_the_filter_port_to_loopback_and_serves_both():
+    evm_socket = _FakeSocket(serialize_request("report_takeover_req", [None]))
+    filter_socket = _FakeSocket(serialize_request("report_takeover_req", ["mode LOITER (operator)"]))
+    server = _reporting_server()
+
+    with pytest.raises(KeyboardInterrupt):
+        server.start_server(
+            14580,
+            14581,
+            context_factory=lambda: _FakeContext(evm_socket, filter_socket),
+            poller_factory=_FakePoller,
+        )
+
+    assert evm_socket.bound == ["tcp://*:14580"]
+    assert filter_socket.bound == ["tcp://127.0.0.1:14581"]
+    assert _reply(filter_socket)["result"] is True
+    assert _reply(evm_socket)["result"] is False
+    assert server.taken_over_reason == "mode LOITER (operator)"
 
 
 def _copter_server(min_takeoff_alt=20):

@@ -15,6 +15,9 @@ Capabilities:
 Usage:
 - Run the server as a sidecar process and point `SafetyCheckerClient` instances
   at its host/port.
+- The server listens on two ports: `server_port` on every interface for the
+  E-VM, which refuses the filter's report requests, and `filter_port` on
+  loopback only for the C-VM filter, which accepts every request.
 
 Notes:
 - Request payloads use the compressed JSON format defined in
@@ -38,6 +41,7 @@ from aerpawlib.v1.constants import (
     ALT_LIMIT_MARGIN_M,
     COMMANDED_SPEED_TOLERANCE_M_S,
     DEFAULT_MAX_VERTICAL_SPEED_M_S,
+    DEFAULT_SAFETY_FILTER_PORT,
     DEFAULT_SAFETY_SERVER_PORT,
     GET_FILTER_STATUS_REQ,
     GET_LIMITATIONS_REQ,
@@ -104,19 +108,26 @@ class SafetyCheckerServer:
         "exclude_geofences",
     ]
     REQUIRED_COPTER_PARAMS: ClassVar[list[str]] = ["max_alt", "min_alt"]
+    FILTER_ONLY_REQUESTS: ClassVar[frozenset[str]] = frozenset(
+        {REPORT_TAKEOFF_LOCATION_REQ, REPORT_TAKEOVER_REQ, REPORT_FILTER_ABORT_REQ},
+    )
+    """Requests that change the filter's view; accepted only on the filter port."""
 
     def __init__(
         self,
         vehicle_config_filename: str,
         server_port: int = DEFAULT_SAFETY_SERVER_PORT,
+        filter_port: int = DEFAULT_SAFETY_FILTER_PORT,
     ) -> None:
         """
         Initialize the safety checker server and start listening.
 
         Args:
             vehicle_config_filename: Path to the YAML configuration file.
-            server_port: Port to bind the server to. Defaults to
+            server_port: Port for the E-VM, on every interface. Defaults to
                 DEFAULT_SAFETY_SERVER_PORT.
+            filter_port: Loopback-only port for the C-VM filter. Defaults to
+                DEFAULT_SAFETY_FILTER_PORT.
         """
         self.REQUEST_FUNCTIONS = {
             SERVER_STATUS_REQ: self.server_status_handler,
@@ -158,63 +169,103 @@ class SafetyCheckerServer:
             self.min_takeoff_alt = config.get("min_takeoff_alt", self.min_alt)
             self.max_vertical_speed = config.get("max_vertical_speed", DEFAULT_MAX_VERTICAL_SPEED_M_S)
 
-        self.start_server(server_port)
+        self.start_server(server_port, filter_port)
 
     def start_server(
         self,
         port: int,
+        filter_port: int = DEFAULT_SAFETY_FILTER_PORT,
         *,
         context_factory: Callable[[], Any] | None = None,
+        poller_factory: Callable[[], Any] | None = None,
     ) -> None:
         """
         Start the ZMQ server loop. Blocks until the program is terminated.
 
         Args:
-            port: The port to bind to.
+            port: The E-VM's port, bound on every interface. Refuses
+                FILTER_ONLY_REQUESTS.
+            filter_port: The C-VM filter's port, bound on loopback only.
+                Accepts every request.
             context_factory: Optional callable returning a ZMQ-like context with
                 ``socket(type)`` and ``term()`` (for tests). Defaults to
                 ``zmq.Context``.
+            poller_factory: Optional callable returning a ZMQ-like poller with
+                ``register(socket, flags)`` and ``poll()`` (for tests).
+                Defaults to ``zmq.Poller``.
         """
         ctx_factory = zmq.Context if context_factory is None else context_factory
         context = ctx_factory()
-        socket = context.socket(zmq.REP)
-        socket.bind(f"tcp://*:{port}")
+        evm_socket = context.socket(zmq.REP)
+        filter_socket = context.socket(zmq.REP)
+        evm_socket.bind(f"tcp://*:{port}")
+        filter_socket.bind(f"tcp://127.0.0.1:{filter_port}")
+        poller = (zmq.Poller if poller_factory is None else poller_factory)()
+        poller.register(filter_socket, zmq.POLLIN)
+        poller.register(evm_socket, zmq.POLLIN)
 
         logger.info("waiting for messages")
 
         try:
             while True:
-                function_name = "unknown"
-                try:
-                    raw_msg = socket.recv()
-                    message = deserialize_msg(raw_msg)
-                    logger.debug(f"Received ZMQ message: {message}")
-                    function_name = message.get("request_function", "unknown")
-                    req_function = self.REQUEST_FUNCTIONS[function_name]
-                    params = message.get("params")
-                    if params is None:
-                        response = req_function()
-                    else:
-                        response = req_function(*params)
-                    socket.send(response)
-                except KeyError:
-                    error_resp = serialize_response(
+                ready = dict(poller.poll())
+                # One request per ready socket per pass, so a flood on the
+                # E-VM's port can't keep the filter waiting.
+                if filter_socket in ready:
+                    self.handle_request(filter_socket, from_filter=True)
+                if evm_socket in ready:
+                    self.handle_request(evm_socket, from_filter=False)
+        finally:
+            evm_socket.close()
+            filter_socket.close()
+            context.term()
+
+    def handle_request(self, socket: Any, *, from_filter: bool) -> None:
+        """
+        Receive one request on ``socket`` and send its reply.
+
+        Args:
+            socket: A REP socket with a request waiting.
+            from_filter: True for the C-VM filter's port; FILTER_ONLY_REQUESTS
+                are refused on any other.
+        """
+        function_name = "unknown"
+        try:
+            raw_msg = socket.recv()
+            message = deserialize_msg(raw_msg)
+            logger.debug(f"Received ZMQ message: {message}")
+            function_name = message.get("request_function", "unknown")
+            if function_name in self.FILTER_ONLY_REQUESTS and not from_filter:
+                socket.send(
+                    serialize_response(
                         request_function=function_name,
                         result=False,
-                        message=(f"Unimplemented or missing function request <{function_name}>"),
-                    )
-                    socket.send(error_resp)
-                except Exception as e:
-                    logger.debug("Safety checker server handler error: %s", e)
-                    error_resp = serialize_response(
-                        request_function="unknown",
-                        result=False,
-                        message=f"Server error: {e}",
-                    )
-                    socket.send(error_resp)
-        finally:
-            socket.close()
-            context.term()
+                        message=f"<{function_name}> is accepted only from the C-VM filter.",
+                    ),
+                )
+                return
+            req_function = self.REQUEST_FUNCTIONS[function_name]
+            params = message.get("params")
+            if params is None:
+                response = req_function()
+            else:
+                response = req_function(*params)
+            socket.send(response)
+        except KeyError:
+            error_resp = serialize_response(
+                request_function=function_name,
+                result=False,
+                message=(f"Unimplemented or missing function request <{function_name}>"),
+            )
+            socket.send(error_resp)
+        except Exception as e:
+            logger.debug("Safety checker server handler error: %s", e)
+            error_resp = serialize_response(
+                request_function="unknown",
+                result=False,
+                message=f"Server error: {e}",
+            )
+            socket.send(error_resp)
 
     def validate_config(self, config: dict, vehicle_config_filename: str) -> None:
         """
@@ -789,8 +840,14 @@ def main_cli() -> None:
     parser = ArgumentParser(description="safety - Launch a safety server")
     parser.add_argument(
         "--port",
-        help="Port for communication between client and server",
+        help="Port for the E-VM's requests, on every interface",
         required=True,
+        type=int,
+    )
+    parser.add_argument(
+        "--filter_port",
+        help=f"Loopback-only port for the C-VM filter, the only one that accepts its reports (default {DEFAULT_SAFETY_FILTER_PORT})",
+        default=DEFAULT_SAFETY_FILTER_PORT,
         type=int,
     )
     parser.add_argument(
@@ -800,7 +857,7 @@ def main_cli() -> None:
     )
     args, _ = parser.parse_known_args()
 
-    SafetyCheckerServer(args.vehicle_config, server_port=args.port)
+    SafetyCheckerServer(args.vehicle_config, server_port=args.port, filter_port=args.filter_port)
 
 
 # Backward-compatible camelCase aliases.

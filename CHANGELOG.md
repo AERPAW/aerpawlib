@@ -20,6 +20,7 @@ The C-VM filter is the authority on what a vehicle may do. aerpawlib no longer k
 
 ### Changed
 
+- **The safety checker accepts the filter's reports only on a loopback port.** `aerpawlib-safety-checker` now also listens on `--filter_port` (default 14581, `127.0.0.1` only), which accepts every request. `--port` (14580, every interface, the E-VM's) refuses `report_takeoff_location`, `report_takeover` and `report_filter_abort`, so an E-VM can't clear a takeover, move the pad or hide an abort. The C-VM filter connects to the filter port. The server serves one request from each port in turn, so a flood on the E-VM's port can't keep the filter waiting.
 - **Off-pad land is the safety checker's call (v1, v2).** `land()` sends LAND unless the safety checker refuses it, which it does more than 5 m from the pad the C-VM filter reported. aerpawlib no longer records its own pad or refuses past 4.5 m. `return_to_launch` lands in place after a failed home goto only if the safety checker accepts the land there.
 - **Takeovers come from the safety checker (v1, v2).** `VehicleTakenOverError` is raised when the checker reports a takeover, not from aerpawlib's own reading of mode and armed telemetry. Without a safety checker (local SITL) nothing is refused.
 
