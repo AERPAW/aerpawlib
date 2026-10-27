@@ -18,7 +18,6 @@ from mavsdk import System
 from mavsdk.action import ActionError
 
 from aerpawlib._internal.mavlink_ids import autopilot_sysid
-from aerpawlib._internal.takeover import TakeoverTracker
 from aerpawlib._internal.velocity import VelocityStream, velocity_problem
 from aerpawlib.cli.progress_bar import update_telemetry
 from aerpawlib.v2.constants import (
@@ -39,6 +38,8 @@ from aerpawlib.v2.constants import (
     POSITION_READY_TIMEOUT_S,
     POST_ARM_STABILIZE_DELAY_S,
     READY_MOVE_LOG_INTERVAL_S,
+    TAKEN_OVER_MESSAGE,
+    VELOCITY_REVALIDATE_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
 )
 from aerpawlib.v2.exceptions import (
@@ -140,7 +141,6 @@ class Vehicle:
         self._event_log: Any | None = None
         self._aerpaw_platform = aerpaw_platform
         self._velocity = VelocityStream(VELOCITY_UPDATE_DELAY_S)
-        self._takeover = TakeoverTracker()
         self._aerpaw_forwarder_reachable_cache: bool | None = None
 
     def _in_aerpaw(self) -> bool:
@@ -182,14 +182,23 @@ class Vehicle:
         """True when ``action.hold()`` / LOITER (mode 5) would sever the E-VM link."""
         return self._in_aerpaw() or self._aerpaw_forwarder_reachable()
 
-    def _check_not_taken_over(self, action: str) -> None:
-        """Refuse to command a vehicle someone else took out of GUIDED (AERPAW only).
+    async def _guided_refusal(self) -> str | None:
+        """Why the safety checker says the E-VM may not command the vehicle, or None.
 
-        The C-VM filter ends the experiment on any E-VM command after a
-        takeover; raising here gives the script a clear error instead.
+        The C-VM filter reports a takeover (safety pilot, failsafe, collision
+        hold) to the safety checker and ends the experiment on any E-VM
+        command after one.
         """
-        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
-            raise VehicleTakenOverError(self._takeover.message(action))
+        if self.safety is None:
+            return None
+        ok, msg = await self.safety.validate_guided_command()
+        return None if ok else msg
+
+    async def _require_may_command(self, action: str) -> None:
+        """Raise VehicleTakenOverError if the safety checker refuses all commands."""
+        refusal = await self._guided_refusal()
+        if refusal is not None:
+            raise VehicleTakenOverError(f"Cannot {action}: {refusal}")
 
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.
@@ -260,8 +269,30 @@ class Vehicle:
         *,
         on_disconnect: Callable[[], None] | None = None,
     ) -> asyncio.Future:
-        """Return a Future that completes with HeartbeatLostError on disconnect."""
-        return self._connection.watch_disconnect(timeout, on_disconnect=on_disconnect)
+        """Return a Future that completes with HeartbeatLostError on disconnect.
+
+        On AERPAW it completes with FilterAbortedError, carrying the C-VM
+        filter's reason, as soon as the safety checker says the filter cut
+        the link, without waiting for ``timeout``.
+        """
+        return self._connection.watch_disconnect(
+            timeout,
+            on_disconnect=on_disconnect,
+            abort_reason=self.filter_abort_reason,
+        )
+
+    async def filter_abort_reason(self) -> str | None:
+        """Why the AERPAW C-VM filter ended the experiment, or None.
+
+        Asks the safety checker, which the filter tells just before it exits.
+        None when it hasn't aborted, or there is no safety checker that knows.
+        """
+        if self.safety is None:
+            return None
+        status = await self.safety.get_filter_status()
+        if not status or not status.get("aborted"):
+            return None
+        return status.get("reason") or "no reason given"
 
     @property
     def connected(self) -> bool:
@@ -362,6 +393,9 @@ class Vehicle:
                 False,
                 f"Battery {self.battery.level}% below {min_battery_percent}%",
             )
+        refusal = await self._guided_refusal()
+        if refusal is not None:
+            return False, refusal
         if self.safety is not None:
             ok, msg = await self.safety.validate_takeoff(
                 altitude,
@@ -392,6 +426,9 @@ class Vehicle:
             return False, (f"Tolerance must be between {MIN_POSITION_TOLERANCE_M} and {MAX_POSITION_TOLERANCE_M}m")
         if not all(math.isfinite(v) for v in (target.lat, target.lon, target.alt)):
             return False, f"Target is not finite ({target.lat}, {target.lon}, {target.alt})"
+        refusal = await self._guided_refusal()
+        if refusal is not None:
+            return False, refusal
         if self.safety is not None:
             ok, msg = await self.safety.validate_waypoint(self.position, target)
             logger.debug(f"can_goto: safety check ok={ok} msg={msg!r}")
@@ -402,7 +439,8 @@ class Vehicle:
 
     async def can_land(self) -> tuple[bool, str]:
         """
-        Check if land would succeed. Optional SafetyCheckerClient only.
+        Check if land would succeed. Optional SafetyCheckerClient only: it
+        refuses a land away from the takeoff pad the C-VM filter reported.
 
         Returns:
             (ok, message) - ok is True if command would succeed.
@@ -410,6 +448,9 @@ class Vehicle:
         logger.debug(
             f"can_land: checking pos=({self.position.lat:.6f},{self.position.lon:.6f})",
         )
+        refusal = await self._guided_refusal()
+        if refusal is not None:
+            return False, refusal
         if self.safety is not None:
             ok, msg = await self.safety.validate_landing(
                 self.position.lat,
@@ -425,6 +466,8 @@ class Vehicle:
         """Raise *error_cls* if a can_* check failed."""
         ok, msg = check if isinstance(check, tuple) else await check
         if not ok:
+            if msg.startswith(TAKEN_OVER_MESSAGE):
+                raise VehicleTakenOverError(f"Cannot {action}: {msg}")
             raise error_cls(f"{action} rejected by safety checks: {msg}")
 
     @classmethod
@@ -509,7 +552,11 @@ class Vehicle:
         self._connection.set_link_alive(True)
         self._connection.record_telemetry()
         logger.info("Vehicle connected and telemetry started")
+        await self._check_state_at_connect(connection_string)
         return self
+
+    async def _check_state_at_connect(self, connection_string: str) -> None:
+        """Refuse a vehicle in a state the script must not start from (subclass hook)."""
 
     async def _start_telemetry(self) -> None:
         """Start telemetry subscriptions on same loop."""
@@ -663,7 +710,6 @@ class Vehicle:
                     return
                 mode_name = mode.name
                 self._state.update_mode(mode_name)
-                self._takeover.update(mode=mode_name)
                 update_telemetry(mode=mode_name)
                 if first[0]:
                     logger.info(
@@ -685,7 +731,6 @@ class Vehicle:
                 if self._connection.closed:
                     return
                 self._state.update_armed(armed)
-                self._takeover.update(armed=armed)
                 update_telemetry(armed=armed)
                 if first[0]:
                     logger.info(f"Telemetry: armed stream active (armed={armed})")
@@ -1000,7 +1045,6 @@ class Vehicle:
         """Wait until vehicle is ready for next command."""
         if self._connection.closed:
             raise RuntimeError("Cannot await_ready_to_move: vehicle is closed")
-        self._check_not_taken_over("move")
         if self._will_arm and not self.armed:
             logger.debug("await_ready_to_move: vehicle not armed, running arm sequence")
             await self._arm_vehicle()
@@ -1094,10 +1138,37 @@ class Vehicle:
         """
 
         async def send(msg: Any) -> None:
-            self._check_not_taken_over("send a GUIDED command")
+            await self._require_may_command("send a GUIDED command")
             await system.mavlink_direct.send_message(msg)
 
         return send
+
+    async def _require_velocity_ok(self, velocity: VectorNED) -> None:
+        """Raise if the safety checker refuses this NED velocity from here."""
+        if self.safety is None:
+            return
+        ok, msg = await self.safety.validate_velocity(self.position, velocity)
+        if ok:
+            return
+        if msg.startswith(TAKEN_OVER_MESSAGE):
+            raise VehicleTakenOverError(f"Cannot set_velocity: {msg}")
+        raise VelocityError(f"set_velocity rejected by safety checks: {msg}")
+
+    def _velocity_sender(self, system: Any, setpoint: Any, velocity: VectorNED) -> Callable[[Any], Any]:
+        """Like _mavlink_sender, but re-validates the running setpoint every
+        VELOCITY_REVALIDATE_INTERVAL_S, since its geofence look-ahead moves
+        with the vehicle. The caller validated it just before."""
+        send = self._mavlink_sender(system)
+        validated_at = time.monotonic()
+
+        async def send_velocity(msg: Any) -> None:
+            nonlocal validated_at
+            if msg is setpoint and time.monotonic() - validated_at >= VELOCITY_REVALIDATE_INTERVAL_S:
+                await self._require_velocity_ok(velocity)
+                validated_at = time.monotonic()
+            await send(msg)
+
+        return send_velocity
 
     async def _start_velocity(
         self,
@@ -1109,10 +1180,10 @@ class Vehicle:
         problem = velocity_problem(velocity.north, velocity.east, velocity.down, duration)
         if problem:
             raise VelocityError(f"set_velocity: {problem}")
-        self._check_not_taken_over("set_velocity")
         await self.await_ready_to_move()
         if not global_relative:
             velocity = velocity.rotate_by_angle(-self.heading)
+        await self._require_velocity_ok(velocity)
         setpoint = self._velocity_setpoint(velocity)
         logger.info(
             f"{self._vehicle_type_label().capitalize()}: set_velocity NED=({velocity.north:.2f}, {velocity.east:.2f}, {velocity.down:.2f}) m/s, duration={duration}s",
@@ -1129,7 +1200,7 @@ class Vehicle:
             )
         try:
             task = await self._velocity.start(
-                self._mavlink_sender(self._system),
+                self._velocity_sender(self._system, setpoint, velocity),
                 setpoint,
                 self._velocity_stop_setpoint,
                 duration,
@@ -1171,7 +1242,7 @@ class Vehicle:
         """
         if self._connection.closed or self._system is None:
             raise RuntimeError("Cannot set_groundspeed: vehicle is closed")
-        self._check_not_taken_over("set_groundspeed")
+        await self._require_may_command("set_groundspeed")
         if self.safety is not None:
             ok, msg = await self.safety.validate_change_speed(velocity)
             if not ok:
@@ -1213,9 +1284,6 @@ class Vehicle:
         if velocity is None or not velocity.active or system is None:
             return
         velocity.forget()
-        if self._takeover.taken_over_mode is not None and self._must_avoid_loiter():
-            # The vehicle isn't in GUIDED; a stop setpoint would only end the experiment.
-            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:

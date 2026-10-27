@@ -59,7 +59,7 @@ All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=F
 
 On the AERPAW testbed the C-VM filter ends the experiment on a velocity over the configured `max_speed` (horizontal) or `max_vertical_speed` (default 5 m/s), on a velocity that would leave the geofence within 4 s, and on a copter velocity command before it first reaches the minimum altitude.
 
-If the safety pilot, a failsafe, or the C-VM collision hold takes an armed vehicle out of GUIDED, aerpawlib stops commanding it until it disarms: a running velocity stream goes quiet, and the next movement command raises `VehicleTakenOverError`. Any command sent after a takeover would make the C-VM filter end the experiment.
+If the safety pilot, a failsafe, or the C-VM collision hold takes an armed vehicle out of GUIDED, the C-VM filter reports the takeover to the safety checker, and aerpawlib asks the checker before every GUIDED command: until the vehicle disarms, a running velocity stream goes quiet and the next command raises `VehicleTakenOverError`. Any command sent after a takeover would make the C-VM filter end the experiment. Without a safety checker (local SITL) nothing is refused.
 
 ### Validation and monitoring
 
@@ -73,6 +73,7 @@ If the safety pilot, a failsafe, or the C-VM collision hold takes an armed vehic
 |-----------|--------|
 | `ConnectionTimeoutError` | Verify connection string and vehicle process |
 | `HeartbeatLostError` | Link lost mid-mission; runner may terminate |
+| `FilterAbortedError` | The AERPAW C-VM filter ended the experiment; `reason` says why (a `HeartbeatLostError`, raised within seconds instead of after `--heartbeat-timeout`) |
 | `NotArmableError` / `NotConnectedError` | Wait for ready state before commands |
 | `TakeoffError` / `NavigationError` | Check GPS, battery, safety server response |
 | `UnexpectedDisarmError` | Failsafe or manual disarm while airborne |

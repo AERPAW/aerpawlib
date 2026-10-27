@@ -7,6 +7,9 @@ vehicle constraints from configuration and validates incoming command requests.
 Capabilities:
 - Validate waypoint paths against include/exclude geofence polygons.
 - Validate speed and altitude constraints for supported vehicle types.
+- Validate velocity setpoints (speed limits and a geofence look-ahead).
+- Hold the C-VM filter's view of the flight (landing pad, takeover), which the
+  filter reports, so E-VM landing and command checks give the filter's answer.
 - Reply with structured pass/fail responses over the compressed wire format.
 
 Usage:
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from argparse import ArgumentParser
 from collections.abc import Callable
 from pathlib import Path
@@ -31,18 +35,29 @@ import yaml
 import zmq
 
 from aerpawlib.v1.constants import (
+    ALT_LIMIT_MARGIN_M,
+    COMMANDED_SPEED_TOLERANCE_M_S,
     DEFAULT_MAX_VERTICAL_SPEED_M_S,
     DEFAULT_SAFETY_SERVER_PORT,
+    GET_FILTER_STATUS_REQ,
     GET_LIMITATIONS_REQ,
+    LAND_MAX_FROM_PAD_M,
+    REPORT_FILTER_ABORT_REQ,
+    REPORT_TAKEOFF_LOCATION_REQ,
+    REPORT_TAKEOVER_REQ,
     SERVER_STATUS_REQ,
+    TAKEN_OVER_MESSAGE,
     VALIDATE_CHANGE_SPEED_REQ,
+    VALIDATE_GUIDED_COMMAND_REQ,
     VALIDATE_LANDING_REQ,
     VALIDATE_TAKEOFF_REQ,
+    VALIDATE_VELOCITY_REQ,
     VALIDATE_WAYPOINT_REQ,
     VEHICLE_TYPE_COPTER,
+    VELOCITY_LOOKAHEAD_S,
 )
 from aerpawlib.v1.log import LogComponent, get_logger
-from aerpawlib.v1.util import Coordinate, do_intersect, inside, read_geofence
+from aerpawlib.v1.util import Coordinate, VectorNED, do_intersect, inside, read_geofence
 
 from .wire_format import deserialize_msg, serialize_response
 
@@ -72,7 +87,12 @@ class SafetyCheckerServer:
             config, min_alt if unset.
         max_vertical_speed: Maximum climb/descent velocity for copters (m/s);
             optional in the config, DEFAULT_MAX_VERTICAL_SPEED_M_S if unset.
-        takeoff_location: The location where takeoff was performed.
+        takeoff_location: The landing pad the C-VM filter reported (None
+            until it reports one, or after the vehicle disarms).
+        taken_over_reason: Why the C-VM filter considers the vehicle taken
+            over (safety pilot, failsafe, collision hold), or None.
+        filter_abort_reason: Why the C-VM filter last exited (cutting the
+            E-VM's MAVLink link), or None.
     """
 
     VEHICLE_TYPES: ClassVar[list[str]] = ["rover", "copter"]
@@ -105,6 +125,12 @@ class SafetyCheckerServer:
             VALIDATE_TAKEOFF_REQ: self.validate_takeoff_handler,
             VALIDATE_LANDING_REQ: self.validate_landing_handler,
             GET_LIMITATIONS_REQ: self.get_limitations_handler,
+            VALIDATE_VELOCITY_REQ: self.validate_velocity_handler,
+            VALIDATE_GUIDED_COMMAND_REQ: self.validate_guided_command_handler,
+            REPORT_TAKEOFF_LOCATION_REQ: self.report_takeoff_location_handler,
+            REPORT_TAKEOVER_REQ: self.report_takeover_handler,
+            REPORT_FILTER_ABORT_REQ: self.report_filter_abort_handler,
+            GET_FILTER_STATUS_REQ: self.get_filter_status_handler,
         }
 
         config_path = Path(vehicle_config_filename)
@@ -122,6 +148,9 @@ class SafetyCheckerServer:
         self.min_speed = config["min_speed"]
 
         self.takeoff_location = None
+        self.taken_over_reason = None
+        self.filter_abort_reason = None
+        self.filter_abort_time = None
 
         if self.vehicle_type == VEHICLE_TYPE_COPTER:
             self.max_alt = config["max_alt"]
@@ -373,10 +402,11 @@ class SafetyCheckerServer:
     ) -> tuple[bool, str]:
         """
         Ensure the copter is attempting to land within 5 meters of the takeoff
-        location. Returns (False, <error message>) if the copter is not within
-        5 meters, else (True, "").
+        pad the C-VM filter reported. Returns (False, <error message>) if the
+        copter is not within 5 meters, else (True, ""). Passes while no pad
+        has been reported.
         """
-        if not hasattr(self, "takeoff_location") or self.takeoff_location is None:
+        if self.takeoff_location is None:
             return (
                 True,
                 "",
@@ -386,12 +416,114 @@ class SafetyCheckerServer:
         current_location = Coordinate(current_lat, current_lon, alt=0)
         distance = self.takeoff_location.ground_distance(current_location)
 
-        if distance > 5:
+        if distance > LAND_MAX_FROM_PAD_M:
             return (
                 False,
                 f"Invalid landing location. Must be within 5 meters of takeoff location. Attempted landing location ({current_lat},{current_lon}) is {distance:f} meters from takeoff location.",
             )
         return True, ""
+
+    def validate_guided_command(self) -> tuple[bool, str]:
+        """
+        Whether the E-VM may command the vehicle at all. Returns (False,
+        <reason>) while the C-VM filter reports the vehicle taken over, else
+        (True, ""). The reason starts with TAKEN_OVER_MESSAGE.
+        """
+        if self.taken_over_reason is not None:
+            return False, f"{TAKEN_OVER_MESSAGE} {self.taken_over_reason}"
+        return True, ""
+
+    def _altitude_for_limits(self, alt: float) -> float:
+        """Pull an altitude within ALT_LIMIT_MARGIN_M of a copter limit onto that limit."""
+        if self.min_alt - ALT_LIMIT_MARGIN_M <= alt < self.min_alt:
+            return self.min_alt
+        if self.max_alt < alt <= self.max_alt + ALT_LIMIT_MARGIN_M:
+            return self.max_alt
+        return alt
+
+    def validate_velocity_command(
+        self,
+        current_location: Coordinate,
+        velocity: VectorNED,
+    ) -> tuple[bool, str]:
+        """
+        Check a velocity setpoint the way the C-VM filter does: the vehicle is
+        not taken over, the speed is within max_speed (and, for copters,
+        max_vertical_speed), and extrapolating it VELOCITY_LOOKAHEAD_S from
+        current_location stays inside the geofence and altitude limits.
+        Returns (False, <error message>) on a violation, else (True, "").
+        """
+        ok, msg = self.validate_guided_command()
+        if not ok:
+            return ok, msg
+        if not _all_finite(velocity.north, velocity.east, velocity.down):
+            return False, f"Invalid velocity ({velocity.north}, {velocity.east}, {velocity.down}); must be finite numbers."
+        if not _all_finite(current_location.lat, current_location.lon, current_location.alt):
+            return False, "Invalid velocity: the vehicle position is not known."
+        horizontal = math.hypot(velocity.north, velocity.east)
+        if horizontal > self.max_speed + COMMANDED_SPEED_TOLERANCE_M_S:
+            return False, f"Horizontal velocity {horizontal:.1f} m/s is over the {self.max_speed} m/s limit."
+        is_copter = self.vehicle_type == VEHICLE_TYPE_COPTER
+        if is_copter and abs(velocity.down) > self.max_vertical_speed + COMMANDED_SPEED_TOLERANCE_M_S:
+            return False, f"Vertical velocity {abs(velocity.down):.1f} m/s is over the {self.max_vertical_speed} m/s limit."
+        # ArduRover ignores vz.
+        step = VectorNED(velocity.north, velocity.east, velocity.down if is_copter else 0) * VELOCITY_LOOKAHEAD_S
+        predicted = current_location + step
+        if is_copter:
+            predicted = Coordinate(predicted.lat, predicted.lon, self._altitude_for_limits(predicted.alt))
+        ok, reason = self.validate_waypoint_command(current_location, predicted)
+        if not ok:
+            return False, f"Velocity setpoint would leave the geofence within {VELOCITY_LOOKAHEAD_S:g}s. (reason: {reason})"
+        return True, ""
+
+    def report_takeoff_location(self, lat: float | None, lon: float | None) -> tuple[bool, str]:
+        """
+        Set the landing pad (the C-VM filter calls this when it pins its pad),
+        or clear it with lat and lon None (the filter calls this on disarm).
+        """
+        if lat is None and lon is None:
+            self.takeoff_location = None
+            return True, ""
+        if not _all_finite(lat, lon):
+            return False, f"Invalid takeoff location ({lat},{lon})."
+        self.takeoff_location = Coordinate(lat, lon, alt=0)
+        return True, ""
+
+    def report_takeover(self, reason: str | None) -> tuple[bool, str]:
+        """
+        Record why the C-VM filter considers the vehicle taken over, or clear
+        it with None (on disarm).
+        """
+        if reason is not None and not isinstance(reason, str):
+            return False, f"Invalid takeover reason {reason!r}; must be a string or None."
+        self.taken_over_reason = reason or None
+        return True, ""
+
+    def report_filter_abort(self, reason: str | None) -> tuple[bool, str]:
+        """
+        Record why the C-VM filter is exiting (it calls this just before), or
+        clear it with None (the filter calls this when it starts).
+        """
+        if reason is not None and not isinstance(reason, str):
+            return False, f"Invalid filter abort reason {reason!r}; must be a string or None."
+        self.filter_abort_reason = reason or None
+        self.filter_abort_time = time.time() if self.filter_abort_reason else None
+        return True, ""
+
+    def get_filter_status(self) -> dict:
+        """
+        Whether the C-VM filter has aborted since it last started, and why.
+
+        Returns:
+            dict: ``aborted`` (bool), ``reason`` (str or None) and ``age_s``
+            (seconds since the abort, or None).
+        """
+        at = self.filter_abort_time
+        return {
+            "aborted": self.filter_abort_reason is not None,
+            "reason": self.filter_abort_reason,
+            "age_s": None if at is None else round(time.time() - at, 1),
+        }
 
     def get_limitations(self) -> dict:
         """
@@ -546,6 +678,111 @@ class SafetyCheckerServer:
             message=message,
         )
 
+    def validate_velocity_handler(
+        self,
+        current_json_location: str,
+        north: float,
+        east: float,
+        down: float,
+        *_params: Any,
+    ) -> bytes:
+        """
+        Handler for velocity setpoint validation requests.
+
+        Args:
+            current_json_location: JSON string of the vehicle's Coordinate.
+            north: Commanded north velocity (m/s).
+            east: Commanded east velocity (m/s).
+            down: Commanded down velocity (m/s).
+
+        Returns:
+            bytes: Serialized validation response.
+        """
+        current = json.loads(current_json_location)
+        result, message = self.validate_velocity_command(
+            Coordinate(lat=current["lat"], lon=current["lon"], alt=current["alt"]),
+            VectorNED(north, east, down),
+        )
+        return serialize_response(
+            request_function=VALIDATE_VELOCITY_REQ,
+            result=result,
+            message=message,
+        )
+
+    def validate_guided_command_handler(self, *_params: Any) -> bytes:
+        """
+        Handler for "may the E-VM command the vehicle" requests.
+
+        Returns:
+            bytes: Serialized validation response.
+        """
+        result, message = self.validate_guided_command()
+        return serialize_response(
+            request_function=VALIDATE_GUIDED_COMMAND_REQ,
+            result=result,
+            message=message,
+        )
+
+    def report_takeoff_location_handler(
+        self,
+        lat: float | None = None,
+        lon: float | None = None,
+        *_params: Any,
+    ) -> bytes:
+        """
+        Handler for the C-VM filter reporting (or clearing) its landing pad.
+
+        Returns:
+            bytes: Serialized response.
+        """
+        result, message = self.report_takeoff_location(lat, lon)
+        return serialize_response(
+            request_function=REPORT_TAKEOFF_LOCATION_REQ,
+            result=result,
+            message=message,
+        )
+
+    def report_filter_abort_handler(self, reason: str | None = None, *_params: Any) -> bytes:
+        """
+        Handler for the C-VM filter reporting (or clearing) why it exited.
+
+        Returns:
+            bytes: Serialized response.
+        """
+        result, message = self.report_filter_abort(reason)
+        return serialize_response(
+            request_function=REPORT_FILTER_ABORT_REQ,
+            result=result,
+            message=message,
+        )
+
+    def get_filter_status_handler(self, *_params: Any) -> bytes:
+        """
+        Handler for filter status requests.
+
+        Returns:
+            bytes: Serialized response with the status in ``data``.
+        """
+        return serialize_response(
+            request_function=GET_FILTER_STATUS_REQ,
+            result=True,
+            data=self.get_filter_status(),
+        )
+
+    def report_takeover_handler(self, reason: str | None = None, *_params: Any) -> bytes:
+        """
+        Handler for the C-VM filter reporting (or clearing) a takeover.
+
+        Returns:
+            bytes: Serialized response.
+        """
+        result, message = self.report_takeover(reason)
+        return serialize_response(
+            request_function=REPORT_TAKEOVER_REQ,
+            result=result,
+            message=message,
+        )
+
 
 def main_cli() -> None:
     """CLI entry for launching the safety checker server (legacy interface)."""
@@ -572,6 +809,8 @@ SafetyCheckerServer.validateChangeSpeedCommand = SafetyCheckerServer.validate_ch
 SafetyCheckerServer.validateTakeoffCommand = SafetyCheckerServer.validate_takeoff_command
 SafetyCheckerServer.validateLandingCommand = SafetyCheckerServer.validate_landing_command
 SafetyCheckerServer.getLimitations = SafetyCheckerServer.get_limitations
+SafetyCheckerServer.validateVelocityCommand = SafetyCheckerServer.validate_velocity_command
+SafetyCheckerServer.validateGuidedCommand = SafetyCheckerServer.validate_guided_command
 SafetyCheckerServer.serverStatusHandler = SafetyCheckerServer.server_status_handler
 SafetyCheckerServer.validateWaypointHandler = SafetyCheckerServer.validate_waypoint_handler
 SafetyCheckerServer.validateChangeSpeedHandler = SafetyCheckerServer.validate_change_speed_handler

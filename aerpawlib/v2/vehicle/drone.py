@@ -13,6 +13,7 @@ from typing import Any
 from mavsdk.action import ActionError
 
 from aerpawlib.v2.constants import (
+    ARMED_TELEMETRY_TIMEOUT_S,
     COPTER_GUIDED_MODE,
     COPTER_GUIDED_MODE_SWITCH_TIMEOUT_S,
     DEFAULT_GOTO_TIMEOUT_S,
@@ -27,6 +28,7 @@ from aerpawlib.v2.constants import (
 from aerpawlib.v2.exceptions import (
     LandingError,
     NavigationError,
+    NotArmableError,
     RTLError,
     TakeoffError,
 )
@@ -46,13 +48,6 @@ _COINCIDENT_DISTANCE_M = 0.01
 # Arrival checks altitude separately from the horizontal tolerance, with at
 # least this much vertical slack.
 _ARRIVAL_MIN_ALT_TOLERANCE_M = 3.0
-# The C-VM filter aborts a land more than 5 m from the pad it recorded at
-# takeoff. land() refuses before sending past this, leaving slack for the
-# drone drifting while telemetry catches up.
-_LAND_MAX_FROM_PAD_M = 4.5
-# return_to_launch only lands in place after a failed home goto when this
-# close to home.
-_RTL_LAND_IN_PLACE_MAX_M = _LAND_MAX_FROM_PAD_M
 
 
 class Drone(Vehicle):
@@ -62,12 +57,28 @@ class Drone(Vehicle):
         """Initialise the Drone, forwarding all arguments to Vehicle."""
         super().__init__(*args, **kwargs)
         self._current_heading: float | None = None
-        # Ground position at the first takeoff since the last land; mirrors
-        # the pad the C-VM filter pins landing to.
-        self._takeoff_pad: Coordinate | None = None
 
     def _standalone_arm_wait_ekf(self) -> bool:
         return True
+
+    async def _check_state_at_connect(self, connection_string: str) -> None:
+        """Refuse a drone that is already armed (for example still flying after
+        a script restart), as v1 does. Local SITL connections are exempt.
+
+        Raises:
+            NotArmableError: If the drone is armed; the connection is closed.
+        """
+        try:
+            await _wait_for_condition(
+                lambda: self._state.armed_telemetry_received,
+                timeout=ARMED_TELEMETRY_TIMEOUT_S,
+            )
+        except TimeoutError:
+            logger.warning("Timeout waiting for armed-state telemetry; proceeding anyway")
+            return
+        if self.armed and not ("127.0.0.1" in connection_string or "localhost" in connection_string):
+            await self.aclose()
+            raise NotArmableError("Vehicle already armed at start!")
 
     async def _pre_auto_arm(self) -> None:
         """ArduCopter auto-disarms if armed in STABILIZE without RC. Enter GUIDED first."""
@@ -110,6 +121,7 @@ class Drone(Vehicle):
         if not blocking:
             # A running set_velocity keeps its yaw; the lock applies to the next one.
             return
+        await self._require_may_command("set_heading")
         # The velocity stream would keep overriding the yaw: stop and turn.
         await self._stop_velocity()
         gen = self._begin_move()
@@ -169,7 +181,6 @@ class Drone(Vehicle):
             raise TakeoffError(bad_alt)
         if not (isinstance(min_alt_tolerance, (int, float)) and 0 < min_alt_tolerance <= 1):
             raise TakeoffError(f"min_alt_tolerance must be in (0, 1] (got {min_alt_tolerance!r})")
-        was_armed = self.armed
         try:
             await self._await_preflight_for_takeoff()
         except TimeoutError as e:
@@ -195,12 +206,7 @@ class Drone(Vehicle):
                 altitude,
             )
             await self._system.action.set_takeoff_altitude(altitude)
-            ground = self.position
             await self._system.action.takeoff()
-            # The filter keeps its pad until disarm, so a takeoff while
-            # already airborne does not move it.
-            if self._takeoff_pad is None or not was_armed:
-                self._takeoff_pad = ground
             # Non-finite altitude samples never count as reached.
             self._set_move_gate(
                 gen,
@@ -248,9 +254,11 @@ class Drone(Vehicle):
         """Command the drone to land and wait for disarm.
 
         Raises:
-            LandingError: If the drone is more than 4.5 m from where it took
-                off (the C-VM filter would abort the land), or the land
-                command fails or times out.
+            LandingError: If the safety checker refuses the land (on AERPAW:
+                more than 5 m from the takeoff pad the C-VM filter recorded),
+                or the land command fails or times out.
+            VehicleTakenOverError: If the safety checker reports the vehicle
+                taken over.
 
         Note:
             Verified on MAVSDK 3.17.x as COMMAND_LONG NAV_LAND (21). This is
@@ -264,17 +272,9 @@ class Drone(Vehicle):
         await self._require_can(self.can_land(), "land", LandingError)
         if self._connection.closed:
             raise RuntimeError("Cannot land: vehicle is closed")
-        self._check_not_taken_over("land")
-        if self._takeoff_pad is not None:
-            away = self.position.ground_distance(self._takeoff_pad)
-            if not away <= _LAND_MAX_FROM_PAD_M:
-                raise LandingError(
-                    f"{away:.1f} m from the takeoff pad (limit {_LAND_MAX_FROM_PAD_M} m); fly back to the pad before landing",
-                )
         if self._will_arm and not self.armed:
             await self._arm_vehicle()
         await self._stop_velocity()
-        self._takeover.note_land()
         if self._event_log:
             self._event_log.log_event("land_start")
         from aerpawlib.cli.progress_bar import update_progress
@@ -291,7 +291,6 @@ class Drone(Vehicle):
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message="Drone: land timed out waiting for disarm",
             )
-            self._takeoff_pad = None
             if self._event_log:
                 self._event_log.log_event("land_complete")
         except (ActionError, TimeoutError) as e:
@@ -323,14 +322,14 @@ class Drone(Vehicle):
             try:
                 await self.goto_coordinates(dest)
             except NavigationError as e:
-                away = self.position.ground_distance(home)
-                if away > _RTL_LAND_IN_PLACE_MAX_M:
-                    # Landing here would be off the pad; stay in GUIDED.
+                ok, msg = await self.can_land()
+                if not ok:
+                    # The safety checker would refuse a land here; stay in GUIDED.
                     raise RTLError(
-                        f"could not navigate home ({e}); {away:.1f} m from home, not landing away from the pad",
+                        f"could not navigate home ({e}); not landing here: {msg}",
                         original_error=e,
                     ) from e
-                logger.warning("Could not navigate home for RTL (%s); %.1f m from home, landing", e, away)
+                logger.warning("Could not navigate home for RTL (%s); landing here", e)
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Drone: return_to_launch failed: {e}")
@@ -501,6 +500,7 @@ class Drone(Vehicle):
         ``action.hold()`` is LOITER (mode 5), which the AERPAW filter rejects,
         so a DO_REPOSITION to where the drone is now is used everywhere.
         """
+        await self._require_may_command("stop")
         gen = self._begin_move()
         pos = self.position
         try:
@@ -569,6 +569,7 @@ class Drone(Vehicle):
                 f"Drone: already in pre-arm mode {self.mode!r}, skipping mode switch",
             )
             return
+        await self._require_may_command("switch to GUIDED")
         logger.info(
             f"Drone: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )

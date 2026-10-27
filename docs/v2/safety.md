@@ -34,7 +34,9 @@ The CLI attaches the client with `--safety-checker-port` / `--safety-checker-ip`
 |--------|--------------|-------------------|
 | `can_takeoff(altitude)` | Armable, GPS 3D fix, battery | + server takeoff validation |
 | `can_goto(target, …)` | Tolerance bounds | + waypoint validation |
-| `can_land()` | - | Server landing validation if configured (copter must land within 5 m of takeoff) |
+| `can_land()` | - | Server landing validation (copter must land within 5 m of the takeoff pad the C-VM filter reported) |
+
+Every check, and every GUIDED message aerpawlib sends, first asks `validate_guided_command`: while the C-VM filter reports the vehicle taken over it is refused and aerpawlib raises `VehicleTakenOverError`. `set_velocity` asks `validate_velocity` before streaming and once a second while it runs.
 
 ### CLI safety behavior
 
@@ -51,6 +53,8 @@ Ask the safety server from your script with `await`. v2 does not ship a server o
 ok, msg = await client.validate_waypoint(current, next_loc)
 ok, msg = await client.validate_takeoff(altitude, lat, lon)
 ok, msg = await client.validate_landing(lat, lon)
+ok, msg = await client.validate_velocity(current, VectorNED(2, 0, 0))
+ok, msg = await client.validate_guided_command()
 ```
 
 ### PreflightChecks
@@ -63,7 +67,7 @@ ok = await PreflightChecks.run_all(vehicle)  # GPS fix, battery
 
 ### Connection monitoring
 
-If the vehicle link is lost, the CLI stops the mission and does not RTL. Ctrl-C also stops the runner without RTL. Auto RTL/RTH runs only after a successful mission, unless you pass `--skip-rtl`.
+If the vehicle link is lost, the CLI stops the mission and does not RTL. On AERPAW the C-VM filter tells the safety checker why it cut the link before it exits; once telemetry is a few seconds stale, the disconnect watch asks (`vehicle.filter_abort_reason()`) and fails the mission with `FilterAbortedError` and that reason, instead of a bare `HeartbeatLostError` after `--heartbeat-timeout`. Ctrl-C also stops the runner without RTL. Auto RTL/RTH runs only after a successful mission, unless you pass `--skip-rtl`.
 
 ## Errors
 

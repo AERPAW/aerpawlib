@@ -43,3 +43,8 @@ API_CLASS_BASIC_RUNNER = "BasicRunner"
 API_CLASS_STATE_MACHINE = "StateMachine"
 API_CLASS_ZMQ_STATE_MACHINE = "ZmqStateMachine"
 API_CLASS_HEARTBEAT_LOST_ERROR = "HeartbeatLostError"
+
+FILTER_REASON_ATTEMPTS = 3
+"""Times a failed v2 mission asks the safety checker why the C-VM filter cut the link."""
+FILTER_REASON_RETRY_S = 1.0
+"""Wait between those asks; the filter reports just before it exits, which can race the failure."""

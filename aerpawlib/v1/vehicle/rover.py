@@ -79,6 +79,7 @@ class Rover(Vehicle):
                 f"Rover: already in GUIDED ({GUIDED_MODE_NAME}) mode, skipping mode switch",
             )
             return
+        await self._require_may_command("switch to GUIDED")
         logger.info(
             f"Rover: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )
@@ -144,6 +145,7 @@ class Rover(Vehicle):
             NavigationError: If navigation command fails
         """
         validate_tolerance(tolerance, "tolerance")
+        await self._require_may_command("goto")
         if self.safety is not None:
             ok, msg = self.safety.validate_waypoint_command(self.position, coordinates)
             if not ok:

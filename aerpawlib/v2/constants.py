@@ -92,6 +92,22 @@ VALIDATE_TAKEOFF_REQ = "validate_takeoff_req"
 """Request name for takeoff safety validation."""
 VALIDATE_LANDING_REQ = "validate_landing_req"
 """Request name for landing safety validation."""
+VALIDATE_VELOCITY_REQ = "validate_velocity_req"
+"""Request name for velocity setpoint safety validation."""
+VALIDATE_GUIDED_COMMAND_REQ = "validate_guided_command_req"
+"""Request name asking whether the E-VM may command the vehicle at all."""
+GET_FILTER_STATUS_REQ = "get_filter_status_req"
+"""Request name for reading whether (and why) the C-VM filter aborted."""
+FILTER_STATUS_CHECK_AFTER_S = 3.0
+"""Telemetry this stale makes the disconnect watch ask the safety checker whether the C-VM filter aborted."""
+FILTER_STATUS_POLL_INTERVAL_S = 2.0
+"""How often the disconnect watch asks again while telemetry stays stale."""
+TAKEN_OVER_MESSAGE = "Vehicle taken over:"
+"""Start of every refusal the server gives because the vehicle was taken over."""
+VELOCITY_REVALIDATE_INTERVAL_S = 1.0
+"""A running set_velocity re-asks the safety checker about its velocity this often."""
+ARMED_TELEMETRY_TIMEOUT_S = 5.0
+"""How long connect waits for armed-state telemetry before the armed-at-start check."""
 
 # MAVLink Flags
 MAV_SYS_STATUS_PREARM_CHECK = 0x01

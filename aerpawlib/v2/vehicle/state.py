@@ -134,6 +134,11 @@ class VehicleState:
         return self._armed
 
     @property
+    def armed_telemetry_received(self) -> bool:
+        """Return True once any armed-state telemetry has arrived."""
+        return self._armed_telemetry_received
+
+    @property
     def armable(self) -> bool:
         """Return True if the vehicle reports it can be armed."""
         return self._armable

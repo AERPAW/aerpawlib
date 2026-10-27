@@ -30,7 +30,7 @@ with SafetyCheckerClient("127.0.0.1", 14580) as checker:
 
 ### SafetyCheckerClient
 
-Use this from your script to ask the safety server about a maneuver. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, `validate_change_speed_command`, and `get_limitations` (the configured speed and altitude limits). `validate_waypoint_command` takes an optional `taking_off_or_landing=True` that skips only the copter altitude limits; the geofence checks still run.
+Use this from your script to ask the safety server about a maneuver. Methods include `check_server_status`, `validate_waypoint_command`, `validate_takeoff_command`, `validate_landing_command`, `validate_change_speed_command`, `validate_velocity_command`, `validate_guided_command`, and `get_limitations` (the configured speed and altitude limits). `validate_waypoint_command` takes an optional `taking_off_or_landing=True` that skips only the copter altitude limits; the geofence checks still run.
 
 > **Note:** These calls wait for the server. If a request times out, the next call tries again.
 
@@ -46,7 +46,13 @@ ZMQ REP server loading YAML limits:
 | `exclude_geofences` | All | KML paths (forbidden regions) |
 | `max_alt` / `min_alt` | Copter | Altitude limits (AERPAW copter `min_alt` is typically 20 m) |
 
-Copter landing must be within 5 m of the recorded takeoff location.
+The C-VM filter is the authority on what the vehicle may do; the server answers with the filter's view so a script can check a command before sending it:
+
+- The filter reports its landing pad (`report_takeoff_location`, cleared on disarm). Copter landing must then be within 5 m of it; with no pad reported, landing passes.
+- The filter reports a takeover by the safety pilot, a failsafe, or the C-VM collision hold (`report_takeover`). Until it clears, `validate_guided_command` and `validate_velocity_command` refuse with a message starting `Vehicle taken over:`; aerpawlib raises `VehicleTakenOverError`.
+- `validate_velocity_command` applies the filter's velocity rules: `max_speed`, `max_vertical_speed` for copters, and the setpoint held for 4 s from the current position must stay inside the geofence and altitude limits (2 m margin).
+
+- Just before it exits, the filter reports why (`report_filter_abort`, cleared when it starts). `get_filter_status` returns `aborted`, `reason` and `age_s`, so an E-VM whose link was cut can find out why.
 
 KML paths resolve relative to the YAML file location.
 

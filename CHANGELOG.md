@@ -6,10 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Summary
+
+The C-VM filter is the authority on what a vehicle may do. aerpawlib no longer keeps its own copies of the filter's landing-pad and takeover rules; the safety checker holds the filter's view (the filter reports its pad and any takeover), and aerpawlib asks it before each command. Needs the matching C-VM filter and safety checker from AERPAW-Dev.
+
+### Added
+
+- **Safety checker: `validate_velocity` (v1 `validate_velocity_command`).** Checks a velocity setpoint the way the C-VM filter does: `max_speed`, `max_vertical_speed` for copters, and the setpoint held for 4 s from the current position must stay inside the geofence and altitude limits (2 m margin). `set_velocity` asks before streaming and once a second while it runs, and stops in GUIDED when refused.
+- **Safety checker: `validate_guided_command`.** Refused while the C-VM filter reports the vehicle taken over (safety pilot, failsafe, collision hold); every GUIDED command and every velocity setpoint aerpawlib sends asks first.
+- **Safety checker: `report_takeoff_location` and `report_takeover`**, for the C-VM filter to set and clear the landing pad and takeover the checker answers with. `validate_landing` checks against the reported pad.
+- **v2 says why the C-VM filter cut the link: `FilterAbortedError`.** The filter reports its reason to the safety checker (`report_filter_abort`) just before it exits; once telemetry is a few seconds stale, v2's disconnect watch asks (`get_filter_status`, also `vehicle.filter_abort_reason()`) and ends the mission with that reason, instead of a bare `HeartbeatLostError` after `--heartbeat-timeout` (120 s on AERPAW). `FilterAbortedError` is a `HeartbeatLostError`, so existing handlers still catch it.
+- **v2 refuses an already-armed drone at connect**, as v1 does (`NotArmableError`, local SITL exempt), so a restarted script can't take over a drone in flight.
+
+### Changed
+
+- **Off-pad land is the safety checker's call (v1, v2).** `land()` sends LAND unless the safety checker refuses it, which it does more than 5 m from the pad the C-VM filter reported. aerpawlib no longer records its own pad or refuses past 4.5 m. `return_to_launch` lands in place after a failed home goto only if the safety checker accepts the land there.
+- **Takeovers come from the safety checker (v1, v2).** `VehicleTakenOverError` is raised when the checker reports a takeover, not from aerpawlib's own reading of mode and armed telemetry. Without a safety checker (local SITL) nothing is refused.
+
 ### Fixed
 
-- **Off-pad land ended the session (v1, v2).** `land()` now raises `LandingError` without sending LAND when the drone is more than 4.5 m from where it took off, so the script can fly back while the drone keeps hovering in GUIDED. Before, the safety checker's 5 m landing check never ran: since 1.10.0 nothing recorded a takeoff location, so every land was sent, and the C-VM filter aborted any land more than 5 m from its pad. The drone records its pad at the first takeoff after arming and clears it once a land completes. `return_to_launch` now lands in place after a failed home goto only within the same 4.5 m.
 - **v1 `--no-aerpaw-environment` on a live E-VM.** v1 now refuses to start, as v2 already did, when the `AP_EXPENV_*` variables are set and the OEO forwarder answers ping. Before, it ran in standalone mode with no AERPAW platform and, unless a safety-checker port or IP was passed, no E-VM safety checker.
+- **Safety checker client requests could interleave (v1, v2).** Each client now serializes its requests on its one ZMQ socket, and the v2 client resets the socket after a cancelled request.
 
 ## [1.13.0] (2026-10-24)
 

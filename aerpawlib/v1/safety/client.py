@@ -5,7 +5,9 @@ This module implements the REQ/REP client used by vehicle code to submit
 safety validation requests to the checker server.
 
 Capabilities:
-- Submit waypoint, speed, takeoff, and landing validation requests.
+- Submit waypoint, speed, takeoff, landing, velocity, and GUIDED-command
+  validation requests.
+- Report the C-VM filter's landing pad and takeovers (used by the filter).
 - Serialize requests using the safety wire format helpers.
 - Use bounded send/receive timeouts to avoid indefinite blocking.
 
@@ -15,20 +17,27 @@ Usage:
 """
 
 import contextlib
+import threading
 
 import zmq
 
 from aerpawlib.v1.constants import (
+    GET_FILTER_STATUS_REQ,
     GET_LIMITATIONS_REQ,
+    REPORT_FILTER_ABORT_REQ,
+    REPORT_TAKEOFF_LOCATION_REQ,
+    REPORT_TAKEOVER_REQ,
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
+    VALIDATE_GUIDED_COMMAND_REQ,
     VALIDATE_LANDING_REQ,
     VALIDATE_TAKEOFF_REQ,
+    VALIDATE_VELOCITY_REQ,
     VALIDATE_WAYPOINT_REQ,
 )
 from aerpawlib.v1.log import LogComponent, get_logger
-from aerpawlib.v1.util import Coordinate
+from aerpawlib.v1.util import Coordinate, VectorNED
 
 from .wire_format import deserialize_msg, serialize_request
 
@@ -62,6 +71,9 @@ class SafetyCheckerClient:
         self._timeout_s = timeout_s
         self._addr = addr
         self._port = port
+        # One REQ socket: concurrent callers (a velocity stream and a goto)
+        # would break its strict send/recv order.
+        self._lock = threading.Lock()
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REQ)
         timeout_ms = int(timeout_s * 1000)
@@ -107,14 +119,15 @@ class SafetyCheckerClient:
         Raises:
             TimeoutError: If the server does not respond within the configured timeout.
         """
-        try:
-            self.socket.send(msg)
-            raw_msg = self.socket.recv()
-        except zmq.Again as e:
-            self._reconnect()
-            raise TimeoutError(
-                f"Safety checker server did not respond within {self._timeout_s}s",
-            ) from e
+        with self._lock:
+            try:
+                self.socket.send(msg)
+                raw_msg = self.socket.recv()
+            except zmq.Again as e:
+                self._reconnect()
+                raise TimeoutError(
+                    f"Safety checker server did not respond within {self._timeout_s}s",
+                ) from e
         message = deserialize_msg(raw_msg)
         logger.debug(f"Received ZMQ message: {message}")
         return message
@@ -205,6 +218,63 @@ class SafetyCheckerClient:
         resp = self.send_request(msg)
         return self.parse_response(resp)
 
+    def validate_velocity_command(
+        self,
+        current_location: Coordinate,
+        velocity: VectorNED,
+    ) -> tuple[bool, str]:
+        """
+        Makes sure a velocity setpoint is within the speed limits and, held
+        for a few seconds from current_location, stays inside the geofence.
+        Also refused while the vehicle is taken over. Returns (False,
+        <error message>) on a violation, else (True, "").
+        """
+        msg = serialize_request(
+            VALIDATE_VELOCITY_REQ,
+            [current_location.to_json(), velocity.north, velocity.east, velocity.down],
+        )
+        return self.parse_response(self.send_request(msg))
+
+    def validate_guided_command(self) -> tuple[bool, str]:
+        """
+        Whether the E-VM may command the vehicle at all. Returns (False,
+        <reason>) while the C-VM filter reports the vehicle taken over (the
+        reason starts with TAKEN_OVER_MESSAGE), else (True, "").
+        """
+        return self.parse_response(self.send_request(serialize_request(VALIDATE_GUIDED_COMMAND_REQ, [])))
+
+    def report_takeoff_location(self, lat: float | None, lon: float | None) -> tuple[bool, str]:
+        """
+        Set the landing pad validate_landing_command checks against, or clear
+        it with None. For the C-VM filter, the authority on the pad.
+        """
+        resp = self.send_request(serialize_request(REPORT_TAKEOFF_LOCATION_REQ, [lat, lon]))
+        return self.parse_response(resp)
+
+    def report_takeover(self, reason: str | None) -> tuple[bool, str]:
+        """
+        Record why the vehicle is taken over, or clear it with None. For the
+        C-VM filter, the authority on takeovers.
+        """
+        resp = self.send_request(serialize_request(REPORT_TAKEOVER_REQ, [reason]))
+        return self.parse_response(resp)
+
+    def report_filter_abort(self, reason: str | None) -> tuple[bool, str]:
+        """
+        Record why the C-VM filter is exiting, or clear it with None. For the
+        filter, so the E-VM can learn why its MAVLink link was cut.
+        """
+        resp = self.send_request(serialize_request(REPORT_FILTER_ABORT_REQ, [reason]))
+        return self.parse_response(resp)
+
+    def get_filter_status(self) -> dict | None:
+        """
+        Whether the C-VM filter has aborted, and why: a dict with ``aborted``,
+        ``reason`` and ``age_s``, or None if the request failed.
+        """
+        resp = self.send_request(serialize_request(GET_FILTER_STATUS_REQ, []))
+        return resp.get("data") if resp.get("result") else None
+
     def get_limitations(self) -> dict:
         """
         Read the server's configured vehicle limits.
@@ -212,8 +282,7 @@ class SafetyCheckerClient:
         Returns:
             dict: vehicle_type, min_speed, max_speed, max_vertical_speed,
             min_alt, min_takeoff_alt and max_alt (the last four are None for
-            rovers; older servers omit max_vertical_speed and
-            min_takeoff_alt).
+            rovers).
 
         Raises:
             RuntimeError: If the server does not support the request.
@@ -234,3 +303,5 @@ SafetyCheckerClient.validateChangeSpeedCommand = SafetyCheckerClient.validate_ch
 SafetyCheckerClient.validateTakeoffCommand = SafetyCheckerClient.validate_takeoff_command
 SafetyCheckerClient.validateLandingCommand = SafetyCheckerClient.validate_landing_command
 SafetyCheckerClient.getLimitations = SafetyCheckerClient.get_limitations
+SafetyCheckerClient.validateVelocityCommand = SafetyCheckerClient.validate_velocity_command
+SafetyCheckerClient.validateGuidedCommand = SafetyCheckerClient.validate_guided_command

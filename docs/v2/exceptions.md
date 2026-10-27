@@ -23,7 +23,7 @@ except AerpawlibError as e:
 
 ```
 AerpawlibError
-├── AerpawConnectionError (ConnectionTimeoutError, HeartbeatLostError, PortInUseError)
+├── AerpawConnectionError (ConnectionTimeoutError, HeartbeatLostError → FilterAbortedError, PortInUseError)
 ├── CommandError (ArmError, TakeoffError, NavigationError, …)
 ├── StateError (NotArmableError, NotConnectedError, UnexpectedDisarmError)
 ├── RunnerError (NoEntrypointError, InvalidStateError, …)

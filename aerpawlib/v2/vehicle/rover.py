@@ -72,6 +72,7 @@ class Rover(Vehicle):
                 "Rover: already in GUIDED (OFFBOARD) mode, skipping mode switch",
             )
             return
+        await self._require_may_command("switch to GUIDED")
         logger.info(
             f"Rover: switching to GUIDED (OFFBOARD) mode (current mode={self.mode!r})",
         )
@@ -185,6 +186,7 @@ class Rover(Vehicle):
                 if self._must_avoid_loiter():
                     # hold() is LOITER/HOLD, fatal on AERPAW: stop in GUIDED by
                     # repositioning to the current fix instead.
+                    await self._require_may_command("stop")
                     pos = self.position
                     self._require_movement_fix(NavigationError)
                     await self._system.action.goto_location(pos.lat, pos.lon, self.home_amsl, 0)

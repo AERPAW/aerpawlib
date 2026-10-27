@@ -16,18 +16,21 @@ import zmq
 import zmq.asyncio
 
 from aerpawlib.v2.constants import (
+    GET_FILTER_STATUS_REQ,
     SAFETY_CHECKER_REQUEST_TIMEOUT_S,
     SERVER_STATUS_REQ,
     VALIDATE_CHANGE_SPEED_REQ,
+    VALIDATE_GUIDED_COMMAND_REQ,
     VALIDATE_LANDING_REQ,
     VALIDATE_TAKEOFF_REQ,
+    VALIDATE_VELOCITY_REQ,
     VALIDATE_WAYPOINT_REQ,
 )
 from aerpawlib.v2.exceptions import AerpawlibError
 from aerpawlib.v2.log import LogComponent, get_logger
 
 if TYPE_CHECKING:
-    from aerpawlib.v2.types import Coordinate
+    from aerpawlib.v2.types import Coordinate, VectorNED
 
 logger = get_logger(LogComponent.SAFETY)
 
@@ -171,6 +174,43 @@ class NoOpSafetyChecker:
         )
         return True, ""
 
+    async def validate_velocity(
+        self,
+        current: Coordinate,
+        velocity: VectorNED,
+    ) -> tuple[bool, str]:
+        """Passthrough velocity validation; always returns True.
+
+        Logged at debug level only: a running set_velocity asks every second.
+
+        Args:
+            current: Current vehicle position.
+            velocity: Commanded NED velocity in m/s.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        logger.debug("NoOpSafetyChecker: validate_velocity passes (no safety checker server)")
+        return True, ""
+
+    async def validate_guided_command(self) -> tuple[bool, str]:
+        """Passthrough check that the vehicle may be commanded; always returns True.
+
+        Logged at debug level only: every GUIDED message asks.
+
+        Returns:
+            Tuple of (True, "").
+        """
+        return True, ""
+
+    async def get_filter_status(self) -> dict | None:
+        """No C-VM filter to ask about.
+
+        Returns:
+            None.
+        """
+        return None
+
 
 class SafetyCheckerClient:
     """Async client for SafetyCheckerServer via ZMQ."""
@@ -191,6 +231,9 @@ class SafetyCheckerClient:
         self._addr = addr
         self._port = port
         self._timeout_s = timeout_s
+        # One REQ socket: concurrent callers (a velocity stream and a goto)
+        # would break its strict send/recv order.
+        self._lock = asyncio.Lock()
         logger.info(
             f"SafetyCheckerClient: connecting to {addr}:{port} (timeout={timeout_s}s)",
         )
@@ -233,22 +276,7 @@ class SafetyCheckerClient:
         Raises:
             TimeoutError: If the server does not respond within timeout_s.
         """
-        try:
-            await asyncio.wait_for(self._socket.send(msg), timeout=self._timeout_s)
-            raw = await asyncio.wait_for(self._socket.recv(), timeout=self._timeout_s)
-        except asyncio.TimeoutError as e:
-            self._reconnect()
-            timeout_err = TimeoutError(
-                f"SafetyCheckerServer did not respond within {self._timeout_s}s",
-            )
-            logger.error("SafetyCheckerClient: request timed out; socket reset")
-            raise timeout_err from e
-        except Exception as e:
-            self._reconnect()
-            logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")
-            raise
-        resp = _deserialize_response(raw)
-        logger.debug(f"Received ZMQ message: {resp}")
+        resp = await self._send_raw(msg)
         try:
             result = resp["result"]
         except KeyError as e:
@@ -259,6 +287,29 @@ class SafetyCheckerClient:
             ) from e
         message = resp.get("message", "")
         return result, message
+
+    async def _send_raw(self, msg: bytes) -> dict:
+        """Send a serialised request and return the whole decoded response."""
+        async with self._lock:
+            try:
+                await asyncio.wait_for(self._socket.send(msg), timeout=self._timeout_s)
+                raw = await asyncio.wait_for(self._socket.recv(), timeout=self._timeout_s)
+            except asyncio.TimeoutError as e:
+                self._reconnect()
+                timeout_err = TimeoutError(
+                    f"SafetyCheckerServer did not respond within {self._timeout_s}s",
+                )
+                logger.error("SafetyCheckerClient: request timed out; socket reset")
+                raise timeout_err from e
+            except BaseException as e:
+                # Includes cancellation: a send without its recv leaves the REQ socket unusable.
+                self._reconnect()
+                if isinstance(e, Exception):
+                    logger.error(f"SafetyCheckerClient: request failed ({e}); socket reset")
+                raise
+        resp = _deserialize_response(raw)
+        logger.debug(f"Received ZMQ message: {resp}")
+        return resp
 
     async def check_server_status(self) -> tuple[bool, str]:
         """Query the server status endpoint.
@@ -342,3 +393,46 @@ class SafetyCheckerClient:
         """
         msg = _serialize_request(VALIDATE_LANDING_REQ, [current_lat, current_lon])
         return await self._send_request(msg)
+
+    async def validate_velocity(
+        self,
+        current: Coordinate,
+        velocity: VectorNED,
+    ) -> tuple[bool, str]:
+        """Validate a velocity setpoint with the server.
+
+        The server checks the speed limits and that holding the velocity for
+        a few seconds from ``current`` stays inside the geofence, and refuses
+        while the vehicle is taken over.
+
+        Args:
+            current: Current vehicle position.
+            velocity: Commanded NED velocity in m/s.
+
+        Returns:
+            Tuple of (ok, message). ok is False if the server rejects the setpoint.
+        """
+        msg = _serialize_request(
+            VALIDATE_VELOCITY_REQ,
+            [current.to_json(), velocity.north, velocity.east, velocity.down],
+        )
+        return await self._send_request(msg)
+
+    async def validate_guided_command(self) -> tuple[bool, str]:
+        """Ask whether the E-VM may command the vehicle at all.
+
+        Returns:
+            Tuple of (ok, message). ok is False while the C-VM filter reports
+            the vehicle taken over; message then starts with TAKEN_OVER_MESSAGE.
+        """
+        return await self._send_request(_serialize_request(VALIDATE_GUIDED_COMMAND_REQ, []))
+
+    async def get_filter_status(self) -> dict | None:
+        """Ask whether the C-VM filter has aborted, and why.
+
+        Returns:
+            Dict with ``aborted`` (bool), ``reason`` (str or None) and
+            ``age_s``, or None if the request failed.
+        """
+        resp = await self._send_raw(_serialize_request(GET_FILTER_STATUS_REQ, []))
+        return resp.get("data") if resp.get("result") else None

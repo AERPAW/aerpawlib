@@ -92,6 +92,23 @@ class HeartbeatLostError(AerpawConnectionError):
         super().__init__(msg, **kwargs)
 
 
+class FilterAbortedError(HeartbeatLostError):
+    """The AERPAW C-VM filter ended the experiment and cut the vehicle link.
+
+    ``reason`` is the filter's own explanation (the command it rejected, a
+    geofence breach, a takeover, ...), as reported to the safety checker.
+    """
+
+    def __init__(self, reason: str, last_heartbeat_age: float = 0.0, **kwargs: Any) -> None:
+        self.reason = reason
+        kwargs.setdefault("code", "FILTER_ABORTED")
+        super().__init__(
+            last_heartbeat_age,
+            message=f"The C-VM filter ended the experiment and cut the vehicle link: {reason}",
+            **kwargs,
+        )
+
+
 class PortInUseError(AerpawConnectionError):
     """Port already in use."""
 

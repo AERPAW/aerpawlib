@@ -231,6 +231,30 @@ VALIDATE_LANDING_REQ = "validate_landing_req"
 """Request name for landing safety validation."""
 GET_LIMITATIONS_REQ = "get_limitations_req"
 """Request name for reading the configured vehicle limits."""
+VALIDATE_VELOCITY_REQ = "validate_velocity_req"
+"""Request name for velocity setpoint safety validation."""
+VALIDATE_GUIDED_COMMAND_REQ = "validate_guided_command_req"
+"""Request name asking whether the E-VM may command the vehicle at all."""
+REPORT_TAKEOFF_LOCATION_REQ = "report_takeoff_location_req"
+"""Request name the C-VM filter uses to set (or clear) the landing pad."""
+REPORT_TAKEOVER_REQ = "report_takeover_req"
+"""Request name the C-VM filter uses to set (or clear) a takeover."""
+REPORT_FILTER_ABORT_REQ = "report_filter_abort_req"
+"""Request name the C-VM filter uses, just before it exits, to record why."""
+GET_FILTER_STATUS_REQ = "get_filter_status_req"
+"""Request name for reading whether (and why) the C-VM filter aborted."""
+TAKEN_OVER_MESSAGE = "Vehicle taken over:"
+"""Start of every refusal the server gives because the vehicle was taken over."""
+VELOCITY_LOOKAHEAD_S = 4.0
+"""Seconds a velocity setpoint is extrapolated for the geofence check (matches the C-VM filter)."""
+ALT_LIMIT_MARGIN_M = 2.0
+"""Altitude within this of a copter limit counts as on the limit (matches the C-VM filter)."""
+COMMANDED_SPEED_TOLERANCE_M_S = 0.01
+"""float32 slack on commanded speeds, so a command at exactly the limit passes."""
+LAND_MAX_FROM_PAD_M = 5.0
+"""A copter must land within this of the takeoff pad the C-VM filter reported."""
+VELOCITY_REVALIDATE_INTERVAL_S = 1.0
+"""A running set_velocity re-asks the safety checker about its velocity this often."""
 
 
 # Waypoint and Plan Constants

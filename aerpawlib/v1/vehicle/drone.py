@@ -55,13 +55,6 @@ _COINCIDENT_DISTANCE_M = 0.01
 # Arrival checks altitude separately from the horizontal tolerance, with at
 # least this much vertical slack.
 _ARRIVAL_MIN_ALT_TOLERANCE_M = 3.0
-# The C-VM filter aborts a land more than 5 m from the pad it recorded at
-# takeoff. land() refuses before sending past this, leaving slack for the
-# drone drifting while telemetry catches up.
-_LAND_MAX_FROM_PAD_M = 4.5
-# return_to_launch only lands in place after a failed home goto when this
-# close to home.
-_RTL_LAND_IN_PLACE_MAX_M = _LAND_MAX_FROM_PAD_M
 
 
 def _is_valid_takeoff_altitude(altitude: float) -> bool:
@@ -93,9 +86,6 @@ class Drone(Vehicle):
             NotArmableError: If the vehicle is already armed (safety check).
         """
         super().__init__(connection_string, mavsdk_server_port=mavsdk_server_port)
-        # Ground position at the first takeoff since the last land; mirrors
-        # the pad the C-VM filter pins landing to.
-        self._takeoff_pad: util.Coordinate | None = None
         # Wait for armed-state telemetry to arrive before checking
         start = time.time()
         while not self._ts_state.armed_telemetry_received.get():
@@ -151,6 +141,7 @@ class Drone(Vehicle):
         if not blocking:
             # A running set_velocity keeps its yaw; the lock applies to the next one.
             return
+        await self._require_may_command("set_heading")
         # The velocity stream would keep overriding the yaw: stop and turn.
         await self._stop_velocity()
 
@@ -208,7 +199,6 @@ class Drone(Vehicle):
             )
         if not _is_valid_takeoff_altitude(target_alt):
             raise TakeoffError(f"Takeoff altitude must be a finite value > 0 m (got {target_alt!r})")
-        was_armed = self.armed
         if not (isinstance(min_alt_tolerance, (int, float)) and 0 < min_alt_tolerance <= 1):
             raise TakeoffError(f"min_alt_tolerance must be in (0, 1] (got {min_alt_tolerance!r})")
         if not self.armed:
@@ -227,6 +217,7 @@ class Drone(Vehicle):
                 )
             except TimeoutError as e:
                 raise TakeoffError(str(e)) from e
+        await self._require_may_command("takeoff")
         if self.safety is not None:
             ok, msg = self.safety.validate_takeoff_command(
                 target_alt,
@@ -259,12 +250,7 @@ class Drone(Vehicle):
             await self._run_on_mavsdk_loop(
                 self._system.action.set_takeoff_altitude(target_alt),
             )
-            ground = self.position
             await self._run_on_mavsdk_loop(self._system.action.takeoff())
-            # The filter keeps its pad until disarm, so a takeoff while
-            # already airborne does not move it.
-            if self._takeoff_pad is None or not was_armed:
-                self._takeoff_pad = ground
 
             # Non-finite altitude samples never count as reached.
             self._ready_to_move = lambda s: math.isfinite(s.position.alt) and s.position.alt >= target_alt * min_alt_tolerance
@@ -304,6 +290,7 @@ class Drone(Vehicle):
         """
         if not self.armed:
             await self._arm_vehicle()
+        await self._require_may_command(name)
         if self.safety is not None and name == "land":
             ok, msg = self.safety.validate_landing_command(
                 self.position.lat,
@@ -338,19 +325,13 @@ class Drone(Vehicle):
         """Land the drone and wait for it to be disarmed.
 
         Raises:
-            LandingError: If the drone is more than 4.5 m from where it took
-                off (the C-VM filter would abort the land), or the land fails.
+            LandingError: If the safety checker refuses the land (on AERPAW:
+                more than 5 m from the takeoff pad the C-VM filter recorded),
+                or the land fails.
+            VehicleTakenOverError: If the safety checker reports the vehicle
+                taken over.
         """
-        self._check_not_taken_over("land")
-        if self._takeoff_pad is not None:
-            away = self.position.ground_distance(self._takeoff_pad)
-            if not away <= _LAND_MAX_FROM_PAD_M:
-                raise LandingError(
-                    f"{away:.1f} m from the takeoff pad (limit {_LAND_MAX_FROM_PAD_M} m); fly back to the pad before landing",
-                )
-        self._takeover.note_land()
         await self._action_wait_disarm(self._system.action.land(), "land", LandingError)
-        self._takeoff_pad = None
 
     async def return_to_launch(self) -> None:
         """Fly to home coordinates and land (RTL mode is not used)."""
@@ -366,14 +347,15 @@ class Drone(Vehicle):
             try:
                 await self.goto_coordinates(dest)
             except NavigationError as e:
-                away = self.position.ground_distance(home)
-                if away > _RTL_LAND_IN_PLACE_MAX_M:
-                    # Landing here would be off the pad; stay in GUIDED.
-                    raise RTLError(
-                        f"could not navigate home ({e}); {away:.1f} m from home, not landing away from the pad",
-                        original_error=e,
-                    ) from e
-                logger.warning("Could not navigate home for RTL (%s); %.1f m from home, landing", e, away)
+                if self.safety is not None:
+                    ok, msg = self.safety.validate_landing_command(self.position.lat, self.position.lon)
+                    if not ok:
+                        # The safety checker would refuse a land here; stay in GUIDED.
+                        raise RTLError(
+                            f"could not navigate home ({e}); not landing here: {msg}",
+                            original_error=e,
+                        ) from e
+                logger.warning("Could not navigate home for RTL (%s); landing here", e)
             await self.land()
         except (NavigationError, LandingError, TimeoutError) as e:
             logger.error(f"Return-to-launch failed: {e}")
@@ -402,6 +384,7 @@ class Drone(Vehicle):
             NavigationError: If navigation command fails
         """
         validate_tolerance(tolerance, "tolerance")
+        await self._require_may_command("goto")
         if self.safety is not None:
             ok, msg = self.safety.validate_waypoint_command(self.position, coordinates)
             if not ok:
@@ -530,6 +513,7 @@ class Drone(Vehicle):
                 f"Drone: already in pre-arm mode {self._ts_state.mode.get()!r}, skipping mode switch",
             )
             return
+        await self._require_may_command("switch to GUIDED")
         logger.info(
             f"Drone: switching to GUIDED ({GUIDED_MODE_NAME}) mode (current mode={self._ts_state.mode.get()!r})",
         )

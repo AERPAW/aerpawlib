@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any
 
 from aerpawlib.cli.constants import (
+    FILTER_REASON_ATTEMPTS,
+    FILTER_REASON_RETRY_S,
     VEHICLE_TYPE_DRONE,
     VEHICLE_TYPE_GENERIC,
     VEHICLE_TYPE_NONE,
@@ -321,6 +323,10 @@ def run_v2_experiment(
                 await run_task
                 success = True
         except Exception as e:
+            reason = None if vehicle is None or isinstance(e, api_module.FilterAbortedError) else await _filter_abort_reason(vehicle)
+            if reason is not None:
+                # A command usually fails on the dead link before the disconnect watch asks.
+                logger.error(f"Experiment failed: {api_module.FilterAbortedError(reason)}")
             logger.error(f"Experiment failed: {e}")
             traceback.print_exc()
         finally:
@@ -347,6 +353,20 @@ def run_v2_experiment(
                     logger.debug(f"Failed to close structured event log: {e}")
             update_progress("Experiment completed!", completed=100)
         return success
+
+    async def _filter_abort_reason(vehicle: Any) -> str | None:
+        """Why the C-VM filter cut the link, if that is why the mission failed."""
+        for attempt in range(FILTER_REASON_ATTEMPTS):
+            try:
+                reason = await vehicle.filter_abort_reason()
+            except Exception as e:
+                logger.debug(f"Could not ask the safety checker why the link is down: {e}")
+                return None
+            if reason is not None or vehicle.connected:
+                return reason
+            if attempt + 1 < FILTER_REASON_ATTEMPTS:
+                await asyncio.sleep(FILTER_REASON_RETRY_S)
+        return None
 
     experiment_success = False
     try:
