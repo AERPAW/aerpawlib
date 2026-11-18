@@ -145,7 +145,7 @@ Scripts written for the original DroneKit-based aerpawlib need these updates:
 - There is no `._vehicle` DroneKit object. Use the async methods on `aerpawlib.v1` vehicles.
 - Flight commands (`takeoff`, `goto_coordinates`, `land`, `set_heading`, …) are coroutines and must be `await`ed. `initialize()` is still synchronous.
 - Use MAVSDK connection strings (`udpin://host:port`). `udp:` / `udp://` are rewritten.
-- Attached safety checks fail closed. On the testbed, copter takeoff is typically ≥ 20 m, and landing must be within 5 m of takeoff.
+- Attached safety checks fail closed. On the testbed, copter takeoff must be ≥ 25 m (`min_takeoff_alt`), flight must then stay ≥ 20 m (`min_alt`), and landing must be within 5 m of takeoff.
 - Mode telemetry is often `"OFFBOARD"` for ArduPilot GUIDED. Compare with `vehicle.mode in ("OFFBOARD", "GUIDED")`.
 - Auto RTL runs only after a successful mission (unless `--skip-rtl`). Ctrl-C leaves the last GUIDED setpoint.
 

@@ -17,7 +17,7 @@ from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone
 
 # Configuration
-FLIGHT_ALT = 25  # meters (AERPAW copter min_alt is 20)
+FLIGHT_ALT = 25  # meters (AERPAW copter min takeoff alt is 25, min_alt is 20)
 LOOP_RADIUS = 10  # meters (radius of each loop; 20 m spans ~40 m)
 NUM_WAYPOINTS = 16  # points per loop
 

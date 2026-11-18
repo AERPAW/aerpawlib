@@ -43,4 +43,4 @@ Multi-vehicle: `await self.wait_for_peers(["follower"])` before the first `trans
 - Exceptions: v2 errors have `code` and `severity`.
 - Close: `await drone.aclose()`, not `drone.close()`.
 - Mode string is `"OFFBOARD"` (ArduPilot GUIDED via MAVSDK). Compare with `vehicle.mode in ("OFFBOARD", "GUIDED")`.
-- Copter takeoff on the testbed must be at least 20 m (examples use 25 m).
+- Copter takeoff on the testbed must be at least 25 m (`min_takeoff_alt`), and flight must then stay at or above 20 m (`min_alt`). The examples use 25 m.

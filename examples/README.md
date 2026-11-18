@@ -1,6 +1,6 @@
 # aerpawlib Examples
 
-Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.json`). Copter takeoff on the testbed must be at least 20 m; these examples use 25 m.
+Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.json`). Copter takeoff on the testbed must be at least 25 m (`min_takeoff_alt`), and flight must then stay at or above 20 m (`min_alt`). These examples use 25 m.
 
 ## Quick Reference
 

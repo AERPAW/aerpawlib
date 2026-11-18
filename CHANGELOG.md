@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Examples and docs follow the testbed rules.** The cancel example returns to the pad after cancelling (a cancelled drone goto holds position in GUIDED; it does not RTL, whatever the docs said). The circle and velocity examples take off to 25 m, and the velocity and v1 square examples land on the pad. The docs give the testbed's minimum takeoff altitude as 25 m (`min_takeoff_alt`), with flight at or above 20 m (`min_alt`) afterwards, not 20 m.
+
 ## [1.14.0] (2026-10-27)
 
 ### Summary

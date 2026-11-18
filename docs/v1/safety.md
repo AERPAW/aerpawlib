@@ -45,6 +45,7 @@ ZMQ REP server loading YAML limits:
 | `include_geofences` | All | KML paths (allowed regions) |
 | `exclude_geofences` | All | KML paths (forbidden regions) |
 | `max_alt` / `min_alt` | Copter | Altitude limits (AERPAW copter `min_alt` is typically 20 m) |
+| `min_takeoff_alt` | Copter, optional | Minimum takeoff altitude; `min_alt` if unset (AERPAW copter: 25 m) |
 
 The C-VM filter is the authority on what the vehicle may do; the server answers with the filter's view so a script can check a command before sending it:
 

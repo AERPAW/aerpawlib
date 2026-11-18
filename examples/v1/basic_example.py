@@ -22,7 +22,7 @@ class SquareFlight(BasicRunner):
     @entrypoint
     async def run(self, drone: Drone):
         # Configuration
-        takeoff_altitude = 25  # meters (AERPAW copter min_alt is 20)
+        takeoff_altitude = 25  # meters (AERPAW copter min takeoff alt is 25, min_alt is 20)
         square_size = 10  # meters
 
         print("[example] Starting square flight mission")

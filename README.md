@@ -50,7 +50,7 @@ class MyMission(BasicRunner):
 aerpawlib --api-version v2 --script my_mission.py --conn udpin://127.0.0.1:14550 --vehicle drone --no-aerpaw-environment
 ```
 
-`--no-aerpaw-environment` is required outside the AERPAW testbed. Copter takeoff on the testbed must be at least 20 m (examples use 25 m).
+`--no-aerpaw-environment` is required outside the AERPAW testbed. Copter takeoff on the testbed must be at least 25 m (`min_takeoff_alt`), and flight must then stay at or above 20 m (`min_alt`). The examples use 25 m.
 
 ## Documentation
 
