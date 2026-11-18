@@ -150,3 +150,22 @@ async def test_set_groundspeed_after_takeover_raises(api, monkeypatch):
     taken_over, _ = _errors(api)
     with pytest.raises(taken_over):
         await vehicle.set_groundspeed(3.0)
+
+
+@pytest.mark.asyncio
+async def test_v2_takeover_between_velocity_check_and_first_send_is_not_wrapped(monkeypatch):
+    """The checker accepts the velocity, then reports the takeover before the
+    first setpoint goes out: set_velocity raises VehicleTakenOverError, not
+    VelocityError."""
+    vehicle, vector_cls, sent, checker = _vehicle("v2", monkeypatch)
+
+    async def validate_velocity(_current, _velocity):
+        checker.taken_over = True
+        return True, ""
+
+    checker.validate_velocity = validate_velocity
+    taken_over, velocity_error = _errors("v2")
+    with pytest.raises(taken_over) as info:
+        await vehicle.set_velocity(vector_cls(1.0, 0.0, 0.0))
+    assert not isinstance(info.value, velocity_error)
+    assert sent == []
