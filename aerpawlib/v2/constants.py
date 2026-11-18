@@ -104,6 +104,8 @@ FILTER_STATUS_CHECK_AFTER_S = 3.0
 """Telemetry this stale makes the disconnect watch ask the safety checker whether the C-VM filter aborted."""
 FILTER_STATUS_POLL_INTERVAL_S = 2.0
 """How often the disconnect watch asks again while telemetry stays stale."""
+FILTER_STATUS_LATE_ASK_TIMEOUT_S = 1.0
+"""Budget for the one ask the disconnect watch makes when telemetry is already past the timeout and it has not asked during this outage."""
 TAKEN_OVER_MESSAGE = "Vehicle taken over:"
 """Start of every refusal the server gives because the vehicle was taken over."""
 VELOCITY_REVALIDATE_INTERVAL_S = 1.0

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 
 from aerpawlib.v2.constants import (
     FILTER_STATUS_CHECK_AFTER_S,
+    FILTER_STATUS_LATE_ASK_TIMEOUT_S,
     FILTER_STATUS_POLL_INTERVAL_S,
     HEARTBEAT_CHECK_INTERVAL_S,
     HEARTBEAT_START_DELAY_S,
@@ -104,15 +105,28 @@ class ConnectionState:
         try:
             await asyncio.sleep(start_delay)
             next_reason_check = 0.0
+            # last_telemetry_at of the outage last asked about; any telemetry
+            # since then changes last_telemetry_at and so starts a new outage.
+            asked_outage: float | None = None
             while not self.closed:
                 age = time.monotonic() - self.last_telemetry_at
                 reason = None
-                if self._abort_reason is not None and FILTER_STATUS_CHECK_AFTER_S < age < timeout and time.monotonic() >= next_reason_check:
-                    next_reason_check = time.monotonic() + FILTER_STATUS_POLL_INTERVAL_S
-                    try:
+                budget = None
+                if self._abort_reason is not None and age > FILTER_STATUS_CHECK_AFTER_S:
+                    if age < timeout:
                         # An unreachable safety checker must not hold the
                         # disconnect past timeout: ask with what is left of it.
-                        reason = await asyncio.wait_for(self._abort_reason(), timeout=timeout - age)
+                        if time.monotonic() >= next_reason_check:
+                            budget = timeout - age
+                    elif asked_outage != self.last_telemetry_at:
+                        # Past timeout without having asked (a short timeout,
+                        # or a blocked loop): ask once, briefly.
+                        budget = FILTER_STATUS_LATE_ASK_TIMEOUT_S
+                if budget is not None:
+                    next_reason_check = time.monotonic() + FILTER_STATUS_POLL_INTERVAL_S
+                    asked_outage = self.last_telemetry_at
+                    try:
+                        reason = await asyncio.wait_for(self._abort_reason(), timeout=budget)
                     except Exception as e:
                         logger.debug(f"ConnectionState: could not ask why the link is down: {e}")
                     age = time.monotonic() - self.last_telemetry_at
