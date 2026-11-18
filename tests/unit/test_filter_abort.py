@@ -98,3 +98,48 @@ async def test_vehicle_filter_abort_reason_asks_the_safety_checker():
     assert await drone.filter_abort_reason() is None
     drone.safety = _Checker({"aborted": True, "reason": "Mode 5 not allowed."})
     assert await drone.filter_abort_reason() == "Mode 5 not allowed."
+
+
+@pytest.mark.asyncio
+async def test_a_hanging_safety_checker_does_not_delay_the_disconnect():
+    """An unreachable checker (dead C-VM) must not hold HeartbeatLostError
+    past the timeout; the hanging request is cancelled."""
+    cancelled = []
+
+    async def hangs():
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            cancelled.append(True)
+            raise
+
+    state = ConnectionState(link_alive=True)
+    started = time.monotonic()
+    future = state.watch_disconnect(0.5, start_delay=0, check_interval=0.01, abort_reason=hangs)
+    try:
+        with contextlib.suppress(HeartbeatLostError):
+            await asyncio.wait_for(asyncio.shield(future), timeout=3)
+        elapsed = time.monotonic() - started
+    finally:
+        state.mark_closed()
+    assert type(future.exception()) is HeartbeatLostError
+    assert elapsed < 0.5 + 0.25
+    assert cancelled
+
+
+@pytest.mark.asyncio
+async def test_a_reason_within_the_timeout_still_ends_the_watch_with_it():
+    async def slow_reason():
+        await asyncio.sleep(0.1)
+        return "Vehicle taken over: mode LOITER"
+
+    state = ConnectionState(link_alive=True)
+    future = state.watch_disconnect(0.5, start_delay=0, check_interval=0.01, abort_reason=slow_reason)
+    try:
+        with contextlib.suppress(HeartbeatLostError):
+            await asyncio.wait_for(asyncio.shield(future), timeout=3)
+    finally:
+        state.mark_closed()
+    err = future.exception()
+    assert isinstance(err, FilterAbortedError)
+    assert err.reason.startswith("Vehicle taken over")

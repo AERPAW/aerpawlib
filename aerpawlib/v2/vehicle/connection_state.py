@@ -107,12 +107,15 @@ class ConnectionState:
             while not self.closed:
                 age = time.monotonic() - self.last_telemetry_at
                 reason = None
-                if self._abort_reason is not None and age > FILTER_STATUS_CHECK_AFTER_S and time.monotonic() >= next_reason_check:
+                if self._abort_reason is not None and FILTER_STATUS_CHECK_AFTER_S < age < timeout and time.monotonic() >= next_reason_check:
                     next_reason_check = time.monotonic() + FILTER_STATUS_POLL_INTERVAL_S
                     try:
-                        reason = await self._abort_reason()
+                        # An unreachable safety checker must not hold the
+                        # disconnect past timeout: ask with what is left of it.
+                        reason = await asyncio.wait_for(self._abort_reason(), timeout=timeout - age)
                     except Exception as e:
                         logger.debug(f"ConnectionState: could not ask why the link is down: {e}")
+                    age = time.monotonic() - self.last_telemetry_at
                 if reason is not None or age > timeout:
                     await self._signal_disconnect(age, reason)
                     return
