@@ -169,3 +169,201 @@ async def test_v2_takeover_between_velocity_check_and_first_send_is_not_wrapped(
         await vehicle.set_velocity(vector_cls(1.0, 0.0, 0.0))
     assert not isinstance(info.value, velocity_error)
     assert sent == []
+
+
+# A takeover while a blocking goto/takeoff/land waits (safety pilot mid-goto).
+
+
+def _fast_takeover_checks(api: str, monkeypatch):
+    module = "aerpawlib.v1.vehicle.core_vehicle" if api == "v1" else "aerpawlib.v2.vehicle.base"
+    monkeypatch.setattr(f"{module}.TAKEOVER_CHECK_INTERVAL_S", 0.05)
+
+
+def _waiting_vehicle(api: str, monkeypatch):
+    """A drone whose wait loops never finish on their own."""
+    from unittest.mock import AsyncMock
+
+    vehicle, _, _, checker = _vehicle(api, monkeypatch)
+    _fast_takeover_checks(api, monkeypatch)
+    checker.guided_checks = 0
+    guided = checker._guided
+
+    def counting_guided():
+        checker.guided_checks += 1
+        return guided()
+
+    checker._guided = counting_guided
+    checker.validate_takeoff_command = lambda *_args: (True, "")
+    checker.validate_landing_command = lambda *_args: (True, "")
+    system = vehicle._system
+    system.action.set_takeoff_altitude = AsyncMock()
+    system.action.takeoff = AsyncMock()
+    system.action.land = AsyncMock()
+    if api == "v1":
+        vehicle._lifecycle.has_heartbeat = True
+        vehicle._aborted = False
+        vehicle._abortable = False
+        vehicle._ready_to_move = lambda _: False
+        vehicle._mission_start_time = None
+        vehicle._ts_state.armed_state.set(True)
+    else:
+        vehicle._connection.set_link_alive(True)
+        vehicle._connection.record_telemetry()
+        vehicle._await_preflight_for_takeoff = AsyncMock()
+        vehicle.can_takeoff = AsyncMock(return_value=(True, ""))
+        vehicle.can_land = AsyncMock(return_value=(True, ""))
+        vehicle.done_moving = lambda: False
+        vehicle._will_arm = False
+        vehicle._test_armed = True
+        monkeypatch.setattr(type(vehicle), "armed", property(lambda s: s._test_armed))
+    return vehicle, checker
+
+
+def _disarm(api: str, vehicle) -> None:
+    if api == "v1":
+        vehicle._ts_state.armed_state.set(False)
+    else:
+        vehicle._test_armed = False
+
+
+async def _goto_wait(api: str, vehicle) -> None:
+    if api == "v1":
+        await vehicle._wait_for_arrival(30, "goto timed out")
+    else:
+        from aerpawlib.v2.types import Coordinate
+        from aerpawlib.v2.vehicle.navigation import wait_for_blocking_goto
+
+        await wait_for_blocking_goto(
+            vehicle,
+            Coordinate(35.73, -78.69, 30),
+            distance_fn=lambda: 50.0,
+            tolerance=2.0,
+            timeout=30,
+            log_prefix="Drone",
+        )
+
+
+def _wait(api: str, which: str, vehicle):
+    if which == "goto":
+        return _goto_wait(api, vehicle)
+    if which == "takeoff":
+        return vehicle.takeoff(50) if api == "v1" else vehicle.takeoff(altitude=50)
+    return vehicle.land()
+
+
+WAITS = [(api, which) for api in ("v1", "v2") for which in ("goto", "takeoff", "land")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("api", "which"), WAITS)
+async def test_takeover_during_a_blocking_wait_raises_promptly(api, which, monkeypatch):
+    vehicle, checker = _waiting_vehicle(api, monkeypatch)
+    taken_over, _ = _errors(api)
+    asyncio.get_running_loop().call_later(0.2, setattr, checker, "taken_over", True)
+    start = asyncio.get_running_loop().time()
+    with pytest.raises(taken_over):
+        await asyncio.wait_for(_wait(api, which, vehicle), timeout=3)
+    assert asyncio.get_running_loop().time() - start < 1.5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api", ["v1", "v2"])
+async def test_land_without_a_takeover_completes_as_before(api, monkeypatch):
+    vehicle, checker = _waiting_vehicle(api, monkeypatch)
+    asyncio.get_running_loop().call_later(0.3, _disarm, api, vehicle)
+    await asyncio.wait_for(vehicle.land(), timeout=3)
+    assert checker.guided_checks >= 2  # asked before LAND and while waiting
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api", ["v1", "v2"])
+@pytest.mark.parametrize("which", ["takeoff", "land"])
+async def test_a_failing_checker_does_not_fail_a_blocking_wait(api, which, monkeypatch):
+    """Only a takeover refusal ends the wait; a checker timeout is ignored.
+    takeoff and land turn a TimeoutError into TakeoffError/LandingError, so a
+    leaked checker timeout would show."""
+    vehicle, checker = _waiting_vehicle(api, monkeypatch)
+    if which == "takeoff":
+        if api == "v1":
+            monkeypatch.setattr("aerpawlib.v1.vehicle.drone.POST_TAKEOFF_STABILIZATION_S", 0)
+        else:
+            monkeypatch.setattr("aerpawlib.v2.vehicle.drone.POST_TAKEOFF_STABILIZATION_S", 0)
+
+    calls = 0
+
+    def guided():
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return True, ""  # the check before the command is sent
+        raise TimeoutError("SafetyCheckerServer did not respond within 10.0s")
+
+    checker._guided = guided
+
+    def finish():
+        if which == "land":
+            _disarm(api, vehicle)
+        elif api == "v1":
+            vehicle._ready_to_move = lambda _: True
+            from aerpawlib.v1.util import Coordinate
+
+            monkeypatch.setattr(type(vehicle), "position", property(lambda _self: Coordinate(35.73, -78.695, 50)))
+        else:
+            vehicle.done_moving = lambda: True
+
+    asyncio.get_running_loop().call_later(0.3, finish)
+    await asyncio.wait_for(_wait(api, which, vehicle), timeout=3)
+    assert calls >= 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api", ["v1", "v2"])
+async def test_without_a_safety_checker_the_waits_do_not_ask(api, monkeypatch):
+    vehicle, checker = _waiting_vehicle(api, monkeypatch)
+    vehicle.safety = None
+    asyncio.get_running_loop().call_later(0.2, _disarm, api, vehicle)
+    await asyncio.wait_for(vehicle.land(), timeout=3)
+    assert checker.guided_checks == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("api", ["v1", "v2"])
+@pytest.mark.parametrize(
+    ("refusal", "ends_wait"),
+    [
+        ("Server error: boom", False),
+        ("Unimplemented or missing function request <validate_guided_command_req>", False),
+        (f"{TAKEN_OVER_MESSAGE} mode LOITER", True),
+    ],
+)
+async def test_only_a_takeover_refusal_ends_a_goto_wait(api, refusal, ends_wait, monkeypatch):
+    vehicle, checker = _waiting_vehicle(api, monkeypatch)
+    checker._guided = lambda: (False, refusal)
+    running = True
+
+    async def telemetry():
+        # Fresh position samples, as the arrival check needs.
+        while running:
+            if api == "v2":
+                vehicle._state._position_seq += 1
+                vehicle._connection.record_telemetry()
+            await asyncio.sleep(0.02)
+
+    def arrive():
+        if api == "v1":
+            vehicle._ready_to_move = lambda _: True
+        else:
+            vehicle.done_moving = lambda: True
+
+    feed = asyncio.create_task(telemetry())
+    asyncio.get_running_loop().call_later(0.3, arrive)
+    try:
+        if ends_wait:
+            taken_over, _ = _errors(api)
+            with pytest.raises(taken_over):
+                await asyncio.wait_for(_goto_wait(api, vehicle), timeout=3)
+        else:
+            await asyncio.wait_for(_goto_wait(api, vehicle), timeout=3)
+    finally:
+        running = False
+        await feed

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 from aerpawlib.v2.constants import (
     MAX_POSITION_TOLERANCE_M,
@@ -41,6 +41,7 @@ async def _wait_for_condition(
     timeout: float | None = None,
     poll_interval: float = 0.05,
     timeout_message: str = "Operation timed out",
+    on_poll: Callable[[], Awaitable[object]] | None = None,
 ) -> bool:
     """Wait until a condition callable returns True.
 
@@ -50,6 +51,8 @@ async def _wait_for_condition(
         poll_interval: Seconds between condition checks; also yields the
             event loop between checks.
         timeout_message: Message used in the TimeoutError if the wait expires.
+        on_poll: Optional coroutine function awaited between checks; its
+            exceptions end the wait.
 
     Returns:
         True when the condition becomes True.
@@ -64,5 +67,7 @@ async def _wait_for_condition(
                 f"_wait_for_condition timeout after {timeout}s: {timeout_message}",
             )
             raise TimeoutError(timeout_message)
+        if on_poll is not None:
+            await on_poll()
         await asyncio.sleep(poll_interval)
     return True

@@ -219,6 +219,7 @@ class Drone(Vehicle):
                     raise TakeoffError(
                         f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s (alt={self.position.alt:.1f}m, target={altitude:.1f}m)",
                     )
+                await self._check_not_taken_over("continue takeoff")
                 now = time.monotonic()
                 if now - last_log >= TAKEOFF_LOG_INTERVAL_S:
                     logger.debug(
@@ -290,6 +291,7 @@ class Drone(Vehicle):
                 poll_interval=POLLING_DELAY_S,
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message="Drone: land timed out waiting for disarm",
+                on_poll=lambda: self._check_not_taken_over("continue landing"),
             )
             if self._event_log:
                 self._event_log.log_event("land_complete")

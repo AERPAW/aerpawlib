@@ -8,7 +8,7 @@ import asyncio
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, TypeVar
 
 from .constants import (
@@ -26,6 +26,7 @@ async def wait_for_condition(
     timeout: float | None = None,
     poll_interval: float = POLLING_DELAY_S,
     timeout_message: str = "Operation timed out",
+    on_poll: Callable[[], Awaitable[object]] | None = None,
 ) -> bool:
     """
     Wait for a condition to become true.
@@ -39,6 +40,8 @@ async def wait_for_condition(
         timeout: Maximum time to wait in seconds, None for no timeout
         poll_interval: Time between condition checks
         timeout_message: Message for TimeoutError if timeout occurs
+        on_poll: Optional coroutine function awaited between checks; its
+            exceptions end the wait
 
     Returns:
         True if condition was met
@@ -50,6 +53,8 @@ async def wait_for_condition(
     while not condition():
         if timeout is not None and (time.time() - start_time) > timeout:
             raise TimeoutError(timeout_message)
+        if on_poll is not None:
+            await on_poll()
         await asyncio.sleep(poll_interval)
 
     return True

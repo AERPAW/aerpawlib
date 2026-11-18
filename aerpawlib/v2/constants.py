@@ -19,6 +19,8 @@ DEFAULT_POSITION_TOLERANCE_M = 2.0
 """Default position tolerance for determining waypoint arrival."""
 DEFAULT_GOTO_TIMEOUT_S = 300.0
 """Default timeout for blocking goto/navigation operations."""
+TAKEOVER_CHECK_INTERVAL_S = 1.0
+"""How often a blocking goto/takeoff/land wait asks the safety checker whether the vehicle was taken over."""
 HEADING_TOLERANCE_DEG = 5.0
 """Heading tolerance used by heading-reached checks."""
 DEFAULT_TAKEOFF_ALTITUDE_TOLERANCE = 0.95

@@ -37,6 +37,9 @@ class _NavVehicle:
     def done_moving(self) -> bool:
         return not self._moving
 
+    async def _check_not_taken_over(self, _action: str) -> None:
+        return None
+
 
 @pytest.mark.asyncio
 async def test_wait_for_blocking_goto_completes_when_done():

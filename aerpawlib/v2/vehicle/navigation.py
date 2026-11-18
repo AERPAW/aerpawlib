@@ -89,6 +89,7 @@ async def wait_for_blocking_goto(
         problem = _arrival_link_problem(vehicle)
         if problem is not None:
             raise NavigationError(f"{log_prefix}: cannot confirm arrival: {problem}")
+        await vehicle._check_not_taken_over("continue goto")
         if tracker.arrived():
             return
         elapsed = time.monotonic() - start

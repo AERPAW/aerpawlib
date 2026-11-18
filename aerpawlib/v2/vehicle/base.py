@@ -39,6 +39,7 @@ from aerpawlib.v2.constants import (
     POST_ARM_STABILIZE_DELAY_S,
     READY_MOVE_LOG_INTERVAL_S,
     TAKEN_OVER_MESSAGE,
+    TAKEOVER_CHECK_INTERVAL_S,
     VELOCITY_REVALIDATE_INTERVAL_S,
     VELOCITY_UPDATE_DELAY_S,
 )
@@ -98,6 +99,9 @@ class Vehicle:
     - ``_state`` (VehicleState): telemetry mirrored by public properties
     - ``_ready_to_move``: movement-completion predicate for command gating
     """
+
+    # When a blocking wait may next ask the safety checker about a takeover.
+    _next_takeover_check: float = 0.0
 
     def __init__(
         self,
@@ -199,6 +203,26 @@ class Vehicle:
         refusal = await self._guided_refusal()
         if refusal is not None:
             raise VehicleTakenOverError(f"Cannot {action}: {refusal}")
+
+    async def _check_not_taken_over(self, action: str) -> None:
+        """For blocking waits: raise VehicleTakenOverError if the safety
+        checker reports a takeover, asking at most every
+        TAKEOVER_CHECK_INTERVAL_S. Any other refusal or checker failure is
+        logged and the wait goes on."""
+        if self.safety is None or time.monotonic() < self._next_takeover_check:
+            return
+        try:
+            refusal = await self._guided_refusal()
+        except Exception as e:
+            refusal = None
+            logger.warning(f"Could not ask the safety checker whether to {action}: {e}")
+        finally:
+            self._next_takeover_check = time.monotonic() + TAKEOVER_CHECK_INTERVAL_S
+        if refusal is None:
+            return
+        if refusal.startswith(TAKEN_OVER_MESSAGE):
+            raise VehicleTakenOverError(f"Cannot {action}: {refusal}")
+        logger.warning(f"Safety checker refused without reporting a takeover; continuing to {action}: {refusal}")
 
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.

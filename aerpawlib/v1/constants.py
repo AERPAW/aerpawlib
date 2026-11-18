@@ -219,6 +219,10 @@ SAFETY_CHECKER_REQUEST_TIMEOUT_S = 10.0
 """Timeout for safety checker client send/recv (seconds)
 - prevents indefinite block if server is down"""
 
+TAKEOVER_CHECK_INTERVAL_S = 1.0
+"""How often a blocking goto/takeoff/land wait asks the safety checker
+whether the vehicle was taken over (seconds)"""
+
 SERVER_STATUS_REQ = "server_status_req"
 """Safety Checker Request Types"""
 VALIDATE_WAYPOINT_REQ = "validate_waypoint_req"

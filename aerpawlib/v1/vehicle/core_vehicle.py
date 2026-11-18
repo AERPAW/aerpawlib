@@ -47,6 +47,7 @@ from aerpawlib.v1.constants import (
     POSITION_READY_TIMEOUT_S,
     STRUCTURED_TELEMETRY_INTERVAL_S,
     TAKEN_OVER_MESSAGE,
+    TAKEOVER_CHECK_INTERVAL_S,
     VELOCITY_REVALIDATE_INTERVAL_S,
     VELOCITY_STOP_ON_CLOSE_TIMEOUT_S,
     VELOCITY_UPDATE_DELAY_S,
@@ -108,6 +109,8 @@ class Vehicle:
     _ready_to_move: Callable[[Vehicle], bool]
     _abortable: bool
     _aborted: bool
+    # When a blocking wait may next ask the safety checker about a takeover.
+    _next_takeover_check: float = 0.0
     _current_heading: float | None
     _last_nav_controller_output: Any | None
     _last_mission_item_int: Any | None
@@ -617,6 +620,26 @@ class Vehicle:
         if refusal is not None:
             raise VehicleTakenOverError(f"Cannot {action}: {refusal}")
 
+    async def _check_not_taken_over(self, action: str) -> None:
+        """For blocking waits: raise VehicleTakenOverError if the safety
+        checker reports a takeover, asking at most every
+        TAKEOVER_CHECK_INTERVAL_S. Any other refusal or checker failure is
+        logged and the wait goes on."""
+        if self.safety is None or time.monotonic() < self._next_takeover_check:
+            return
+        try:
+            refusal = await asyncio.to_thread(self._guided_refusal_sync)
+        except Exception as e:
+            refusal = None
+            logger.warning(f"Could not ask the safety checker whether to {action}: {e}")
+        finally:
+            self._next_takeover_check = time.monotonic() + TAKEOVER_CHECK_INTERVAL_S
+        if refusal is None:
+            return
+        if refusal.startswith(TAKEN_OVER_MESSAGE):
+            raise VehicleTakenOverError(f"Cannot {action}: {refusal}")
+        logger.warning(f"Safety checker refused without reporting a takeover; continuing to {action}: {refusal}")
+
     def _already_in_guided_mode(self) -> bool:
         """True when the vehicle is already in a mode that accepts GUIDED commands.
 
@@ -666,6 +689,7 @@ class Vehicle:
                 raise NavigationError("vehicle disconnected while waiting for arrival")
             if self._aborted:
                 raise NavigationError("mission aborted while waiting for arrival")
+            await self._check_not_taken_over("continue goto")
             if self._ready_to_move(self):
                 return
             if timeout is not None and time.time() - start > timeout:

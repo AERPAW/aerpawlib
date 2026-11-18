@@ -259,6 +259,7 @@ class Drone(Vehicle):
                 poll_interval=POLLING_DELAY_S,
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message=f"Takeoff timed out after {DEFAULT_GOTO_TIMEOUT_S:.0f}s",
+                on_poll=lambda: self._check_not_taken_over("continue takeoff"),
             )
             await asyncio.sleep(POST_TAKEOFF_STABILIZATION_S)
             ok = True
@@ -312,6 +313,7 @@ class Drone(Vehicle):
                 poll_interval=POLLING_DELAY_S,
                 timeout=DEFAULT_GOTO_TIMEOUT_S,
                 timeout_message=f"{name} timed out waiting for disarm",
+                on_poll=lambda: self._check_not_taken_over(f"continue {name}"),
             )
             logger.debug(f"{name} complete")
         except (ActionError, TimeoutError) as e:
