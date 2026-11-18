@@ -16,7 +16,7 @@ class VelocityControlDemo(BasicRunner):
 
     @entrypoint
     async def run(self, drone: Drone):
-        await drone.takeoff(altitude=10)
+        await drone.takeoff(altitude=25)
         # set_velocity returns at once; sleep while the velocity holds.
         print("[example] Hovering...")
         await drone.set_velocity(VectorNED(0, 0, 0))
@@ -26,6 +26,6 @@ class VelocityControlDemo(BasicRunner):
         await asyncio.sleep(3.0)
         print("[example] Stopping...")
         await drone.stop_velocity()
-        print("[example] Landing...")
-        await drone.land()
+        print("[example] Returning to launch and landing...")
+        await drone.return_to_launch()
         print("[example] Done")

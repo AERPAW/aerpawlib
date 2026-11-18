@@ -14,7 +14,7 @@ import math
 
 from aerpawlib.v2 import Coordinate, Drone, StateMachine, VectorNED, state
 
-FLIGHT_ALT = 5  # m
+FLIGHT_ALT = 25  # m (AERPAW min takeoff altitude)
 CIRCLE_RAD = 10  # m
 CIRCLE_VEL = 1  # m/s
 N_LAPS = 1

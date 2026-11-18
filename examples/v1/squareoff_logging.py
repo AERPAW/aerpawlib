@@ -43,7 +43,7 @@ from pathlib import Path
 from typing import ClassVar, TextIO
 
 from aerpawlib.v1.runner import StateMachine, background, state, timed_state
-from aerpawlib.v1.util import VectorNED
+from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone, Rover, Vehicle
 
 FLIGHT_ALT = 25  # m (AERPAW copter min_alt is 20)
@@ -212,5 +212,7 @@ class SquareOff(StateMachine):
 
     @state(name="land")
     async def land(self, drone: Drone):
+        # the legs are relative, so the square may not close exactly: land on the pad
+        await drone.goto_coordinates(Coordinate(drone.home_coords.lat, drone.home_coords.lon, drone.position.alt))
         await drone.land()
         print("done!")

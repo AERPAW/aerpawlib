@@ -1,6 +1,6 @@
 """
 circle will make a vehicle (drone is the only supported one for now) fly in a
-3m radius circle centered on where it started. This is a good example of how to
+10m radius circle centered on where it started. This is a good example of how to
 use velocity control.
 
 Usage:
@@ -16,7 +16,7 @@ from aerpawlib.v1.runner import StateMachine, state
 from aerpawlib.v1.util import Coordinate, VectorNED
 from aerpawlib.v1.vehicle import Drone
 
-FLIGHT_ALT = 5  # m
+FLIGHT_ALT = 25  # m (AERPAW min takeoff altitude)
 CIRCLE_RAD = 10  # m
 CIRCLE_VEL = 1  # m/s
 N_LAPS = 1
