@@ -1189,6 +1189,8 @@ class Vehicle:
                 self._velocity_stop_setpoint,
                 duration,
             )
+        except VehicleTakenOverError:
+            raise
         except Exception as e:
             raise VelocityError(str(e), original_error=e) from e
         self._command_tasks.append(task)
