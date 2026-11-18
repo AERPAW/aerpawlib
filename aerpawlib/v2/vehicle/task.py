@@ -50,7 +50,7 @@ class VehicleTask:
         self._done.set()
 
     def set_on_cancel(self, callback: Callable[[], object]) -> None:
-        """Set async callback to run when cancel() is called (e.g. RTL to stop goto)."""
+        """Set async callback to run when cancel() is called (e.g. hold position to stop a goto)."""
         self._on_cancel = callback
 
     def _signal_cancelled(self) -> None:

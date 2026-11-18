@@ -23,7 +23,7 @@ Local SITL requires `--no-aerpaw-environment` (or `--config configs/sitl-drone.j
 | `rover_example` | v2 | Ground vehicle waypoint navigation |
 | `velocity_example` | v2 | Guided mode velocity control |
 | `command_handle_example` | v2 | Non-blocking command handle progress querying |
-| `command_handle_cancel_example` | v2 | Cancel non-blocking goto mid-flight (triggers RTL) |
+| `command_handle_cancel_example` | v2 | Cancel non-blocking goto mid-flight (holds position), then return to launch |
 | `command_validation_example` | v2 | Pre-check capability validation |
 | `geofence_example` | v2 | Waypoint and path validation using geofence KML |
 | `logging_example` | v2 | Structured logging using `get_logger` and `LogComponent` |

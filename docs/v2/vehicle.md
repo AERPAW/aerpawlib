@@ -47,7 +47,7 @@ finally:
 
 ### Commands
 
-All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=False` for a `VehicleTask` handle (`progress`, `cancel()`, `wait_done()`). Cancelling a drone goto RTLs; `wait_done()` then completes.
+All commands are `async`. `goto_coordinates` blocks by default; pass `blocking=False` for a `VehicleTask` handle (`progress`, `cancel()`, `wait_done()`). Cancelling a drone goto stops the drone and holds position in GUIDED (it does not return or land); `wait_done()` then completes. Call `return_to_launch()` to come home.
 
 | Command | Drone | Rover |
 |---------|-------|-------|

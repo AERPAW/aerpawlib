@@ -1,5 +1,6 @@
 """
-VehicleTask cancel v2 Example - Start goto, cancel mid-flight (triggers RTL).
+VehicleTask cancel v2 Example - Start goto, cancel mid-flight (the drone stops
+and holds position), then return to the launch point and land.
 
 Run with:
     aerpawlib --api-version v2 --script examples/v2/command_handle_cancel_example.py \
@@ -12,7 +13,7 @@ from aerpawlib.v2 import BasicRunner, Drone, VectorNED, entrypoint
 
 
 class CancelGotoDemo(BasicRunner):
-    """Start goto, cancel after a few seconds, verify RTL and handle completion."""
+    """Start goto, cancel after a few seconds, then return to launch and land."""
 
     @entrypoint
     async def run(self, drone: Drone):
@@ -29,13 +30,12 @@ class CancelGotoDemo(BasicRunner):
             await asyncio.sleep(1)
             print(f"[example] Progress: {handle.progress:.0%}")
             if i == 4:
-                print("[example] Cancelling goto (RTL)...")
+                print("[example] Cancelling goto...")
                 handle.cancel()
                 break
 
         await handle.wait_done()
-        print("[example] Handle complete (RTL in progress)")
-        # RTL lands automatically; wait for disarm
-        while drone.armed:
-            await asyncio.sleep(0.5)
+        print("[example] Goto cancelled; drone is holding position in GUIDED")
+        # Cancel does not return or land: fly back to the pad and land.
+        await drone.return_to_launch()
         print("[example] Mission complete")

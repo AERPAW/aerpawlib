@@ -118,7 +118,7 @@ handle = await drone.goto_coordinates(target, blocking=False)
 await handle.wait_done()  # or handle.cancel()
 ```
 
-Cancelling a drone goto handle RTLs. After `cancel()`, `wait_done()` completes; check `is_cancelled()`.
+Cancelling a drone goto handle stops the drone where it is: it holds position in GUIDED and does not return or land. After `cancel()`, `wait_done()` completes; check `is_cancelled()`, then call `return_to_launch()` to fly back to the pad and land.
 
 ### Rover
 
