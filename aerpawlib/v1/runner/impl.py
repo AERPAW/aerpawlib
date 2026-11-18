@@ -51,6 +51,16 @@ logger = get_logger(LogComponent.RUNNER)
 _BackgroundTask = Callable[..., Any]
 _InitializationTask = Callable[..., Any]
 
+# Marker attributes set by the runner decorators (see .decorators).
+_DECORATOR_MARKERS = (
+    "_entrypoint",
+    "_is_state",
+    "_is_background",
+    "_run_at_init",
+    "_is_exposed_zmq",
+    "_is_exposed_field_zmq",
+)
+
 
 class OrchestratedRunDescriptor:
     """Descriptor that intercepts attribute access on 'run' to return the base/parent class's
@@ -83,6 +93,10 @@ class Runner:
             # If the user's run is a descriptor, retrieve the original function
             if hasattr(user_run_func, "func"):
                 user_run_func = user_run_func.func
+            # A plain override is the legacy way to write a custom runner and
+            # runs as written; only a decorated method named run is orchestrated.
+            if not any(hasattr(user_run_func, marker) for marker in _DECORATOR_MARKERS):
+                return
             # Find the parent/base class's 'run' method
             base_run_method = None
             for base in cls.__mro__[1:]:

@@ -220,6 +220,77 @@ class TestRunnerEntrypoint:
         assert not hasattr(runner, "run_with_heartbeat_failfast")
 
 
+class TestRunOverrides:
+    """A plain run() override runs as written; a decorated method named run
+    is still orchestrated by the framework."""
+
+    @pytest.mark.asyncio
+    async def test_direct_runner_subclass_run_override_runs(self):
+        calls = []
+
+        class Custom(Runner):
+            async def run(self, vehicle):
+                calls.append(vehicle)
+
+        v = DummyVehicle()
+        await Custom().run(v)
+        assert calls == [v]
+
+    @pytest.mark.asyncio
+    async def test_plain_run_on_basic_runner_runs(self):
+        calls = []
+
+        class R(BasicRunner):
+            async def run(self, vehicle):
+                calls.append("run")
+
+        await R().run(DummyVehicle())
+        assert calls == ["run"]
+
+    @pytest.mark.asyncio
+    async def test_state_machine_run_wrapper_runs_then_states(self):
+        calls = []
+
+        class R(StateMachine):
+            async def run(self, vehicle):
+                self._setup_done = True
+                calls.append("wrapper")
+                await super().run(vehicle)
+
+            @state(name="start", first=True)
+            async def start(self, vehicle):
+                calls.append(("start", self._setup_done))
+
+        await R().run(DummyVehicle())
+        assert calls == ["wrapper", ("start", True)]
+
+    @pytest.mark.asyncio
+    async def test_entrypoint_named_run_is_still_orchestrated(self):
+        calls = []
+
+        class R(BasicRunner):
+            @entrypoint
+            async def run(self, vehicle):
+                calls.append("entry")
+
+        assert R().run.__func__ is BasicRunner.run
+        await R().run(DummyVehicle())
+        assert calls == ["entry"]
+
+    @pytest.mark.asyncio
+    async def test_state_named_run_is_still_orchestrated(self):
+        calls = []
+
+        class R(StateMachine):
+            @state(name="start", first=True)
+            async def run(self, vehicle):
+                calls.append("start")
+
+        assert R().run.__func__ is StateMachine.run
+        await R().run(DummyVehicle())
+        assert calls == ["start"]
+
+
 class TestStateDecoratorEdgeCases:
     def test_empty_name_raises_at_decoration_time(self):
         with pytest.raises(InvalidStateNameError):

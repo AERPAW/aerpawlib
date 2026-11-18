@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **v2 `set_velocity` raised `VelocityError` for a takeover.** A takeover reported between the velocity check and the first setpoint was wrapped in `VelocityError`; `VehicleTakenOverError` now propagates unchanged.
 - **A takeover or lost link in a v2 `@background` task was retried for about 2 minutes.** `VehicleTakenOverError` and `HeartbeatLostError` (including `FilterAbortedError`) from a background task now end the run at once with that error, as they do from a state; other errors are still retried.
 - **v2 took about 24 s instead of `--heartbeat-timeout` to notice a lost link when the safety checker was unreachable.** The disconnect watch compared the timeout with a telemetry age taken before asking the checker why the link was down, and then asked again. Each ask is now limited to what is left of the timeout and the age is taken again afterwards, so `HeartbeatLostError` comes on time; a reason that arrives in time still gives `FilterAbortedError`.
+- **A v1 script's own `run()` was silently replaced.** A `Runner` subclass overriding `run()`, the old library's way to write a custom runner, did nothing and exited 0; a plain `run()` on a `BasicRunner` raised `NoEntrypointError`; and a `StateMachine` `run()` wrapping `super().run()` was skipped. A plain `run()` override now runs as written. A method named `run` decorated with `@entrypoint`, `@state` and the like is still run by the framework.
 
 ## [1.14.0] (2026-10-27)
 
