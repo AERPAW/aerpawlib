@@ -25,11 +25,13 @@ from aerpawlib.v2.constants import (
     ZMQ_TYPE_TRANSITION,
 )
 from aerpawlib.v2.exceptions import (
+    HeartbeatLostError,
     InvalidStateError,
     NoEntrypointError,
     NoInitialStateError,
     RunnerError,
     UnexpectedDisarmError,
+    VehicleTakenOverError,
 )
 from aerpawlib.v2.log import LogComponent, get_logger
 
@@ -477,6 +479,13 @@ class StateMachine(Runner):
                             await task(vehicle)
                             consecutive_failures = 0
                         except asyncio.CancelledError:
+                            return
+                        except (VehicleTakenOverError, HeartbeatLostError) as e:
+                            # Retrying can't help: fail the run with the error
+                            # itself, as the same error from a state would.
+                            logger.error(f"Background task '{_name}' failed, failing the run: {e}")
+                            if not background_failed.done():
+                                background_failed.set_result(e)
                             return
                         except Exception as e:
                             consecutive_failures += 1

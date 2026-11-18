@@ -10,11 +10,13 @@ from aerpawlib.v2.constants import (
     ZMQ_TYPE_TRANSITION,
 )
 from aerpawlib.v2.exceptions import (
+    FilterAbortedError,
     HeartbeatLostError,
     MultipleInitialStatesError,
     NoEntrypointError,
     NoInitialStateError,
     RunnerError,
+    VehicleTakenOverError,
 )
 from aerpawlib.v2.runner import (
     BasicRunner,
@@ -152,6 +154,34 @@ class TestStateMachine:
 
         await SM().run(MockVehicle())
         assert len(started) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "error",
+        [
+            VehicleTakenOverError("Cannot send a GUIDED command: Vehicle taken over"),
+            HeartbeatLostError(6.0),
+            FilterAbortedError("geofence breach"),
+        ],
+    )
+    async def test_fatal_background_error_ends_run_without_retry(self, error):
+        attempts = []
+
+        class SM(StateMachine):
+            @background
+            async def bg(self, vehicle):
+                attempts.append(1)
+                raise error
+
+            @state(name="s", first=True)
+            async def s(self, vehicle):
+                await asyncio.sleep(0.05)
+                return "s"
+
+        with pytest.raises(type(error)) as excinfo:
+            await asyncio.wait_for(SM().run(MockVehicle()), timeout=2.0)
+        assert excinfo.value is error
+        assert attempts == [1]
 
     @pytest.mark.asyncio
     async def test_at_init_runs_before_states(self):
