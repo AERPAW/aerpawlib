@@ -4,7 +4,11 @@ All notable changes to this project are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [1.14.1] (2026-11-18)
+
+### Summary
+
+Fixes found in the pre-flight review of 1.14.0. A takeover is now reported as `VehicleTakenOverError` during a blocking goto, takeoff or land, in `set_velocity`, and in a v2 `@background` task, instead of a timeout, a `VelocityError` or minutes of retries. A lost v2 link is signalled on time when the safety checker is unreachable, a legacy v1 `run()` override runs again, and the examples and docs follow the testbed's 25 m takeoff rule.
 
 ### Fixed
 
